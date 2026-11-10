@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1794244040295,
+      "tag": "0000_fixed_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1794244238509,
+      "tag": "0001_futuristic_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794247266813,
+      "tag": "0002_auth_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794330000000,
+      "tag": "0003_people",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794340000000,
+      "tag": "0004_circles_meets",
+      "breakpoints": true
+    }
+  ]
+}

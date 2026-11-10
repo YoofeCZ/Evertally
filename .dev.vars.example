@@ -1,0 +1,7 @@
+# Copy to .dev.vars (never commit it). Values come from
+# https://discord.com/developers/applications → your app → OAuth2.
+# Add the redirect http://127.0.0.1:5173/auth/discord/callback there.
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+# Optional: set only if the public URL differs from the request origin.
+# DISCORD_REDIRECT_URI=https://example.com/auth/discord/callback
