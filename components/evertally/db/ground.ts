@@ -4,7 +4,8 @@
 // changes); a leg from or to a free point, which used to be a straight line times 1.3, now takes the length of the path on the
 // mask times GROUND_FACTOR, the factor that makes those lengths agree on average with the baked walks.
 import { findPath, type Walk } from "./terrain";
-import { fromYards, toYards, type Journey, type Leg, type Options, type Step, type Travel } from "./travel";
+import { fromYards, planJourney, toYards, type Journey, type Leg, type Options, type Place, type Step, type Travel } from "./travel";
+import type { Flights } from "./store";
 
 /**
  * Median of (baked yards / yards along the mask) over all 2 781 baked walks between fixed places (tools/check_walkmask.mjs).
@@ -24,7 +25,7 @@ function refineLeg(travel: Travel, walk: Walk, leg: Leg, speed: number): Leg & {
   if (!found) return { ...leg, ground: false };
   const points = found.points.map(([x, y]) => fromYards(travel, from.c, x, y));
   if (!leg.estimated) return { ...leg, points, ground: true }; // a baked walk keeps its baked time and length
-  const yards = found.grid * GROUND_FACTOR;
+  const yards = Math.max(Math.hypot(from.x - to.x, from.y - to.y), found.grid * GROUND_FACTOR);
   return { points, yards, seconds: yards / speed, estimated: true, ground: true };
 }
 
@@ -47,4 +48,17 @@ export function groundJourney(journey: Journey, travel: Travel, walk: Walk, opti
     };
   });
   return { steps, seconds };
+}
+
+/** Select the route using terrain costs before drawing the winning walking legs. */
+export function planGroundJourney(travel: Travel, flights: Flights, from: Place, to: Place, options: Options, walk: Walk): Journey | null {
+  const planned = planJourney(travel, flights, from, to, options, (a, b) => {
+    const start = toYards(travel, a[0], a[1]), end = toYards(travel, b[0], b[1]);
+    if (start.c !== end.c) return undefined;
+    const map = walk.get(start.c);
+    if (!map) return undefined;
+    const found = findPath(map, [start.x, start.y], [end.x, end.y]);
+    return found ? found.grid * GROUND_FACTOR : null;
+  });
+  return planned ? groundJourney(planned, travel, walk, options) : null;
 }

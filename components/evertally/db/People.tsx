@@ -222,7 +222,7 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
   };
 }
 
-export function PeoplePanel({ panel, signIn, onRoute }: { panel: PeopleHook["panel"]; signIn: string | null; onRoute: (name: string, at: [number, number]) => void }) {
+export function PeoplePanel({ panel, signIn, onRoute, onLayer }: { panel: PeopleHook["panel"]; signIn: string | null; onRoute: (name: string, at: [number, number]) => void; onLayer: (id: "route" | "guild") => void }) {
   const s = useS();
   const { lang } = useI18n();
   const [open, setOpen] = useState(true);
@@ -233,21 +233,38 @@ export function PeoplePanel({ panel, signIn, onRoute }: { panel: PeopleHook["pan
   const [groupChar, setGroupChar] = useState("");
   const [groupShare, setGroupShare] = useState<Share>("last");
   const [copied, setCopied] = useState("");
+  const [tab, setTab] = useState<"route" | "groups" | "guild" | null>(null);
   const { user, layers, route, shownPaths, guilds, hours, now } = panel;
   if (!layers.route && !layers.guild) return null;
 
   const points = shownPaths.reduce((sum, path) => sum + path.points.length, 0);
   const latest = shownPaths[0];
   const shareLabel: Record<Share, string> = { off: s.shareOff, last: s.shareLast, trail: s.shareTrail };
+  const active = tab === "route" && !layers.route ? "groups" : tab && tab !== "route" && !layers.guild ? "route" : tab ?? (layers.route ? "route" : "groups");
+  const chooseTab = (next: "route" | "groups" | "guild") => {
+    setTab(next);
+    onLayer(next === "route" ? "route" : "guild");
+  };
+  const tabs = [
+    { id: "route" as const, label: s.myRoute },
+    { id: "groups" as const, label: s.groupsHeading },
+    { id: "guild" as const, label: lang === "cs" ? "Cech" : "Guild" },
+  ];
+  const plural = (n: number, forms: [string, string, string]) => `${n} ${forms[n === 1 ? 0 : n >= 2 && n <= 4 ? 1 : 2]}`;
+  const summary = lang === "cs" ? `${plural(shownPaths.length, ["úsek", "úseky", "úseků"])} · ${plural(points, ["bod", "body", "bodů"])}` : fill(s.routeSummary, { paths: shownPaths.length, points });
 
   return (
-    <section className={`people-panel ${open ? "open" : ""}`} aria-label={`${s.myRoute} / ${s.guildLayer}`}>
+    <section className={`people-panel ${open ? "open" : ""}`} aria-label={lang === "cs" ? "Trasy a skupiny" : "Routes and groups"}>
       <header>
-        <h3><Icon name="route" size={15} /> {[layers.route && s.myRoute, layers.guild && s.guildLayer].filter(Boolean).join(" · ")}</h3>
-        <button type="button" className="icon-btn" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={open ? "−" : "+"}>{open ? "−" : "+"}</button>
+        <h3><Icon name="route" size={15} /> {lang === "cs" ? "Trasy a skupiny" : "Routes and groups"}</h3>
+        <button type="button" className="icon-btn" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-label={open ? (lang === "cs" ? "Sbalit panel" : "Collapse panel") : (lang === "cs" ? "Rozbalit panel" : "Expand panel")}>{open ? "−" : "+"}</button>
       </header>
       {open && (
-        <div className="pp-body">
+        <>
+        {user && <div className="pp-tabs" role="tablist" aria-label={lang === "cs" ? "Vybrat část" : "Choose section"}>
+          {tabs.map(item => <button key={item.id} type="button" role="tab" aria-selected={active === item.id} className={active === item.id ? "active" : ""} onClick={() => chooseTab(item.id)}>{item.label}</button>)}
+        </div>}
+        <div className="pp-body" role="tabpanel">
           {!user ? (
             <div className="pp-block">
               <p className="muted small">{s.peopleSignIn}</p>
@@ -257,9 +274,10 @@ export function PeoplePanel({ panel, signIn, onRoute }: { panel: PeopleHook["pan
             <>
               {panel.notice && <p className="pp-notice" role="status">{panel.notice}</p>}
               {panel.failed && <p className="pp-notice" role="alert">{s.routeLoadFailed}</p>}
-              {layers.route && (
+              {active === "route" && layers.route && (
                 <div className="pp-block">
-                  <h4>{s.myRoute}</h4>
+                  <h4>{lang === "cs" ? "Tvoje zaznamenaná cesta" : "Your recorded journey"}</h4>
+                  <p className="pp-intro">{lang === "cs" ? "Podívej se, kudy tvoje postava prošla." : "See where your character has travelled."}</p>
                   <div className="pp-controls">
                     <label>{s.routeRange}
                       <select value={hours} onChange={event => panel.setHours(Number(event.target.value) as Hours)}>
@@ -277,7 +295,7 @@ export function PeoplePanel({ panel, signIn, onRoute }: { panel: PeopleHook["pan
                   </div>
                   {latest ? (
                     <>
-                      <p className="small">{fill(s.routeSummary, { paths: shownPaths.length, points })} · {fill(s.routeLast, { when: ago(latest.endedAt, now, lang, s.agoNow) })}</p>
+                      <p className="pp-summary"><strong>{summary}</strong><span>{fill(s.routeLast, { when: ago(latest.endedAt, now, lang, s.agoNow) })}</span></p>
                       {route?.truncated && <p className="muted small">{s.routeTruncated}</p>}
                       <div className="btn-row">
                         <button type="button" className="btn btn-ghost btn-sm" onClick={panel.flyToLatest}>{s.routeLatest}</button>
@@ -286,13 +304,13 @@ export function PeoplePanel({ panel, signIn, onRoute }: { panel: PeopleHook["pan
                       </div>
                     </>
                   ) : <p className="muted small">{route ? s.routeEmpty : "…"}</p>}
-                  <p className="fine-print">{s.routePrivate}</p>
+                  <p className="fine-print">{lang === "cs" ? "Trasu vidíš jen ty, dokud se nerozhodneš ji sdílet. Uchovává se 30 dní." : "Only you see this route until you choose to share it. It is kept for 30 days."}</p>
                 </div>
               )}
-              {layers.guild && (
+              {active === "guild" && layers.guild && (
                 <div className="pp-block">
-                  <h4>{s.guildLayer}</h4>
-                  {guilds && guilds.length === 0 && (panel.circles?.length ?? 0) === 0 && <p className="muted small">{s.guildNone}</p>}
+                  <h4>{lang === "cs" ? "Tvůj cech" : "Your guild"}</h4>
+                  {guilds && guilds.length === 0 && <div className="pp-empty"><strong>{lang === "cs" ? "Zatím tu žádný cech není" : "No guild yet"}</strong><p>{lang === "cs" ? "Ve hře v Evertally zapni Webový export → Moje postava a Můj cech. Potom napiš /reload a počkej na synchronizaci aplikace." : "In Evertally, turn on Website export → My character and My guild. Then type /reload and wait for the app to sync."}</p></div>}
                   {guilds?.map(guild => {
                     const members = guild.members;
                     const visible = members ? (showAll ? members : members.filter(member => member.onMap)) : [];
@@ -364,12 +382,13 @@ export function PeoplePanel({ panel, signIn, onRoute }: { panel: PeopleHook["pan
                       </div>
                     );
                   })}
-                  <GroupsBlock panel={panel} state={{ groupName, setGroupName, groupCode, setGroupCode, groupChar, setGroupChar, groupShare, setGroupShare, copied, setCopied }} shareLabel={shareLabel} onRoute={onRoute} />
                 </div>
               )}
+              {active === "groups" && layers.guild && <div className="pp-block"><GroupsBlock panel={panel} state={{ groupName, setGroupName, groupCode, setGroupCode, groupChar, setGroupChar, groupShare, setGroupShare, copied, setCopied }} shareLabel={shareLabel} onRoute={onRoute} /></div>}
             </>
           )}
         </div>
+        </>
       )}
     </section>
   );
@@ -380,6 +399,7 @@ type GroupState = { groupName: string; setGroupName: (value: string) => void; gr
 function GroupsBlock({ panel, state, shareLabel, onRoute }: { panel: PeopleHook["panel"]; state: GroupState; shareLabel: Record<Share, string>; onRoute: (name: string, at: [number, number]) => void }) {
   const s = useS();
   const { lang } = useI18n();
+  const [form, setForm] = useState<"create" | "join" | null>(null);
   const { circles, profiles, now } = panel;
   const character = state.groupChar || profiles[0]?.id || "";
   const copy = async (text: string, key: string) => { try { await navigator.clipboard?.writeText(text); state.setCopied(key); setTimeout(() => state.setCopied(""), 1500); } catch { /* clipboard unavailable */ } };
@@ -390,9 +410,9 @@ function GroupsBlock({ panel, state, shareLabel, onRoute }: { panel: PeopleHook[
   );
   return (
     <div className="pp-groups">
-      <h5>{s.groupsHeading}</h5>
-      <p className="muted small">{s.groupsHelp}</p>
-      {profiles.length === 0 && <p className="muted small">{s.groupNoCharacters}</p>}
+      <h4>{lang === "cs" ? "Hrajte společně" : "Play together"}</h4>
+      <p className="pp-intro">{lang === "cs" ? "Založ skupinu pro kamarády nebo se připoj pomocí jejich kódu. Každý si sám vybere, co sdílí." : "Create a group for friends or join with their code. Each player chooses what to share."}</p>
+      {profiles.length === 0 && <div className="pp-empty"><strong>{lang === "cs" ? "Nejdřív přidej postavu" : "Add a character first"}</strong><p>{s.groupNoCharacters}</p></div>}
       {circles?.map(circle => (
         <div className="pp-guild" key={circle.id}>
           <div className="pp-guild-head"><b>{circle.name}</b><span className="muted small">{fill(s.groupMembers, { count: circle.members.length })}</span></div>
@@ -435,8 +455,13 @@ function GroupsBlock({ panel, state, shareLabel, onRoute }: { panel: PeopleHook[
           </div>
         </div>
       ))}
-      {profiles.length > 0 && (
-        <div className="pp-char">
+      {profiles.length > 0 && !form && <div className="pp-group-actions">
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm("create")}>{lang === "cs" ? "Vytvořit skupinu" : "Create a group"}</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setForm("join")}>{s.groupJoinTitle}</button>
+      </div>}
+      {profiles.length > 0 && form && (
+        <div className="pp-char pp-group-form">
+          <div className="pp-form-heading"><strong>{form === "create" ? (lang === "cs" ? "Nová skupina" : "New group") : s.groupJoinTitle}</strong><button type="button" className="pp-back" onClick={() => setForm(null)}>{lang === "cs" ? "Zpět" : "Back"}</button></div>
           <div className="pp-controls">
             <label>{s.groupCharacter}{characterSelect(character, state.setGroupChar)}</label>
             <label>{s.groupShareHint}
@@ -445,14 +470,13 @@ function GroupsBlock({ panel, state, shareLabel, onRoute }: { panel: PeopleHook[
               </select>
             </label>
           </div>
-          <div className="pp-controls">
-            <input value={state.groupName} onChange={event => state.setGroupName(event.target.value)} placeholder={s.groupName} maxLength={40} aria-label={s.groupName} />
-            <button type="button" className="btn btn-primary btn-sm" disabled={!state.groupName.trim()} onClick={() => void panel.createGroup(state.groupName, character, state.groupShare).then(ok => { if (ok) state.setGroupName(""); })}>{s.groupCreate}</button>
-          </div>
-          <div className="pp-controls">
-            <input value={state.groupCode} onChange={event => state.setGroupCode(event.target.value)} placeholder={s.groupCode} maxLength={20} aria-label={s.groupJoinTitle} />
-            <button type="button" className="btn btn-ghost btn-sm" disabled={state.groupCode.trim().length < 6} onClick={() => void panel.joinGroup(state.groupCode, character, state.groupShare).then(ok => { if (ok) state.setGroupCode(""); })}>{s.groupJoin}</button>
-          </div>
+          {form === "create" ? <div className="pp-controls">
+            <label className="pp-grow">{s.groupName}<input value={state.groupName} onChange={event => state.setGroupName(event.target.value)} placeholder={lang === "cs" ? "Např. Naše parta" : "e.g. Our party"} maxLength={40} /></label>
+            <button type="button" className="btn btn-primary btn-sm" disabled={!state.groupName.trim()} onClick={() => void panel.createGroup(state.groupName, character, state.groupShare).then(ok => { if (ok) { state.setGroupName(""); setForm(null); } })}>{s.groupCreate}</button>
+          </div> : <div className="pp-controls">
+            <label className="pp-grow">{s.groupCode}<input value={state.groupCode} onChange={event => state.setGroupCode(event.target.value)} placeholder={s.groupCode} maxLength={20} /></label>
+            <button type="button" className="btn btn-primary btn-sm" disabled={state.groupCode.trim().length < 6} onClick={() => void panel.joinGroup(state.groupCode, character, state.groupShare).then(ok => { if (ok) { state.setGroupCode(""); setForm(null); } })}>{s.groupJoin}</button>
+          </div>}
         </div>
       )}
     </div>

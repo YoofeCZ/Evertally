@@ -22,7 +22,7 @@ import { GatherPanel, useGatherLayer } from "./Gather";
 import { ServicesPanel, useServiceMarkers } from "./Services";
 import { Planner } from "./Planner";
 import { suggestSpots } from "./meetspot";
-import { groundJourney } from "./ground";
+import { planGroundJourney } from "./ground";
 import { planJourney, type Place } from "./travel";
 import { qualityClass, useWalk, useDungeonArt, useDungeons, useFlights, useFloors, useMaps, useNpc, useObjects, usePlaces, useTravel, useWorld, zoneToWorld, type Flights } from "./store";
 import { useS } from "./strings";
@@ -474,7 +474,7 @@ function Inner({ route, user, signIn }: { route: string; user: User | null; sign
   const journey = useMemo(() => from && to && travel.data && flights.data ? planJourney(travel.data, flights.data, from, to, { side, speed }) : undefined, [from, to, travel.data, flights.data, side, speed]);
   // the walking steps follow real ground once the walk mask has arrived; until then (or when it cannot be loaded) they are straight lines
   const walk = useWalk(Boolean(journey?.steps.some(step => step.legs?.length)));
-  const journeyShown = useMemo(() => (journey && walk.data && travel.data ? groundJourney(journey, travel.data, walk.data, { side, speed }) : journey), [journey, walk.data, travel.data, side, speed]);
+  const journeyShown = useMemo(() => (from && to && walk.data && travel.data && flights.data ? planGroundJourney(travel.data, flights.data, from, to, { side, speed }, walk.data) : journey), [journey, from, to, walk.data, travel.data, flights.data, side, speed]);
   const journeyLegs = useMemo<RouteLeg[] | null>(() => journeyShown ? journeyShown.steps.filter(step => step.points.length >= 2).map(step => ({ points: step.points, mode: step.mode, label: step.mode === "walk" ? "" : clock(step.seconds) })) : null, [journeyShown]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- frame the journey when it changes
@@ -674,7 +674,7 @@ function Inner({ route, user, signIn }: { route: string; user: User | null; sign
               <span className="muted small">{s.drawingsCount}: {drawings.length} · {s.drawHint}</span>
             </div>
           )}
-          <div className="map-float"><PeoplePanel panel={people.panel} signIn={signIn} onRoute={(name, at) => { setTravelPlace("to", { label: name, u: at[0], v: at[1] }); if (people.latestPlace) setTravelPlace("from", people.latestPlace); flyTo({ points: [at] }); }} /><MeetsPanel panel={meets.panel} signIn={signIn} index={index} dungeons={dungeonList} tools={meetTools} /><GatherPanel panel={gather.panel} farmContext={{ zone: view.zone, start: people.latestPlace ? [people.latestPlace.u, people.latestPlace.v] : null, travel: travel.data, speed }} /><ServicesPanel panel={services.panel} /></div>
+          <div className="map-float"><PeoplePanel panel={people.panel} signIn={signIn} onLayer={enableLayer} onRoute={(name, at) => { setTravelPlace("to", { label: name, u: at[0], v: at[1] }); if (people.latestPlace) setTravelPlace("from", people.latestPlace); flyTo({ points: [at] }); }} /><MeetsPanel panel={meets.panel} signIn={signIn} index={index} dungeons={dungeonList} tools={meetTools} /><GatherPanel panel={gather.panel} farmContext={{ zone: view.zone, start: people.latestPlace ? [people.latestPlace.u, people.latestPlace.v] : null, travel: travel.data, speed }} /><ServicesPanel panel={services.panel} /></div>
           <LayerDock layers={layers} toggle={toggle} poiLabel={poiLabel} mobsLabel={s.mobsLayer} activityLabel={s.activity} />
           <div className="stage-top">
             <nav className="crumbs" aria-label={s.region}>{crumbs.map((key, i) => <button key={key} type="button" className={i === crumbs.length - 1 ? "on" : ""} onClick={() => { go(key); flyTo({ key }); }}>{zoneName(key)}{i === crumbs.length - 1 && viewEntry?.level ? <i className={levelClass(viewEntry.level, level)}>{viewEntry.level[0]}–{viewEntry.level[1]}</i> : null}</button>)}</nav>

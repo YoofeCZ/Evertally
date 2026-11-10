@@ -54,12 +54,19 @@ const dist = (ax: number, ay: number, bx: number, by: number) => Math.hypot(ax -
 
 // ---- graph ------------------------------------------------------------------------------------------------
 type Edge = { to: string; mode: Mode; seconds: number; wait?: number; yards?: number; route?: number; estimated?: boolean; points?: [number, number][] };
+type GroundEdge = Edge & { lowerYards: number; refined: boolean };
+/** Real walking distance for a free leg: null means no traversable route, undefined means terrain is unavailable. */
+export type GroundCost = (from: [number, number], to: [number, number]) => number | null | undefined;
 type Graph = Map<string, Edge[]>;
-const graphs = new Map<string, Graph>();
+const graphs = new WeakMap<Travel, WeakMap<Flights, Map<string, Graph>>>();
 
 function buildGraph(travel: Travel, flights: Flights, options: Options): Graph {
   const key = `${options.side}:${options.speed}:${options.otherSide ? 1 : 0}`;
-  const cached = graphs.get(key);
+  let byFlights = graphs.get(travel);
+  if (!byFlights) { byFlights = new WeakMap(); graphs.set(travel, byFlights); }
+  let byOptions = byFlights.get(flights);
+  if (!byOptions) { byOptions = new Map(); byFlights.set(flights, byOptions); }
+  const cached = byOptions.get(key);
   if (cached) return cached;
   const graph: Graph = new Map();
   const add = (from: string, edge: Edge) => { const list = graph.get(from); if (list) list.push(edge); else graph.set(from, [edge]); };
@@ -104,12 +111,12 @@ function buildGraph(travel: Travel, flights: Flights, options: Options): Graph {
       }
     });
   }
-  graphs.set(key, graph);
+  byOptions.set(key, graph);
   return graph;
 }
 
 // ---- search ------------------------------------------------------------------------------------------------
-export function planJourney(travel: Travel, flights: Flights, from: Place, to: Place, options: Options): Journey | null {
+export function planJourney(travel: Travel, flights: Flights, from: Place, to: Place, options: Options, groundCost?: GroundCost): Journey | null {
   const base = buildGraph(travel, flights, options);
   const a = toYards(travel, from.u, from.v), b = toYards(travel, to.u, to.v);
   const aMass = landmass(travel, a.c, a.x, a.y), bMass = landmass(travel, b.c, b.x, b.y);
@@ -117,6 +124,12 @@ export function planJourney(travel: Travel, flights: Flights, from: Place, to: P
   const link = (list: Edge[], edge: Edge) => list.push(edge);
   const start: Edge[] = [];
   const startKey = "@start", goalKey = "@goal";
+  const freeLeg = (edge: Edge, straight: number): Edge => {
+    if (!groundCost) return edge;
+    // Straight-line distance is an optimistic bound. Refine only candidates that
+    // can actually win the shortest-path search, then search again.
+    return { ...edge, yards: straight, seconds: straight / options.speed, lowerYards: straight, refined: false } as GroundEdge;
+  };
 
   // joining a free point to the nearby fixed places (walking, straight line estimate)
   const nearby = (p: { c: number; x: number; y: number }, mass: number, into: (hub: string, yards: number) => void) => {
@@ -127,36 +140,48 @@ export function planJourney(travel: Travel, flights: Flights, from: Place, to: P
       if (d <= START_RADIUS) into(id, d * DETOUR);
     }
   };
-  nearby(a, aMass, (hub, yards) => link(start, { to: hub, mode: "walk", yards, seconds: yards / options.speed, estimated: true, points: [[from.u, from.v], travel.hubs[hub].u != null ? [travel.hubs[hub].u!, travel.hubs[hub].v!] : [from.u, from.v]] }));
+  nearby(a, aMass, (hub, yards) => link(start, freeLeg({ to: hub, mode: "walk", yards, seconds: yards / options.speed, estimated: true, points: [[from.u, from.v], travel.hubs[hub].u != null ? [travel.hubs[hub].u!, travel.hubs[hub].v!] : [from.u, from.v]] }, yards / DETOUR)));
   if (a.c === b.c && aMass === bMass) {
     const d = dist(a.x, a.y, b.x, b.y) * DETOUR;
-    link(start, { to: goalKey, mode: "walk", yards: d, seconds: d / options.speed, estimated: true, points: [[from.u, from.v], [to.u, to.v]] });
+    link(start, freeLeg({ to: goalKey, mode: "walk", yards: d, seconds: d / options.speed, estimated: true, points: [[from.u, from.v], [to.u, to.v]] }, d / DETOUR));
   }
   nearby(b, bMass, (hub, yards) => {
     const list = extra.get(hub) ?? [];
-    list.push({ to: goalKey, mode: "walk", yards, seconds: yards / options.speed, estimated: true, points: [travel.hubs[hub].u != null ? [travel.hubs[hub].u!, travel.hubs[hub].v!] : [to.u, to.v], [to.u, to.v]] });
+    list.push(freeLeg({ to: goalKey, mode: "walk", yards, seconds: yards / options.speed, estimated: true, points: [travel.hubs[hub].u != null ? [travel.hubs[hub].u!, travel.hubs[hub].v!] : [to.u, to.v], [to.u, to.v]] }, yards / DETOUR));
     extra.set(hub, list);
   });
 
   const edgesOf = (id: string): Edge[] => id === startKey ? start : [...(base.get(id) ?? []), ...(extra.get(id) ?? [])];
-  const best = new Map<string, number>([[startKey, 0]]);
-  const via = new Map<string, { from: string; edge: Edge }>();
-  const queue: [number, string][] = [[0, startKey]];
-  while (queue.length) {
-    queue.sort((x, y) => x[0] - y[0]);
-    const [cost, node] = queue.shift()!;
-    if (cost > (best.get(node) ?? Infinity)) continue;
-    if (node === goalKey) break;
-    for (const edge of edgesOf(node)) {
-      const next = cost + edge.seconds;
-      if (next < (best.get(edge.to) ?? Infinity)) { best.set(edge.to, next); via.set(edge.to, { from: node, edge }); queue.push([next, edge.to]); }
+  let best: Map<string, number>;
+  let chain: { from: string; edge: Edge }[];
+  for (;;) {
+    best = new Map([[startKey, 0]]);
+    const via = new Map<string, { from: string; edge: Edge }>();
+    const queue: [number, string][] = [[0, startKey]];
+    while (queue.length) {
+      queue.sort((x, y) => x[0] - y[0]);
+      const [cost, node] = queue.shift()!;
+      if (cost > (best.get(node) ?? Infinity)) continue;
+      if (node === goalKey) break;
+      for (const edge of edgesOf(node)) {
+        const next = cost + edge.seconds;
+        if (next < (best.get(edge.to) ?? Infinity)) { best.set(edge.to, next); via.set(edge.to, { from: node, edge }); queue.push([next, edge.to]); }
+      }
     }
+    if (!via.has(goalKey)) return null;
+    chain = [];
+    for (let node = goalKey; node !== startKey;) { const step = via.get(node)!; chain.unshift({ from: step.from, edge: step.edge }); node = step.from; }
+    const candidate = chain.map(step => step.edge).find(edge => "refined" in edge && !(edge as GroundEdge).refined) as GroundEdge | undefined;
+    if (!candidate || !groundCost) break;
+    const points = candidate.points!;
+    const distance = groundCost(points[0], points[points.length - 1]);
+    const yards = distance === null ? Infinity : distance === undefined ? candidate.lowerYards * DETOUR : Math.max(candidate.lowerYards, distance);
+    candidate.yards = yards;
+    candidate.seconds = yards / options.speed;
+    candidate.refined = true;
   }
-  if (!via.has(goalKey)) return null;
 
-  // walk back, name the places and merge neighbouring walks into one step
-  const chain: { from: string; edge: Edge }[] = [];
-  for (let node = goalKey; node !== startKey;) { const step = via.get(node)!; chain.unshift({ from: step.from, edge: step.edge }); node = step.from; }
+  // Name the places and merge neighbouring walks into one step.
   const label = (id: string) => id === startKey ? from.label : id === goalKey ? to.label : travel.hubs[id]?.n ?? id;
   const steps: Step[] = [];
   for (const { from: f, edge } of chain) {
