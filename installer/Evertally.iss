@@ -148,7 +148,7 @@ var Destination, Backup, Name: String; I: Integer;
 begin
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('addon') then begin
     if not FileExists(AddBackslash(GameRoot) + 'Wow.exe') then RaiseException(CustomMessage('BadGameFolder'));
-    Backup := ExpandConstant('{localappdata}\Evertally\AddonBackups\') + GetDateTimeString('yyyymmdd-hhnnss', '', '');
+    Backup := ExpandConstant('{localappdata}\Evertally\AddonBackups\') + GetDateTimeString('yyyymmdd-hhnnss', '-', ':');
     for I := 0 to 2 do begin
       if I = 0 then Name := 'Evertally' else if I = 1 then Name := 'Evertally_Export' else Name := 'Evertally_Map';
       Destination := AddBackslash(GameRoot) + 'Interface\AddOns\' + Name;
