@@ -27,7 +27,7 @@ export const HOWTOS: HowTo[] = [
     id: "sync", title: { en: "Upload your data (optional)", cs: "Nahrání dat na web (volitelné)" },
     steps: [
       { en: "Type /etally web on in game, choose what may be shared, then /reload so the game writes the export file.", cs: "Ve hře napiš /etally web on, vyber, co se smí sdílet, a dej /reload, aby hra zapsala exportní soubor." },
-      { en: "Open the Evertally desktop app, sign in with Discord and approve the pairing code. New records then upload by themselves after each /reload or logout.", cs: "Otevři aplikaci Evertally na PC, přihlas se přes Discord a potvrď párovací kód. Nové záznamy se pak odesílají samy po každém /reload nebo odhlášení." },
+      { en: "Open Web sync from Evertally Bridge next to the Windows clock, choose Pair this PC, sign in with Discord on the website and approve the code. New records upload after each /reload or logout.", cs: "Z ikony Evertally Bridge vedle hodin Windows otevři Web sync, vyber Spárovat tento počítač, přihlas se na webu přes Discord a potvrď kód. Nové záznamy se odesílají po každém /reload nebo odhlášení." },
       { en: "Profiles stay private until you publish them. Public profiles and community layers never show exact player positions, only visited zones. The optional My route and My guild choices are off by default.", cs: "Profily zůstávají soukromé, dokud je nezveřejníš. Veřejné profily a komunitní vrstvy nikdy neukazují přesné polohy hráčů, jen navštívené oblasti. Dobrovolná Moje trasa a Můj cech jsou ve výchozím stavu vypnuté." },
     ],
   },

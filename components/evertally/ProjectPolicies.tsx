@@ -37,7 +37,7 @@ const content = {
       ] },
       { title: "Hosting and storage", paragraphs: [
         "The web service uses Cloudflare hosting and D1. The project's production D1 database has EU jurisdiction. Web requests, asset delivery and CDN processing use Cloudflare's global infrastructure.",
-        "The desktop app reads Evertally's own saved history for local display and its separate consent-filtered export for synchronisation. It does not collect your full WTF folder, unrelated addon files, private chat contents or passwords. Local synchronisation logs describe status and errors.",
+        "The Windows bridge reads Evertally's separate consent-filtered export for synchronisation. It does not collect your full WTF folder, unrelated addon files, private chat contents or passwords. Local synchronisation logs describe status and errors.",
       ] },
       { title: "Changing your choices and deleting web data", paragraphs: [
         "In Account, you can hide published profiles, revoke upload consent and disconnect devices. Disabling export in the game changes future saved exports; the file on disk is refreshed when WoW saves it, for example after /reload or logout. Web controls can revoke an existing upload permission immediately.",
@@ -93,7 +93,7 @@ const content = {
       ] },
       { title: "Hosting a ukládání", paragraphs: [
         "Web využívá hosting Cloudflare a D1. Produkční databáze D1 projektu má jurisdikci EU. Webové požadavky, doručování souborů a zpracování CDN používají globální infrastrukturu Cloudflare.",
-        "Desktopová aplikace čte vlastní uloženou historii Evertally pro místní přehled a samostatný export omezený souhlasem pro synchronizaci. Nesbírá celou složku WTF, soubory nesouvisejících addonů, obsah soukromých chatů ani hesla. Místní synchronizační log popisuje stav a chyby.",
+        "Most pro Windows čte samostatný export Evertally omezený souhlasem pro synchronizaci. Nesbírá celou složku WTF, soubory nesouvisejících addonů, obsah soukromých chatů ani hesla. Místní synchronizační log popisuje stav a chyby.",
       ] },
       { title: "Změna voleb a smazání webových dat", paragraphs: [
         "V Účtu můžeš skrýt veřejné profily, odvolat souhlas s uploadem a odpojit zařízení. Vypnutí exportu ve hře změní budoucí uložené exporty; soubor na disku se obnoví až při uložení WoW, například po /reload nebo odhlášení. Webové ovládání umožňuje existující oprávnění k uploadu odvolat okamžitě.",
