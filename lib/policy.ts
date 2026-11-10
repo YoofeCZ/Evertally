@@ -10,7 +10,6 @@ export function validateUpload(grant:GrantPolicy,raw:unknown):ExportEnvelope{
   if(grant.revokedAt!==null)throw new ApiError("consent_revoked","The consent was revoked.",403);
   const result=exportSchema.safeParse(raw);if(!result.success)throw new ApiError("invalid_export",`Invalid export: ${result.error.issues.slice(0,2).map(i=>i.path.join(".")+": "+i.message).join("; ")}`);
   const value=result.data;
-  if(value.events.some(event=>event.kind==="track.path"))throw new ApiError("player_location_disabled","Player location uploads are disabled.",403);
   if(!value.enabled)throw new ApiError("export_disabled","Web export is turned off in the addon.",403);
   if(value.producerId!==grant.producerId||value.consentEpoch!==grant.consentEpoch)throw new ApiError("source_conflict","The export does not match the source and current consent version.",403);
   if(value.scopes.some(scope=>!grant.scopes.includes(scope)))throw new ApiError("scope_denied","The export contains a scope that is not allowed.",403);

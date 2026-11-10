@@ -5,9 +5,9 @@ import { SCOPES } from "./contracts";
 import { approvePairing, describePairing, deviceFromRequest, deviceUpload, listDevices, pollPairing, revokeDevice, startDevicePairing } from "./devices";
 import { ApiError } from "./policy";
 import { getBinding } from "@/db";
-import { circleAction, circlesOverview, createCircle, joinCircle } from "./circles";
+import { circleAction, circlesOverview, circleTrail, createCircle, joinCircle } from "./circles";
 import { createMeet, listMeets, meetInput, meetPatch, respondToMeet, rsvpInput, updateMeet } from "./meets";
-import { eraseMyTrail, guildOverview, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
+import { eraseMyTrail, guildOverview, guildTrail, myTrail, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
 import { createGrant, deleteMyData, getAtlas, getLeaderboards, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
 
 export const VERSION = "0.4.0";
@@ -143,16 +143,10 @@ export async function handleApi(request: Request, operation: string, id?: string
       return json(await approvePairing(user.id, input.userCode, input.scopes, input.approve));
     }
     const people = () => getBinding() as unknown as PeopleDb;
-    if (operation === "track" && request.method === "GET") throw new ApiError("player_location_disabled", "Player locations are not displayed.", 403);
+    const hours = (fallback: number, max: number) => Math.min(Math.max(1, Number(params.get("hours")) || fallback), max);
+    if (operation === "track" && request.method === "GET") return json(await myTrail(people(), user.id, { profileId: params.get("profile") || undefined, since: Math.floor(Date.now() / 1000) - hours(24, 720) * 3600 }));
     if (operation === "track") return json(await eraseMyTrail(people(), user.id, params.get("profile") || undefined));
-    if (operation === "guild") {
-      const { guilds } = await guildOverview(people(), user.id);
-      const { circles } = await circlesOverview(people(), user.id);
-      return json({
-        guilds: guilds.map(guild => ({ ...guild, members: guild.members?.map(member => ({ ...member, position: null })) ?? null })),
-        circles: circles.map(circle => ({ ...circle, members: circle.members.map(member => ({ ...member, position: null })) })),
-      });
-    }
+    if (operation === "guild") return json({ ...await guildOverview(people(), user.id), ...await circlesOverview(people(), user.id) });
     if (operation === "circle-create") {
       const input = parse(circleCreateInput, await readBody(request, 4096), "invalid_request", "Invalid group.");
       return json(await createCircle(people(), user.id, input), 201);
@@ -165,7 +159,7 @@ export async function handleApi(request: Request, operation: string, id?: string
       const input = parse(circleActionInput, await readBody(request, 4096), "invalid_request", "Invalid group choice.");
       return json(await circleAction(people(), user.id, id, input.action, input));
     }
-    if (operation === "circle-trail" && id) throw new ApiError("player_location_disabled", "Player locations are not displayed.", 403);
+    if (operation === "circle-trail" && id) return json(await circleTrail(people(), user.id, id, params.get("profile") ?? "", hours(24, 72)));
     if (operation === "meets" && request.method === "GET") return json(await listMeets(people(), user.id, { code: params.get("code") ?? undefined }));
     if (operation === "meets") {
       const input = parse(meetInput, await readBody(request, 16384), "invalid_meet", "Invalid meet.");
@@ -183,7 +177,7 @@ export async function handleApi(request: Request, operation: string, id?: string
       const input = parse(membershipInput, await readBody(request, 4096), "invalid_request", "Invalid guild choice.");
       return json(await setMembership(people(), user.id, id, input.profileId, input.action, input.share));
     }
-    if (operation === "guild-trail" && id) throw new ApiError("player_location_disabled", "Player locations are not displayed.", 403);
+    if (operation === "guild-trail" && id) return json(await guildTrail(people(), user.id, id, params.get("profile") ?? "", hours(24, 72)));
     if (operation === "devices") return json({ devices: await listDevices(user.id) });
     if (operation === "devices-revoke" && id) {
       await revokeDevice(user.id, id);
