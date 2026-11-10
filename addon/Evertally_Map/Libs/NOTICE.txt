@@ -1,0 +1,13 @@
+Bundled libraries (unchanged copies, as shipped in the GatherLite add-on for Forever)
+
+HereBeDragons-2.0.lua, HereBeDragons-Pins-2.0.lua
+    Nevcairiel/HereBeDragons, commit 0547c95f1831f7c68acf3bd29a3c587ca20ce9b7. License: BSD (X-License in the library's TOC).
+    https://github.com/Nevcairiel/HereBeDragons
+
+CallbackHandler-1.0.lua (part of Ace3), see Ace3-LICENSE.txt in this folder. It is embedded here, not redistributed on its own.
+
+LibStub.lua
+    Public domain (stated in the file).
+
+Evertally_Map loads on demand, so these libraries are only loaded when the player turns on "Map and minimap" in Evertally's
+settings. If another add-on already loaded the same or a newer version, LibStub keeps that one and ours stays unused.

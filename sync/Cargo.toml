@@ -1,0 +1,37 @@
+[package]
+name = "evertally-sync"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+# The legacy tray app; the native desktop window uses the library without it.
+default = ["tray"]
+tray = ["dep:tao", "dep:tray-icon"]
+
+[[bin]]
+name = "evertally-sync"
+path = "src/main.rs"
+required-features = ["tray"]
+
+[dependencies]
+anyhow = "1.0.104"
+directories = "6.0.0"
+gethostname = "1.1.0"
+keyring = "4.2.0"
+notify = "8.2.2"
+open = "5.4.5"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tao = { version = "0.37.2", optional = true }
+thiserror = "2.0.21"
+tray-icon = { version = "0.26.1", optional = true }
+ureq = { version = "3.5.1", features = ["json"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_Globalization", "Win32_Security", "Win32_System_SystemInformation", "Win32_UI_WindowsAndMessaging"] }
+winreg = "0.56.0"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

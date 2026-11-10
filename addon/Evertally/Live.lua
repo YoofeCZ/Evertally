@@ -1,0 +1,265 @@
+local _, A = ...
+-- Live position between players who chose to share it, pings on the map, and the switch for the map add-on.
+--
+--  * "Live position" is opt-in per channel (party / raid and guild), off by default. While it is on, your map, your position
+--    on it (0..1 of the zone map) and your class go out as one small addon message about every 5 seconds, only while you move.
+--    Others see it only if they run the addon; nothing is sent to the website and nothing is saved.
+--  * A ping is a single point sent once to your group or guild, shown for 5 minutes.
+--  * What is drawn on the world map and the minimap, and navigation, lives in Evertally_Map: a load-on-demand add-on that
+--    loads only after "Map and minimap" is switched on, so a player who never switches it on never runs any of it.
+local L = {peers = {}, pings = {}, lastSent = {}, seen = {}}
+A.live = L
+local BEACON_GAP, HEARTBEAT, MOVED, PEER_TTL, PING_TTL = 5, 30, 0.003, 120, 300
+local MAX_PEERS, MAX_PINGS, PEER_GAP, PING_GAP = 120, 20, 2, 5
+local CHANNELS = {PARTY = true, RAID = true, INSTANCE_CHAT = true, GUILD = true}
+local floor = math.floor
+
+local function settings() return A.db and A.db.settings end
+local function base(name) return (A.Text(name, 150) or ""):match("^[^-]+") or "" end
+local function myName() return A.Text(A.Call(UnitName, "player"), 80) or "" end
+local function isMe(sender) local b = base(sender):lower(); return b ~= "" and b == base(myName()):lower() end
+local function clean(text, max) return A.SocialClean and A.SocialClean(text, max) or "" end
+local function count(t) local n = 0; for _ in pairs(t) do n = n + 1 end; return n end
+local function fields(message) local out = {}; for part in message:gmatch("[^|]+") do out[#out + 1] = part end; return out end
+local function zoneName(mapId)
+    local info = C_Map and A.Call(C_Map.GetMapInfo, mapId)
+    return A.Text(A.Field(info, "name"), 80) or (A.L("map") .. " #" .. tostring(mapId))
+end
+
+-- ---------------------------------------------------------------- sending
+local function groupChannel()
+    if A.Call(IsInRaid) == true then return "RAID" end
+    if A.Call(IsInGroup) == true then return "PARTY" end
+end
+local function liveChannels()
+    local s, out = settings(), {}
+    if not s then return out end
+    if s.liveParty == true then local c = groupChannel(); if c then out[#out + 1] = c end end
+    if s.liveGuild == true and A.Call(IsInGuild) == true then out[#out + 1] = "GUILD" end
+    return out
+end
+
+--- One beacon per channel when it is due: you moved (at most every 5 s) or 30 s passed. Newer ones replace queued older ones.
+function A.LiveTick()
+    -- Do not transmit individual player positions.
+end
+
+--- which = "party" (party / raid) or "guild".
+function A.SetLive(which, enabled)
+    local s = settings()
+    if not s then return end
+    s.liveParty, s.liveGuild = false, false
+    A.Changed()
+end
+function A.LiveActive() return false end
+
+-- ---------------------------------------------------------------- receiving
+local function prune()
+    local now = A.Now()
+    for k, p in pairs(L.peers) do if now - p.at > PEER_TTL then L.peers[k] = nil end end
+    for k, g in pairs(L.pings) do if now - g.at > PING_TTL then L.pings[k] = nil end end
+end
+
+A.socialHandlers.L = function(channel, sender, message)
+    -- Ignore beacons from older clients, too.
+end
+A.socialHandlers.E = function(channel, sender)
+    local peer = L.peers[base(sender):lower()]
+    if peer and peer.channel == channel then L.peers[base(sender):lower()] = nil end
+end
+
+--- Everyone whose beacon arrived in the last two minutes, by name.
+function A.LivePeers()
+    prune()
+    local out = {}
+    for _, p in pairs(L.peers) do out[#out + 1] = p end
+    table.sort(out, function(a, b) return a.name:lower() < b.name:lower() end)
+    return out
+end
+--- One of them by name: exact, or the only one the name is the start of.
+function A.LivePeer(name)
+    prune()
+    local want = base(name):lower()
+    if want == "" then return nil end
+    if L.peers[want] then return L.peers[want] end
+    local found
+    for key, p in pairs(L.peers) do if key:sub(1, #want) == want then if found then return nil end; found = p end end
+    return found
+end
+
+-- ---------------------------------------------------------------- pings
+local function remember(ping)
+    prune()
+    local key = ping.id .. ":" .. ping.name:lower()
+    if not L.pings[key] and count(L.pings) >= MAX_PINGS then
+        local oldest, oldestKey
+        for k, g in pairs(L.pings) do if not oldest or g.at < oldest then oldest, oldestKey = g.at, k end end
+        if oldestKey then L.pings[oldestKey] = nil end
+    end
+    L.pings[key] = ping
+end
+function A.LivePings()
+    prune()
+    local out = {}
+    for _, g in pairs(L.pings) do out[#out + 1] = g end
+    table.sort(out, function(a, b) return a.at > b.at end)
+    return out
+end
+
+A.socialHandlers.P = function(channel, sender, message)
+    if not CHANNELS[channel] or not A.db or isMe(sender) then return end
+    local f = fields(message)
+    local id, map, x, y = f[3], A.Number(tonumber(f[4]), 1, 100000), A.Number(tonumber(f[5]), 0, 1000), A.Number(tonumber(f[6]), 0, 1000)
+    if not id or #id ~= 6 or not id:match("^%x+$") or not map or not x or not y then return end
+    local key, now = "P:" .. base(sender):lower(), A.Monotonic()
+    if L.seen[key] and now - L.seen[key] < PING_GAP then return end
+    L.seen[key] = now
+    local label = clean(f[7] or "", 60)
+    remember({id = id, name = base(sender), map = floor(map), x = x / 1000, y = y / 1000, label = label, at = A.Now(), channel = channel})
+    A.Print(string.format(A.L("pingChat"), base(sender), label ~= "" and label or zoneName(floor(map))))
+end
+
+local function pingChannel() return groupChannel() or (A.Call(IsInGuild) == true and "GUILD" or nil) end
+--- A point to your group (or guild when you are not in a group). With no map given it is where you stand.
+function A.SendPing(label, map, x, y, channel)
+    channel = channel or pingChannel()
+    if not channel then return false, "no_channel" end
+    -- A ping is an explicitly selected map point, never the sender's position.
+    if not map then return false, "no_position" end
+    map, x, y = A.Number(tonumber(map), 1, 100000), A.Number(tonumber(x), 0, 1), A.Number(tonumber(y), 0, 1)
+    if not map or not x or not y then return false, "no_position" end
+    local id = string.format("%06x", math.random(0, 16777215))
+    label = clean(label or "", 60)
+    if not A.QueueSocial(string.format("S|P|%s|%d|%d|%d|%s", id, floor(map), floor(x * 1000 + 0.5), floor(y * 1000 + 0.5), label), channel) then return false, "queue_full" end
+    remember({id = id, name = myName(), map = floor(map), x = floor(x * 1000 + 0.5) / 1000, y = floor(y * 1000 + 0.5) / 1000, label = label, at = A.Now(), channel = channel, mine = true})
+    return true
+end
+
+-- ---------------------------------------------------------------- the map add-on
+function A.LoadMap()
+    if A.map then return true end
+    local s = settings()
+    if not s or s.mapPins ~= true then return false, "disabled" end
+    local loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+    if type(loader) ~= "function" then return false, "no_loader" end
+    local ok, loaded, reason = pcall(loader, "Evertally_Map")
+    if not ok or (loaded == false) or not A.map then
+        A.errors.map_load = (A.errors.map_load or 0) + 1
+        return false, A.Text(not ok and loaded or reason, 80) or "load_failed"
+    end
+    return true
+end
+function A.SetMapPins(enabled)
+    local s = settings()
+    if not s then return end
+    s.mapPins = enabled == true
+    if s.mapPins then
+        local ok = A.LoadMap()
+        if ok and A.map and A.map.Enable then A.map.Enable() end
+        A.Print(A.L(ok and "mapOn" or "mapFail"))
+    elseif A.map then
+        A.map.Disable(); A.Print(A.L("mapOff"))
+    end
+    A.Changed()
+end
+
+--- Navigates to a player (live position), "meet" (the newest received meet) or "ping" (the newest ping).
+function A.NavigateByName(name)
+    name = clean(name or "", 80)
+    if name == "" then return false, "no_target" end
+    local s = settings()
+    if not s or s.mapPins ~= true then return false, "map_off" end
+    local ok, reason = A.LoadMap()
+    if not ok then return false, "map_fail" end
+    local keyword = name:lower()
+    if keyword == "meet" or keyword == "sraz" then
+        local m = A.social and A.social.meets[1]
+        if not m then return false, "no_meet" end
+        return A.map.Navigate({kind = "point", map = m.mapId, x = m.x, y = m.y, label = m.label ~= "" and m.label or A.L("meetDefault")})
+    elseif keyword == "ping" then
+        local g = A.LivePings()[1]
+        if not g then return false, "no_ping" end
+        return A.map.Navigate({kind = "point", map = g.map, x = g.x, y = g.y, label = g.label ~= "" and g.label or A.L("pingTitle")})
+    end
+    local peer = A.LivePeer(name)
+    if not peer then return false, "unknown_player" end
+    return A.map.Navigate({kind = "player", name = peer.name})
+end
+function A.NavigateToPoint(label, map, x, y)
+    local s = settings()
+    if not s or s.mapPins ~= true then return false, "map_off" end
+    if not A.LoadMap() then return false, "map_fail" end
+    return A.map.Navigate({kind = "point", map = map, x = x, y = y, label = label})
+end
+function A.StopNavigation() if A.map then A.map.Stop() end end
+
+-- ---------------------------------------------------------------- keybindings (Bindings.xml)
+BINDING_HEADER_EVERTALLY = "Evertally"
+BINDING_NAME_EVERTALLY_PING = "Ping at the map cursor / my position"
+BINDING_NAME_EVERTALLY_STOPNAV = "Stop navigation"
+--- With the world map open and the cursor on it the ping lands there, otherwise where you stand.
+function Evertally_Ping()
+    if not A.db then return end
+    local map, x, y
+    if WorldMapFrame and A.Call(WorldMapFrame.IsShown, WorldMapFrame) == true then
+        local cx, cy = A.Call(WorldMapFrame.GetNormalizedCursorPosition, WorldMapFrame)
+        local id = A.Call(WorldMapFrame.GetMapID, WorldMapFrame)
+        if cx and cy and id and cx >= 0 and cx <= 1 and cy >= 0 and cy <= 1 then map, x, y = id, cx, cy end
+    end
+    local ok, err = A.SendPing("", map, x, y)
+    A.Print(ok and A.L("pingSent") or A.L("pingErr_" .. tostring(err)))
+end
+function Evertally_StopNav() A.StopNavigation() end
+
+-- ---------------------------------------------------------------- housekeeping
+A.On("PLAYER_LOGIN", function()
+    local s = A.db.settings
+    if s.liveParty == nil then s.liveParty = false end
+    if s.liveGuild == nil then s.liveGuild = false end
+    if s.mapPins == nil then s.mapPins = false end
+    if s.language == "cs" then
+        BINDING_NAME_EVERTALLY_PING = "Ping na kurzoru mapy / na mé poloze"
+        BINDING_NAME_EVERTALLY_STOPNAV = "Zrušit navigaci"
+    end
+    if s.mapPins and C_Timer and type(C_Timer.After) == "function" then C_Timer.After(2, function() A.LoadMap() end) end
+end)
+if C_Timer and type(C_Timer.NewTicker) == "function" then C_Timer.NewTicker(2, function() local ok = pcall(A.LiveTick); if not ok then A.errors.live_tick = (A.errors.live_tick or 0) + 1 end end) end
+
+-- ---------------------------------------------------------------- texts
+local text = {
+    en = {
+        liveSection = "Map and navigation", liveParty = "Share my live position with party / raid", liveGuild = "Share my live position with my guild",
+        mapPins = "Map and minimap: meets, pings and navigation",
+        liveHint = "Individual player locations are not shared. The map option loads Evertally_Map for navigation, meets and map pings.",
+        liveOnParty = "Live position: sharing with your party / raid. Turn it off in Settings.", liveOnGuild = "Live position: sharing with your guild. Turn it off in Settings.",
+        mapOn = "Map and minimap: on.", mapOff = "Map and minimap: pins removed. Reload the UI to unload the map library.", mapFail = "Map and minimap could not be loaded (is the Evertally_Map folder installed?).",
+        livePill = "LIVE", agoNow = "just now", agoMinutes = "%d min ago", meetDefault = "Meet", pingTitle = "Ping", navYou = "you",
+        pingChat = "%s pinged the map: %s (Evertally > People).", pingSent = "Ping sent.", pingErr_no_channel = "Join a group or guild first.", pingErr_no_position = "No map position here.", pingErr_queue_full = "Too many messages are waiting.",
+        navMode_walk = "Walk", navMode_flight = "Flight", navMode_boat = "Boat", navMode_zeppelin = "Zeppelin", navMode_airship = "Airship", navMode_lift = "Lift", navMode_tram = "Tram", navMode_portal = "Portal", navMode_passage = "Passage",
+        navWalk = "Walk to %s (%s)", navFly = "Fly: %s to %s (%s)", navShip = "%s: %s to %s (wait ~%s)", navOther = "%s: %s to %s", navThen = "Then:", navTotal = "Total ~%s",
+        navLost = "No position for this target.", navNoMap = "That place is not on a map I know.", navNoPosition = "Your position is unknown here.", navArrived = "You are there.", navDirect = "Straight line: %s", navNoRoute = "No route known.",
+        navHint = "Right-click to stop.", navEstimate = "Estimate.",
+        navErr_no_target = "Type a name, \"meet\" or \"ping\".", navErr_map_off = "Turn on \"Map and minimap\" in Settings first.", navErr_map_fail = "The map add-on did not load.", navErr_unknown_player = "No live position from that player. They must share it with you.",
+        navErr_no_meet = "No meet received yet.", navErr_no_ping = "No ping yet.", navErr_unknown_map = "That place is not on a map I know.", navStarted = "Navigating to %s. Right-click the arrow to stop.", navStopped = "Navigation stopped.",
+        socialTab_live = "Live", liveNone = "Nobody shares a position with you right now.", liveRowSub = "%s  ·  %s", socialPing = "Ping here", socialStopNav = "Stop navigation", liveOffNote = "Your live position is off (Settings).",
+        meetNavigate = "Navigate", pingNavigate = "Navigate",
+    },
+    cs = {
+        liveSection = "Mapa a navigace", liveParty = "Sdílet mou živou polohu s partou / raidem", liveGuild = "Sdílet mou živou polohu s cechem",
+        mapPins = "Mapa a minimapa: srazy, pingy a navigace",
+        liveHint = "Přesné polohy hráčů se nesdílí. Volba načte addon Evertally_Map pro navigaci, srazy a body vybrané na mapě.",
+        liveOnParty = "Živá poloha: sdílíš s partou / raidem. Vypneš v Nastavení.", liveOnGuild = "Živá poloha: sdílíš s cechem. Vypneš v Nastavení.",
+        mapOn = "Mapa a minimapa: zapnuto.", mapOff = "Mapa a minimapa: body odstraněny. Knihovnu mapy uvolníš po /reload.", mapFail = "Mapu a minimapu se nepodařilo načíst (je nainstalovaná složka Evertally_Map?).",
+        livePill = "ŽIVĚ", agoNow = "právě teď", agoMinutes = "před %d min", meetDefault = "Sraz", pingTitle = "Ping", navYou = "ty",
+        pingChat = "%s pingl mapu: %s (Evertally > Lidé).", pingSent = "Ping odeslán.", pingErr_no_channel = "Nejdřív vstup do skupiny nebo cechu.", pingErr_no_position = "Tady není poloha na mapě.", pingErr_queue_full = "Čeká příliš mnoho zpráv.",
+        navMode_walk = "Pěšky", navMode_flight = "Let", navMode_boat = "Loď", navMode_zeppelin = "Zeppelin", navMode_airship = "Vzducholoď", navMode_lift = "Výtah", navMode_tram = "Tram", navMode_portal = "Portál", navMode_passage = "Průchod",
+        navWalk = "Jdi k: %s (%s)", navFly = "Let: %s do %s (%s)", navShip = "%s: %s do %s (čekání ~%s)", navOther = "%s: %s do %s", navThen = "Pak:", navTotal = "Celkem ~%s",
+        navLost = "Pro tento cíl není poloha.", navNoMap = "To místo není na mapě, kterou znám.", navNoPosition = "Tvoje poloha tady není známá.", navArrived = "Jsi na místě.", navDirect = "Vzdušnou čarou: %s", navNoRoute = "Cesta není známá.",
+        navHint = "Pravým tlačítkem zrušíš.", navEstimate = "Odhad.",
+        navErr_no_target = "Napiš jméno, \"meet\" nebo \"ping\".", navErr_map_off = "Nejdřív zapni \"Mapa a minimapa\" v Nastavení.", navErr_map_fail = "Addon mapy se nenačetl.", navErr_unknown_player = "Ten hráč neposílá živou polohu. Musí ji s tebou sdílet.",
+        navErr_no_meet = "Zatím žádný sraz.", navErr_no_ping = "Zatím žádný ping.", navErr_unknown_map = "To místo není na mapě, kterou znám.", navStarted = "Naviguji k: %s. Pravým tlačítkem na šipku zrušíš.", navStopped = "Navigace zrušena.",
+        socialTab_live = "Živě", liveNone = "Nikdo s tebou teď nesdílí polohu.", liveRowSub = "%s  ·  %s", socialPing = "Ping sem", socialStopNav = "Zrušit navigaci", liveOffNote = "Tvoje živá poloha je vypnutá (Nastavení).",
+        meetNavigate = "Navigovat", pingNavigate = "Navigovat",
+    },
+}
+for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end

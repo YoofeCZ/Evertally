@@ -1,0 +1,65 @@
+import {chromium} from 'file:///C:/Users/domin/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright/index.mjs';
+import {mkdir,writeFile} from 'node:fs/promises';
+const output='D:/addon/output/playwright/0.4.0';await mkdir(output,{recursive:true});
+const base=process.env.EVERTALLY_QA_BASE??'http://127.0.0.1:5184';
+if(!['http://127.0.0.1:5184','https://evertally.afstudio.dev'].includes(base))throw Error('Unexpected QA target');
+const browser=await chromium.launch({channel:'msedge',headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1100}});
+const page=await context.newPage();const errors=[];const checks=[];
+page.on('pageerror',e=>errors.push(e.message));
+const check=(name,value)=>{if(!value)throw Error(name);checks.push(name)};
+try{
+ await page.goto(base+'/#atlas');
+ await page.getByRole('button',{name:'CS',exact:true}).click();
+ const select=page.locator('.wm-zone-select select');await select.selectOption('dun-morogh');
+ await page.waitForFunction(()=>{const img=document.querySelector('.wm-plane img');return img?.complete&&img.naturalWidth>900},{},{timeout:30000});
+ await page.waitForFunction(()=>document.querySelectorAll('.wm-pin').length>0,{},{timeout:30000});
+ check('Actual Dun Morogh map and reference NPC pins render',await page.locator('.wm-pin').count()>0);
+ await page.screenshot({path:output+'/web-map-cs.png',fullPage:true});
+ const first=page.locator('.wm-pin.is-cluster').first();const before=await page.locator('.wm-plane').getAttribute('style');await first.click();
+ await page.waitForFunction(old=>document.querySelector('.wm-plane')?.getAttribute('style')!==old,before);
+ check('NPC cluster click actually zooms the map',(await page.locator('.wm-plane').getAttribute('style'))!==before);
+ await page.getByRole('button',{name:'Přiblížit',exact:true}).click();
+ const canvas=page.locator('.wm-canvas').first();
+ if(await canvas.count()){await canvas.focus();await canvas.press('ArrowRight');await canvas.press('Home');}
+ const activityButton=page.getByRole('button',{name:'Navštívené oblasti',exact:true});
+ await activityButton.click();
+ await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Navštívené oblasti'&&b.getAttribute('aria-pressed')==='true'),{},{timeout:10000});
+ check('Coarse zone activity loads without player pins',await page.locator('.wm-pin').count()===0);
+ await page.goto(base+'/#database');
+ await page.locator('.catalog-row').first().waitFor();
+ check('Item catalogue loads real bundled item icons',await page.locator('.catalog-row img').count()>0);
+ await page.locator('.catalog-row').first().click();
+ await page.screenshot({path:output+'/web-database-items-cs.png'});
+ const search=page.locator('.catalog-search input');
+ const input=await search.count()?search:page.locator('.catalog-toolbar input');
+ await input.fill('3041');await page.waitForFunction(()=>document.querySelectorAll('.catalog-row').length===1);
+ check('Exact item ID search returns one record',(await page.locator('.catalog-row').innerText()).includes('3041'));
+ await page.getByRole('button',{name:'Questy',exact:true}).click();await page.locator('.catalog-row').first().waitFor();await page.locator('.catalog-row').first().click();
+ check('Quest detail includes actual objective data',(await page.locator('.catalog-detail').innerText()).length>100);
+ await page.screenshot({path:output+'/web-database-quests-cs.png',fullPage:true});
+ await page.getByRole('button',{name:'Dungeony a raidy',exact:true}).click();await page.locator('.catalog-row').first().waitFor();
+ await page.locator('.catalog-row').first().click();check('Dungeon and raid source catalogue renders',await page.locator('.catalog-row').count()>10);
+ await page.getByRole('button',{name:'Návody',exact:true}).click();await page.locator('.catalog-row').first().waitFor();await page.locator('.catalog-row').first().click();
+ check('Plain-text guides render steps',await page.locator('.catalog-detail ol li').count()>=2);
+ const data=await(await fetch(base+'/api/runs')).json();
+ if(data.runs?.some(run=>run.character?.name)){
+ await page.goto(base+'/#runs');
+ await page.locator('.profile-name').first().waitFor({timeout:10000});
+  await page.locator('.profile-name').first().click();
+  await page.locator('.profile-entry, .profile-privacy').first().waitFor();
+  check('Published profile exposes visited zones without exact player positions',!(await page.locator('.profile-preview').innerText()).includes('Souřadnice'));
+  await page.getByRole('button',{name:'Zavřít profil',exact:true}).click();
+ }
+ await page.goto(base+'/#database');await page.locator('.catalog-row').first().waitFor();
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:output+'/web-database-mobile-cs.png'});
+ check('Mobile catalogue has no page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.goto(base+'/#atlas');await page.locator('.wm-zone-select select').selectOption('dun-morogh');
+ await page.waitForFunction(()=>{const img=document.querySelector('.wm-plane img');return img?.complete&&img.naturalWidth>900});
+ await page.screenshot({path:output+'/web-map-mobile-cs.png',fullPage:true});
+ check('Mobile map has no page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ check('No uncaught browser errors',errors.length===0);
+ await writeFile(output+(base.startsWith('https')?'/verification-production.json':'/verification.json'),JSON.stringify({mode:'isolated headless Edge; no user browser or OS inputs; read-only GET requests',base,checks,errors},null,2));
+ console.log(JSON.stringify({checks,errors}));
+}catch(error){await page.screenshot({path:output+'/failure.png',fullPage:true});console.error(JSON.stringify({error:error.message,pageErrors:errors,body:(await page.locator('body').innerText()).slice(-6000)}));throw error}finally{await browser.close()}

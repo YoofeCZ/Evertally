@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="EVERTALLY_PING" header="EVERTALLY">
+        Evertally_Ping()
+    </Binding>
+    <Binding name="EVERTALLY_STOPNAV">
+        Evertally_StopNav()
+    </Binding>
+</Bindings>

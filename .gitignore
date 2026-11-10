@@ -1,0 +1,27 @@
+# Local state, credentials, generated assets, build output and backups stay out of history.
+/platform/
+/backups/
+/archive/
+/output/
+/releases/
+/.tools/
+/.playwright-cli/
+/questmaster-czech-addon/
+/questmaster_restore_cs.py
+/questmaster-cs-staging-path.txt
+**/target/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/.dev.vars*
+**/secrets*
+**/*.pem
+**/*.key
+*.zip
+*.exe
+*.dll
+*.pdb
+# Reproducible data packages and copied third-party sources are kept locally.
+/shared/assets/
+/shared/sources/

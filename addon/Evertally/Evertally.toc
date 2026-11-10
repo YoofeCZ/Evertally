@@ -1,0 +1,23 @@
+## Interface: 16001
+## Title: Evertally
+## IconTexture: Interface\AddOns\Evertally\Media\Logo
+## Notes: Own game observations, dungeon history and optional ingame sharing.
+## Notes-csCZ: Vlastní herní pozorování, historie dungeonů a dobrovolné sdílení.
+## Author: Evertally contributors
+## Version: 0.4.0
+## OptionalDeps: Evertally_Export
+## SavedVariables: EvertallyDB, EvertallyPeersDB
+Locale.lua
+Codec.lua
+Core.lua
+Identity.lua
+Rulesets.lua
+Runs.lua
+Collectors.lua
+People.lua
+Sync.lua
+Social.lua
+Live.lua
+Community.lua
+UI.lua
+SocialUI.lua

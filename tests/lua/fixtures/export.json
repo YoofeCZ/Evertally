@@ -1,0 +1,153 @@
+{
+  "consentEpoch": 1,
+  "enabled": true,
+  "events": [
+    {
+      "character": {
+        "classId": 7,
+        "id": "Player-TEST-own",
+        "level": 20,
+        "name": "Fixture Hero",
+        "raceId": 6,
+        "realm": "Fixture Realm"
+      },
+      "eventId": "fixture-installation:fixture-session:1",
+      "evidence": "api_event",
+      "game": {
+        "build": "70862",
+        "interface": 16001,
+        "product": "forever",
+        "realm": "Fixture Realm",
+        "region": "3"
+      },
+      "kind": "quest.turned_in",
+      "observedAt": 1794236400,
+      "origin": "local_observation",
+      "payload": {
+        "money": 0,
+        "questId": 182,
+        "title": "Syntetický testovací quest",
+        "xp": 100
+      },
+      "producerId": "fixture-installation",
+      "schemaVersion": 1
+    },
+    {
+      "character": {
+        "classId": 7,
+        "id": "Player-TEST-own",
+        "level": 20,
+        "name": "Fixture Hero",
+        "raceId": 6,
+        "realm": "Fixture Realm"
+      },
+      "eventId": "fixture-installation:fixture-session:2",
+      "evidence": "api_event",
+      "game": {
+        "build": "70862",
+        "interface": 16001,
+        "product": "forever",
+        "realm": "Fixture Realm",
+        "region": "3"
+      },
+      "kind": "npc.observed",
+      "observedAt": 1794236400,
+      "origin": "local_observation",
+      "payload": {
+        "mapId": 1426,
+        "name": "Syntetický obchodník",
+        "npcId": 999001,
+        "positionMethod": "player_interaction"
+      },
+      "producerId": "fixture-installation",
+      "schemaVersion": 1
+    },
+    {
+      "character": {
+        "classId": 7,
+        "id": "Player-TEST-own",
+        "level": 20,
+        "name": "Fixture Hero",
+        "raceId": 6,
+        "realm": "Fixture Realm"
+      },
+      "eventId": "fixture-installation:fixture-session:3",
+      "evidence": "api_event",
+      "game": {
+        "build": "70862",
+        "interface": 16001,
+        "product": "forever",
+        "realm": "Fixture Realm",
+        "region": "3"
+      },
+      "kind": "run.finished",
+      "observedAt": 1794236400,
+      "origin": "local_observation",
+      "payload": {
+        "bossCount": 1,
+        "completion": "last_boss",
+        "difficultyId": 1,
+        "durationMs": 1400000,
+        "endedAt": 1794236400,
+        "groupSize": 5,
+        "instanceId": 36,
+        "instanceType": "party",
+        "maxLevel": 22,
+        "minLevel": 18,
+        "name": "Syntetický dungeon",
+        "rankEligible": false,
+        "runId": "fixture-run-1",
+        "startedAt": 1794235000,
+        "status": "completed"
+      },
+      "producerId": "fixture-installation",
+      "schemaVersion": 1
+    },
+    {
+      "character": {
+        "classId": 7,
+        "id": "Player-TEST-own",
+        "level": 20,
+        "name": "Fixture Hero",
+        "raceId": 6,
+        "realm": "Fixture Realm"
+      },
+      "eventId": "fixture-installation:fixture-session:4",
+      "evidence": "api_event",
+      "game": {
+        "build": "70862",
+        "interface": 16001,
+        "product": "forever",
+        "realm": "Fixture Realm",
+        "region": "3"
+      },
+      "kind": "profession.snapshot",
+      "observedAt": 1794236400,
+      "origin": "local_observation",
+      "payload": {
+        "maxSkill": 150,
+        "name": "Syntetická alchymie",
+        "professionId": 171,
+        "recipes": [
+          {
+            "learned": true,
+            "name": "Syntetický recept",
+            "recipeId": 999002
+          }
+        ],
+        "skill": 75
+      },
+      "producerId": "fixture-installation",
+      "schemaVersion": 1
+    }
+  ],
+  "producerId": "fixture-installation",
+  "schemaVersion": 1,
+  "scopes": [
+    "world_facts",
+    "own_runs",
+    "own_character",
+    "own_professions"
+  ],
+  "since": 1794236400
+}

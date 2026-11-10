@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: Evertally - Web Export
+## IconTexture: Interface\AddOns\Evertally\Media\Logo
+## Group: Evertally
+## Notes: Separate optional export storage. No network access.
+## Version: 0.4.0
+## SavedVariables: EvertallyExportDB
+Export.lua
