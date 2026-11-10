@@ -2,6 +2,15 @@
 
 Zdrojová verze 0.4.0, 9. 11. 2026. Addon sbírá vlastní herní události, nainstalovaná Windows aplikace je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části.
 
+## Co můžeš snadno vyzkoušet sám
+
+1. Po instalaci nových souborů addonu napiš ve hře `/reload`, potom `/etally`. Otevře se okno Evertally; v Nastavení můžeš zapnout mapu a minimapu. Pokud už jsi je zapnul, nepřepínej je znovu.
+2. Novou Windows verzi nainstaluješ souborem `releases/EvertallySetup.exe`; před instalací sám zavři běžící Evertally. Otevři ji přes Start a podívej se na **Mapu světa** a **Databázi a návody**.
+3. Webovou mapu otevři na `https://evertally.afstudio.dev/#atlas`. Panel **Trasy a skupiny** má samostatné záložky Moje trasa, Skupiny a Cech. Pro zobrazení vlastních dat je potřeba přihlášení a spárovaná aplikace; hra ukládá změny při `/reload` nebo odhlášení.
+4. Záznam dungeonu vyzkoušíš až skutečným průchodem; sdílení polohy a skupinové funkce vyžadují dalšího člověka, který má addon a sdílení povolí. Sám tím správnost přenosu neověříš.
+
+Pozvánku `/invite`, `/script` ani diagnostické příkazy pro tyto základní kroky nepotřebuješ. Automatické testy a náhledy nejsou potvrzením, že vše funguje ve hře nebo že jsou všechny slíbené funkce hotové.
+
 ## Instalace aplikace
 
 1. Spusť `releases/EvertallySetup.exe`. Instaluje se pro aktuálního uživatele do `%LOCALAPPDATA%\Programs\Evertally`, bez administrátorského účtu.
@@ -9,7 +18,9 @@ Zdrojová verze 0.4.0, 9. 11. 2026. Addon sbírá vlastní herní události, nai
 3. Pro instalaci addonů zaškrtni příslušnou volbu a vyber složku s `Wow.exe` nebo rodiče obsahujícího `_forever_`. Předchozí soubory Evertally se zálohují; SavedVariables se nemění.
 4. WoW restartuj sám, aby načetlo nové soubory v `.toc`. Aplikaci otevřeš přes Start → Evertally.
 
-Instalátor obsahuje GUI, `EvertallyBackground.exe`, datové podklady a oba addony. Samostatné EXE a ZIP jsou pomocné varianty; hlavní cesta je instalátor. Existující `config.json` se aktualizací nepřepisuje. Starší localhost přepni v Settings na `https://evertally.afstudio.dev`. Odinstalace je v nastavení Windows → Aplikace nebo nabídce Start. Vlastní herní historie se při ní nemaže.
+Instalátor obsahuje GUI, `EvertallyBackground.exe`, datové podklady a všechny tři addony. Samostatné EXE a ZIP jsou pomocné varianty; hlavní cesta je instalátor. Existující `config.json` se aktualizací nepřepisuje. Starší localhost přepni v Settings na `https://evertally.afstudio.dev`. Odinstalace je v nastavení Windows → Aplikace nebo nabídce Start. Vlastní herní historie se při ní nemaže.
+
+Aktualizace 10. 11. 2026: instalátor i webové balíčky jsou nově sestavené, tři herní addony jsou nainstalované a web používá migrace 0003–0004. Otevřená desktopová aplikace se sama nepřepsala; novou verzi je nutné nainstalovat ze souboru `releases/EvertallySetup.exe`. Herní ověření šipky a skutečného spouštění s WoW zatím chybí.
 
 ## Spouštění s WoW
 
@@ -26,6 +37,7 @@ Složky jsou `Interface\AddOns\Evertally` a `Interface\AddOns\Evertally_Export`.
 - `/etally share on` / `share off`: samostatné sdílení ve skupině/guildě.
 - `/etally finish`: ruční konec návštěvy, nikoli ověřený rychlostní rekord.
 - `/etally diag`: diagnostika; `/etally export`: JSON pro ruční import.
+- `/etally terrain`: aktuální navigační cíl předá volitelnému addonu Shortest Path Forever, který může vést cestu po terénu. Nejdřív zapni mapu Evertally a nastav cíl. Předání může nahradit předchozí cestu v Shortest Path Forever; pohybující se cíl předá jako aktuální bod, nikoli živě sledovanou trasu. Bez něj zůstává šipka Evertally vzdušnou čarou. Funkce zatím nebyla ověřena ve hře.
 
 Detail výpravy ukazuje dostupné boss časy/splity, obtížnost, vlastní úmrtí, skupinu a časové hranice. Profese a Místa obsahují recepty, cooldowny a navštívené oblasti. Neznámý údaj není nula.
 
@@ -40,32 +52,33 @@ Web a desktop používají stejné podklady:
 | Podklad | Rozsah |
 | --- | --- |
 | Mapy | 60 skutečných herních podkladů s vazbou na C_Map UIMapID |
-| Itemy | 10 315 referenčních záznamů a odpovídající ikony |
+| Itemy | 22 881 referenčních záznamů; část základních itemů zatím nemá známou ikonu |
 | Questy | 5 232 základních záznamů |
 | NPC | 12 078 základních záznamů, u dostupných dat referenční výskyty |
-| Instance | 32 dungeonových/raidových zdrojů lootu |
+| Instance | 45 dungeonových/raidových záznamů |
+| Recepty | 2 339 referenčních receptů |
 | Návody | Dva vlastní stručné návody k používání Evertally |
 
-Nejde o knihu raidových strategií ani úplně ověřenou databázi aktuálního buildu. NPC/questy jsou základní řádky QuestieDB pro Forever bez runtime oprav. Zdroje a licence jsou v `shared/assets/ASSET_SOURCES.txt` a `shared/assets/licenses`, v instalaci pod `resources`.
+Nejde o knihu raidových strategií ani úplně ověřenou databázi aktuálního buildu. NPC/questy jsou základní řádky QuestieDB pro Forever bez runtime oprav. Desktop načítá stejný vyhledávací index a detaily jako web a na mapě Azerothu při přibližování skládá stejné mapové podklady. Ovládání a vrstvy desktopové mapy zatím nejsou totožné s webem. Zdroje a licence jsou v `THIRD_PARTY.md`.
 
 Mapy vznikly z lokálních CASC souborů wowf 1.60.1.70862, mapová metadata z DB2 1.60.1.70291. Databázové NPC výskyty jsou samostatný zdroj, nejsou hráčská pozorování. Neznámé mapové ID se nepřiřazuje odhadem. Race obrázek je symbol rasy; pohlaví postavy se nesbírá.
 
 Databáze nabízí hledání jména/přesného ID, filtry kvality nebo dungeon/raid, stránkování a detail. Odkazy propojují referenční quest/NPC/item ID. Zdroj lootu neznamená změřenou šanci na drop.
 
-## Nová webová mapa a databáze (zatím jen lokálně, nenasazeno)
+## Webová mapa a databáze
 
 **Mapa světa** je jedna plynulá mapa jako v addonu OpenMap: svět → kontinent → zóna → ulice bez klikání dovnitř a ven. Zóny jsou umístěné podle skutečných herních souřadnic a postupně se prolínají. Zadavatelé questů, obchodníci, trenéři, hostinští, banky, aukce, stájníci, bojoví mistři, opravy, léčitelé duší, schránky a tvorové jsou samostatné vrstvy s ikonami; vrstvy se pamatují. Seskupené body se neslučují do čísel: při přiblížení se rozevřou, kliknutím vznikne seznam míst pod kurzorem. Souřadnice kurzoru jsou souřadnice zóny jako ve hře.
 
 - **Hledání** najde oblasti, města, dungeony a raidy, letištní mistry, NPC, questy i itemy. Quest ukáže zadavatele, odevzdání a místa zabití; item ukáže, kdo ho dropuje (s šancí), kdo ho prodává a v jakých zónách.
 - **Letištní síť** s časy letů z měření, **lodě, zeppeliny a vzducholodě** s trasami. Klik na letištního mistra ukáže přímá spojení.
-- **Plánovač cest** (panel *Naplánovat cestu*): vyber Odkud a Kam (hledáním, klikem na mapu nebo tlačítky *Cestovat odsud/sem* u libovolného bodu). Počítá nejrychlejší kombinaci chůze, letů, lodí, zeppelínů, výtahů, **Deeprun Tram** a portálů podle frakce a rychlosti (pěšky, mount +60 %, +100 %). U lodí je průměrné čekání, ne přesný odjezd. Chůze mezi pevnými místy je z upečeného terénu Shortest Path Forever; chůze z vlastního bodu je po terénu (viz „Skutečné trasy po terénu“ níže), ale její čas je odhad a je označený.
+- **Plánovač cest** (panel *Naplánovat cestu*): vyber Odkud a Kam (hledáním, klikem na mapu nebo tlačítky *Cestovat odsud/sem* u libovolného bodu). Porovnává chůzi, lety, lodě, zeppelíny, výtahy, **Deeprun Tram** a portály podle frakce a rychlosti. U lodí je průměrné čekání, ne přesný odjezd. Po načtení masky terénu se cena pěších úseků z vlastního bodu zohledňuje již při výběru trasy. Čas je stále odhad; maska nezachycuje všechny překážky a plánovač nezaručuje skutečně nejrychlejší cestu ve hře.
 - **Dungeony a raidy**: vchod s úrovní (barva podle *Můj level*), po kliknutí karta s **mapami pater** z klienta, bossové a loot.
 
 **Databáze** má Dungeony a raidy (banner, mapy pater, bossové s lootem a šancemi), Itemy (tooltip jako ve hře, změny oproti Classicu, zdroje, dropy, prodejci, odměny, vyrobí/surovina v receptech), NPC (výskyt na mapě, questy, zboží, dropy), Questy (cíle, řetězce, odměny, tipy a postup z forever-db), **Recepty** (suroviny, barvy dovednosti, kde se učí) a Návody (vybrané komunitní weby).
 
 Data vznikají skripty (každý jen čte lokální soubory, bez sítě): `python tools/build_map_data.py`, `python tools/build_travel_data.py`, `python tools/build_dungeon_floors.py` (čte klient přes CASC), `python tools/build_db.py`, `python tools/build_dungeon_art.py`. Pořadí viz hlavičky skriptů. Zdroje a licence: `THIRD_PARTY.md`.
 
-Hranice: mapy mají nativní rozlišení hry (zoom do cca 4×); poloha NPC a vchodů je z referenčních databází, ne z živého serveru; šance na drop jsou jen tam, kde je zdroj měřil; předměty z raidů nemají tooltip, jen známá fakta; nové Forever instance (Hyjal, Barrow Deeps, nová Onyxia) čekají na vytěžení lootu. Rozhraní nebylo zkontrolováno na dotykovém zařízení. Do ostrého webu se nic z toho zatím nenasadilo.
+Hranice: mapy mají nativní rozlišení hry (zoom do cca 4×); poloha NPC a vchodů je z referenčních databází, ne z živého serveru; šance na drop jsou jen tam, kde je zdroj měřil; předměty z raidů nemají tooltip, jen známá fakta; nové Forever instance (Hyjal, Barrow Deeps, nová Onyxia) čekají na vytěžení lootu. Rozhraní nebylo zkontrolováno na dotykovém zařízení. Aktuální webová verze je od 10. 11. 2026 nasazena na evertally.afstudio.dev.
 
 ## Soukromí a aktivita oblastí
 
@@ -129,7 +142,7 @@ Vše je ve výchozím stavu **vypnuté** a zapíná se v addonu: *Nastavení →
 - **Co maska neumí:** neví o útesech mezi sousedními buňkami (stupně v datech SPF) ani o patrech budov a tunelů, takže cesta může být místy optimistická. Druhy chůze (plavání, jízda) nerozlišuje; voda se v hledání cení třikrát.
 - **Zůstává vzdušnou čarou:** šipka ve hře. Ukazuje směr k dalšímu kroku, ne po cestě; kroky cesty z plánovače jsou stejné jako na webu, ale bez terénu. Maska má 97 KB, takže by do addonu šla, ale potřebuje rozbalení zlib a A* v Lua po 1 až 3 milionech buněk. Do addonu jsem ji zatím nedal.
 
-**Neověřeno ve hře:** vykreslení bodů na mapě a minimapě, směr šipky (`SetRotation` a `GetPlayerFacing` u klienta Forever), doručování zpráv do cechu a party mezi realmy a **taint**. Knihovna HereBeDragons-Pins při načtení volá `WorldMapFrame:AddDataProvider` a zapisuje do `WorldMapFrame.pinPools` (stejně to dělají GatherLite, GatherMate2 a Questie); proto se načítá až po zapnutí. Po prvním zapnutí zkus `/invite` a `/script`; kdyby se něco zablokovalo, zapni `/console taintLog 2`, zopakuj to a pošli `Logs\taint.log`.
+**Neověřeno ve hře:** vykreslení bodů na mapě a minimapě, směr šipky (`SetRotation` a `GetPlayerFacing` u klienta Forever), doručování zpráv do cechu a party mezi realmy a **taint**. Knihovna HereBeDragons-Pins při načtení volá `WorldMapFrame:AddDataProvider` a zapisuje do `WorldMapFrame.pinPools`; proto se načítá až po zapnutí. Samotná kontrola okna a mapy nevyžaduje pozvánku do skupiny ani příkaz `/script`. Sdílení mezi hráči vyžaduje dalšího hráče s addonem a jeho zapnuté sdílení.
 
 ## Další nápady (nepostavené)
 
@@ -160,6 +173,8 @@ Bez aplikace: Web → Sync → Manual import → `Evertally_Export.lua`. Před s
 Výpravy odlišují přerušené měření, ruční konec, posledního bosse a plný clear. Časové souhrny nesměšují instance, obtížnosti, definice dokončení, realmy ani buildy. Žebříček počítá zaznamenané účasti veřejných postav; více hráčů skupiny může popsat stejnou návštěvu. Rychlostní rekordy jsou vypnuté do herního ověření rulesetů. Classa ani rasa nepředstavují hodnocení schopností.
 
 ## Vývoj a ověření
+
+Zdrojový projekt má lokální Git historii v `D:\addon`; web má samostatnou historii v `D:\addon\platform`. Jde o první místní revize, ne o obnovení starší historie. Zálohy, přihlašovací údaje, lokální databáze, sestavení a generované herní podklady nejsou součástí Git historie; zůstávají v existujících složkách a pro úplnou obnovu se musí zálohovat zvlášť.
 
 | Část | Kontrola |
 | --- | --- |

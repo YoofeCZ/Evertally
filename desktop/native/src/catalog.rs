@@ -4,14 +4,18 @@ use crate::{
     model,
 };
 use eframe::egui::{self, Color32, RichText};
-use serde_json::Value;
-use std::collections::BTreeMap;
+use serde_json::{Value, json};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
-const KINDS: [(&str, &str, &str); 5] = [
+const KINDS: [(&str, &str, &str); 6] = [
     ("items", "Items", "Itemy"),
     ("quests", "Quests", "Questy"),
     ("npcs", "NPC & services", "NPC a služby"),
     ("instances", "Dungeons & raids", "Dungeony a raidy"),
+    ("recipes", "Recipes", "Recepty"),
     ("guides", "Guides", "Návody"),
 ];
 
@@ -23,6 +27,54 @@ pub struct Database {
     selected: Option<Value>,
     last_filter: Option<(usize, String)>,
     matching: Vec<usize>,
+    db_root: Option<PathBuf>,
+}
+
+// The web and desktop use the same compact search index and the same detail shards.
+fn search_entries(data: &Value, kind: &str) -> Option<Vec<Value>> {
+    let rows = data[kind].as_array()?;
+    Some(rows.iter().filter_map(|value| {
+        let row = value.as_array()?;
+        let id = row.first()?.as_u64()?;
+        let name = row.get(1)?.as_str()?;
+        let shard = match kind { "items" | "npcs" => row.get(7), "quests" => row.get(6), _ => None }?;
+        let mut entry = json!({"id":id, "name":name, "shard":shard, "sourceLabel":"Evertally reference database"});
+        match kind {
+            "items" => { entry["quality"] = row.get(2)?.clone(); entry["itemLevel"] = row.get(3)?.clone(); entry["requiredLevel"] = row.get(4)?.clone(); }
+            "npcs" => { entry["minLevel"] = row.get(2)?.clone(); entry["maxLevel"] = row.get(3)?.clone(); entry["services"] = row.get(5)?.clone(); }
+            "quests" => { entry["level"] = row.get(2)?.clone(); entry["requiredLevel"] = row.get(3)?.clone(); }
+            _ => return None,
+        }
+        Some(entry)
+    }).collect())
+}
+
+fn detail(root: &Path, kind: &str, entry: &Value) -> Option<Value> {
+    let shard = entry["shard"].as_u64()?;
+    let id = entry["id"].as_u64()?;
+    let path = root.join(kind).join(format!("{shard}.json"));
+    if std::fs::metadata(&path).ok()?.len() > 8 * 1024 * 1024 {
+        return None;
+    }
+    let data: Value = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    let mut full = data.get(id.to_string())?.clone();
+    let object = full.as_object_mut()?;
+    object.insert("shard".into(), json!(shard));
+    // Reuse labels and details already present in the native catalogue.
+    for (short, long) in [
+        ("q", "quality"),
+        ("ilvl", "itemLevel"),
+        ("req", "requiredLevel"),
+        ("lvl", "level"),
+        ("src", "sources"),
+        ("startNpc", "starts"),
+        ("endNpc", "ends"),
+    ] {
+        if let Some(value) = object.get(short).cloned() {
+            object.entry(long).or_insert(value);
+        }
+    }
+    Some(full)
 }
 
 impl Database {
@@ -35,6 +87,7 @@ impl Database {
             selected: None,
             last_filter: None,
             matching: vec![],
+            db_root: None,
         };
         if let Some(root) = identity::resource_root() {
             for (key, _, _) in KINDS {
@@ -51,6 +104,30 @@ impl Database {
                     continue;
                 }
                 db.errors.push(key.into());
+            }
+            let web_db = root.join("db");
+            if let Some(search) = std::fs::read(web_db.join("search.json"))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            {
+                for key in ["items", "npcs", "quests"] {
+                    if let Some(entries) = search_entries(&search, key) {
+                        db.tables.insert(key.into(), entries);
+                    }
+                }
+                db.db_root = Some(web_db.clone());
+            }
+            for (file, kind, field) in [
+                ("dungeons.json", "instances", "entries"),
+                ("recipes.json", "recipes", "recipes"),
+            ] {
+                if let Some(entries) = std::fs::read(web_db.join(file))
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                    .and_then(|data| data[field].as_array().cloned())
+                {
+                    db.tables.insert(kind.into(), entries);
+                }
             }
         }
         db
@@ -148,6 +225,10 @@ impl Database {
                     for field in ["description", "body", "objective", "text"] {
                         if let Some(value) = selected[field].as_str() {
                             ui.label(value);
+                        } else if let Some(values) = selected[field].as_array() {
+                            for value in values.iter().filter_map(Value::as_str) {
+                                ui.label(value);
+                            }
                         }
                     }
                     for (field, en, cz) in [
@@ -159,6 +240,9 @@ impl Database {
                         ("bosses", "Bosses", "Bossové"),
                         ("loot", "Loot", "Kořist"),
                         ("sources", "Sources", "Zdroje"),
+                        ("reagents", "Materials", "Suroviny"),
+                        ("rewards", "Rewards", "Odměny"),
+                        ("tips", "Tips", "Tipy"),
                     ] {
                         if let Some(values) = selected[field].as_array().filter(|v| !v.is_empty()) {
                             ui.label(RichText::new(t(en, cz)).strong());
@@ -174,11 +258,14 @@ impl Database {
                                 RichText::new(format!(
                                     "{}. {}",
                                     i + 1,
-                                    step["title"].as_str().unwrap_or("")
+                                    step["title"]
+                                        .as_str()
+                                        .or_else(|| step[0].as_str())
+                                        .unwrap_or("")
                                 ))
                                 .strong(),
                             );
-                            if let Some(body) = step["body"].as_str() {
+                            if let Some(body) = step["body"].as_str().or_else(|| step[1].as_str()) {
                                 ui.label(body);
                             }
                         }
@@ -222,14 +309,23 @@ impl Database {
                         }
                         if ui
                             .selectable_label(
-                                self.selected
-                                    .as_ref()
-                                    .is_some_and(|selected| selected["id"] == entry["id"]),
+                                self.selected.as_ref().is_some_and(|selected| {
+                                    if !entry["id"].is_null() {
+                                        selected["id"] == entry["id"]
+                                    } else {
+                                        selected["key"] == entry["key"] && !entry["key"].is_null()
+                                    }
+                                }),
                                 entry_name(entry),
                             )
                             .clicked()
                         {
-                            self.selected = Some(entry.clone());
+                            self.selected = Some(
+                                self.db_root
+                                    .as_ref()
+                                    .and_then(|root| detail(root, key, entry))
+                                    .unwrap_or_else(|| entry.clone()),
+                            );
                         }
                         ui.weak(format!("#{}", display(&entry["id"])));
                         if let Some(level) = entry["level"]
@@ -261,5 +357,24 @@ fn display(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
         _ => value.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn web_search_index_becomes_desktop_entries_without_losing_shard() {
+        let data = json!({"items": [[25,"Sword",2,4,1,0,0,7,1]], "npcs": [[9,"Guard",4,6,0,["vendor"],1,3,"zone"]], "quests": [[12,"Find it",5,3,"zone","A",2]]});
+        let items = search_entries(&data, "items").unwrap();
+        assert_eq!(items[0]["name"], "Sword");
+        assert_eq!(items[0]["shard"], 7);
+        assert_eq!(items[0]["itemLevel"], 4);
+        assert_eq!(
+            search_entries(&data, "npcs").unwrap()[0]["services"][0],
+            "vendor"
+        );
+        assert_eq!(search_entries(&data, "quests").unwrap()[0]["shard"], 2);
     }
 }

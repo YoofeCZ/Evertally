@@ -49,6 +49,79 @@ struct Catalog {
     maps: Vec<Zone>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct WorldArt {
+    kind: String,
+    rect: [f32; 4],
+}
+
+#[derive(Deserialize)]
+struct WorldArtIndex {
+    schema: u64,
+    maps: HashMap<String, WorldArt>,
+}
+
+fn art_opacity(kind: &str, zoom: f32, width: f32) -> f32 {
+    if kind == "continent" {
+        let z = zoom.log2();
+        ((z - 0.05) / 0.3)
+            .clamp(0.0, 1.0)
+            .min((1.0 - (z - 2.4) / 0.9).clamp(0.0, 1.0))
+    } else {
+        ((width - 220.0) / 260.0).clamp(0.0, 1.0)
+    }
+}
+
+fn art_mesh(
+    texture: egui::TextureId,
+    rect: Rect,
+    world: [f32; 4],
+    opacity: f32,
+    kind: &str,
+) -> egui::Mesh {
+    let [left, right, top, bottom] = world;
+    let mut mesh = egui::Mesh::with_texture(texture);
+    let feather = if kind == "continent" {
+        0.12
+    } else if kind == "city" {
+        0.14
+    } else {
+        0.08
+    };
+    let coords = [0.0_f32, feather, 1.0 - feather, 1.0];
+    for &v in &coords {
+        for &u in &coords {
+            let x = if (u == 0.0 && (kind != "continent" || left > 0.0))
+                || (u == 1.0 && (kind != "continent" || right < 1.0))
+            {
+                0.0
+            } else {
+                1.0
+            };
+            let y = if (v == 0.0 && (kind != "continent" || top > 0.0))
+                || (v == 1.0 && (kind != "continent" || bottom < 1.0))
+            {
+                0.0
+            } else {
+                1.0
+            };
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: rect.min + Vec2::new(u * rect.width(), v * rect.height()),
+                uv: Pos2::new(u, v),
+                color: Color32::from_white_alpha((opacity * x * y * 255.0).round() as u8),
+            });
+        }
+    }
+    for y in 0..3_u32 {
+        for x in 0..3_u32 {
+            let a = y * 4 + x;
+            mesh.add_triangle(a, a + 1, a + 4);
+            mesh.add_triangle(a + 1, a + 5, a + 4);
+        }
+    }
+    mesh
+}
+
 #[derive(Clone, Debug)]
 pub struct Point {
     pub name: String,
@@ -215,6 +288,8 @@ pub struct WorldMap {
     selected_point: Option<Point>,
     reference_npcs: Vec<Value>,
     reference_cache: Option<(usize, u8, String, Vec<Point>)>,
+    world_art: HashMap<String, WorldArt>,
+    preview_center: Option<[f32; 2]>,
 }
 
 impl WorldMap {
@@ -242,6 +317,30 @@ impl WorldMap {
         match loaded {
             Ok(zones) => map.zones = zones,
             Err(e) => map.error = Some(e.to_owned()),
+        }
+        map.world_art = identity::resource_root()
+            .and_then(|root| std::fs::read(root.join("world/world.json")).ok())
+            .and_then(|bytes| serde_json::from_slice::<WorldArtIndex>(&bytes).ok())
+            .filter(|world| world.schema == 1)
+            .map(|world| world.maps)
+            .unwrap_or_default();
+        // CPU-only preview can exercise zoom without touching a real window.
+        if let Some(value) = std::env::args()
+            .skip_while(|arg| arg != "--map-zoom")
+            .nth(1)
+            && let Ok(zoom) = value.parse::<f32>()
+            && zoom.is_finite()
+        {
+            map.zoom = zoom.clamp(1.0, 8.0);
+        }
+        let mut center_args = std::env::args().skip_while(|arg| arg != "--map-center");
+        if center_args.next().is_some()
+            && let (Some(u), Some(v)) = (center_args.next(), center_args.next())
+            && let (Ok(u), Ok(v)) = (u.parse::<f32>(), v.parse::<f32>())
+            && u.is_finite()
+            && v.is_finite()
+        {
+            map.preview_center = Some([u.clamp(0.0, 1.0), v.clamp(0.0, 1.0)]);
         }
         let mut args = std::env::args();
         if args.any(|arg| arg == "--map-zone")
@@ -316,7 +415,7 @@ impl WorldMap {
             }
             ui.weak(format!("{:.0}%", self.zoom * 100.0));
         });
-        ui.weak(t("Drag to pan · scroll to zoom · click a world marker. Player positions are never shown.","Posun tažením · zoom kolečkem · klik na herní místo. Pozice hráčů se nikdy nezobrazují."));
+        ui.weak(t("Drag to pan · scroll to zoom · click a world marker. The desktop map does not yet show shared player positions.","Posun tažením · zoom kolečkem · klik na herní místo. Mapa v aplikaci zatím nezobrazuje sdílené polohy hráčů."));
         let zone = self.zones[self.selected].clone();
         let cache_key = (self.selected, self.layer, self.query.clone());
         if self
@@ -362,7 +461,8 @@ impl WorldMap {
         let texture = self
             .textures
             .entry(zone.key.clone())
-            .or_insert_with(|| load_texture(ui.ctx(), &zone));
+            .or_insert_with(|| load_texture(ui.ctx(), &zone))
+            .clone();
         let desired = Vec2::new(ui.available_width().max(100.0), 480.0);
         let (viewport, response) = ui.allocate_exact_size(desired, egui::Sense::click_and_drag());
         let painter = ui.painter().with_clip_rect(viewport);
@@ -398,6 +498,9 @@ impl WorldMap {
         let base_scale =
             (viewport.width() / zone.width as f32).min(viewport.height() / zone.height as f32);
         let size = Vec2::new(zone.width as f32, zone.height as f32) * base_scale * self.zoom;
+        if let Some([u, v]) = self.preview_center.take() {
+            self.pan = Vec2::new((0.5 - u) * size.x, (0.5 - v) * size.y);
+        }
         self.pan.x = self.pan.x.clamp(
             -(size.x - viewport.width()).max(0.0) * 0.5,
             (size.x - viewport.width()).max(0.0) * 0.5,
@@ -425,6 +528,51 @@ impl WorldMap {
                 egui::FontId::proportional(16.0),
                 Color32::LIGHT_GRAY,
             );
+        }
+        if zone.key == "azeroth" && !self.world_art.is_empty() {
+            // The same world rectangles and zone textures as the web, loaded
+            // only when visible so normal zoom does not decode every map.
+            let mut overlays: Vec<_> = self
+                .zones
+                .iter()
+                .filter_map(|z| {
+                    let art = self.world_art.get(&z.key)?;
+                    if !matches!(art.kind.as_str(), "continent" | "zone" | "city") {
+                        return None;
+                    }
+                    let [l, r, t, b] = art.rect;
+                    if ![l, r, t, b].iter().all(|v| v.is_finite()) || r <= l || b <= t {
+                        return None;
+                    }
+                    let rect = Rect::from_min_max(
+                        image_rect.min + Vec2::new(l * image_rect.width(), t * image_rect.height()),
+                        image_rect.min + Vec2::new(r * image_rect.width(), b * image_rect.height()),
+                    );
+                    let opacity = art_opacity(&art.kind, self.zoom, rect.width());
+                    (opacity > 0.01 && rect.intersects(viewport))
+                        .then(|| (z.clone(), art.kind.clone(), rect, opacity, art.rect))
+                })
+                .collect();
+            overlays.sort_by_key(|(_, kind, _, _, _)| match kind.as_str() {
+                "continent" => 0,
+                "zone" => 1,
+                _ => 2,
+            });
+            for (overlay, kind, rect, opacity, world_rect) in overlays {
+                let texture = self
+                    .textures
+                    .entry(overlay.key.clone())
+                    .or_insert_with(|| load_texture(ui.ctx(), &overlay));
+                if let Some(texture) = texture {
+                    painter.add(egui::Shape::mesh(art_mesh(
+                        texture.id(),
+                        rect,
+                        world_rect,
+                        opacity,
+                        &kind,
+                    )));
+                }
+            }
         }
         if self.layer != 4 {
             let mut groups = BTreeMap::<(i32, i32), Vec<&Point>>::new();
@@ -620,6 +768,29 @@ fn load_texture(ctx: &egui::Context, zone: &Zone) -> Option<TextureHandle> {
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    #[test]
+    fn stitched_map_feathers_zone_and_interior_continent_edges() {
+        let rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(100.0, 100.0));
+        let zone = art_mesh(
+            egui::TextureId::default(),
+            rect,
+            [0.2, 0.4, 0.2, 0.4],
+            1.0,
+            "zone",
+        );
+        assert_eq!(zone.vertices[0].color.a(), 0);
+        assert_eq!(zone.vertices[5].color.a(), 255);
+        let continent = art_mesh(
+            egui::TextureId::default(),
+            rect,
+            [-0.2, 0.6, 0.1, 0.9],
+            1.0,
+            "continent",
+        );
+        assert_eq!(continent.vertices[4].color.a(), 255); // outside-world edge remains visible
+        assert_eq!(continent.vertices[7].color.a(), 0); // overlapping edge fades out
+    }
     fn account(events: Vec<Value>) -> AccountData {
         AccountData {
             account: "test".into(),

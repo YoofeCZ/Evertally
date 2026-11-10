@@ -2,7 +2,7 @@
 
 Stav: 10. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform/`, `tools/`, `shared/`). Zdrojové soubory, ze kterých se data generují, jsou v `shared/sources/` včetně licenčních textů, kde je zdroj dodává.
 
-**Obecné pravidlo:** z cizích addonů a databází se přebírají jen **fakta** (ID, názvy, čísla, souřadnice, časy). Vlastní kód a texty těchto projektů se do Evertally nekopírují. Umění (mapy, ikony, načítací obrazovky) je majetek Blizzard Entertainment; čte se z klienta hráče, který hru vlastní, a používá se tak, jak ho ukazuje hra.
+**Rozsah podkladů:** vedle faktických údajů projekt obsahuje také převzaté nebo odvozené databáze, textové tipy, knihovny a grafiku. Pouhé vlastnictví herního klienta samo o sobě neprokazuje oprávnění tyto soubory dál veřejně šířit. Práva a licenční podmínky je nutné posuzovat podle konkrétního zdroje a způsobu použití.
 
 | Zdroj | Licence | Co z něj bereme | Kde to žije |
 | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ Stav: 10. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform
 | AtlasLoot Forever (AtlasLootClassic) | GPL-2.0 | loot tabulky raidů, změřené šance na drop (jen ID a procenta) | `tools/db_sources.py` → `atlasloot()` |
 | SkillUp Forever (cjber) | GPL-3.0 | recepty profesí: suroviny, výstupy, hranice dovednosti, poplatky trenérů | `tools/db_sources.py` → `recipes()` |
 | LibForeverData (forever-db, Polestar contributors) | CC BY 4.0 pro kroky a poznámky ke questům; databáze vychází z EG Link (Efficient Games, CC BY 4.0), CMaNGOS classic-db, pfQuest (MIT), ForeverTDB, QuestieDB | tipy a postup ke questům | `tools/db_sources.py` → `forever_steps()` |
-| QuestieDB (Forever) | GPL-3.0 | NPC, questy, objekty, výskyty, vazby itemů | `tools/db_sources.py` → `Questie` |
+| QuestieDB (Forever) | Smíšený historický původ; tým umožňuje kopírování za podmínek GPLv3, výslovně však upozorňuje, že nemůže potvrdit souhlas všech historických přispěvatelů. Viz [licenční prohlášení QuestieDB](https://github.com/Questie/QuestieDB/blob/master/LICENSE.md). | NPC, questy, objekty, výskyty, vazby itemů | `tools/db_sources.py` → `Questie` |
 | DungeonJournal (Exehn) | licence neuvedena; jen fakta | úrovně, bossové, loot bossů, questy a vchody dungeonů | `tools/db_sources.py` → `journal()` |
 | WoW Classic Item Caches (Napalmsteak) | viz repozitář | tooltipy a zdroje itemů, změny oproti Classicu | `shared/sources/forever-items.json` |
 | GatherLite (Wuild) | MIT (původní kód); celý addon se distribuuje jako GPL-3.0-or-later; **souřadnice uzlů vznikly z Wowhead seznamů a jejich licenci GatherLite neurčuje** | souřadnice bylinek, rud, beden a rybářských míst (`forever.lua`) a jména/minimální dovednost (`nodes.lua`); kód ani ikony se nepřebírají | `tools/build_gather.py` → `platform/public/media/gather/gather.json` |
@@ -35,4 +35,12 @@ Složka `addon/Evertally_Map` obsahuje číselné údaje odvozené z GPL-3.0 zdr
 
 ## Licenční poznámka k projektu
 
-Do repozitáře jdou data odvozená z GPL zdrojů (QuestieDB GPL-3.0, Shortest Path Forever GPL-3.0, AtlasLoot GPL-2.0). Pokud se Evertally šíří, je třeba licenci projektu zvolit s ohledem na ně (pro odvozená data GPL-3.0 sedí). Tohle není právní rada; před veřejným vydáním to stojí za potvrzení.
+Do projektu vstupují podklady s různými podmínkami včetně GPL-3.0, GPL-2.0 a CC BY 4.0. Prohlášení QuestieDB navíc upozorňuje na nevyjasněná historická práva; nelze proto tvrdit, že pro celý obsah stačí pouze zvolit GPL-3.0. U databáze uzlů z Wowheadu ani u herní grafiky se dosud nepodařilo doložit souhlas pro tuto distribuci. Konkrétní stav je potřeba předat právníkovi nebo vyjasnit s držiteli práv.
+
+### Ověření podkladů 10. 11. 2026
+
+- Nainstalovaný `QuestieDB/LICENSE.md` i [licence QuestieDB](https://github.com/Questie/QuestieDB/blob/master/LICENSE.md) rozlišují podmínky jednotlivých příspěvků a výslovně uvádějí nejistotu u starších přispěvatelů. Nejde tedy o jednoznačně doloženou licenci všech řádků databáze.
+- `GatherLite/plugins/database/data/forever.lua` identifikuje generátor `tools/update_forever_wowhead.py`. Licence kódu GatherLite sama o sobě neprokazuje licenci dat převzatých ze třetí strany.
+- Kopie `shared/sources/spf/LICENSE` obsahuje GPL-3.0. U `AtlasLootClassic/LICENSE` je přiložena GPL-2.0; zda se na použité záznamy a případné odvozené soubory vztahuje možnost „nebo novější“, je nutné ověřit u konkrétního zdroje. [GNU vysvětluje kompatibilitu verzí GPL](https://www.gnu.org/licenses/gpl-faq.en.html#v2v3Compatibility).
+- WowfCZ používáme jen v prostředí hráče, není součástí webu ani instalačního balíčku Evertally. Licence překladů a svolení autora pro přibalení nejsou doložené.
+- Mapové obrázky a ikony pocházejí z herního obsahu Blizzardu. Pro další veřejnou distribuci na webu nebo v instalátoru nebylo v tomto projektu nalezeno samostatné výslovné povolení.

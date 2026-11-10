@@ -221,6 +221,19 @@ function M.Stop()
     if frame then frame:Hide() end
 end
 
+-- Explicit handoff to the optional Shortest Path Forever addon. Its terrain
+-- guidance is a separate journey and may replace another active SPF journey.
+function M.NavigateTerrain()
+    local api = _G.ShortestPathForever and _G.ShortestPathForever.API
+    if not api or type(api.Navigate) ~= "function" then return false, "missing" end
+    if not N.target then return false, "no_target" end
+    local map, x, y, label = resolve(N.target)
+    if not map or not x or not y then return false, "no_target" end
+    local ok, started = pcall(api.Navigate, "Evertally", map, x, y, label or "Evertally")
+    if not ok or not started then return false, "refused" end
+    return true
+end
+
 --- Pins for what navigation points at: the goal and, on a journey, the next stop. {id, map, x, y, title}
 function M.NavPins()
     local out = {}

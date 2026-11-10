@@ -531,6 +531,18 @@ class MapTests(unittest.TestCase):
         self.assertTrue(any("ours bearing" in line for line in lines), lines)
         self.assertTrue(any("HereBeDragons angle 1.570" in line for line in lines), lines)
 
+    def test_terrain_handoff_is_explicit_and_preserves_target_coordinates(self):
+        self.enable()
+        self.assertEqual(tuple(self.a.map.NavigateTerrain()), (False, "missing"))
+        self.lua.execute('ShortestPathForever={API={Navigate=function(owner,map,x,y,title) CAPTURE={owner,map,x,y,title};return true end}}')
+        self.assertEqual(tuple(self.a.map.NavigateTerrain()), (False, "no_target"))
+        self.assertTrue(ok(self.a.NavigateToPoint("Inn", WESTFALL, 0.25, 0.75)))
+        self.assertTrue(self.a.map.NavigateTerrain())
+        capture = self.lua.globals().CAPTURE
+        self.assertEqual((capture[1], capture[2], capture[3], capture[4], capture[5]), ("Evertally", WESTFALL, 0.25, 0.75, "Inn"))
+        self.lua.execute('ShortestPathForever.API.Navigate=function() return false end')
+        self.assertEqual(tuple(self.a.map.NavigateTerrain()), (False, "refused"))
+
 
 if __name__ == "__main__":
     unittest.main()

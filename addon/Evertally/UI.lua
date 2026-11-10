@@ -986,6 +986,12 @@ local function slash(text)
         local ok, err = A.NavigateByName(text:match("^go%s+(.+)$"))
         A.Print(ok and string.format(A.L("navStarted"), A.Text(text:match("^go%s+(.+)$"), 60)) or A.L("navErr_" .. tostring(err)))
     elseif text == "stop" then A.StopNavigation(); A.Print(A.L("navStopped"))
+    elseif text == "terrain" then
+        if not A.map or not A.map.NavigateTerrain then A.Print(A.L("terrainMapOff"))
+        else
+            local ok, reason = A.map.NavigateTerrain()
+            A.Print(A.L(ok and "terrainStarted" or ("terrainErr_" .. tostring(reason))))
+        end
     elseif text == "ping" or text:match("^ping%s") then
         local ok, err = A.SendPing(text:match("^ping%s+(.+)$") or "")
         A.Print(ok and A.L("pingSent") or A.L("pingErr_" .. tostring(err)))

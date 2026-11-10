@@ -570,7 +570,33 @@ impl App {
         ui.add_space(23.0);
     }
 
-    fn overview(&self, ui: &mut egui::Ui) {
+    fn overview(&mut self, ui: &mut egui::Ui) {
+        egui::Frame::new()
+            .fill(Color32::from_rgb(36, 29, 51))
+            .stroke(Stroke::new(1.0, Color32::from_rgb(83, 65, 106)))
+            .corner_radius(12)
+            .inner_margin(egui::Margin::same(20))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.label(RichText::new(self.t("YOUR ADVENTURES", "TVOJE DOBRODRUŽSTVÍ")).size(10.0).color(VIOLET).extra_letter_spacing(1.2));
+                ui.add_space(4.0);
+                ui.label(RichText::new(self.t("Your journey through Azeroth", "Tvoje cesta Azerothem")).size(23.0).strong());
+                ui.label(RichText::new(self.t("Explore the map, find game data and follow your saved adventures.", "Prozkoumej mapu, najdi herní data a prohlédni si své uložené výpravy.")).size(13.0).color(MUTED));
+                ui.add_space(8.0);
+                ui.horizontal_wrapped(|ui| {
+                    for (view, en, cs) in [
+                        (View::Map, "Open map", "Otevřít mapu"),
+                        (View::Database, "Browse database", "Prohlédnout databázi"),
+                        (View::Runs, "Dungeon journal", "Deník dungeonů"),
+                    ] {
+                        if ui.button(self.t(en, cs)).clicked() {
+                            self.view = view;
+                            self.query.clear();
+                        }
+                    }
+                });
+            });
+        ui.add_space(18.0);
         let character_count = self.characters().len();
         let run_count: usize = self.filtered_accounts().map(|a| a.run_count).sum();
         let event_count: usize = self.filtered_accounts().map(|a| a.event_count).sum();
