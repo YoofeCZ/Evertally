@@ -68,6 +68,15 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
   const wantGuild = Boolean(layers.guild || layers.meets) && signedIn;
 
   useEffect(() => { const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30000); return () => clearInterval(timer); }, []);
+  // Refresh shared map data while the page is visible. This updates changes uploaded by other
+  // players without a manual click; the source may still be delayed by WoW's SavedVariables.
+  useEffect(() => {
+    if (!wantRoute && !wantGuild) return;
+    const refreshVisible = () => { if (document.visibilityState === "visible") setBump(value => value + 1); };
+    const timer = setInterval(refreshVisible, 15000);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", refreshVisible); };
+  }, [wantRoute, wantGuild]);
   useEffect(() => {
     if (!wantRoute) return;
     let live = true;
