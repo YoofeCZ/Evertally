@@ -7,7 +7,7 @@
 
 [Setup]
 AppId={{E4B4CA9F-1AF0-4D54-9014-134751D724E9}
-AppName=Evertally
+AppName=Evertally Bridge
 AppVersion={#AppVersion}
 AppPublisher=AF Studio
 AppPublisherURL=https://afstudio.dev
@@ -51,8 +51,8 @@ english.GameFolderPrompt=World of Warcraft folder:
 czech.GameFolderPrompt=Složka World of Warcraft:
 english.BadGameFolder=Choose a folder containing Wow.exe or _forever_\Wow.exe, or turn off addon installation.
 czech.BadGameFolder=Vyber složku s Wow.exe nebo _forever_\Wow.exe, případně vypni instalaci addonů.
-english.StartBackground=Enable the background launcher now (opens Evertally minimized when WoW starts)
-czech.StartBackground=Zapnout spouštění na pozadí (při startu WoW otevře Evertally minimalizovaně)
+english.StartBackground=Start Evertally Bridge in the Windows notification area
+czech.StartBackground=Spustit Evertally Bridge vedle hodin Windows
 
 [Tasks]
 Name: "startwow"; Description: "{cm:StartWoW}"; GroupDescription: "Evertally:"; Flags: checkedonce
@@ -62,24 +62,59 @@ Name: "addon"; Description: "{cm:AddonTask}"; GroupDescription: "World of Warcra
 [Files]
 Source: "{#ProjectRoot}\desktop\native\target\release\Evertally.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\desktop\native\target\release\EvertallyBackground.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#ProjectRoot}\shared\assets\*"; DestDir: "{app}\resources"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ProjectRoot}\addon\Evertally\*"; DestDir: "{app}\addon\Evertally"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ProjectRoot}\addon\Evertally_Export\*"; DestDir: "{app}\addon\Evertally_Export"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ProjectRoot}\addon\Evertally_Map\*"; DestDir: "{app}\addon\Evertally_Map"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Evertally"; Filename: "{app}\Evertally.exe"
+Name: "{group}\Evertally — Web sync"; Filename: "{app}\Evertally.exe"; Parameters: "--connection-settings"
 Name: "{group}\{cm:UninstallProgram,Evertally}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Evertally"; Filename: "{app}\Evertally.exe"; Tasks: desktopicon
+Name: "{autodesktop}\Evertally"; Filename: "{app}\Evertally.exe"; Parameters: "--connection-settings"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "EvertallySync"; ValueData: """{app}\EvertallyBackground.exe"""; Tasks: startwow; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\EvertallyBackground.exe"; Description: "{cm:StartBackground}"; Tasks: startwow; Flags: postinstall nowait skipifsilent runhidden
+Filename: "{app}\EvertallyBackground.exe"; Tasks: startwow; Flags: nowait runhidden
+Filename: "{app}\Evertally.exe"; Description: "{cm:StartBackground}"; Flags: postinstall nowait skipifsilent
 
 [Code]
 var GamePage: TInputDirWizardPage;
+
+function OpenEvent(Access: LongWord; Inherit: Boolean; Name: String): THandle;
+  external 'OpenEventW@kernel32.dll stdcall';
+function SignalEvent(Event: THandle): Boolean;
+  external 'SetEvent@kernel32.dll stdcall';
+function ReleaseEvent(Event: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+procedure StopOwnedEvent(const Name: String);
+var Event: THandle;
+begin
+  Event := OpenEvent(2, False, Name);
+  if Event <> 0 then begin
+    try SignalEvent(Event); finally ReleaseEvent(Event); end;
+  end;
+end;
+
+procedure StopBridge;
+var I: Integer;
+begin
+  StopOwnedEvent('Local\EvertallyBackgroundStop');
+  StopOwnedEvent('Local\EvertallyBridgeStop');
+  StopOwnedEvent('Local\EvertallyConnectionSettingsStop');
+  for I := 1 to 30 do begin
+    if not CheckForMutexes('Local\EvertallyBackgroundSingleInstance,Local\EvertallySyncSingleInstance,Local\EvertallyConnectionSettings') then Break;
+    Sleep(100);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  { Gracefully stop only this application's processes before Restart Manager checks locks. }
+  StopBridge;
+  Result := '';
+end;
 
 function GameRoot: String;
 begin
@@ -159,9 +194,8 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var ExitCode: Integer;
 begin
   if CurUninstallStep = usUninstall then
-    Exec(ExpandConstant('{app}\EvertallyBackground.exe'), '--stop', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+    StopBridge;
   { User configuration, recorded game data and game addons are intentionally preserved. }
 end;

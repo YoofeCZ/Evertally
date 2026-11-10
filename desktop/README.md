@@ -1,21 +1,29 @@
-# Evertally pro Windows 0.4.0
+# Evertally Bridge pro Windows 0.5.0
 
-Hlavní distribuce je `releases/EvertallySetup.exe`. Per-user instalace do `%LOCALAPPDATA%\Programs\Evertally` obsahuje GUI, watcher, mapy/databáze a volitelně addony se zálohou. Součástí je Start a odinstalace; desktopový zástupce je volitelný. Portable ZIP a samostatné EXE nejsou hlavní instalační postup.
+Instalátor `releases/EvertallySetup.exe` nainstaluje most pro aktuálního uživatele. Po spuštění je vidět jen ikona v oznamovací oblasti vedle hodin Windows, případně pod šipkou nahoru. Mapa, databáze a herní přehledy byly z Windows distribuce odstraněny; jsou na webu a v herním addonu.
 
-Devět pohledů: Přehled, Postavy, Deník výprav, Nasbíraná data, Mapa světa, Databáze a návody, Žebříčky a aktivita, Webová synchronizace, Nastavení. Místní historie a podklady fungují offline. Web a aplikace sdílejí mapové a class/race/item podklady.
+Pravým tlačítkem na ikoně otevřeš:
 
-**Spouštět s WoW** registruje `EvertallyBackground.exe` v per-user Windows Run. Po čtyřech sekundách kontroluje proces/cestu WoW Forever; při novém procesu jednou otevře aplikaci minimalizovaně. Zavření respektuje do dalšího startu hry. Nečte paměť a neovládá hru. Settings umí registraci i watcher vypnout.
+- stav synchronizace a počet nalezených složek účtů WoW;
+- synchronizovat teď a otevřít web;
+- spárovat / odpojit tento počítač, během párování kód a možnost zrušení;
+- spouštění s WoW;
+- nastavení spojení (server a cesta k WoW), složku nastavení a ukončení mostu.
 
-Nová data vidí aplikace až po zápisu SavedVariables při `/reload` či odhlášení. Hlavní `Evertally.lua` zůstává místní; na web jde pouze schválený export po párování. Tlačítko Načíst komunitní data načítá veřejné účasti a aktivitu oblastí. Ta není živá populace: jde o přispívající účty za 24 hodin, minimálně tři na oblast.
+Zástupce Start → Evertally — Web sync otevře malé okno s kartami Web sync a Nastavení spojení. Web sync obsahuje párování, párovací kód, stav spojení, synchronizaci, odpojení a uložená oprávnění exportu. Hlavní běžící most zůstává v oznamovací oblasti. Požadavek na párování otevírá schvalovací stránku v prohlížeči; běžný start mostu prohlížeč neotevírá.
 
-Přesné hráčské pozice se nezobrazují ani v surových detailech. U postavy jsou jen navštívené oblasti. Mapové piny jsou NPC `unit_position` nebo oddělené referenční výskyty.
+`EvertallyBackground.exe` kontroluje cestu nových procesů WoW Forever každé čtyři sekundy a spustí most bez hlavního okna. Jediná instance mostu používá stávající konfiguraci a Windows Credential Manager. Ukončení přes ikonu platí až do dalšího nového startu hry. Vypnutí automatického spouštění odstraní Run registraci a zastaví watcher.
 
-Settings přijímá cestu WoW a server. Distribuce používá `https://evertally.afstudio.dev`, existující `config.json` má přednost a aktualizace jej nepřepisuje. Jazyk je v `desktop.json`, token ve Správci pověření Windows. Automatická aktualizace zatím není implementovaná.
+Instalátor před aktualizací požádá watcher, most a nastavení o korektní ukončení přes jejich vlastní pojmenované události. Nekončí hru. Při přechodu ze staré verze 0.4.0 může být nutné staré hlavní okno ručně zavřít; tato verze ještě protokol ukončení mostu nemá. SavedVariables, účty, token a konfigurace se při aktualizaci nemění. Předchozí konfigurace se při uložení nového nastavení zálohuje do `config.json.bak`.
 
-## Sestavení a důkazy
+Přenos zatím reaguje na uložení `Evertally_Export.lua` při `/reload` nebo odhlášení. Živý most polohy z běžící hry na web ještě není implementovaný. Ve hře se živé zprávy mezi hráči přenášejí samostatně přes addon kanály.
 
-Z kořene `Build-Release.ps1`, potom `Build-Installer.ps1 -SkipBuild`. Konkrétní Inno Setup compiler z NuGet se lokálně rozbalí a ověří podpis; neinstaluje se globálně. Build neotevírá GUI ani WoW. Balení a hashe: `tools/package_addon.py`, `releases/installer-manifest.json`.
+## Ověření
 
-V `native` používej `cargo test` a `cargo clippy --all-targets -- -D warnings`. `--render-preview <adresář>` vykresluje panely na CPU bez oken, HTTP, tokenů a vstupů do PC. `--diagnostics` vypíše souhrn bez jmen; watcher má vlastní diagnostiku. To neprokazuje reálné ovládání ani start s WoW.
+- `cargo test` a `cargo clippy --all-targets -- -D warnings` v `native`;
+- `cargo test --lib` a clippy v `sync`;
+- `tests/installer/test-addon-install.ps1` ověřuje izolovanou falešnou instalaci: signál ukončení, uvolnění zamčeného souboru, zálohy a aktualizaci všech tří addonů;
+- `Evertally.exe --render-preview <adresář>` vykreslí pouze nastavení na CPU bez OS oken, tokenů, síťových požadavků nebo vstupů do počítače;
+- `Build-Release.ps1`, `Build-Installer.ps1 -SkipBuild`, `tools/package_addon.py` sestaví a ověří distribuci bez spuštění mostu.
 
-Aplikace 0.4.0 je skutečně nainstalovaná v `C:\Users\domin\AppData\Local\Programs\Evertally`; hash GUI/watcheru, resources, odinstalace a Run registrace byly zkontrolované. Watcher běží bez viditelného okna. Web 0.4.0 je nasazený a hashe veřejných balíčků ověřené. Skutečný start s běžící hrou, nové ingame UI a celý Discord login zatím nejsou ověřené; poslední blokuje hCaptcha. Aktuální důkazy jsou v release reportech a [NAVOD.md](../NAVOD.md).
+Nativní tray menu a skutečný start s WoW se těmito kontrolami vizuálně neověřují. Staré soubory desktopových pohledů v `native/src` nejsou součástí sestavovaných binárních souborů; historie zůstává v Gitu.

@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
+use std::time::{Duration, Instant};
 
 use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoop};
@@ -17,6 +18,8 @@ type Shape = Box<dyn Fn(f32, f32) -> f32>;
 pub enum UserEvent {
     Menu(MenuEvent),
     State(UiState),
+    SettingsClosed,
+    ReloadSettings,
 }
 
 /// Runs the tray until the user quits. Never returns.
@@ -24,7 +27,7 @@ pub fn run(
     event_loop: EventLoop<UserEvent>,
     texts: &'static Texts,
     settings_dir: PathBuf,
-    site: String,
+    mut site: String,
     tx: Sender<Command>,
 ) -> ! {
     let proxy = event_loop.create_proxy();
@@ -36,18 +39,26 @@ pub fn run(
     let sync = MenuItem::new(texts.sync_now, true, None);
     let open_site = MenuItem::new(texts.open_site, true, None);
     let pair = MenuItem::new(texts.pair, true, None);
+    let settings = MenuItem::new(texts.settings, true, None);
+    let pairing_code = MenuItem::new("", false, None);
+    let cancel_pair = MenuItem::new(texts.cancel_pair, false, None);
+    let folders = MenuItem::new(texts.no_folders, false, None);
     let autostart = CheckMenuItem::new(texts.autostart, true, platform::autostart_enabled(), None);
     let folder = MenuItem::new(texts.open_folder, true, None);
     let quit = MenuItem::new(texts.quit, true, None);
     let menu = Menu::new();
     let _ = menu.append_items(&[
         &status,
+        &folders,
         &PredefinedMenuItem::separator(),
         &sync,
         &open_site,
         &pair,
+        &pairing_code,
+        &cancel_pair,
         &PredefinedMenuItem::separator(),
         &autostart,
+        &settings,
         &folder,
         &PredefinedMenuItem::separator(),
         &quit,
@@ -55,26 +66,99 @@ pub fn run(
 
     let mut tray: Option<TrayIcon> = None;
     let mut paired = false;
+    let stop = crate::shutdown::StopSignal::new(crate::shutdown::BRIDGE_STOP);
+    let reload = crate::shutdown::StopSignal::new(crate::shutdown::BRIDGE_RELOAD);
+    let settings_proxy = event_loop.create_proxy();
+    let status_path = settings_dir.join(crate::bridge::STATUS_FILE);
+    let mut latest_state: Option<UiState> = None;
+    let mut last_status_write = Instant::now();
+    let actions: Vec<_> = crate::bridge::Action::ALL
+        .into_iter()
+        .filter_map(|action| {
+            crate::shutdown::StopSignal::new(action.event()).map(|signal| (signal, action))
+        })
+        .collect();
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(250));
+        if stop
+            .as_ref()
+            .is_some_and(crate::shutdown::StopSignal::requested)
+        {
+            let _ = tx.send(Command::Quit);
+            crate::shutdown::request(crate::shutdown::SETTINGS_STOP);
+            let _ = std::fs::remove_file(&status_path);
+            tray = None;
+            *control_flow = ControlFlow::Exit;
+            return;
+        }
+        if let Some(signal) = &reload
+            && signal.requested()
+        {
+            signal.reset();
+            let _ = settings_proxy.send_event(UserEvent::ReloadSettings);
+        }
+        for (signal, action) in &actions {
+            if signal.requested() {
+                signal.reset();
+                let _ = tx.send(action.command());
+            }
+        }
+        if last_status_write.elapsed() >= Duration::from_secs(5) {
+            if let Some(state) = &latest_state {
+                let _ = crate::bridge::publish(&status_path, &site, state);
+            }
+            last_status_write = Instant::now();
+        }
         match event {
             // The icon must be created once the loop runs (required on macOS, harmless elsewhere).
             Event::NewEvents(StartCause::Init) => {
-                tray = TrayIconBuilder::new()
+                match TrayIconBuilder::new()
                     .with_menu(Box::new(menu.clone()))
-                    .with_tooltip("Evertally Sync")
+                    .with_tooltip("Evertally Bridge")
                     .with_icon(icon())
                     .build()
-                    .ok();
+                {
+                    Ok(icon) => tray = Some(icon),
+                    Err(error) => {
+                        platform::error_dialog(&format!("Evertally Bridge: {error}"));
+                        let _ = tx.send(Command::Quit);
+                        *control_flow = ControlFlow::Exit;
+                    }
+                }
             }
             Event::UserEvent(UserEvent::State(state)) => {
+                let _ = crate::bridge::publish(&status_path, &site, &state);
+                latest_state = Some(state.clone());
                 status.set_text(&state.status);
                 paired = state.paired;
                 pair.set_text(if paired { texts.unpair } else { texts.pair });
+                let pending = state.pairing_code.is_some();
+                pair.set_enabled(!pending);
+                cancel_pair.set_enabled(pending);
+                pairing_code.set_text(state.pairing_code.as_deref().unwrap_or(texts.no_pairing));
+                folders.set_text(crate::lang::fill(
+                    texts.folders,
+                    &[("count", &state.folders.len().to_string())],
+                ));
                 sync.set_enabled(paired);
                 if let Some(tray) = &tray {
                     let _ = tray.set_tooltip(Some(&state.tooltip));
                 }
+            }
+            Event::UserEvent(UserEvent::SettingsClosed) => {
+                settings.set_enabled(true);
+            }
+            Event::UserEvent(UserEvent::ReloadSettings) => {
+                if let Ok(paths) = crate::config::Paths::new()
+                    && let Ok(config) = crate::config::load_config(&paths.config)
+                    && let Ok(origin) = config.server_origin()
+                {
+                    site = origin;
+                    latest_state = None;
+                    let _ = std::fs::remove_file(&status_path);
+                    let _ = tx.send(Command::ReloadConfig(config));
+                }
+                autostart.set_checked(platform::autostart_enabled());
             }
             Event::UserEvent(UserEvent::Menu(event)) => {
                 let id = &event.id;
@@ -92,10 +176,25 @@ pub fn run(
                     if platform::set_autostart(autostart.is_checked()).is_err() {
                         autostart.set_checked(platform::autostart_enabled());
                     }
+                } else if id == cancel_pair.id() {
+                    let _ = tx.send(Command::CancelPair);
+                } else if id == settings.id() {
+                    settings.set_enabled(false);
+                    let proxy = settings_proxy.clone();
+                    std::thread::spawn(move || {
+                        if let Ok(exe) = std::env::current_exe() {
+                            let _ = std::process::Command::new(exe)
+                                .arg("--connection-settings")
+                                .status();
+                        }
+                        let _ = proxy.send_event(UserEvent::SettingsClosed);
+                    });
                 } else if id == folder.id() {
                     let _ = open::that(&settings_dir);
                 } else if id == quit.id() {
                     let _ = tx.send(Command::Quit);
+                    crate::shutdown::request(crate::shutdown::SETTINGS_STOP);
+                    let _ = std::fs::remove_file(&status_path);
                     tray = None;
                     *control_flow = ControlFlow::Exit;
                 }

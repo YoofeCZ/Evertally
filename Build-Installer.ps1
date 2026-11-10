@@ -8,9 +8,6 @@ foreach ($binaryName in @('Evertally.exe','EvertallyBackground.exe')) {
         throw ('Chybi sestaveny soubor: ' + $binaryName)
     }
 }
-if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'shared\assets\maps\manifest.json'))) {
-    throw 'Chybi overeny katalog a obrazky map. Installer se bez nich nezabali.'
-}
 $compilerDir = Join-Path $projectRoot '.tools\innosetup'
 $compiler = Join-Path $compilerDir 'tools\ISCC.exe'
 if (-not (Test-Path -LiteralPath $compiler)) {

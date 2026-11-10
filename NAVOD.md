@@ -1,11 +1,13 @@
-# Evertally — návod 0.4.0
+# Evertally — addon a web 0.4.0, Windows Bridge 0.5.0
 
 Zdrojová verze 0.4.0, 9. 11. 2026. Addon sbírá vlastní herní události, nainstalovaná Windows aplikace je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části.
+
+Windows Bridge 0.5.0 (10. 11. 2026) nahrazuje předchozí desktopové přehledy mostem vedle hodin. Z ikony otevřeš malé okno s kartami Web sync a Nastavení spojení. Web sync obsahuje párování, kód, stav spojení, synchronizaci, odpojení a oprávnění exportu. Mapa a databáze už ve Windows aplikaci nejsou. Herní data zůstávají uložená ve WoW, webové přehledy jsou na webu. Živý přenos polohy z běžící hry na web zatím není implementovaný.
 
 ## Co můžeš snadno vyzkoušet sám
 
 1. Po instalaci nových souborů addonu napiš ve hře `/reload`, potom `/etally`. Otevře se okno Evertally; v Nastavení můžeš zapnout mapu a minimapu. Pokud už jsi je zapnul, nepřepínej je znovu.
-2. Novou Windows verzi nainstaluješ souborem `releases/EvertallySetup.exe`; před instalací sám zavři běžící Evertally. Otevři ji přes Start a podívej se na **Mapu světa** a **Databázi a návody**.
+2. Nový most nainstaluješ souborem `releases/EvertallySetup.exe`. Staré hlavní okno Evertally před aktualizací zavři; nové mosty a watcher dostávají žádost o korektní ukončení přímo od instalátoru. Menu mostu otevřeš pravým tlačítkem na ikoně vedle hodin nebo pod šipkou nahoru. Přes Start → Evertally — Web sync otevřeš spojení a párování.
 3. Webovou mapu otevři na `https://evertally.afstudio.dev/#atlas`. Panel **Trasy a skupiny** má samostatné záložky Moje trasa, Skupiny a Cech. Pro zobrazení vlastních dat je potřeba přihlášení a spárovaná aplikace; hra ukládá změny při `/reload` nebo odhlášení.
 4. Záznam dungeonu vyzkoušíš až skutečným průchodem; sdílení polohy a skupinové funkce vyžadují dalšího člověka, který má addon a sdílení povolí. Sám tím správnost přenosu neověříš.
 
@@ -16,17 +18,17 @@ Pozvánku `/invite`, `/script` ani diagnostické příkazy pro tyto základní k
 1. Spusť `releases/EvertallySetup.exe`. Instaluje se pro aktuálního uživatele do `%LOCALAPPDATA%\Programs\Evertally`, bez administrátorského účtu.
 2. Ponech **Spouštět Evertally automaticky s World of Warcraft Forever**, pokud tuto funkci chceš používat. Zástupce na ploše je volitelný; položka Start a odinstalace jsou součástí.
 3. Pro instalaci addonů zaškrtni příslušnou volbu a vyber složku s `Wow.exe` nebo rodiče obsahujícího `_forever_`. Předchozí soubory Evertally se zálohují; SavedVariables se nemění.
-4. WoW restartuj sám, aby načetlo nové soubory v `.toc`. Aplikaci otevřeš přes Start → Evertally.
+4. WoW restartuj sám, pokud přibyly nové soubory v `.toc`. Most najdeš vedle hodin Windows; v nabídce Start je Web sync a odinstalace.
 
-Instalátor obsahuje GUI, `EvertallyBackground.exe`, datové podklady a všechny tři addony. Samostatné EXE a ZIP jsou pomocné varianty; hlavní cesta je instalátor. Existující `config.json` se aktualizací nepřepisuje. Starší localhost přepni v Settings na `https://evertally.afstudio.dev`. Odinstalace je v nastavení Windows → Aplikace nebo nabídce Start. Vlastní herní historie se při ní nemaže.
+Instalátor obsahuje tray most, `EvertallyBackground.exe` a všechny tři addony. Mapové a databázové podklady se pro Windows už nebalí. Samostatné EXE a ZIP jsou pomocné varianty; hlavní cesta je instalátor. Existující `config.json`, token a soubory hry se aktualizací nepřepisují. Starší localhost přepni v Nastavení spojení na `https://evertally.afstudio.dev`. Uložení nastavení zálohuje předchozí konfiguraci do `config.json.bak`.
 
 Aktualizace 10. 11. 2026: instalátor i webové balíčky jsou nově sestavené, tři herní addony jsou nainstalované a web používá migrace 0003–0004. Otevřená desktopová aplikace se sama nepřepsala; novou verzi je nutné nainstalovat ze souboru `releases/EvertallySetup.exe`. Herní ověření šipky a skutečného spouštění s WoW zatím chybí.
 
 ## Spouštění s WoW
 
-Per-user Windows Run spouští malý `EvertallyBackground.exe`. Každé čtyři sekundy kontroluje seznam procesů a cestu WoW Forever. Při novém procesu hry jednou otevře aplikaci minimalizovaně a bez aktivace. Nečte paměť hry, nevkládá DLL a neovládá její UI.
+Per-user Windows Run spouští malý `EvertallyBackground.exe`. Každé čtyři sekundy kontroluje seznam procesů a cestu WoW Forever. Při novém procesu hry jednou spustí tray most bez hlavního okna a bez otevření prohlížeče. Nečte paměť hry, nevkládá DLL a neovládá její UI.
 
-Když okno ručně zavřeš, stejná běžící hra ho znovu neotevře. Nový start hry může aplikaci spustit znovu. Vypnutí volby v Settings odstraní Run registraci a zastaví watcher. Samotný build nic nespouští a neprokazuje reálné chování při hře.
+Když v menu ikony vybereš Ukončit, stejná běžící hra most znovu nespustí. Nový start hry ho může spustit znovu. Vypnutí automatického spouštění odstraní Run registraci a zastaví watcher. Samotný build neprokazuje reálné chování při hře.
 
 ## Addon a ukládání
 
@@ -43,11 +45,11 @@ Detail výpravy ukazuje dostupné boss časy/splity, obtížnost, vlastní úmrt
 
 Hra zapisuje SavedVariables při `/reload`, odhlášení nebo ukončení. Desktop nevidí živé změny před tímto zápisem. Vlastní historii čte z `Evertally.lua`; na web tento soubor neposílá. Pro přenos používá pouze schválený `Evertally_Export.lua`.
 
-## Desktop, mapa a databáze
+## Mapa a databáze na webu
 
-Devět pohledů: Přehled, Postavy, Deník výprav, Nasbíraná data, Mapa světa, Databáze a návody, Žebříčky a aktivita, Webová synchronizace, Nastavení. Vlastní uložená historie i nainstalované podklady fungují offline. Komunitní údaje načítá samostatné tlačítko; cache není živý stav serveru.
+Mapu, databázi, postavy, výpravy, profese a žebříčky otevři na webu. Dřívější desktopové přehledy byly od verze mostu 0.5.0 vyřazeny. Staré zdrojové soubory zůstávají v historii projektu, běžný balíček je nesestavuje.
 
-Web a desktop používají stejné podklady:
+Web používá tyto podklady:
 
 | Podklad | Rozsah |
 | --- | --- |
@@ -59,7 +61,7 @@ Web a desktop používají stejné podklady:
 | Recepty | 2 339 referenčních receptů |
 | Návody | Dva vlastní stručné návody k používání Evertally |
 
-Nejde o knihu raidových strategií ani úplně ověřenou databázi aktuálního buildu. NPC/questy jsou základní řádky QuestieDB pro Forever bez runtime oprav. Desktop načítá stejný vyhledávací index a detaily jako web a na mapě Azerothu při přibližování skládá stejné mapové podklady. Ovládání a vrstvy desktopové mapy zatím nejsou totožné s webem. Zdroje a licence jsou v `THIRD_PARTY.md`.
+Nejde o knihu raidových strategií ani úplně ověřenou databázi aktuálního buildu. NPC/questy jsou základní řádky QuestieDB pro Forever bez runtime oprav. Zdroje a licence jsou v `THIRD_PARTY.md`.
 
 Mapy vznikly z lokálních CASC souborů wowf 1.60.1.70862, mapová metadata z DB2 1.60.1.70291. Databázové NPC výskyty jsou samostatný zdroj, nejsou hráčská pozorování. Neznámé mapové ID se nepřiřazuje odhadem. Race obrázek je symbol rasy; pohlaví postavy se nesbírá.
 
@@ -191,7 +193,13 @@ Vývojový web spouští `Spustit-web.ps1` na `http://127.0.0.1:5173`. Distribu�
 
 Podklady generuje `tools/build_reference_data.py`. Po web buildu spusť v `platform` `node scripts/prepare-production.mjs --check-db --dry-run`. Produkční D1 už má migrace; neopakuj `--init-db`. Tajné hodnoty patří do ignorovaných lokálních souborů a Worker secrets.
 
-## Skutečný stav vydání
+## Stav Windows Bridge 0.5.0
+
+Nový most je sestavený jako tray aplikace a má malé okno Web sync a Nastavení spojení. Instalační test běží ve vlastní složce s vlastními pojmenovanými událostmi: ověřuje uvolnění zamčeného souboru, zálohování a aktualizaci addonů. Staré desktopové okno se při běžném spuštění nové verze nevytváří. Sestavení ani tento test neinstalují novou verzi do běžící aplikace uživatele.
+
+Živý přenos polohy na web, nativní tray menu při skutečném běhu, dokončení Discord párování a automatický start se skutečnou hrou zůstávají bez nového runtime ověření. Pro orientaci používej aktuální `desktop/README.md`.
+
+## Historická kontrola vydání 0.4.0 (před přechodem na most)
 
 Web 0.4.0 je veřejně nasazený na `https://evertally.afstudio.dev` (Cloudflare verze `7177013e-11b0-461b-9838-86d61c821a91`). HTTPS kontrola potvrdila status 0.4.0, `auth.discord=true`, `devLogin=false`, 60 map a katalogy. Hashe staženého addonu, aplikace a instalátoru souhlasí s manifesty. Veřejná headless kontrola prošla 11 scénáři: mapa/zoom/NPC piny, aktivita bez hráčských GPS bodů, katalogové ikony a přesné hledání, questy, dungeonový loot, návody, mobilní zobrazení a žádné chyby stránky.
 

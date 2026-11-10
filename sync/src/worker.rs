@@ -30,7 +30,7 @@ pub enum Command {
     Quit,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiState {
     pub status: String,
@@ -66,7 +66,6 @@ pub struct Worker {
     watcher: Option<RecommendedWatcher>,
     dirs: Vec<PathBuf>,
     processed: HashMap<PathBuf, SystemTime>,
-    first_run: bool,
     open_browser: bool,
 }
 
@@ -82,7 +81,6 @@ impl Worker {
         open_browser: bool,
     ) -> Self {
         let tokens = TokenStore::new(&origin);
-        let first_run = !paths.state.exists();
         let token = config
             .server_origin()
             .ok()
@@ -101,7 +99,6 @@ impl Worker {
             watcher: None,
             dirs: Vec::new(),
             processed: HashMap::new(),
-            first_run,
             open_browser,
         }
     }
@@ -131,16 +128,9 @@ impl Worker {
         if let Err(error) = self.config.server_origin() {
             self.show(format!("{error}"));
         } else if self.token.is_none() {
-            // The native window always starts locally. Only the legacy tray app
-            // starts pairing on first launch, as it has no main window.
-            if self.first_run && self.open_browser {
-                let _ = self.state.save(&self.paths.state);
-                if !self.pair(rx) {
-                    return;
-                }
-            } else {
-                self.show(self.texts.not_paired.to_owned());
-            }
+            // Background startup must never steal focus or open a browser.
+            // Pairing is an explicit action in the tray menu.
+            self.show(self.texts.not_paired.to_owned());
         } else {
             self.sync_all(false);
         }
@@ -551,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn native_first_launch_stays_local_until_pair_is_requested() {
+    fn tray_first_launch_stays_local_until_pair_is_requested() {
         let dir = std::env::temp_dir().join(format!(
             "evertally-native-start-test-{}",
             std::process::id()
@@ -578,7 +568,7 @@ mod tests {
             config.server.clone(),
             Box::new(move |state| observed.lock().expect("states").push(state)),
             tx,
-            false,
+            true,
         );
         worker.run(&rx);
         let states = states.lock().expect("states");

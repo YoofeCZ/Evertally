@@ -6,7 +6,7 @@ fn main() {
             .set("ProductName", "Evertally")
             .set(
                 "FileDescription",
-                "Evertally — offline WoW journal & optional web sync",
+                "Evertally — background WoW sync bridge",
             )
             .compile()
             .expect("embed Evertally Windows icon");

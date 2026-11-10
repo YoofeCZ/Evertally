@@ -78,29 +78,25 @@ if APP.is_file():
         archive.writestr("Evertally.exe", app)
         background = APP.with_name("EvertallyBackground.exe")
         if background.is_file(): archive.write(background,"EvertallyBackground.exe")
-        resources=ROOT/"shared/assets"
-        if resources.is_dir():
-            for resource in sorted(resources.rglob("*")):
-                if resource.is_file(): archive.write(resource,"resources/"+resource.relative_to(resources).as_posix())
         archive.writestr("README.txt", (
-            "Evertally pro Windows\n\n"
+            "Evertally Bridge pro Windows\n\n"
             "Rozbal oba soubory do vlastni slozky a spust Evertally.exe.\n"
-            "Mistni prehled funguje bez weboveho uctu a internetu.\n"
-            "Settings: cesta k WoW a adresa tveho weboveho serveru.\n"
+            "Most nema hlavni okno. Menu je v ikone vedle hodin Windows.\n"
+            "Web sync: parovani, stav, synchronizace a odpojeni.\n"
+            "Nastaveni spojeni: cesta k WoW a adresa tveho webu.\n"
+            "Mapa, databaze a prehledy jsou na webu; addon funguje ve hre.\n"
             f"Vychozi webova adresa: {server}\n"
             "Existujici konfigurace se pri aktualizaci nemeni.\n"
-            "Webove sdileni vyzaduje souhlas v addonu a sparovani v Sync.\n"
+            "Webove sdileni vyzaduje souhlas v addonu a sparovani v menu ikony.\n"
             "Hra uklada zmeny pri /reload nebo odhlaseni.\n\n"
             "Pri aktualizaci nejdrive sam zavri predchozi Evertally.\n"
-            "Starsimu tray klientovi odpovida EvertallySync.exe.\n"
             "Balicek neobsahuje osobni herni data ani prihlasovaci token.\n"
         ))
     portable_data = portable.getvalue()
     with zipfile.ZipFile(BytesIO(portable_data)) as archive:
         assert archive.testzip() is None
         assert archive.read("Evertally.exe") == app
-    # The portable bundle includes every offline resource and exceeds Workers'
-    # single-asset limit. The public download is the compact solid installer.
+    # The main public distribution is the installer; portable is a recovery tool.
     for folder in (out,):
         (folder / "Evertally-Windows.zip").write_bytes(portable_data)
         folder_manifests[folder]["portable"] = describe("Evertally-Windows.zip", portable_data, version=version)

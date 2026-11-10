@@ -18,6 +18,40 @@ $code = $original.Substring($original.IndexOf('[Code]'))
 $code = $code -replace "if DirExists\('D:\\World of Warcraft\\_forever_'\) then\s*GamePage.Values\[0\] := 'D:\\World of Warcraft\\_forever_'\s*else\s*GamePage.Values\[0\] := ExpandConstant\('\{pf32\}\\World of Warcraft\\_forever_'\);", "GamePage.Values[0] := '$game';"
 if ($code -notmatch [regex]::Escape("GamePage.Values[0] := '$game';")) { throw 'Could not isolate the game path.' }
 $code = $code.Replace("ExpandConstant('{localappdata}\Evertally\AddonBackups\')", "'$test\backup\'")
+# Never signal the user's real bridge while running this fixture.
+$eventPrefix = 'Local\EvertallyFixture' + [guid]::NewGuid().ToString('N')
+$code = $code.Replace('Local\Evertally', $eventPrefix)
+$events = @('BackgroundStop', 'BridgeStop', 'ConnectionSettingsStop') | ForEach-Object { New-Object System.Threading.EventWaitHandle($false, [System.Threading.EventResetMode]::ManualReset, ($eventPrefix + $_)) }
+# Simulate a headless bridge holding its installed binary open. Only this fixture's
+# named event releases the lock; no real process or real event is accessed.
+$installedRoot = Join-Path $test 'installed'
+New-Item -ItemType Directory -Force -Path $installedRoot | Out-Null
+$lockedPath = Join-Path $installedRoot 'EvertallyBackground.exe'
+Set-Content -LiteralPath $lockedPath -Value 'old bridge fixture'
+Set-Content -LiteralPath (Join-Path $package 'EvertallyBackground.exe') -Value 'new bridge fixture'
+Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Threading;
+public class EvertallyUpdateFixture {
+    public static Thread Hold(string path, string signal, string mutexName) {
+        var ready = new ManualResetEvent(false);
+        var thread = new Thread(() => {
+            using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
+            using (var mutex = new Mutex(false, mutexName))
+            using (var stop = EventWaitHandle.OpenExisting(signal)) {
+                ready.Set();
+                if (!stop.WaitOne(15000)) throw new Exception("Missing shutdown request");
+            }
+        });
+        thread.IsBackground = true;
+        thread.Start();
+        if (!ready.WaitOne(5000)) throw new Exception("Lock fixture did not start");
+        return thread;
+    }
+}
+'@
+$lockThread = [EvertallyUpdateFixture]::Hold($lockedPath, ($eventPrefix + 'BackgroundStop'), ($eventPrefix + 'BackgroundSingleInstance'))
 $head = @"
 [Setup]
 AppId={{E32A88D4-40A9-4667-90BE-65E544606AC1}
@@ -40,7 +74,8 @@ english.BadGameFolder=Bad game folder
 [Tasks]
 Name: "addon"; Description: "Addon"
 [Files]
-Source: "$package\*"; DestDir: "{app}\addon"; Flags: recursesubdirs createallsubdirs
+Source: "$package\*"; Excludes: "EvertallyBackground.exe"; DestDir: "{app}\addon"; Flags: recursesubdirs createallsubdirs
+Source: "$package\EvertallyBackground.exe"; DestDir: "{app}"; Flags: ignoreversion
 "@
 $script = Join-Path $test 'fixture.iss'
 Set-Content -LiteralPath $script -Value ($head + "`r`n" + $code) -Encoding utf8
@@ -50,6 +85,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Fixture compilation failed' }
 $log = Join-Path $test 'setup.log'
 $process = Start-Process -FilePath (Join-Path $test 'fixture-setup.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCLOSEAPPLICATIONS', '/TASKS=addon', "/LOG=$log") -WindowStyle Hidden -Wait -PassThru
 $logText = Get-Content -LiteralPath $log -Raw
+$lockThread.Join(5000) | Out-Null
+if ((Get-Content -LiteralPath $lockedPath -Raw).Trim() -ne 'new bridge fixture') { throw 'Locked bridge was not updated.' }
+foreach ($stopEvent in $events) {
+    if (-not $stopEvent.WaitOne(0)) { throw 'Installer did not signal graceful shutdown.' }
+    $stopEvent.Dispose()
+}
 if ($process.ExitCode -ne 0 -or $logText -match 'raised an exception|Runtime error') { throw "Fixture installer failed. Log: $log" }
 foreach ($name in @('Evertally', 'Evertally_Export', 'Evertally_Map')) {
     $installed = Join-Path $game ('Interface\AddOns\' + $name + '\fixture.lua')

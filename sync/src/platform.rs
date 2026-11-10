@@ -30,12 +30,15 @@ impl Drop for InstanceGuard {
 #[cfg(windows)]
 #[must_use]
 pub fn single_instance() -> Option<InstanceGuard> {
+    single_instance_named("Local\\EvertallySyncSingleInstance")
+}
+
+#[cfg(windows)]
+#[must_use]
+pub fn single_instance_named(event_name: &str) -> Option<InstanceGuard> {
     use windows_sys::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
     use windows_sys::Win32::System::Threading::CreateMutexW;
-    let name: Vec<u16> = "Local\\EvertallySyncSingleInstance"
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
+    let name: Vec<u16> = event_name.encode_utf16().chain(Some(0)).collect();
     // SAFETY: `name` is a NUL-terminated UTF-16 string that outlives the call; null security
     // attributes request the default descriptor.
     let handle = unsafe { CreateMutexW(std::ptr::null(), 0, name.as_ptr()) };
@@ -51,6 +54,12 @@ pub fn single_instance() -> Option<InstanceGuard> {
 #[cfg(not(windows))]
 #[must_use]
 pub fn single_instance() -> Option<InstanceGuard> {
+    Some(InstanceGuard())
+}
+
+#[cfg(not(windows))]
+#[must_use]
+pub fn single_instance_named(_name: &str) -> Option<InstanceGuard> {
     Some(InstanceGuard())
 }
 

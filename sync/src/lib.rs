@@ -1,15 +1,16 @@
 //! Evertally Sync: uploads new records from the Evertally addon's export file to the
 //! Evertally website after the game saves them.
 //!
-//! The library is shared by the standalone tray app (`tray` feature, this crate's binary)
-//! and the Evertally desktop app (Tauri), which embeds the website and these modules.
+//! The tray bridge and its connection settings share this library.
 
 pub mod api;
+pub mod bridge;
 pub mod config;
 pub mod lang;
 pub mod local;
 pub mod platform;
 pub mod savedvars;
+pub mod shutdown;
 #[cfg(feature = "tray")]
 pub mod ui;
 pub mod upload;
@@ -36,10 +37,14 @@ pub fn run() -> anyhow::Result<()> {
         return Ok(());
     };
     let paths = Paths::new()?;
-    let config = config::load_config(&paths.config)?;
+    // Keep the tray and its repair settings available even when the local file is damaged.
+    let config = config::load_config(&paths.config).unwrap_or_else(|_| config::Config {
+        server: String::new(),
+        wow_path: None,
+    });
     let origin = config
         .server_origin()
-        .with_context(|| format!("check \"server\" in {}", paths.config.display()))?;
+        .unwrap_or_else(|_| config::DEFAULT_SERVER.to_owned());
     let texts = if platform::prefers_czech() {
         &lang::CS
     } else {

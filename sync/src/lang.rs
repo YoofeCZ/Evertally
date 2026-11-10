@@ -22,6 +22,11 @@ pub struct Texts {
     pub autostart: &'static str,
     pub open_folder: &'static str,
     pub quit: &'static str,
+    pub settings: &'static str,
+    pub cancel_pair: &'static str,
+    pub no_pairing: &'static str,
+    pub no_folders: &'static str,
+    pub folders: &'static str,
 }
 
 pub const EN: Texts = Texts {
@@ -32,7 +37,7 @@ pub const EN: Texts = Texts {
     pairing_expired: "Pairing expired. Choose “Pair this PC” again.",
     pairing_declined: "Pairing was declined on the website.",
     paired_as: "Paired as {name}",
-    no_wow: "World of Warcraft not found. Set wowPath in config.json.",
+    no_wow: "World of Warcraft not found. Choose its folder in Connection settings.",
     watching: "Watching {count} WoW account folder(s)",
     up_to_date: "Up to date · {time}",
     uploaded: "Uploaded {count} new record(s) · {time}",
@@ -40,12 +45,17 @@ pub const EN: Texts = Texts {
     offline: "Server unreachable, will retry",
     disconnected: "This PC was disconnected on the website",
     sync_now: "Sync now",
-    open_site: "Open Evertally",
+    open_site: "Open Evertally website",
     pair: "Pair this PC…",
     unpair: "Disconnect this PC",
-    autostart: "Start with Windows",
+    autostart: "Start automatically with WoW",
     open_folder: "Open settings folder",
     quit: "Quit",
+    settings: "Web sync and settings…",
+    cancel_pair: "Cancel pairing",
+    no_pairing: "No pairing in progress",
+    no_folders: "Looking for WoW folders…",
+    folders: "WoW account folders: {count}",
 };
 
 pub const CS: Texts = Texts {
@@ -56,7 +66,7 @@ pub const CS: Texts = Texts {
     pairing_expired: "Párování vypršelo. Zvol znovu „Spárovat tento počítač“.",
     pairing_declined: "Párování bylo na webu odmítnuto.",
     paired_as: "Spárováno jako {name}",
-    no_wow: "World of Warcraft nenalezen. Nastav wowPath v config.json.",
+    no_wow: "World of Warcraft nenalezen. Vyber jeho složku v Nastavení spojení.",
     watching: "Hlídám složky účtů WoW: {count}",
     up_to_date: "Vše odesláno · {time}",
     uploaded: "Odesláno nových záznamů: {count} · {time}",
@@ -64,12 +74,17 @@ pub const CS: Texts = Texts {
     offline: "Server je nedostupný, zkusím to znovu",
     disconnected: "Tento počítač byl na webu odpojen",
     sync_now: "Synchronizovat teď",
-    open_site: "Otevřít Evertally",
+    open_site: "Otevřít web Evertally",
     pair: "Spárovat tento počítač…",
     unpair: "Odpojit tento počítač",
-    autostart: "Spouštět s Windows",
+    autostart: "Spouštět automaticky s WoW",
     open_folder: "Otevřít složku s nastavením",
     quit: "Ukončit",
+    settings: "Web sync a nastavení…",
+    cancel_pair: "Zrušit párování",
+    no_pairing: "Párování právě neprobíhá",
+    no_folders: "Hledám složky WoW…",
+    folders: "Složky účtů WoW: {count}",
 };
 
 /// Fills `{name}` placeholders.

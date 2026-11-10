@@ -1,20 +1,21 @@
 [package]
 name = "evertally-desktop"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.95"
-description = "Evertally native desktop companion and offline WoW journal"
+description = "Evertally background bridge between WoW and the website"
+autobins = false
 
 [[bin]]
 name = "Evertally"
-path = "src/main.rs"
+path = "src/bridge_main.rs"
 
 [[bin]]
 name = "EvertallyBackground"
 path = "src/background.rs"
 
 [dependencies]
-evertally-sync = { path = "../../sync", default-features = false }
+evertally-sync = { path = "../../sync" }
 eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "clipboard", "accesskit"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 open = "5.4.5"
