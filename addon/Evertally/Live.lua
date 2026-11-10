@@ -41,17 +41,43 @@ end
 
 --- One beacon per channel when it is due: you moved (at most every 5 s) or 30 s passed. Newer ones replace queued older ones.
 function A.LiveTick()
-    -- Do not transmit individual player positions.
+    local channels = liveChannels()
+    if #channels == 0 then return end
+    local map, x, y = A.PlayerPosition()
+    if not map or not x or not y then return end -- instances and loading screens have no map position
+    local now = A.Monotonic()
+    local character = A.Character()
+    local class = character and character.classId or 0
+    for _, channel in ipairs(channels) do
+        local last = L.lastSent[channel]
+        local moved = not last or last.map ~= map or math.abs(x - last.x) + math.abs(y - last.y) >= MOVED
+        local due = not last or (moved and now - last.at >= BEACON_GAP) or now - last.at >= HEARTBEAT
+        if due and A.QueueSocial(string.format("S|L|%d|%d|%d|%d", map, floor(x * 1000 + 0.5), floor(y * 1000 + 0.5), class), channel, nil, "L:" .. channel) then
+            L.lastSent[channel] = {map = map, x = x, y = y, at = now}
+        end
+    end
 end
 
 --- which = "party" (party / raid) or "guild".
 function A.SetLive(which, enabled)
     local s = settings()
     if not s then return end
-    s.liveParty, s.liveGuild = false, false
+    local key = which == "guild" and "liveGuild" or "liveParty"
+    enabled = enabled == true
+    if (s[key] == true) == enabled then return end
+    s[key] = enabled
+    if enabled then
+        A.Print(A.L(which == "guild" and "liveOnGuild" or "liveOnParty"))
+    else
+        -- tell the others at once instead of leaving a stale dot for two minutes
+        for _, channel in ipairs(which == "guild" and {"GUILD"} or {"PARTY", "RAID"}) do
+            L.lastSent[channel] = nil
+            if channel == "GUILD" and A.Call(IsInGuild) == true or (channel ~= "GUILD" and groupChannel() == channel) then A.QueueSocial("S|E", channel, nil, "L:" .. channel) end
+        end
+    end
     A.Changed()
 end
-function A.LiveActive() return false end
+function A.LiveActive() local s = settings(); return s ~= nil and (s.liveParty == true or s.liveGuild == true) end
 
 -- ---------------------------------------------------------------- receiving
 local function prune()
@@ -61,7 +87,15 @@ local function prune()
 end
 
 A.socialHandlers.L = function(channel, sender, message)
-    -- Ignore beacons from older clients, too.
+    if not CHANNELS[channel] or not A.db or isMe(sender) then return end
+    local f = fields(message)
+    local map, x, y, class = A.Number(tonumber(f[3]), 1, 100000), A.Number(tonumber(f[4]), 0, 1000), A.Number(tonumber(f[5]), 0, 1000), A.Number(tonumber(f[6]), 0, 100)
+    if not map or not x or not y then return end
+    local key, now = base(sender):lower(), A.Monotonic()
+    if key == "" or (L.seen[key] and now - L.seen[key] < PEER_GAP) then return end -- a sender cannot flood
+    L.seen[key] = now
+    if not L.peers[key] then prune(); if count(L.peers) >= MAX_PEERS then return end end
+    L.peers[key] = {name = base(sender), full = A.Text(sender, 150), map = floor(map), x = x / 1000, y = y / 1000, class = (class and class > 0) and floor(class) or nil, at = A.Now(), channel = channel}
 end
 A.socialHandlers.E = function(channel, sender)
     local peer = L.peers[base(sender):lower()]
@@ -124,8 +158,7 @@ local function pingChannel() return groupChannel() or (A.Call(IsInGuild) == true
 function A.SendPing(label, map, x, y, channel)
     channel = channel or pingChannel()
     if not channel then return false, "no_channel" end
-    -- A ping is an explicitly selected map point, never the sender's position.
-    if not map then return false, "no_position" end
+    if not map then map, x, y = A.PlayerPosition() end
     map, x, y = A.Number(tonumber(map), 1, 100000), A.Number(tonumber(x), 0, 1), A.Number(tonumber(y), 0, 1)
     if not map or not x or not y then return false, "no_position" end
     local id = string.format("%06x", math.random(0, 16777215))
@@ -228,9 +261,9 @@ if C_Timer and type(C_Timer.NewTicker) == "function" then C_Timer.NewTicker(2, f
 -- ---------------------------------------------------------------- texts
 local text = {
     en = {
-        liveSection = "Map and navigation", liveParty = "Share my live position with party / raid", liveGuild = "Share my live position with my guild",
-        mapPins = "Map and minimap: meets, pings and navigation",
-        liveHint = "Individual player locations are not shared. The map option loads Evertally_Map for navigation, meets and map pings.",
+        liveSection = "Live position and map", liveParty = "Share my live position with party / raid", liveGuild = "Share my live position with my guild",
+        mapPins = "Map and minimap: show people, meets, pings and navigation",
+        liveHint = "Live position sends where you are (zone, spot, class) to the group or guild while you move, to players with this addon. It is never uploaded or saved. The map option loads a second add-on (Evertally_Map) that adds pins to the world map and minimap.",
         liveOnParty = "Live position: sharing with your party / raid. Turn it off in Settings.", liveOnGuild = "Live position: sharing with your guild. Turn it off in Settings.",
         mapOn = "Map and minimap: on.", mapOff = "Map and minimap: pins removed. Reload the UI to unload the map library.", mapFail = "Map and minimap could not be loaded (is the Evertally_Map folder installed?).",
         livePill = "LIVE", agoNow = "just now", agoMinutes = "%d min ago", meetDefault = "Meet", pingTitle = "Ping", navYou = "you",
@@ -245,9 +278,9 @@ local text = {
         meetNavigate = "Navigate", pingNavigate = "Navigate",
     },
     cs = {
-        liveSection = "Mapa a navigace", liveParty = "Sdílet mou živou polohu s partou / raidem", liveGuild = "Sdílet mou živou polohu s cechem",
-        mapPins = "Mapa a minimapa: srazy, pingy a navigace",
-        liveHint = "Přesné polohy hráčů se nesdílí. Volba načte addon Evertally_Map pro navigaci, srazy a body vybrané na mapě.",
+        liveSection = "Živá poloha a mapa", liveParty = "Sdílet mou živou polohu s partou / raidem", liveGuild = "Sdílet mou živou polohu s cechem",
+        mapPins = "Mapa a minimapa: ukazovat lidi, srazy, pingy a navigaci",
+        liveHint = "Živá poloha posílá, kde jsi (zóna, místo, classa), partě nebo cechu, dokud se hýbeš, hráčům s tímto addonem. Nikdy se nenahrává ani neukládá. Volba mapy načte druhý addon (Evertally_Map), který přidá body na světovou mapu a minimapu.",
         liveOnParty = "Živá poloha: sdílíš s partou / raidem. Vypneš v Nastavení.", liveOnGuild = "Živá poloha: sdílíš s cechem. Vypneš v Nastavení.",
         mapOn = "Mapa a minimapa: zapnuto.", mapOff = "Mapa a minimapa: body odstraněny. Knihovnu mapy uvolníš po /reload.", mapFail = "Mapu a minimapu se nepodařilo načíst (je nainstalovaná složka Evertally_Map?).",
         livePill = "ŽIVĚ", agoNow = "právě teď", agoMinutes = "před %d min", meetDefault = "Sraz", pingTitle = "Ping", navYou = "ty",

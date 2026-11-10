@@ -745,12 +745,14 @@ local function buildSettings(page)
     y = y - 10
 
     section("liveSection")
+    place(Toggle(body, "liveParty", function() return s().liveParty == true end, function(v) A.SetLive("party", v) end))
+    place(Toggle(body, "liveGuild", function() return s().liveGuild == true end, function(v) A.SetLive("guild", v) end))
     place(Toggle(body, "mapPins", function() return s().mapPins == true end, function(v) A.SetMapPins(v) end))
     page.liveHint = label(body, 11, C.mist); page.liveHint:SetPoint("TOPLEFT", 0, y - 2); page.liveHint:SetWidth(600); y = y - 66
 
     section("webSection")
     place(Toggle(body, "web", function() return s().web end, A.SetWeb))
-    for _, scope in ipairs({"world_facts", "own_runs", "own_character", "own_professions", "guild_share"}) do
+    for _, scope in ipairs({"world_facts", "own_runs", "own_character", "own_professions", "own_track", "guild_share"}) do
         local t = Toggle(body, scope, function() return s().scopes[scope] == true end, function(v) A.SetScope(scope, v) end)
         t.disabled = function() return not s().web end
         t:SetPoint("TOPLEFT", 22, y); y = y - 28

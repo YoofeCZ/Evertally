@@ -138,7 +138,6 @@ function A.SetWeb(enabled)
     return true
 end
 function A.SetScope(scope,enabled)
-    if scope=="own_track" then return end -- Player locations are never shared.
     if not A.db.settings.scopes[scope] and not enabled then return end
     A.db.settings.scopes[scope]=enabled==true
     -- The guild recognises members by character name, so the two always go together.
@@ -149,7 +148,6 @@ function A.SetScope(scope,enabled)
     A.Changed()
 end
 function A.ExportEvent(event)
-    if event.kind=="track.path" then return end
     local store=A.ExportStore();local s=A.db.settings
     if not store or not s.web or store.enabled~=true or event.origin~="local_observation" then return end
     local scope=scopeFor[event.kind]
@@ -171,7 +169,6 @@ function A.ExportEvent(event)
 end
 -- exportOnly events (routes, guild snapshots) go to the web outbox but never into the local history list.
 function A.Record(kind,payload,evidence,ownCharacter,exportOnly)
-    if kind=="track.path" then return nil end
     if not A.db or not scopeFor[kind] then return nil end
     if not exportOnly and overLimit(#A.db.events,A.MAX_EVENTS,A.HARD_EVENTS,kind) then A.storageFull=true;return nil end
     local data=scopeFor[kind]=="world_facts" and A.SafeWorldPayload(kind,payload) or A.Copy(payload);if type(data)~="table" then return nil end
@@ -194,8 +191,6 @@ function A.Initialize()
     if s.group==nil then s.group=true end;if s.guild==nil then s.guild=false end
     s.consentEpoch=s.consentEpoch or 0;s.since=s.since or A.Now()
     s.scopes=s.scopes or {world_facts=true,own_runs=true,own_character=true,own_professions=true,own_track=false,guild_share=false}
-    s.scopes.own_track=false
-    s.liveParty=false;s.liveGuild=false
     A.db=db;A.sessionId=A.RandomId()
     -- Remove historical player-interaction coordinates from local history/outbox.
     for _,event in ipairs(db.events) do if scopeFor[event.kind]=="world_facts" then event.payload=A.SafeWorldPayload(event.kind,event.payload) end end

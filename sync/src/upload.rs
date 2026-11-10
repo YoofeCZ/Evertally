@@ -88,8 +88,7 @@ pub fn plan(envelope: &Value, state: &UploadState) -> Result<Plan> {
     let pending: Vec<&Value> = events
         .iter()
         .filter(|e| {
-            e["kind"].as_str() != Some("track.path")
-                && e["eventId"]
+            e["eventId"]
                 .as_str()
                 .is_some_and(|id| !state.contains(&source, id))
         })
@@ -198,7 +197,8 @@ mod tests {
     }
 
     #[test]
-    fn historical_player_routes_are_not_uploaded_but_guild_data_is_preserved() {
+    fn own_route_and_guild_snapshot_are_forwarded_unchanged() {
+        // Unlike world facts, a route is the point the player chose to share (own_track); the server enforces the scope.
         let mut value = envelope(2, 1);
         let route = json!({"mapId":1429,"mapSystem":"ui_map","startedAt":100,"points":[[0,0.5,0.5],[10,0.51,0.5]]});
         let guild = json!({"guildName":"Dawn","rankIndex":0,"roster":[{"name":"Bran","rankIndex":3,"level":22,"classId":8}]});
@@ -210,9 +210,8 @@ mod tests {
         else {
             panic!("expected send")
         };
-        assert_eq!(batches[0]["events"].as_array().unwrap().len(), 1);
-        assert_eq!(batches[0]["events"][0]["payload"], guild);
-        assert_eq!(value["events"][0]["payload"], route);
+        assert_eq!(batches[0]["events"][0]["payload"], route);
+        assert_eq!(batches[0]["events"][1]["payload"], guild);
     }
 
     #[test]

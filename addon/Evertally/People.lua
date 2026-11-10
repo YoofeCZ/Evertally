@@ -8,7 +8,6 @@ local current,pendingRoster
 
 local function settings() return A.db and A.db.settings end
 local function active(scope)
-    if scope=="own_track" then return false end
     local s=settings()
     return s~=nil and s.web==true and type(s.scopes)=="table" and s.scopes[scope]==true and A.ExportStore()~=nil
 end
