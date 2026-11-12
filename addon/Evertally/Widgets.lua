@@ -45,6 +45,18 @@ function A.NativePanel(frame, C)
     return ok
 end
 
+local PARCHMENT = {ink = {0.20, 0.12, 0.055}, mutedInk = {0.36, 0.26, 0.14}, heading = {0.42, 0.23, 0.055}}
+-- The same warm, fully opaque paper as the game's quest reader. Dark text belongs on this surface.
+function A.NativeParchment(frame, C)
+    frame.parchment = true
+    local ok = backdrop(frame, {
+        bgFile = "Interface\\QuestFrame\\QuestBG", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = false, edgeSize = 12, insets = {left = 5, right = 5, top = 5, bottom = 5}},
+        {1, 0.96, 0.84, 1}, {0.42, 0.29, 0.13, 1})
+    if not ok then surfaceFallback(frame, {0.73, 0.63, 0.43, 1}, {0.42, 0.29, 0.13, 1}) end
+    return PARCHMENT
+end
+
 --- Built-in button artwork: red for the principal action, bronze for secondary controls and filters.
 function A.NativeButton(button, C, primary)
     local texture = button:CreateTexture(nil, "BACKGROUND")
@@ -107,6 +119,69 @@ A.AlphaGradient = alphaGradient
 function A.ExtendKit(kit)
     local C, fill, outline, label, paint = kit.C, kit.fill, kit.outline, kit.label, kit.paint
     kit.alphaGradient = alphaGradient
+    kit.ParchmentText = PARCHMENT
+
+    -- A book spread: a narrow index on the left and a readable page on the right.
+    function kit.Book(parent, top)
+        local book = CreateFrame("Frame", nil, parent)
+        book:SetPoint("TOPLEFT", 0, -(top or 58)); book:SetPoint("BOTTOMRIGHT")
+        book.index = CreateFrame("Frame", nil, book); A.NativePanel(book.index, C)
+        book.index:SetPoint("TOPLEFT"); book.index:SetPoint("BOTTOMLEFT")
+        book.paper = CreateFrame("Frame", nil, book); A.NativeParchment(book.paper, C)
+        book.paper:SetPoint("TOPLEFT", book.index, "TOPRIGHT", 12, 0); book.paper:SetPoint("BOTTOMRIGHT")
+        local function layout()
+            local width = tonumber(book:GetWidth()) or 640
+            book.index:SetWidth(math.max(156, math.min(245, width * 0.32)))
+            if book.onLayout then book.onLayout() end
+        end
+        book:SetScript("OnSizeChanged", layout); book.Layout = layout; layout()
+        return book
+    end
+
+    -- Structured, scrollable prose and clickable records on paper. Repaints preserve reading position.
+    function kit.Document(parent)
+        local document = {pool = {}, key = nil}
+        local scroll = kit.ScrollArea(parent, 0)
+        scroll:ClearAllPoints(); scroll:SetPoint("TOPLEFT", 16, -14); scroll:SetPoint("BOTTOMRIGHT", -22, 12)
+        document.scroll = scroll
+        function document.Set(spec)
+            spec = spec or {}; document.spec = spec
+            local oldOffset = scroll:GetVerticalScroll() or 0
+            local changed = document.key ~= spec.key; document.key = spec.key
+            local width = math.max(120, tonumber(scroll.child:GetWidth()) or 300)
+            local entries = {{text = spec.title or A.L("noData"), size = 19, color = PARCHMENT.heading}}
+            if spec.subtitle and spec.subtitle~="" then entries[#entries+1]={text=spec.subtitle,size=11,color=PARCHMENT.mutedInk} end
+            for _, entry in ipairs(spec.entries or {}) do entries[#entries + 1] = entry end
+            local y = 0
+            for i, entry in ipairs(entries) do
+                local row = document.pool[i]
+                if not row then
+                    row = CreateFrame("Button", nil, scroll.child)
+                    row.text = label(row, 12, PARCHMENT.ink); row.text:SetJustifyH("LEFT"); row.text:SetJustifyV("TOP"); row.text:SetWordWrap(true)
+                    row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(28, 28); row.icon:SetPoint("TOPLEFT", 0, -2)
+                    row.rule = row:CreateTexture(nil, "BORDER"); row.rule:SetHeight(1); row.rule:SetPoint("BOTTOMLEFT"); row.rule:SetPoint("BOTTOMRIGHT"); paint(row.rule, PARCHMENT.heading, 0.20)
+                    row:SetScript("OnClick", function(self) if self.action then self.action() end end)
+                    document.pool[i] = row
+                end
+                row:Show(); row.action = entry.onClick
+                row:ClearAllPoints(); row:SetPoint("TOPLEFT", 0, -y); row:SetWidth(width)
+                row.text:ClearAllPoints(); row.text:SetPoint("TOPLEFT", entry.icon and 36 or 0, 0); row.text:SetWidth(width - (entry.icon and 36 or 0))
+                row.text:SetFont(kit.fontPath(), entry.size or 12, "")
+                local tint = entry.color or (entry.head and PARCHMENT.heading) or PARCHMENT.ink
+                row.text:SetTextColor(tint[1], tint[2], tint[3]); row.text:SetText(entry.text or "")
+                row.icon:SetShown(entry.icon ~= nil); if entry.icon then kit.setIcon(row.icon, entry.icon) end
+                local h = math.max(entry.icon and 34 or 0, row.text:GetStringHeight() or 16, entry.size or 12) + (entry.head and 12 or 8)
+                row:SetHeight(h); row.rule:SetShown(entry.head == true or entry.onClick ~= nil)
+                y = y + h
+            end
+            for i = #entries + 1, #document.pool do document.pool[i]:Hide() end
+            scroll.child:SetHeight(math.max(1, y + 10))
+            scroll:SetVerticalScroll(changed and 0 or math.min(oldOffset, math.max(0, y - (scroll:GetHeight() or 1))))
+            scroll.UpdateThumb()
+        end
+        scroll.onResize = function() if document.spec then document.Set(document.spec) end end
+        return document
+    end
 
     --- A card: a filled panel with a thin outline and, optionally, a coloured line along the top.
     function kit.Card(parent, accent)

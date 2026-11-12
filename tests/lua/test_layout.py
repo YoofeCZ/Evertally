@@ -59,8 +59,9 @@ class LayoutTests(unittest.TestCase):
         tags = [n for n in nodes if n["kind"] == "FontString" and (n.get("text") or "") in ("LOOT", "QUEST COMPLETED", "ENTERED", "AREA VISIT")]
         self.assertEqual(preview.STATES["overview"][0], "activity", "the first state of the overview is the activity list")
         self.assertEqual(tags, [])
-        wide = preview.capture(lua, a, "journal")
-        self.assertTrue([n for n in wide if n["kind"] == "FontString" and (n.get("text") or "") == "LOOT"], "the wide journal list keeps its tags")
+        journal = preview.capture(lua, a, "journal")
+        self.assertFalse([n for n in journal if n["kind"] == "FontString" and (n.get("text") or "") == "LOOT"], "the redesigned journal index stays narrow beside its reading page")
+        self.assertTrue(a.journalPage.reader, "a selected record has an inline reading page")
 
     def test_the_columns_never_stick_out_past_the_right_edge(self):
         lua, a = preview.make_session(700, 460)

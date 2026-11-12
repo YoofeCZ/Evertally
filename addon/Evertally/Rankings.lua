@@ -61,8 +61,16 @@ end
 local function byName(a, b) return tostring(A.Plain(a.name)) < tostring(A.Plain(b.name)) end
 
 --- The ranking for one mode as rows ready to show: {name, character, own, valueText, fraction, sub, rank}.
-function A.RankingRows(kit, mode)
+function A.RankingRows(kit, mode, dungeon)
     local list = players()
+    if dungeon and mode ~= "level" and mode ~= "dungeons" then
+        for _, entry in ipairs(list) do
+            local runs = {}
+            for _, run in ipairs(entry.runs) do if run.name == dungeon then runs[#runs+1] = run end end
+            entry.runs, entry.completed = runs, 0
+            for _, run in ipairs(runs) do if run.status == "completed" then entry.completed = entry.completed + 1 end end
+        end
+    end
     local rows = {}
     local function source(entry) return entry.own and A.L("rankSelf") or (A.L("rankReceived") .. " " .. kit.stamp(entry.receivedAt)) end
     if mode == "runs" then
@@ -112,124 +120,84 @@ function A.RankingRows(kit, mode)
     return rows
 end
 
-local MEDAL = {"gold", "silver", "bronze"}
-local PODIUM_TOP, PODIUM_H = 116, 116
+--- Names with an observed completed run, for the dungeon selector. Never implies a complete realm catalogue.
+function A.RankingDungeons()
+    local names, seen = {}, {}
+    for _, player in ipairs(players()) do
+        for _, run in ipairs(player.runs) do
+            if run.status == "completed" and type(run.name) == "string" and not seen[run.name] then seen[run.name]=true;names[#names+1]=run.name end
+        end
+    end
+    table.sort(names);return names
+end
 
 function A.BuildRankingsPage(page, kit)
-    local C = kit.C
-    A.rankingsPage = page   -- read by the layout preview
-    kit.PageHeader(page, "rankings")
-    page.mode, page.chips = "runs", {}
+    local C, ink, muted, heading = kit.C, {0.20,0.12,0.055}, {0.36,0.26,0.14}, {0.42,0.23,0.055}
+    A.rankingsPage=page;kit.PageHeader(page,"rankings")
+    page.mode,page.chips="runs",{}
     local previous
-    for _, mode in ipairs(MODES) do
-        local chip = kit.Chip(page, function() page.mode = mode; A.RefreshUI() end)
-        if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -54) end
-        page.chips[mode] = chip; previous = chip
+    for _,mode in ipairs(MODES) do
+        local chip=kit.Chip(page,function()page.mode=mode;A.RefreshUI()end)
+        if previous then chip:SetPoint("LEFT",previous,"RIGHT",5,0)else chip:SetPoint("TOPLEFT",0,-54)end
+        page.chips[mode]=chip;previous=chip
     end
-    page.summary = kit.label(page, 12, C.lilac)
-    page.summary:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -88); page.summary:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -88)
-
-    -- the first three get a card of their own
-    page.podium = kit.Columns(page, {1, 1, 1}, 10)
-    page.podium:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -PODIUM_TOP); page.podium:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -PODIUM_TOP); page.podium:SetHeight(PODIUM_H)
-    page.cards = {}
-    for i = 1, 3 do
-        local card = kit.Card(page.podium.cells[i], C.off); card:SetAllPoints(page.podium.cells[i])
-        card.tint = card:CreateTexture(nil, "BACKGROUND"); card.tint:SetAllPoints(card)
-        card.icon = card:CreateTexture(nil, "ARTWORK"); card.icon:SetSize(44, 44); card.icon:SetPoint("TOPLEFT", 12, -16)
-        card.rank = kit.label(card, 18, C.text); card.rank:SetPoint("TOPRIGHT", -12, -14); card.rank:SetJustifyH("RIGHT")
-        card.name = kit.label(card, 13, C.text); card.name:SetPoint("TOPLEFT", 66, -18); card.name:SetPoint("TOPRIGHT", -46, -18); card.name:SetWordWrap(false)
-        card.sub = kit.label(card, 10, C.mist); card.sub:SetPoint("TOPLEFT", 66, -36); card.sub:SetPoint("TOPRIGHT", -12, -36); card.sub:SetWordWrap(false)
-        card.value = kit.label(card, 22, C.text); card.value:SetPoint("BOTTOMLEFT", 12, 24); card.value:SetJustifyH("LEFT")
-        card.bar = kit.ProgressBar(card, C.lilac, 4); card.bar:SetPoint("BOTTOMLEFT", 12, 10); card.bar:SetPoint("BOTTOMRIGHT", -12, 10)
-        page.cards[i] = card
-    end
-
-    page.scroll = kit.ScrollArea(page, 112)
-    page.empty = kit.label(page.scroll, 12, C.mist); page.empty:SetPoint("TOPLEFT", 14, -40); page.empty:SetPoint("TOPRIGHT", -14, -40); page.empty:SetJustifyH("CENTER")
-    local rows = {}
-
+    page.summary=kit.label(page,11,C.mist);page.summary:SetPoint("TOPLEFT",0,-88);page.summary:SetPoint("TOPRIGHT",0,-88)
+    page.columns=kit.Columns(page,{2,5},12);page.columns:SetPoint("TOPLEFT",0,-115);page.columns:SetPoint("BOTTOMRIGHT")
+    local catalog=kit.Card(page.columns.cells[1]);catalog:SetAllPoints(page.columns.cells[1]);page.catalog=catalog
+    page.catalogTitle=kit.label(catalog,13,C.gold);page.catalogTitle:SetPoint("TOPLEFT",12,-12);page.catalogTitle:SetPoint("TOPRIGHT",-12,-12)
+    local catalogBody=CreateFrame("Frame",nil,catalog);catalogBody:SetPoint("TOPLEFT",6,-40);catalogBody:SetPoint("BOTTOMRIGHT",-6,6)
+    page.dungeonList=kit.ListView(catalogBody,0)
+    local board=CreateFrame("Frame",nil,page.columns.cells[2]);board:SetAllPoints(page.columns.cells[2]);A.NativeParchment(board,C);page.board=board
+    page.boardTitle=kit.label(board,15,heading);page.boardTitle:SetPoint("TOPLEFT",14,-13);page.boardTitle:SetPoint("TOPRIGHT",-14,-13);page.boardTitle:SetWordWrap(false)
+    page.winnerIcon=board:CreateTexture(nil,"ARTWORK");page.winnerIcon:SetSize(36,36);page.winnerIcon:SetPoint("TOPLEFT",14,-42)
+    page.winnerName=kit.label(board,14,ink);page.winnerName:SetPoint("TOPLEFT",60,-43);page.winnerName:SetPoint("TOPRIGHT",-100,-43);page.winnerName:SetWordWrap(false)
+    page.winnerSub=kit.label(board,10,muted);page.winnerSub:SetPoint("TOPLEFT",60,-63);page.winnerSub:SetPoint("TOPRIGHT",-100,-63);page.winnerSub:SetWordWrap(false)
+    page.winnerValue=kit.label(board,20,heading);page.winnerValue:SetPoint("TOPRIGHT",-14,-48);page.winnerValue:SetWidth(90);page.winnerValue:SetJustifyH("RIGHT")
+    local rule=board:CreateTexture(nil,"BORDER");rule:SetPoint("TOPLEFT",12,-88);rule:SetPoint("TOPRIGHT",-12,-88);rule:SetHeight(1);kit.paint(rule,heading,0.4)
+    local inner=CreateFrame("Frame",nil,board);inner:SetPoint("TOPLEFT",8,-96);inner:SetPoint("BOTTOMRIGHT",-8,8)
+    page.scroll=kit.ScrollArea(inner,0);page.rows={}
+    page.empty=kit.label(inner,12,muted);page.empty:SetPoint("TOPLEFT",12,-15);page.empty:SetPoint("TOPRIGHT",-12,-15)
     local function newRow()
-        local r = CreateFrame("Frame", nil, page.scroll.child); r:SetHeight(ROW_H - 4)
-        r.bg = kit.fill(r, C.card, 0.55)
-        r.mark = r:CreateTexture(nil, "ARTWORK"); r.mark:SetWidth(3); r.mark:SetPoint("TOPLEFT"); r.mark:SetPoint("BOTTOMLEFT"); kit.paint(r.mark, C.lilac)
-        r.badge = CreateFrame("Frame", nil, r); r.badge:SetSize(30, 30); r.badge:SetPoint("LEFT", 12, 0)
-        r.badge.bg = kit.fill(r.badge, C.off, 1)
-        r.badge.text = kit.label(r.badge, 13, C.text); r.badge.text:SetPoint("CENTER"); r.badge.text:SetJustifyH("CENTER")
-        r.icon = r:CreateTexture(nil, "ARTWORK"); r.icon:SetSize(30, 30)
-        r.name = kit.label(r, 13, C.text); r.name:SetWordWrap(false)
-        r.sub = kit.label(r, 10, C.mist); r.sub:SetWordWrap(false)
-        r.value = kit.label(r, 15, C.text); r.value:SetJustifyH("RIGHT"); r.value:SetWidth(100)
-        r.bar = kit.ProgressBar(r, C.lilac, 4)
+        local r=CreateFrame("Frame",nil,page.scroll.child);r:SetHeight(48)
+        r.bg=kit.fill(r,heading,0.05)
+        r.rank=kit.label(r,14,heading);r.rank:SetPoint("LEFT",8,0);r.rank:SetWidth(26)
+        r.icon=r:CreateTexture(nil,"ARTWORK");r.icon:SetSize(26,26);r.icon:SetPoint("LEFT",36,0)
+        r.name=kit.label(r,12,ink);r.name:SetPoint("TOPLEFT",72,-7);r.name:SetPoint("TOPRIGHT",-90,-7);r.name:SetWordWrap(false)
+        r.sub=kit.label(r,10,muted);r.sub:SetPoint("TOPLEFT",72,-25);r.sub:SetPoint("TOPRIGHT",-90,-25);r.sub:SetWordWrap(false)
+        r.value=kit.label(r,15,heading);r.value:SetPoint("RIGHT",-10,0);r.value:SetWidth(78);r.value:SetJustifyH("RIGHT")
         return r
     end
-
-    local function fillCard(card, row)
-        local medal = C[MEDAL[row.rank]] or C.off
-        kit.paint(card.accentLine, medal, 0.95)
-        local cc = row.character and kit.classColor(row.character.classId) or C.text
-        if row.own then kit.paint(card.tint, C.violet, 0.45) else kit.paint(card.tint, medal, 0.07) end
-        if row.character and row.character.classId then kit.classIcon(card.icon, row.character.classId) else kit.setIcon(card.icon, kit.ICON.run) end
-        card.rank:SetText("#" .. row.rank); card.rank:SetTextColor(medal[1], medal[2], medal[3])
-        card.name:SetText(kit.plain(row.name)); card.name:SetTextColor(cc[1], cc[2], cc[3])
-        card.sub:SetText(row.sub); card.value:SetText(row.valueText)
-        card.bar.Set(row.fraction, medal)
-    end
-
     function page.Refresh()
-        for _, mode in ipairs(MODES) do page.chips[mode].SetLabel(A.L("rankMode" .. mode:sub(1, 1):upper() .. mode:sub(2))); page.chips[mode].SetOn(page.mode == mode) end
-        local data = A.RankingRows(kit, page.mode)
-        local me, total = nil, 0
-        for _, row in ipairs(data) do if row.own then me = me or row end end
-        if page.mode == "dungeons" then page.summary:SetText("")
-        else
-            total = #players()
-            if total <= 1 then page.summary:SetText(A.L("rankYouAlone"))
-            elseif me then page.summary:SetText(string.format(A.L("rankYou"), me.rank, total))
-            else page.summary:SetText(A.L("rankNoRuns")) end
+        page.columns.Layout()
+        for _,mode in ipairs(MODES)do page.chips[mode].SetLabel(A.L("rankMode"..mode:sub(1,1):upper()..mode:sub(2)));page.chips[mode].SetOn(page.mode==mode)end
+        local cs=A.db.settings.language=="cs"
+        page.catalogTitle:SetText(cs and "Záznamy dungeonů" or "Dungeon records")
+        local choices={{title=cs and "Všechny dungeony" or "All dungeons",icon=kit.ICON.raid,onClick=function()page.dungeon=nil;A.RefreshUI()end}}
+        for _,name in ipairs(A.RankingDungeons())do
+            local dungeon=name
+            choices[#choices+1]={title=kit.plain(name),icon=kit.ICON.run,tag=page.dungeon==name and "•" or nil,onClick=function()page.dungeon=dungeon;page.mode="fastest";A.RefreshUI()end}
         end
-        local podiumOn = page.mode ~= "dungeons" and #data > 0
-        page.podium:SetShown(podiumOn); page.podium.Layout()
-        if podiumOn then
-            for i, card in ipairs(page.cards) do
-                local row = data[i]
-                page.podium.cells[i]:SetShown(row ~= nil)
-                if row then fillCard(card, row) end
-            end
+        page.dungeonList.SetItems(choices,A.L("rankNoData"))
+        local data=A.RankingRows(kit,page.mode,page.dungeon);page.data=data
+        local me
+        for _,entry in ipairs(data)do if entry.own then me=me or entry end end
+        local total=#players()
+        page.summary:SetText(total<=1 and A.L("rankYouAlone") or (me and page.mode~="dungeons" and string.format(A.L("rankYou"),me.rank,total) or A.L("sub_rankings")))
+        page.boardTitle:SetText(page.dungeon and kit.plain(page.dungeon) or A.L("rankMode"..page.mode:sub(1,1):upper()..page.mode:sub(2)))
+        local winner=data[1]
+        if winner then
+            if winner.character and winner.character.classId then kit.classIcon(page.winnerIcon,winner.character.classId)else kit.setIcon(page.winnerIcon,kit.ICON.run)end
+            page.winnerIcon:Show();page.winnerName:SetText(kit.plain(winner.name));page.winnerSub:SetText(winner.sub or "");page.winnerValue:SetText(winner.valueText)
+        else page.winnerIcon:Hide();page.winnerName:SetText(A.L("rankNoRuns"));page.winnerSub:SetText("");page.winnerValue:SetText("")end
+        for i,entry in ipairs(data)do
+            local r=page.rows[i] or newRow();page.rows[i]=r;r.data=entry
+            r:ClearAllPoints();r:SetPoint("TOPLEFT",0,-(i-1)*52);r:SetPoint("TOPRIGHT",0,-(i-1)*52)
+            r.rank:SetText(tostring(entry.rank or i));r.name:SetText(kit.plain(entry.name));r.sub:SetText(entry.sub or "");r.value:SetText(entry.valueText)
+            if entry.character and entry.character.classId then kit.classIcon(r.icon,entry.character.classId)else kit.setIcon(r.icon,kit.ICON.run)end
+            kit.paint(r.bg,heading,entry.own and 0.18 or (i%2==0 and 0.065 or 0.035));r:Show()
         end
-        local first = podiumOn and 4 or 1
-        page.scroll:ClearAllPoints()
-        page.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -(podiumOn and (PODIUM_TOP + PODIUM_H + 12) or 112)); page.scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -8, 0)
-        local shown = 0
-        for index = first, #data do
-            shown = shown + 1
-            local row, r = data[index], rows[shown]
-            if not r then r = newRow(); rows[shown] = r end
-            r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -(shown - 1) * ROW_H); r:SetPoint("TOPRIGHT", 0, -(shown - 1) * ROW_H)
-            local ranked = page.mode ~= "dungeons"
-            r.badge:SetShown(ranked)
-            if ranked then
-                kit.paint(r.badge.bg, C.off, 0.6)
-                r.badge.text:SetText(tostring(row.rank)); r.badge.text:SetTextColor(C.text[1], C.text[2], C.text[3])
-            end
-            local left = ranked and 54 or 14
-            r.icon:ClearAllPoints(); r.icon:SetPoint("LEFT", left, 0)
-            if row.character and row.character.classId then kit.classIcon(r.icon, row.character.classId) else kit.setIcon(r.icon, kit.ICON.run) end
-            r.name:ClearAllPoints(); r.name:SetPoint("TOPLEFT", r, "TOPLEFT", left + 40, -9); r.name:SetPoint("TOPRIGHT", r, "TOPRIGHT", -120, -9)
-            r.sub:ClearAllPoints(); r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", left + 40, -26); r.sub:SetPoint("TOPRIGHT", r, "TOPRIGHT", -120, -26)
-            r.value:ClearAllPoints(); r.value:SetPoint("TOPRIGHT", r, "TOPRIGHT", -14, -10)
-            r.bar:ClearAllPoints(); r.bar:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", left + 40, 8); r.bar:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -14, 8)
-            r.name:SetText(kit.plain(row.name)); r.sub:SetText(row.sub); r.value:SetText(row.valueText)
-            local cc = (not row.plainName and row.character) and kit.classColor(row.character.classId) or C.text
-            r.name:SetTextColor(cc[1], cc[2], cc[3])
-            r.mark:SetShown(row.own == true)
-            kit.paint(r.bg, row.own and C.violet or C.card, 0.55)
-            r.bar.Set(row.fraction, row.own and C.lilac or C.sky)
-            r:Show()
-        end
-        for i = shown + 1, #rows do rows[i]:Hide() end
-        page.scroll.child:SetHeight(math.max(1, shown * ROW_H))
-        page.empty:SetText(#data == 0 and A.L("rankNoData") or "")
-        page.scroll.UpdateThumb()
+        for i=#data+1,#page.rows do page.rows[i]:Hide()end
+        page.scroll.child:SetHeight(math.max(1,#data*52));page.scroll.UpdateThumb()
+        page.empty:SetText(#data==0 and A.L("rankNoData") or "")
     end
 end

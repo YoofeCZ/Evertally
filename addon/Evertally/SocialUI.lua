@@ -384,43 +384,41 @@ function A.BuildSocialPage(host, k)
         page.tabs[mode] = chip; previous = chip
     end
 
-    -- ask: the people around you on the left, the request and what they showed you on the right
-    page.cols = k.Columns(page, {2, 3}, 12)
-    page.cols:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -90); page.cols:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-    local rosterCard = k.Card(page.cols.cells[1]); rosterCard:SetAllPoints(page.cols.cells[1])
-    page.rosterTitle = k.label(rosterCard, 13, C.gold); page.rosterTitle:SetPoint("TOPLEFT", 14, -12)
-    local rosterInner = CreateFrame("Frame", nil, rosterCard); rosterInner:SetPoint("TOPLEFT", 8, -36); rosterInner:SetPoint("BOTTOMRIGHT", -8, 8)
-    page.roster = k.ListView(rosterInner, 0)
-    local right = page.cols.cells[2]
-    local form = k.Card(right, C.lilac); form:SetPoint("TOPLEFT", right, "TOPLEFT", 0, 0); form:SetPoint("TOPRIGHT", right, "TOPRIGHT", 0, 0); form:SetHeight(152)
-    page.formTitle = k.label(form, 13, C.gold); page.formTitle:SetPoint("TOPLEFT", 14, -12)
-    page.name = CreateFrame("EditBox", nil, form, "InputBoxTemplate"); page.name:SetHeight(26)
-    page.name:SetPoint("TOPLEFT", form, "TOPLEFT", 20, -38); page.name:SetPoint("TOPRIGHT", form, "TOPRIGHT", -132, -38)
-    page.name:SetAutoFocus(false); page.name:SetMaxLetters(80); page.name:SetFont(FONT, 12, "")
-    page.target = k.Button(form, "socialTarget", 108, "ghost", function()
-        local name, realm = A.Call(UnitFullName, "target")
-        name = A.Text(name or A.Call(UnitName, "target"), 80)
-        if name then page.name:SetText(name .. ((A.Text(realm, 80) or "") ~= "" and ("-" .. A.Text(realm, 80)) or "")) end
-    end); page.target:SetPoint("TOPRIGHT", form, "TOPRIGHT", -14, -36)
-    page.kinds = {i = true, p = true, g = false}
-    page.kindButtons = {}
+    -- A contact ledger on the left; the selected player's permission request is a full parchment leaf.
+    local ink, muted, heading = {0.20,0.12,0.055}, {0.36,0.26,0.14}, {0.42,0.23,0.055}
+    page.cols=k.Columns(page,{2,3},12)
+    page.cols:SetPoint("TOPLEFT",0,-90);page.cols:SetPoint("BOTTOMRIGHT")
+    local rosterCard=k.Card(page.cols.cells[1]);rosterCard:SetAllPoints(page.cols.cells[1]);page.rosterCard=rosterCard
+    page.rosterTitle=k.label(rosterCard,13,C.gold);page.rosterTitle:SetPoint("TOPLEFT",12,-12)
+    local rosterInner=CreateFrame("Frame",nil,rosterCard);rosterInner:SetPoint("TOPLEFT",6,-36);rosterInner:SetPoint("BOTTOMRIGHT",-6,120)
+    page.roster=k.ListView(rosterInner,0)
+    page.viewsTitle=k.label(rosterCard,12,C.gold);page.viewsTitle:SetPoint("BOTTOMLEFT",12,94)
+    local viewsInner=CreateFrame("Frame",nil,rosterCard);viewsInner:SetPoint("BOTTOMLEFT",6,6);viewsInner:SetPoint("BOTTOMRIGHT",-6,6);viewsInner:SetHeight(80)
+    page.viewList=k.ListView(viewsInner,0)
+    local form=CreateFrame("Frame",nil,page.cols.cells[2]);form:SetAllPoints(page.cols.cells[2]);A.NativeParchment(form,C);page.requestLeaf=form
+    page.formTitle=k.label(form,15,heading);page.formTitle:SetPoint("TOPLEFT",14,-12);page.formTitle:SetPoint("TOPRIGHT",-14,-12)
+    page.contactPortrait=form:CreateTexture(nil,"ARTWORK");page.contactPortrait:SetSize(50,50);page.contactPortrait:SetPoint("TOPLEFT",14,-42);k.setIcon(page.contactPortrait,k.ICON.npc)
+    page.name=CreateFrame("EditBox",nil,form,"InputBoxTemplate");page.name:SetHeight(26);page.name:SetPoint("TOPLEFT",80,-42);page.name:SetPoint("TOPRIGHT",-14,-42)
+    page.name:SetAutoFocus(false);page.name:SetMaxLetters(80);page.name:SetFont(FONT,12,"")
+    page.target=k.Button(form,"socialTarget",118,"ghost",function()
+        local name,realm=A.Call(UnitFullName,"target");name=A.Text(name or A.Call(UnitName,"target"),80)
+        if name then page.name:SetText(name..((A.Text(realm,80) or "")~="" and ("-"..A.Text(realm,80)) or ""))end
+    end);page.target:SetPoint("TOPLEFT",80,-77)
+    page.permissionTitle=k.label(form,12,heading);page.permissionTitle:SetPoint("TOPLEFT",14,-117)
+    page.kinds={i=true,p=true,g=false};page.kindButtons={}
     local last
-    for _, key in ipairs({"i", "p", "g"}) do
-        local chip = k.Chip(form, function() page.kinds[key] = not page.kinds[key]; A.RefreshUI() end)
-        if last then chip:SetPoint("LEFT", last, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", form, "TOPLEFT", 14, -74) end
-        page.kindButtons[key] = chip; last = chip
+    for _,key in ipairs({"i","p","g"})do
+        local chip=k.Chip(form,function()page.kinds[key]=not page.kinds[key];A.RefreshUI()end)
+        if last then chip:SetPoint("LEFT",last,"RIGHT",5,0)else chip:SetPoint("TOPLEFT",14,-141)end
+        page.kindButtons[key]=chip;last=chip
     end
-    page.sendRequest = k.Button(form, "socialSend", 150, "primary", function()
-        local chosen = ""; for _, key in ipairs({"i", "p", "g"}) do if page.kinds[key] then chosen = chosen .. key end end
-        local ok, err = A.RequestInspect(page.name:GetText() or "", chosen)
-        page.status:SetText(ok and string.format(A.L("socialWaiting"), plain(base(page.name:GetText() or ""))) or A.L("socialErr_" .. tostring(err)))
-        A.RefreshUI()
-    end); page.sendRequest:SetPoint("TOPLEFT", form, "TOPLEFT", 14, -108)
-    page.status = k.label(form, 11, C.green); page.status:SetPoint("LEFT", page.sendRequest, "RIGHT", 12, 0); page.status:SetPoint("RIGHT", form, "RIGHT", -14, 0)
-    local viewsCard = k.Card(right); viewsCard:SetPoint("TOPLEFT", form, "BOTTOMLEFT", 0, -10); viewsCard:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0)
-    page.viewsTitle = k.label(viewsCard, 13, C.gold); page.viewsTitle:SetPoint("TOPLEFT", 14, -12)
-    local viewsInner = CreateFrame("Frame", nil, viewsCard); viewsInner:SetPoint("TOPLEFT", 8, -36); viewsInner:SetPoint("BOTTOMRIGHT", -8, 8)
-    page.viewList = k.ListView(viewsInner, 0)
+    page.permissionNote=k.label(form,10,muted);page.permissionNote:SetPoint("TOPLEFT",14,-175);page.permissionNote:SetPoint("TOPRIGHT",-14,-175);page.permissionNote:SetHeight(18)
+    page.sendRequest=k.Button(form,"socialSend",180,"primary",function()
+        local chosen="";for _,key in ipairs({"i","p","g"})do if page.kinds[key]then chosen=chosen..key end end
+        local ok,err=A.RequestInspect(page.name:GetText() or "",chosen)
+        page.status:SetText(ok and string.format(A.L("socialWaiting"),plain(base(page.name:GetText() or ""))) or A.L("socialErr_"..tostring(err)));A.RefreshUI()
+    end);page.sendRequest:SetPoint("BOTTOMLEFT",14,13)
+    page.status=k.label(form,11,ink);page.status:SetPoint("BOTTOMLEFT",14,54);page.status:SetPoint("BOTTOMRIGHT",-14,54);page.status:SetHeight(22)
 
     -- meets
     page.meetLabel = CreateFrame("EditBox", nil, page, "InputBoxTemplate"); page.meetLabel:SetSize(300, 26); page.meetLabel:SetPoint("TOPLEFT", 6, -100)
@@ -451,10 +449,21 @@ function A.BuildSocialPage(host, k)
     -- privacy
     page.privacy = k.label(page, 11, C.mist); page.privacy:SetPoint("TOPLEFT", 0, -96); page.privacy:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -96)
     page.list = k.ListView(page, 204)
+    page.secondaryLeaf=CreateFrame("Frame",nil,page);page.secondaryLeaf:SetPoint("TOPLEFT",0,-90);page.secondaryLeaf:SetPoint("BOTTOMRIGHT");A.NativeParchment(page.secondaryLeaf,C)
+    for _,widget in ipairs({page.meetLabel,page.meetStatus,page.ping,page.stopNav,page.liveNote,page.privacy,page.list})do widget:SetParent(page.secondaryLeaf)end
+    for _,widget in ipairs(page.meetButtons)do widget:SetParent(page.secondaryLeaf)end
+    page.meetLabel:ClearAllPoints();page.meetLabel:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",20,-14)
+    for i,button in ipairs(page.meetButtons)do button:ClearAllPoints();button:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14+(i-1)*146,-52)end
+    page.meetStatus:ClearAllPoints();page.meetStatus:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-92);page.meetStatus:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-92)
+    page.ping:ClearAllPoints();page.ping:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-14)
+    page.liveNote:ClearAllPoints();page.liveNote:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-60);page.liveNote:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-60);page.liveNote:SetTextColor(unpack(ink))
+    page.privacy:ClearAllPoints();page.privacy:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-14);page.privacy:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-14);page.privacy:SetTextColor(unpack(ink))
     function page.Refresh()
         local mode = page.mode
         for key, chip in pairs(page.tabs) do chip.SetLabel(A.L("socialTab_" .. key)); chip.SetOn(mode == key) end
         page.cols:SetShown(mode == "ask"); page.cols.Layout()
+        page.secondaryLeaf:SetShown(mode ~= "ask")
+        page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",10,-(mode=="proposals" and 12 or 120));page.list:SetPoint("BOTTOMRIGHT",page.secondaryLeaf,"BOTTOMRIGHT",-10,10)
         for key, chip in pairs(page.kindButtons) do chip.SetLabel(A.L(({i = "socialInv", p = "socialProf", g = "socialGold"})[key])); chip.SetOn(page.kinds[key]) end
         page.rosterTitle:SetText(A.L("socialRoster")); page.formTitle:SetText(A.L("socialAsk")); page.viewsTitle:SetText(A.L("socialViewsTitle"))
         page.meetLabel:SetShown(mode == "meets"); page.meetStatus:SetShown(mode == "meets")
@@ -474,7 +483,17 @@ function A.BuildSocialPage(host, k)
                 page.status:SetText(key == "waiting" and string.format(A.L("socialWaiting"), who) or key == "receiving" and string.format(A.L("socialReceiving"), who, newest.done or 0, newest.total or 0)
                     or key == "denied" and string.format(A.L("socialDenied"), who) or key == "noanswer" and string.format(A.L("socialNoAnswer"), who) or key == "done" and string.format(A.L("socialDone"), who) or "")
             end
-            page.roster.SetItems(rosterRows(), A.L("socialNoRoster"))
+            local roster=rosterRows()
+            page.roster.SetItems(roster, A.L("socialNoRoster"))
+            local chosen=base(page.name:GetText() or ""):lower()
+            local found
+            for _,contact in ipairs(roster)do if base(contact.title):lower()==chosen then found=contact;break end end
+            if chosen==base(A.Text(A.Call(UnitName,"target"),80) or ""):lower() and type(SetPortraitTexture)=="function" and A.Call(UnitIsPlayer,"target")==true then
+                pcall(SetPortraitTexture,page.contactPortrait,"target")
+            elseif found and found.class then k.classIcon(page.contactPortrait,found.class)
+            else k.setIcon(page.contactPortrait,k.ICON.npc)end
+            page.permissionTitle:SetText(A.db.settings.language=="cs" and "O co chceš požádat" or "What you want to see")
+            page.permissionNote:SetText(A.db.settings.language=="cs" and "Hráč rozhodne, co ti ukáže. Zlato se žádá zvlášť." or "The player chooses what to show. Gold is a separate request.")
             page.viewList.SetItems(viewRows(), A.L("socialNoViews"))
         elseif mode == "live" then page.list.SetItems(liveRows(), A.L("liveNone"))
         elseif mode == "proposals" then page.list.SetItems(proposalRows(), A.L("socialNoProposals"))

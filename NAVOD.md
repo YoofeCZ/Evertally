@@ -1,8 +1,14 @@
-# Evertally 0.7.1 — addon, web a Windows Bridge
+# Evertally 0.8.0 — addon, web a Windows Bridge
 
-Verze 0.7.1, 12. 11. 2026. Addon sbírá vlastní herní události, nainstalovaný Windows most je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části. Změny a aktuální ověření shrnuje VYDANI-0.7.1.md.
+Verze 0.8.0, 12. 11. 2026. Addon sbírá vlastní herní události, nainstalovaný Windows most je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části. Změny a aktuální ověření shrnuje VYDANI-0.8.0.md.
 
 Windows Bridge běží vedle hodin. Z ikony otevřeš malé okno s kartami Web sync a Nastavení spojení: párování, kód, stav spojení, synchronizace, odpojení a oprávnění exportu. Mapa a databáze jsou na webu. Verze 0.6.0 přidává živou vlastní polohu přes barevný datový proužek addonu; historie dál používá uložení hry.
+
+## Přestavba 0.8.0
+
+Questy nyní otevřeš jako pergamenovou stránku s cílem, zadáním, odevzdáním, odměnami s ikonami a XP. Stejná karta je v Databázi, Deníku a Dungeon Journalu. Návody se čtou přímo ve hře: 26 kapitol, hledání, kategorie, přečtené kapitoly a interní přechody na recepty a materiály. Talenty jsou plánovač aktuální třídy: levý klik přidá bod, pravý odebere, můžeš změnit plánovaný level, načíst skutečné rozdělení a uložit build. Skutečné herní body tím nerozdělíš.
+
+Starší stránky mají přestavěné rozložení a Nastavení vlastní kategorie. Při přechodu z 0.7.1 stačí `/reload`; nové soubory v TOC nepřibyly. Starší instalace vyžaduje jednorázový restart hry. Podrobnosti a hranice ověření: VYDANI-0.8.0.md.
 
 ## Co můžeš snadno vyzkoušet sám
 

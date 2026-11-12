@@ -423,7 +423,8 @@ class ReplayTests(unittest.TestCase):
             text = button.text
             return str(text if isinstance(text, str) else getattr(text, "text", ""))
         buttons = [self.lua.globals().MOCKBUTTONS[i] for i in range(1, len(self.lua.globals().MOCKBUTTONS) + 1)]
-        zoom = [b for b in buttons if caption(b) in ("+", "-")]
+        is_header = self.lua.eval("function(b) return b.parent and b.parent.parent == EvertallyFrame end")
+        zoom = [b for b in buttons if caption(b) in ("+", "-") and is_header(b)]
         self.assertEqual(len(zoom), 2, "the header has - and +")
         plus = [b for b in zoom if caption(b) == "+"][0]
         plus.scripts.OnClick(plus)

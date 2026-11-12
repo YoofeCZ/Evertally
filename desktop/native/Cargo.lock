@@ -1270,7 +1270,7 @@ dependencies = [
 
 [[package]]
 name = "evertally-desktop"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "eframe",
  "evertally-sync",
@@ -1285,7 +1285,7 @@ dependencies = [
 
 [[package]]
 name = "evertally-sync"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "directories",

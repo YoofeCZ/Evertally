@@ -82,17 +82,16 @@ class ContentPageTests(unittest.TestCase):
         self.assertEqual(page.query,'7')
         self.assertIsNone(self.a.lastUIError)
 
-    def test_settings_cards_do_not_overlap_and_toggles_keep_their_policy(self):
+    def test_settings_categories_show_one_reading_page_and_toggles_keep_their_policy(self):
         page=self.page('settings')
         self.assertEqual(len(page.settingCards),6)
-        bottom=0
         for i in range(1,7):
             card=page.settingCards[i]
-            top=card.points[1][3]
-            self.assertLessEqual(top,bottom)
             self.assertGreater(card.h,40)
-            bottom=top-card.h-12
-        self.assertGreaterEqual(page.scroll.child.h,-bottom)
+            page.categoryButtons[i].scripts.OnClick()
+            self.assertEqual(page.selectedSection,i)
+            self.assertEqual([page.settingCards[j].shown for j in range(1,7)],[j==i for j in range(1,7)])
+            self.assertGreaterEqual(page.scroll.child.h,card.h)
         buttons=self.lua.globals().MOCKBUTTONS
         toggles=[buttons[i] for i in range(1,len(buttons)+1) if buttons[i].get]
         self.assertTrue(toggles)
@@ -117,6 +116,20 @@ class ContentPageTests(unittest.TestCase):
         community=self.page('community')
         self.assertEqual(community.metrics[3].value.text,'—')
         self.assertEqual(community.metrics[3].delta.text,self.a.L('pageCacheEmpty'))
+
+    def test_run_and_place_selection_read_inline_without_losing_the_selected_record(self):
+        self.lua.execute('''
+          Evertally.db.runs={{name="The Deadmines",status="completed",startedAt=NOW-100,durationMs=100000,bossCount=2}}
+          Evertally.Record("zone.visited",{mapId=1429,mapName="Elwynn Forest",mapSystem="ui_map"})
+        ''')
+        for key in ('history','places'):
+            page=self.page(key)
+            self.assertTrue(page.book.paper.parchment)
+            self.assertTrue(page.document.spec.title)
+            selected=page.recordKey
+            self.a.RefreshUI()
+            self.assertEqual(page.recordKey,selected)
+            self.assertIsNone(self.lua.globals().EvertallyDetailFrame, 'reading a row should not force a modal')
 
 
 if __name__=='__main__':unittest.main()

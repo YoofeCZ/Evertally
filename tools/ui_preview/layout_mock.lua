@@ -181,7 +181,25 @@ function O.SetBackdrop(self, spec) self._backdrop = spec end
 function O.SetBackdropColor(self, r, g, b, a)
     if not self._backdrop then return end
     if not self._backdropTexture then self._backdropTexture = self:CreateTexture(nil, "BACKGROUND"); self._backdropTexture:SetAllPoints(self) end
-    self._backdropTexture:SetColorTexture(r, g, b, a or 1)
+    if self._backdrop.bgFile then
+        self._backdropTexture:SetTexture(self._backdrop.bgFile)
+        self._backdropTexture:SetVertexColor(r, g, b, a or 1)
+        self._backdropTexture._backdropSurface = true
+    else self._backdropTexture:SetColorTexture(r, g, b, a or 1) end
+end
+function O.SetBackdropBorderColor(self, r, g, b, a)
+    if not self._backdrop then return end
+    self._backdropBorder = {r, g, b, a or 1}
+    if not self._backdropEdges then
+        self._backdropEdges = {}
+        for _, points in ipairs({{"TOPLEFT","TOPRIGHT"},{"BOTTOMLEFT","BOTTOMRIGHT"},{"TOPLEFT","BOTTOMLEFT"},{"TOPRIGHT","BOTTOMRIGHT"}}) do
+            local t = self:CreateTexture(nil,"BORDER")
+            t:SetPoint(points[1]); t:SetPoint(points[2])
+            if points[1]:find("TOP") and points[2]:find("BOTTOM") then t:SetWidth(2) else t:SetHeight(2) end
+            self._backdropEdges[#self._backdropEdges+1] = t
+        end
+    end
+    for _, t in ipairs(self._backdropEdges) do t:SetColorTexture(r,g,b,a or 1) end
 end
 function O.GetText(self) return self._text end
 function O.SetFont(self, path, size) self._fontPath = path; self._fontSize = size or 12; dirty(); return true end
@@ -269,6 +287,9 @@ local function describe(o, clipIn, alphaIn, out, order)
     local node = {kind = o._kind, l = l, t = t, w = w, h = h, alpha = alphaIn * (o._alpha or 1), order = order, unanchored = o._unanchored}
     if o._kind == "Texture" then
         node.rgba, node.path, node.tint, node.gradient, node.layerName = o._rgba, o._path, o._tint, o._gradient, o._layerName
+        node.coords, node.backdropSurface = o._coords, o._backdropSurface
+        local owner = o._parentFrame
+        node.itemId = owner and (owner.itemId or (type(owner.spec)=="table" and owner.spec.itemId))
         if o._gradient then
             local g = o._gradient
             node.gradient = {g[1], {g[2].r, g[2].g, g[2].b, g[2].a or 1}, {g[3].r, g[3].g, g[3].b, g[3].a or 1}}

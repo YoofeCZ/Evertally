@@ -156,7 +156,8 @@ class DungeonTests(unittest.TestCase):
         self.assertIn("Bring 20 Deviate Hides to Nalpak.", texts)
         self.assertIn("Nalpak, The Barrens", texts)
         self.assertIn(self.a.L("dungeonsChoose"), texts, "choose one reward")
-        self.assertIn("4,640 XP", texts, "and what you also receive")
+        badges = [str(dj.detail.pools.badge[i].text.text) for i in range(1, int(dj.detail.used.badge) + 1)]
+        self.assertIn("4,640 XP", badges, "XP is a compact reward badge, not a paragraph below the item list")
         ids = [int(r.spec.itemId) for r in self.links(dj) if r.spec.itemId]
         self.assertEqual(ids, [6480, 918])
         last = self.links(dj)[-1]
@@ -208,6 +209,16 @@ class DungeonTests(unittest.TestCase):
         self.open(dj, "Wailing Caverns")
         self.tab(dj, "map")
         self.assertEqual(str(dj.map.note.text), self.a.L("dungeonsNoMap"))
+
+    def test_a_boss_on_the_floor_map_opens_that_boss_and_his_loot(self):
+        self.lua.execute(FAKE_JOURNAL)
+        body, dj = self.page(); self.open(dj, "The Deadmines"); self.tab(dj, "map")
+        mark = dj.map.marks[2]
+        mark.scripts.OnClick(mark)
+        self.assertEqual(dj.tab, "bosses")
+        self.assertEqual(dj.chosen.boss.name, "Cookie")
+        self.assertEqual([int(r.spec.itemId) for r in self.links(dj)], [5197, 5198])
+        self.assertTrue(dj.detail.portrait.shown)
 
     # ---- back, the entrance, the arrow ----
     def test_the_way_back_and_the_entrance(self):

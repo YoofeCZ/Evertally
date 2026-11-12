@@ -1,5 +1,13 @@
 # Zadání: Průvodce v addonu (Databáze, Dungeon Journal) — požadavky a stav
 
+## Aktuální implementace 0.8.0
+
+Questy v Databázi, Deníku a Dungeon Journalu používají společnou plnou pergamenovou kartu podle druhého uživatelského obrázku. Krátký quest se zadáním, odevzdáním, odměnami a XP se vejde do čtecí plochy. Výběrové a pevné odměny se rozlišují pouze při doložených datech; základní XP je označené.
+
+Přehled, Deník, Běhy, Místa, Atlas, Profese, Komunita, Lidé, Žebříček a Nastavení mají přestavěné rozložení. Návody jsou 26 místních kapitol, včetně dvanácti profesí a devíti tříd; výrobní postupy používají skutečné přibalené recepty. Talenty jsou funkční plánovač aktuální třídy s podmínkami, rozpočtem a uloženými buildy. Odkazy na cizí weby již nejsou obsahem těchto stránek.
+
+307 Lua testů prošlo; vykreslené náhledy a kontroly kotvení pokrývají všech 16 stránek a jejich režimy. **Nejde o vizuální přijetí ve hře.** Předchozí záznamy níže popisují historické iterace, nikoli současnou implementaci. Přesný rozsah a omezení: VYDANI-0.8.0.md.
+
 Cíl uživatele (12. 11. 2026, po screenshotech z hry a z webu): **celá databáze je v addonu a vypadá a chová se jako web a jako hotový Dungeon Journal**, ne jako holý seznam s textem. Netýká se jen dungeonů, ale **všeho**: questů, NPC, itemů, objektů. Cíl klient: **Forever 1.60.1** (katalog API: plugin `wow-addon-dev`, build 1.60.1.70862).
 
 Vzory (obrázky od uživatele): web Evertally (Databáze → Dungeony a raidy: banner, štítky, vchod s mapou, bossové s lootem a názvy, questy) a addon DungeonJournal (mřížka karet s bannerem, záložky Mapa / Bossové / Questy, seznam bossů s portréty a úrovní, loot s ikonou, jménem v barvě kvality a slotem, questy s cílem, „Starts at“, „Turn in“, odměnami a XP, mapa s ikonami bossů).

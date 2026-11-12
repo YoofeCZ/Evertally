@@ -1,4 +1,4 @@
-# Evertally Bridge pro Windows 0.7.1
+# Evertally Bridge pro Windows 0.8.0
 
 Instalátor `releases/EvertallySetup.exe` nainstaluje most pro aktuálního uživatele. Po spuštění je vidět jen ikona v oznamovací oblasti vedle hodin Windows, případně pod šipkou nahoru. Mapa, databáze a herní přehledy byly z Windows distribuce odstraněny; jsou na webu a v herním addonu.
 

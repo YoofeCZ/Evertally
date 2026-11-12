@@ -3,16 +3,18 @@ anchoring), every visible region is exported and drawn as HTML, and headless Chr
 
     python tools/ui_preview/preview.py [--size 960x620] [--out DIR] [view ...]
 
-What it shows is the LAYOUT: overlaps, text that spills out of its card, empty buttons, things that fall outside the window. Fonts and
-icons are stand-ins (icons are coloured squares labelled with the texture name), so it is not a picture of the game's pixels.
+What it shows is the LAYOUT: overlaps, text that spills out of its card, empty buttons, things that fall outside the window. Known icons are read
+from existing local game exports; native surfaces and fonts are modelled. This is not a picture of the game's pixels.
 """
 import argparse
+import base64
 import html
 import json
 import re
 import subprocess
 import sys
 from pathlib import Path
+from functools import lru_cache
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -23,6 +25,8 @@ from test_dungeons import FAKE_JOURNAL  # noqa: E402
 from test_openmap import OPENMAP  # noqa: E402
 
 CAPTURE = HERE / "capture.cjs"
+ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
+ICON_FILES = {}
 VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "settings"]
 
 FIXTURE = r'''
@@ -42,6 +46,16 @@ C_Map={GetMapInfo=function(id) return {name=({[1429]="Elwynn Forest",[1453]="Sto
   GetBestMapForUnit=function() return 1429 end,GetPlayerMapPosition=function() return {GetXY=function() return .42,.65 end} end}
 GetItemInfo=function(id) return ({[2136]="Conjured Water",[2589]="Linen Cloth",[4540]="Tough Hunk of Bread",[6948]="Hearthstone"})[id] end
 GetItemIcon=function() return "Interface\\Icons\\INV_Misc_Bag_08" end
+-- Synthetic talent API for exercising all planner controls; these are explicit test nodes, not an all-class talent database.
+local talentIcons={"Interface\\Icons\\Spell_Holy_HolyBolt","Interface\\Icons\\Spell_Holy_DevotionAura","Interface\\Icons\\Spell_Holy_AuraOfLight"}
+GetNumTalentTabs=function() return 3 end
+GetTalentTabInfo=function(tab) return ({"Test Holy","Test Protection","Test Retribution"})[tab],talentIcons[tab],tab==1 and 4 or 0,({"PaladinHoly","PaladinProtection","PaladinCombat"})[tab] end
+GetNumTalents=function() return 10 end
+GetTalentInfo=function(tab,index)
+ local pos={{1,1},{1,2},{1,3},{2,1},{2,3},{3,2},{4,1},{4,3},{5,2},{6,2}}
+ local p=pos[index];return "Test talent "..tab.."-"..index,talentIcons[tab],p[1],p[2],tab==1 and index==1 and 4 or 0,index==10 and 1 or 5
+end
+GetTalentPrereqs=function(tab,index) if index==10 then return 5,2,true elseif index==6 then return 2,3,true end end
 UnitFactionGroup=function() return "Alliance" end
 local A=Evertally
 local day=86400
@@ -121,10 +135,97 @@ def rich(text):
     return "".join(out)
 
 
-def icon_style(path):
+@lru_cache(maxsize=512)
+def image_data(path):
+    path = Path(path)
+    if not path.is_file():
+        return None
+    suffix = path.suffix.lower()
+    if suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+        kind = {".jpg": "jpeg", ".jpeg": "jpeg"}.get(suffix, suffix[1:])
+        return f"data:image/{kind};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+    if suffix in {".tga", ".blp"}:
+        try:
+            try:
+                from PIL import Image
+            except ImportError:
+                sys.path.insert(0, str(ROOT / ".tools" / "python-data"))
+                from PIL import Image
+            from io import BytesIO
+            out = BytesIO()
+            with Image.open(path) as image:
+                image.convert("RGBA").save(out, format="PNG")
+            return "data:image/png;base64," + base64.b64encode(out.getvalue()).decode("ascii")
+        except (ImportError, OSError, ValueError):
+            return None
+    return None
+
+
+@lru_cache(maxsize=2)
+def identity_assets(kind):
+    """Match the production helper's existing atlas coordinates to its already-exported class/race image."""
+    source = (ROOT / "addon/Evertally/Identity.lua").read_text(encoding="utf8")
+    section = source.split("local " + kind + " = {", 1)[1].split("\n}", 1)[0]
+    found = {}
+    for line in section.splitlines():
+        match = re.search(r"\[(\d+)\]=.*\{([\d.,]+)\}\},?$", line.strip())
+        if match:
+            coords = tuple(round(float(v), 3) for v in match[2].split(","))
+            path = ROOT / "platform/public/media/identity" / kind / f"{match[1]}.png"
+            if len(coords) == 4 and path.is_file():
+                found[coords] = path
+    return found
+
+
+def local_asset(texture, item_id=None, coords=None):
+    """Only existing local exports and addon artwork; no downloads and no client access."""
+    value = str(texture).replace("/", "\\")
+    if value.isdigit():
+        return image_data(ROOT / "platform/public/media/identity/client-items" / f"{value}.jpg")
+    key = value.lower()
+    identity_kind = "classes" if key.endswith("ui-charactercreate-classes") else "races" if key.endswith("ui-charactercreate-races") else None
+    if identity_kind and coords and len(coords) == 4:
+        asset = identity_assets(identity_kind).get(tuple(round(v, 3) for v in coords))
+        if asset:
+            return image_data(asset)
+    if key in ICON_FILES:
+        found = image_data(ICON_FILES[key])
+        if found:
+            return found
+    if item_id:
+        found = image_data(ROOT / "platform/public/media/identity/items" / f"{int(item_id)}.jpg")
+        if found:
+            return found
+    prefix = "interface\\addons\\"
+    if key.startswith(prefix):
+        relative = Path(*value[len(prefix):].split("\\"))
+        for root in (ROOT / "addon", ADDONS):
+            candidate = root / relative
+            for path in (candidate, candidate.with_suffix(".tga"), candidate.with_suffix(".png"), candidate.with_suffix(".blp")):
+                if found := image_data(path):
+                    return found
+    return None
+
+
+def icon_style(path, tint=None, item_id=None, coords=None):
     name = str(path).replace("/", "\\").split("\\")[-1]
-    hue = sum(ord(c) * (i + 3) for i, c in enumerate(name)) % 360
-    return f"background:hsl({hue},45%,38%)", name[:14]
+    low = name.lower()
+    if low == "questbg":
+        paper = color([.74,.63,.43,1], tint=tint)
+        return f"background:{paper};box-shadow:inset 0 0 24px #62442133", ""
+    if low == "ui-background-rock":
+        return "background:repeating-linear-gradient(135deg,#17130f 0px,#201b15 3px,#181510 6px)", ""
+    if low in {"ui-dialogbox-background", "ui-dialogbox-background-dark"}:
+        return "background:linear-gradient(#30241a,#18110b)", ""
+    if low.startswith("ui-panel-button-"):
+        return "background:linear-gradient(#8b2519,#5b110b 45%,#7a1e12);border:2px ridge #8e713b;box-shadow:inset 0 0 0 1px #211208", ""
+    if low in {"availablequesticon", "activequesticon"}:
+        return "background:transparent;color:#e8bc33;font:bold 28px Georgia;text-shadow:1px 2px #38210b;text-align:center", "!" if low.startswith("available") else "?"
+    if low in {"ui-questreward-exp", "ui-questreward-experience"}:
+        return "background:#684681;color:#fff;font:bold 12px Georgia;text-align:center", "XP"
+    if data := local_asset(path, item_id, coords):
+        return f"background-image:url('{data}');background-size:100% 100%;background-repeat:no-repeat", ""
+    return "background:#30291e;border:1px solid #8b7040;color:#d7c69e;font:15px Georgia;text-align:center", "?"
 
 
 def render(nodes, width, height, debug=False):
@@ -158,8 +259,8 @@ def render(nodes, width, height, debug=False):
                 if "WHITE8X8" in path and n.get("tint"):
                     parts.append(f'<div class="r" style="{box}background:{color(n["tint"], alpha)}"></div>')
                 else:
-                    style, label = icon_style(path)
-                    parts.append(f'<div class="r ic" style="{box}{style};opacity:{alpha:.2f}"><i>{html.escape(label)}</i></div>')
+                    style, label = icon_style(path, n.get("tint"), n.get("itemId"), n.get("coords"))
+                    parts.append(f'<div class="r ic" title="{html.escape(path)}" style="{box}{style};opacity:{alpha:.2f}">{html.escape(label)}</div>')
         elif kind == "FontString":
             text = n.get("text") or ""
             if not text:
@@ -179,7 +280,7 @@ def render(nodes, width, height, debug=False):
            ".stage{position:relative;width:%dpx;height:%dpx;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;"
            "background:linear-gradient(135deg,#5b6b45,#8a7a4a 45%%,#4a5b3a)}"
            ".r,.t,.eb,.dbg{position:absolute;box-sizing:border-box}.t{line-height:1.25}.ic{border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}"
-           ".ic i{font:normal 7px Arial;color:#fff;background:rgba(0,0,0,.45);width:100%%;text-align:center;overflow:hidden}"
+           ".ic{display:block}"
            ".eb{background:#0d0d12;border:1px solid #6b6b78;border-radius:3px;color:#fff;font-size:12px;padding:3px 6px}"
            ".dbg{outline:1px solid rgba(255,0,0,.35)}") % (width, height)
     return f"<!doctype html><meta charset=utf-8><style>{css}</style><div class=stage>{''.join(parts)}</div>"
@@ -234,12 +335,13 @@ def lint(nodes):
     return problems
 
 
-def make_session(ww, wh, sw=1280, sh=760, openmap=False):
+def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     """The add-on running on the layout mock with a realistic character; returns (lua, add-on table)."""
     lua, a = runtime()
     lua.execute(f"SCREEN_W,SCREEN_H={sw},{sh}")
     lua.execute((HERE / "layout_mock.lua").read_text(encoding="utf8"))
     lua.execute(FIXTURE)
+    a.db.settings.language = language
     a.db.settings.uiWidth, a.db.settings.uiHeight = ww, wh
     # the map add-on, loaded the way the game does it on first use (with the stand-ins the unit tests use for the map libraries and QuestieDB)
     lua.execute(FAKE_LIBS)
@@ -254,6 +356,20 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False):
                 if isinstance(chunk, tuple):
                     raise RuntimeError(str(chunk))
                 chunk("Evertally_Map", map_table)
+        # Item ids, names and artwork are the existing local reference export; unlike the talent APIs above these are not invented fixtures.
+        item_guide = map_table.itemGuide
+        if item_guide is not None:
+            lua.globals().PREVIEW_ITEM_GUIDE = item_guide
+            lua.execute('''
+                GetItemIcon=function(id) local item=PREVIEW_ITEM_GUIDE[tonumber(id)];return item and item.icon or "Interface\\\\Icons\\\\INV_Misc_QuestionMark" end
+                GetItemInfo=function(id) local item=PREVIEW_ITEM_GUIDE[tonumber(id)];if item then return item.name,nil,item.quality end end
+            ''')
+            for item_id, item in item_guide.items():
+                if item.icon is not None:
+                    icon_key = str(item.icon).replace("/", "\\").lower()
+                    icon_file = ROOT / "platform/public/media/identity/items" / f"{int(item_id)}.jpg"
+                    if icon_file.is_file():
+                        ICON_FILES.setdefault(icon_key, icon_file)
         return True
 
     lua.globals().PYLOADMAP = load_map
@@ -266,10 +382,10 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False):
 
 WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 # pages with more than one state worth looking at: view -> the states
-STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
+STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
-def capture(lua, a, view, tab=None):
+def capture(lua, a, view, tab=None, quest_id=None):
     """Opens one page (one tab of the World page), lets the client's size events settle and exports what is drawn."""
     if view == "setup":   # the first-start setup, one step at a time
         a.OpenOnboarding(int(tab or 1))
@@ -295,8 +411,31 @@ def capture(lua, a, view, tab=None):
         a.map.RefreshWorld(a.worldBody)
     if view == "database" and a.databaseBody is not None:
         frame = a.databaseBody.tabFrames.db
-        kind = tab or "npc"
+        kind = "quest" if quest_id else tab or "npc"
         query = {"npc": "mar", "quest": "kob", "item": "line"}[kind]
+        if quest_id:
+            extra = a.map.questDetails[int(quest_id)]
+            if extra is None:
+                raise ValueError(f"Quest {quest_id} is not in the local reference export.")
+            lua.globals().PREVIEW_QUEST_ID = int(quest_id)
+            lua.globals().PREVIEW_QUEST_EXTRA = extra
+            # Inject only this real exported quest into the otherwise synthetic Questie contract.
+            # Both the selected index row and reader must describe the same record.
+            lua.execute('''
+              local ids, get = LibQuestieDB.Quest.GetAllIds, LibQuestieDB.Quest.GetAll
+              LibQuestieDB.Quest.GetAllIds=function()
+                local result=ids();for _,id in ipairs(result) do if id==PREVIEW_QUEST_ID then return result end end
+                result[#result+1]=PREVIEW_QUEST_ID;return result
+              end
+              LibQuestieDB.Quest.GetAll=function(id,wanted)
+                if id~=PREVIEW_QUEST_ID then return get(id,wanted) end
+                local q=PREVIEW_QUEST_EXTRA
+                local row={name=q.name,questLevel=q.questLevel,requiredLevel=q.requiredLevel,objectivesText=q.objective and {q.objective}}
+                local result={n=#wanted};for i,key in ipairs(wanted) do result[i]=row[key] end;return result
+              end
+              Evertally.map.Db.index.quest=nil
+            ''')
+            query = str(extra.name)
         frame.db.kind = kind
         box = frame.db.box
         box.SetText(box, query); box.GetScript(box, "OnTextChanged")(box)
@@ -309,6 +448,9 @@ def capture(lua, a, view, tab=None):
         row = frame.db.rows[1]
         if row.id:
             row.GetScript(row, "OnClick")()
+        if quest_id:
+            frame.db.selected = lua.table_from({"kind": "quest", "id": int(quest_id)})
+            a.map.WorldDbDetail(frame)
     if view == "overview" and tab:
         a.overviewPage.recentMode = tab
     elif view == "rankings" and tab:
@@ -316,6 +458,12 @@ def capture(lua, a, view, tab=None):
     elif view == "journal" and tab:
         a.journalPage.filter = tab
     a.RefreshUI()
+    if view == "dungeons" and tab and tab != "home":
+        dj = a.dungeonsBody.dungeons
+        dj.cards[1].GetScript(dj.cards[1], "OnClick")(dj.cards[1])
+        dj.tabs[tab].GetScript(dj.tabs[tab], "OnClick")()
+        a.RefreshUI()
+        lua.execute("PREVIEW_SETTLE()")
     return to_py(lua.eval("PREVIEW_EXPORT")(None))
 
 
@@ -328,13 +476,15 @@ def main():
     ap.add_argument("--screen", default="1280x760")
     ap.add_argument("--no-shots", action="store_true")
     ap.add_argument("--tab", default="")
+    ap.add_argument("--language", choices=("en", "cs"), default="en")
+    ap.add_argument("--quest-id", type=int, help="show an actual local quest card in the database reader")
     ap.add_argument("--openmap", action="store_true", help="draw it as if OpenMap were installed")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     sw, sh = (int(v) for v in args.screen.split("x"))
     ww, wh = (int(v) for v in args.size.split("x"))
-    lua, a = make_session(ww, wh, sw, sh, args.openmap)
+    lua, a = make_session(ww, wh, sw, sh, args.openmap, args.language)
     problems = {}
     scenes = []
     for view in args.views or VIEWS:
@@ -343,8 +493,10 @@ def main():
         else:
             scenes.append((view, None))
     for view, tab in scenes:
-        nodes = capture(lua, a, view, tab)
+        nodes = capture(lua, a, view, tab, args.quest_id if view == "database" else None)
         name = f"{view}{'-' + tab if tab else ''}-{ww}x{wh}{'-openmap' if args.openmap else ''}"
+        if args.language != "en": name += "-" + args.language
+        if args.quest_id and view == "database": name += "-" + str(args.quest_id)
         page = out / f"{name}.html"
         page.write_text(render(nodes, sw, sh, args.debug), encoding="utf8")
         bad = [k for k in ("ui_refresh", "overview_page", "journal_page", "rankings_page", "social_page", "world_page") if a.errors[k]]

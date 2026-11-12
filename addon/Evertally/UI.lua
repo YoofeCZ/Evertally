@@ -183,7 +183,7 @@ local function Toggle(parent, key, get, set)
     b:SetSize(560, 36)
     local track = b:CreateTexture(nil, "ARTWORK"); track:SetSize(30, 16); track:SetPoint("LEFT")
     local knob = b:CreateTexture(nil, "OVERLAY"); knob:SetSize(12, 12); paint(knob, C.text)
-    local text = label(b, 12, C.text); text:SetPoint("LEFT", track, "RIGHT", 10, 0);text:SetPoint("RIGHT",b,"RIGHT",0,0);text:SetWordWrap(true)
+    local text = label(b, 12, parent.parchment and A.UIKit().ParchmentText.ink or C.text); text:SetPoint("LEFT", track, "RIGHT", 10, 0);text:SetPoint("RIGHT",b,"RIGHT",0,0);text:SetWordWrap(true)
     b.localeKey, b.get = key, get
     function b.Update()
         local on = get() == true
@@ -404,10 +404,14 @@ end
 local function Metrics(page, definitions)
     local kit=A.UIKit();local weights={};for i=1,#definitions do weights[i]=1 end
     local row=kit.Columns(page,weights,10)
-    row:SetPoint("TOPLEFT",0,-54);row:SetPoint("TOPRIGHT",0,-54);row:SetHeight(72)
+    row:SetPoint("TOPLEFT",0,-54);row:SetPoint("TOPRIGHT",0,-54);row:SetHeight(42)
     local cards={}
     for i,definition in ipairs(definitions) do
-        local card=kit.Stat(row.cells[i],definition.icon or ICON.facts,definition.color or C.lilac)
+        local card=CreateFrame("Frame",nil,row.cells[i])
+        card.value=label(card,16,definition.color or C.gold);card.value:SetPoint("TOPLEFT",24,0)
+        local icon=card:CreateTexture(nil,"ARTWORK");icon:SetSize(18,18);icon:SetPoint("TOPLEFT");setIcon(icon,definition.icon or ICON.facts)
+        card.caption=label(card,10,C.mist);card.caption:SetPoint("TOPLEFT",24,-20);card.caption:SetPoint("TOPRIGHT",-2,-20);card.caption:SetWordWrap(false)
+        card.delta=label(card,10,C.faint);card.delta:SetPoint("TOPRIGHT",-2,0)
         card:SetAllPoints(row.cells[i]);cards[i]=card
     end
     page.metrics=cards
@@ -418,6 +422,44 @@ local function Metrics(page, definitions)
         end
     end
     return row
+end
+
+local function documentRows(rows)
+    local entries={}
+    for _,r in ipairs(rows or {}) do
+        entries[#entries+1]={text=tostring(r.title or "")..(r.sub and r.sub~="" and ("\n"..r.sub) or "")..(r.right and ("  "..r.right) or ""),icon=r.icon,onClick=r.onClick}
+    end
+    return entries
+end
+-- The old pages are now index-and-reader spreads. Selecting an entry reads it inline; actions remain explicit inside the page.
+local function BookList(page,top)
+    local kit=A.UIKit();local book=kit.Book(page,top);page.book=book
+    local list=ListView(book.index,8);list:ClearAllPoints();list:SetPoint("TOPLEFT",6,-6);list:SetPoint("BOTTOMRIGHT",-10,6)
+    list.readingIndex=true
+    local doc=kit.Document(book.paper);page.document=doc
+    local setItems=list.SetItems
+    function list.SetItems(items,empty)
+        local selected=nil;local decorated={}
+        for _,source in ipairs(items) do
+            local row={};for key,value in pairs(source) do row[key]=value end
+            local recordKey=source.key or source.title
+            row.onClick=function() page.recordKey=recordKey;page.ReadRecord(source) end
+            row.tag=nil;row.right=nil
+            decorated[#decorated+1]=row
+            if recordKey==page.recordKey then selected=source end
+        end
+        setItems(decorated,empty)
+        selected=selected or items[1]
+        if selected then page.recordKey=selected.key or selected.title;page.ReadRecord(selected)
+        else doc.Set({key="empty",title=empty or A.L("noData"),subtitle=A.L(page.titleKey),entries={}}) end
+    end
+    function page.ReadRecord(row)
+        local spec=(row.buildDocument and row.buildDocument()) or row.document or {title=row.title,subtitle=row.sub,entries={}}
+        spec.key=row.key or row.title
+        if not row.document and not row.buildDocument and row.onClick then spec.entries={{text=A.L("openDatabase"),icon=row.icon,onClick=row.onClick}} end
+        doc.Set(spec)
+    end
+    return list
 end
 local function Search(page,top,onChange)
     local search=A.UIKit().SearchBox(page,200,onChange)
@@ -489,13 +531,13 @@ end
 local function buildCommunity(page)
     PageHeader(page,"community");page.kind,page.query="",""
     Metrics(page,{{key="communityEntities",icon=ICON.facts},{key="count",icon=ICON.quest},{key="pageCacheState",icon=ICON.community}})
-    page.import=Button(page,"communityImport",140,"primary",showCommunityImport);page.import:SetPoint("TOPLEFT",0,-140)
-    page.clear=Button(page,"communityClear",100,"ghost",function() A.ClearCommunity() end);page.clear:SetPoint("LEFT",page.import,"RIGHT",8,0)
-    local refreshFilters=Filters(page,{{"","communityKind_"},{"quest","communityKind_quest"},{"npc","communityKind_npc"},{"item","communityKind_item"}},140,function(kind) page.kind=kind;A.RefreshUI() end)
+    page.import=Button(page,"communityImport",110,"primary",showCommunityImport);page.import:SetPoint("TOPLEFT",0,-104)
+    page.clear=Button(page,"communityClear",80,"ghost",function() A.ClearCommunity() end);page.clear:SetPoint("LEFT",page.import,"RIGHT",8,0)
+    local refreshFilters=Filters(page,{{"","communityKind_"},{"quest","communityKind_quest"},{"npc","communityKind_npc"},{"item","communityKind_item"}},104,function(kind) page.kind=kind;A.RefreshUI() end)
     page.filters[1]:ClearAllPoints();page.filters[1]:SetPoint("LEFT",page.clear,"RIGHT",12,0)
-    Search(page,180,function(value) page.query=value;A.RefreshUI() end)
-    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-214);page.info:SetPoint("TOPRIGHT",0,-214);page.info:SetHeight(30);page.info:SetWordWrap(true)
-    page.list=ListView(page,252)
+    Search(page,142,function(value) page.query=value;A.RefreshUI() end)
+    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-176);page.info:SetPoint("TOPRIGHT",0,-176);page.info:SetHeight(24);page.info:SetWordWrap(true)
+    page.list=BookList(page,206)
     function page.Refresh()
         page.import.text:SetText(A.L("communityImport"));page.clear.text:SetText(A.L("communityClear"));refreshFilters(page.kind)
         page.search.hint:SetText(A.L("pageSearch"))
@@ -512,7 +554,14 @@ local function buildCommunity(page)
             items[#items+1]={title=plain(e.name),icon=e.kind=="npc" and ICON.npc or e.kind=="item" and ICON.item or ICON.quest,
                 sub=e.kind.." #"..e.id.."  ·  "..stamp(e.lastSeen)..(e.mapId and ("  ·  "..mapName(e.mapId)) or "")..
                     (e.x and e.y and string.format("  %.1f, %.1f",e.x*100,e.y*100) or ""),right=tostring(e.count),tag=A.L("community"),tagColor=stale and C.peach or C.lilac,
-                onClick=function() showCommunityDetail(current) end}
+                document={title=plain(e.name),subtitle=e.kind.." #"..e.id,entries={
+                    {text=A.L("count")..": "..e.count,head=true},
+                    {text=A.L("observedAt")..": "..stamp(e.lastSeen)},
+                    {text=e.mapId and mapName(e.mapId) or A.L("unknown")},
+                    {text=A.L("communityGenerated")..": "..(snapshot and stamp(snapshot.generatedAt) or "—")},
+                    {text=A.L("communityExpires")..": "..(snapshot and stamp(snapshot.expiresAt) or "—")},
+                    {text=A.L("openDatabase"),icon=ICON.facts,onClick=function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry(current.kind,current.id) end end},
+                }},onClick=function() showCommunityDetail(current) end}
         end
         page.list.SetItems(items,A.L("communityNoData"))
     end
@@ -525,8 +574,8 @@ for lang, entries in pairs({
 local function buildHistory(page)
     PageHeader(page, "history"); page.filter = "all"
     Metrics(page, {{key = "histRuns", icon = ICON.run}, {key = "histCompleted", icon = ICON.questDone, color = C.green}, {key = "histBest", icon = ICON.cooldown, color = C.peach}, {key = "histBosses", icon = ICON.raid, color = C.sky}})
-    local paintFilters = Filters(page, {{"all", "histAll"}, {"completed", "histDone"}, {"interrupted", "histCut"}}, 134, function(value) page.filter = value; A.RefreshUI() end)
-    page.list = ListView(page, 170)
+    local paintFilters = Filters(page, {{"all", "histAll"}, {"completed", "histDone"}, {"interrupted", "histCut"}}, 104, function(value) page.filter = value; A.RefreshUI() end)
+    page.list = BookList(page, 144)
     function page.Refresh()
         local runs, completed, best, bosses = A.db.runs, 0, nil, 0
         for _, run in ipairs(runs) do
@@ -540,12 +589,15 @@ local function buildHistory(page)
         page.RefreshMetrics({#runs, completed, best and duration(best) or "—", bosses})
         paintFilters(page.filter)
         local items, run = {}, A.ActiveRun()
-        if run and page.filter == "all" then items[1] = runItem(run, true) end
+        if run and page.filter == "all" then
+            local row=runItem(run,true);row.key="active:"..tostring(run.startedAt);row.document={title=row.title,subtitle=A.L("currentRun"),entries=documentRows(A.RunDetailRows(run))};items[1]=row
+        end
         local shown = 0
         for i = #runs, 1, -1 do
             local r = runs[i]
             if page.filter == "all" or (page.filter == "completed" and r.status == "completed") or (page.filter == "interrupted" and r.status == "interrupted") then
-                items[#items + 1] = runItem(r); shown = shown + 1
+                local row=runItem(r);row.key=tostring(r.startedAt)..":"..i;row.document={title=row.title,subtitle=A.L(r.status or "unknown"),entries=documentRows(A.RunDetailRows(r))}
+                items[#items + 1] = row; shown = shown + 1
                 if shown >= 200 then break end
             end
         end
@@ -556,10 +608,10 @@ local function buildFacts(page)
     PageHeader(page,"facts");page.kind,page.query="all",""
     Metrics(page,{{key="pageQuestFacts",icon=ICON.quest},{key="pageNpcFacts",icon=ICON.npc},{key="pageItemFacts",icon=ICON.item}})
     local kit=A.UIKit()
-    local refreshFilters=Filters(page,{{"all","pageAll"},{"quests","pageQuests"},{"npcs","pageNpcs"},{"items","pageItems"}},140,function(kind) page.kind=kind;A.RefreshUI() end)
-    Search(page,178,function(value) page.query=value;A.RefreshUI() end)
-    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-212);page.info:SetPoint("TOPRIGHT",0,-212)
-    page.list=ListView(page,238)
+    local refreshFilters=Filters(page,{{"all","pageAll"},{"quests","pageQuests"},{"npcs","pageNpcs"},{"items","pageItems"}},104,function(kind) page.kind=kind;A.RefreshUI() end)
+    Search(page,138,function(value) page.query=value;A.RefreshUI() end)
+    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-172);page.info:SetPoint("TOPRIGHT",0,-172)
+    page.list=BookList(page,194)
     function page.Refresh()
         local counts={quests=0,npcs=0,items=0};local items={};local query=kit.fold(page.query);local total=0
         for i=#A.db.events,1,-1 do
@@ -570,6 +622,19 @@ local function buildFacts(page)
                 total=total+1
                 if page.kind=="all" or page.kind==category then
                     local row=eventItem(e)
+                    row.key=tostring(e.id or (e.kind..":"..tostring(e.observedAt)..":"..i))
+                    local p=e.payload or {};local current=e
+                    row.buildDocument=function()
+                    local entries={{text=A.L("observedAt")..": "..stamp(e.observedAt)},{text=A.L("observationType")..": "..A.L(e.kind),head=true}}
+                    if p.mapId then entries[#entries+1]={text=p.mapName or mapName(p.mapId)} end
+                    if p.questId or p.npcId or p.itemId then
+                        local kind,id=p.questId and "quest" or p.npcId and "npc" or "item",p.questId or p.npcId or p.itemId
+                        for _,detail in ipairs(A.DatabaseRows(kind,id)) do entries[#entries+1]={text=(detail.title or "").."\n"..(detail.sub or "")} end
+                        entries[#entries+1]={text=A.L("openDatabase"),icon=row.icon,onClick=function() A.OpenDatabaseEntry(kind,id) end}
+                    end
+                    entries[#entries+1]={text=A.L("diagnostics"),onClick=function() showEvent(current) end}
+                    return {title=row.title,subtitle=row.sub,entries=entries}
+                    end
                     if kit.fold((row.title or "").." "..(row.sub or "").." "..tostring((e.payload or {}).questId or (e.payload or {}).npcId or (e.payload or {}).itemId or "")):find(query,1,true) and #items<200 then items[#items+1]=row end
                 end
             end
@@ -759,10 +824,10 @@ A.UIShowProfessionDetail=showProfession
 local function buildProfessions(page)
     PageHeader(page,"professions");page.mode,page.query,page.index="professions","",1
     Metrics(page,{{key="pageProfessionCount",icon=ICON.profession},{key="pageRecipeCount",icon=ICON.craft},{key="pageCooldownCount",icon=ICON.cooldown,color=C.peach}})
-    local refreshFilters=Filters(page,{{"professions","professionMode_professions"},{"recipes","professionMode_recipes"},{"cooldowns","professionMode_cooldowns"}},140,function(mode) page.mode=mode;page.index=1;A.RefreshUI() end)
-    Search(page,178,function(value) page.query=value;page.index=1;A.RefreshUI() end)
-    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-212);page.info:SetPoint("TOPRIGHT",0,-212);page.info:SetHeight(30);page.info:SetWordWrap(true)
-    page.list=ListView(page,250);page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",0,-250);page.list:SetPoint("BOTTOMRIGHT",-8,34)
+    local refreshFilters=Filters(page,{{"professions","professionMode_professions"},{"recipes","professionMode_recipes"},{"cooldowns","professionMode_cooldowns"}},104,function(mode) page.mode=mode;page.index=1;A.RefreshUI() end)
+    Search(page,138,function(value) page.query=value;page.index=1;A.RefreshUI() end)
+    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-172);page.info:SetPoint("TOPRIGHT",0,-172);page.info:SetHeight(24);page.info:SetWordWrap(true)
+    page.list=BookList(page,202);page.book:SetPoint("BOTTOMRIGHT",0,36)
     page.prev=Button(page,nil,32,"ghost",function() page.index=math.max(1,page.index-1);A.RefreshUI() end);page.prev:SetPoint("BOTTOMRIGHT",-108,0);page.prev.text:SetText("<")
     page.next=Button(page,nil,32,"ghost",function() page.index=page.index+1;A.RefreshUI() end);page.next:SetPoint("LEFT",page.prev,"RIGHT",6,0);page.next.text:SetText(">")
     page.counter=label(page,11,C.mist);page.counter:SetPoint("BOTTOMRIGHT",0,8);page.counter:SetWidth(58);page.counter:SetJustifyH("RIGHT")
@@ -777,11 +842,21 @@ local function buildProfessions(page)
                 local matches=fold(p.name):find(query,1,true) or fold(c and c.name):find(query,1,true)
                 for _,recipe in ipairs(entry.recipes) do if fold(recipe.name):find(query,1,true) then matches=true;break end end
                 local current=entry
-                if matches then rows[#rows+1]={title=plain(p.name or p.professionId),sub=plain(c and c.name).."  ·  "..stamp(entry.observedAt).."  ·  "..A.L("recipes")..": "..#entry.recipes,
-                    icon=ICON.profession,right=(p.skill~=nil and p.skill or "?").."/"..(p.maxSkill~=nil and p.maxSkill or "?"),onClick=function() showProfession(current) end} end
+                if matches then
+                    local entries={{text=A.L("professionSkill")..": "..(p.skill or "?").." / "..(p.maxSkill or "?"),head=true},{text=A.L("observedAt")..": "..stamp(entry.observedAt)}}
+                    for _,recipe in ipairs(entry.recipes) do local rr=recipeRow(entry,recipe);entries[#entries+1]={text=rr.title.."\n"..(rr.sub or ""),icon=rr.icon,onClick=rr.onClick} end
+                    rows[#rows+1]={key=tostring(c and c.id)..":"..p.professionId,title=plain(p.name or p.professionId),sub=plain(c and c.name),icon=ICON.profession,
+                        document={title=plain(p.name or p.professionId),subtitle=plain(c and c.name),entries=entries},onClick=function() showProfession(current) end}
+                end
             else
                 for _,recipe in ipairs(entry.recipes) do
-                    if (page.mode~="cooldowns" or recipe.cooldown) and fold((recipe.name or recipe.recipeId).." "..(p.name or "").." "..(c and c.name or "")):find(query,1,true) then rows[#rows+1]=recipeRow(entry,recipe) end
+                    if (page.mode~="cooldowns" or recipe.cooldown) and fold((recipe.name or recipe.recipeId).." "..(p.name or "").." "..(c and c.name or "")):find(query,1,true) then
+                        local currentRecipe=recipe;local row=recipeRow(entry,recipe)
+                        local facts={{text=A.L("observedAt")..": "..stamp(entry.observedAt)},{text=A.L("professionSkill")..": "..(p.skill or "?").." / "..(p.maxSkill or "?"),head=true}}
+                        if recipe.cooldown then facts[#facts+1]={text=A.L("cooldowns")..": "..stamp(recipe.cooldown.readyAt)} end
+                        facts[#facts+1]={text=A.L("recipes"),icon=ICON.craft,onClick=function() if A.LoadGuide then A.LoadGuide() end;if A.map and A.map.OpenRecipe then A.map.OpenRecipe(currentRecipe.recipeId) end end}
+                        row.key=tostring(c and c.id)..":"..recipe.recipeId;row.document={title=row.title,subtitle=row.sub,entries=facts};rows[#rows+1]=row
+                    end
                 end
             end
         end
@@ -813,16 +888,21 @@ end
 local function buildPlaces(page)
     PageHeader(page,"places");page.query=""
     Metrics(page,{{key="pageAreaCount",icon=ICON.places},{key="pageVisitCount",icon=ICON.facts,color=C.green}})
-    Search(page,142,function(value) page.query=value;A.RefreshUI() end)
-    page.list=ListView(page,182)
+    Search(page,104,function(value) page.query=value;A.RefreshUI() end)
+    page.list=BookList(page,144)
     function page.Refresh()
         local items={};local areas=A.PlaceSummaries();local visits=0;local query=fold(page.query)
         for _,area in ipairs(areas) do
             visits=visits+area.count
             if fold((area.mapName or mapName(area.mapId)).." "..area.mapId):find(query,1,true) then
                 local current=area
-                items[#items+1]={title=plain(area.mapName or mapName(area.mapId)),sub=A.L("lastVisit")..": "..stamp(area.lastSeen),icon=ICON.places,
-                    right=tostring(area.count),tag=A.L("recordedVisits"),tagColor=C.lilac,onClick=function()
+                items[#items+1]={key=tostring(area.mapId),title=plain(area.mapName or mapName(area.mapId)),sub=A.L("lastVisit")..": "..stamp(area.lastSeen),icon=ICON.places,
+                    right=tostring(area.count),tag=A.L("recordedVisits"),tagColor=C.lilac,
+                    document={title=plain(area.mapName or mapName(area.mapId)),subtitle=A.L("areaOnly"),entries={
+                        {text=A.L("recordedVisits")..": "..area.count,head=true},
+                        {text=A.L("lastVisit")..": "..stamp(area.lastSeen)},
+                        {text=A.L("showMap"),icon=ICON.places,onClick=function() A.OpenRecordedMap(current) end},
+                    }},onClick=function()
                         showDetails(plain(current.mapName or mapName(current.mapId)),A.L("areaOnly"),{detailRow("recordedVisits",current.count),detailRow("lastVisit",stamp(current.lastSeen))},current)
                     end}
             end
@@ -859,23 +939,32 @@ end
 
 local function buildSettings(page)
     PageHeader(page,"settings")
-    local kit=A.UIKit();local scroll=ScrollArea(page,52);page.scroll=scroll
+    local kit=A.UIKit();local book=kit.Book(page,58);page.book=book
+    local scroll=ScrollArea(book.paper,12);page.scroll=scroll
+    scroll:ClearAllPoints();scroll:SetPoint("TOPLEFT",14,-14);scroll:SetPoint("BOTTOMRIGHT",-20,12)
+    local categoryScroll=ScrollArea(book.index,4);page.categoryScroll=categoryScroll
+    categoryScroll.child:SetHeight(300)
     local body,y,card,cy=scroll.child,0,nil,0
-    page.sections={};page.settingCards={}
+    page.sections={};page.settingCards={};page.categoryButtons={};page.selectedSection=1
     local function finish()
-        if card then local height=-cy+12;card:SetHeight(height);y=y-height-12 end
+        if card then card:SetHeight(-cy+12) end
     end
     local function section(key)
-        finish();card=kit.Card(body,C.lilac);card:SetPoint("TOPLEFT",0,y);card:SetPoint("TOPRIGHT",body,"TOPRIGHT",0,y);cy=-38
+        finish();card=CreateFrame("Frame",nil,body);card.parchment=true;card:SetPoint("TOPLEFT");card:SetPoint("TOPRIGHT");cy=-38
         page.settingCards[#page.settingCards+1]=card
-        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",12,-12);page.sections[#page.sections+1]=fs
+        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",12,-12);fs:SetTextColor(unpack(kit.ParchmentText.heading));page.sections[#page.sections+1]=fs
+        local index=#page.settingCards
+        local button=Button(categoryScroll.child,key,180,"ghost",function() page.SelectSection(index) end)
+        button:ClearAllPoints();button:SetPoint("TOPLEFT",8,-10-(index-1)*46);button:SetPoint("TOPRIGHT",-8,-10-(index-1)*46);button:SetHeight(40)
+        button.text:SetPoint("LEFT",8,0);button.text:SetPoint("RIGHT",-8,0);button.text:SetWordWrap(true)
+        page.categoryButtons[index]=button
     end
     local function place(control,height,indent)
         control:ClearAllPoints();control:SetPoint("TOPLEFT",12+(indent or 0),cy);control:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy)
         control:SetHeight(height or 36);cy=cy-(height or 36)
     end
     local function note(height)
-        local fs=label(card,11,C.mist);fs:SetPoint("TOPLEFT",12,cy-4);fs:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy-4);fs:SetHeight(height);fs:SetWordWrap(true);cy=cy-height-10
+        local fs=label(card,11,kit.ParchmentText.mutedInk);fs:SetPoint("TOPLEFT",12,cy-4);fs:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy-4);fs:SetHeight(height);fs:SetWordWrap(true);cy=cy-height-10
         return fs
     end
     local s=function() return A.db.settings end
@@ -903,7 +992,7 @@ local function buildSettings(page)
     page.webLiveHint=note(60);page.webHint=note(60)
 
     section("interfaceSection")
-    page.langLabel=label(card,12,C.text);page.langLabel:SetPoint("TOPLEFT",12,cy-6);page.langButtons={}
+    page.langLabel=label(card,12,kit.ParchmentText.ink);page.langLabel:SetPoint("TOPLEFT",12,cy-6);page.langButtons={}
     for i,lang in ipairs({"en","cs"}) do
         local choice=lang
         local b=Button(card,nil,48,"ghost",function() A.SetLanguage(choice) end)
@@ -919,12 +1008,18 @@ local function buildSettings(page)
         Button(card,"confirm",190,"ghost",function() A.FinishRun("manual","last_boss");A.RefreshUI() end),
         Button(card,"setupRun",150,"ghost",function() if A.OpenOnboarding then A.OpenOnboarding() end end),
     }
-    local actionRow=kit.Columns(card,{1,1,1,1},8);actionRow:SetPoint("TOPLEFT",12,cy);actionRow:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy);actionRow:SetHeight(34)
-    for i,b in ipairs(page.actions) do b:ClearAllPoints();b:SetAllPoints(actionRow.cells[i]);b.text:SetPoint("LEFT",6,0);b.text:SetPoint("RIGHT",-6,0);b.text:SetWordWrap(true) end
-    cy=cy-42;page.actionHint=note(32)
+    for i,b in ipairs(page.actions) do b:ClearAllPoints();b:SetPoint("TOPLEFT",12,cy);b:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy);b:SetHeight(34);b.text:SetWordWrap(true);cy=cy-42 end
+    page.actionHint=note(44)
 
     section("diagnostics");page.diag=note(100)
-    finish();body:SetHeight(math.max(1,-y))
+    finish()
+    function page.SelectSection(index)
+        page.selectedSection=index
+        for i,panel in ipairs(page.settingCards) do panel:SetShown(i==index) end
+        body:SetHeight(page.settingCards[index]:GetHeight())
+        scroll:SetVerticalScroll(0);scroll.UpdateThumb()
+    end
+    page.SelectSection(1)
     function page.Refresh()
         for _,t in ipairs(toggles) do t.Update() end
         for _,fs in ipairs(page.sections) do fs:SetText(A.L(fs.localeKey)) end

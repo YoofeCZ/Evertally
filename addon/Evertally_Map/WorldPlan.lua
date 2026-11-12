@@ -88,7 +88,7 @@ local function build(frame, kit)
     s.list:EnableMouse(true)
     if s.list.EnableMouseWheel then s.list:EnableMouseWheel(true) end
     s.list:SetScript("OnMouseWheel", function(_, delta)
-        s.offset = math.max(0, math.min(math.max(0, #s.results - ROWS), s.offset - delta * 3))
+        s.offset = math.max(0, math.min(math.max(0, #s.results - (s.visibleRows or ROWS)), s.offset - delta * 3))
         M.WorldPlanRows(frame)
     end)
     s.rows = {}
@@ -128,6 +128,18 @@ local function build(frame, kit)
         else M.ShowOnWorldMap(goal, map) end
     end)
     s.show:SetPoint("BOTTOMLEFT", 306, 0)
+    -- The itinerary is a readable travel page, not an unbounded block of text beside a list.
+    s.book=kit.Book(frame,60);s.document=kit.Document(s.book.paper)
+    s.document.scroll:SetPoint("BOTTOMRIGHT",-22,54)
+    s.list:SetParent(s.book.index);s.list:ClearAllPoints();s.list:SetPoint("TOPLEFT",6,-6);s.list:SetPoint("BOTTOMRIGHT",-6,6)
+    for _,row in ipairs(s.rows) do row.name:ClearAllPoints();row.name:SetPoint("LEFT",8,0);row.name:SetPoint("RIGHT",-8,0);row.name:SetWordWrap(false) end
+    s.title:Hide();s.sub:Hide();s.body:Hide()
+    s.go:ClearAllPoints();s.go:SetPoint("BOTTOMLEFT",s.book.paper,"BOTTOMLEFT",12,12);s.go:SetWidth(138)
+    s.show:ClearAllPoints();s.show:SetPoint("BOTTOMRIGHT",s.book.paper,"BOTTOMRIGHT",-12,12);s.show:SetWidth(138)
+    s.book.onLayout=function()
+        for i,row in ipairs(s.rows) do row:ClearAllPoints();row:SetPoint("TOPLEFT",0,-(i-1)*ROW_H);row:SetPoint("TOPRIGHT",0,-(i-1)*ROW_H) end
+    end
+    s.book.Layout()
 end
 
 function M.WorldPlanRows(frame)
@@ -135,7 +147,8 @@ function M.WorldPlanRows(frame)
     for i, row in ipairs(s.rows) do
         local place = s.results[s.offset + i]
         row.place = place
-        row:SetShown(place ~= nil)
+        s.visibleRows = math.max(1,math.min(ROWS,math.floor((s.list:GetHeight() or ROWS*ROW_H)/ROW_H)))
+        row:SetShown(place ~= nil and i<=s.visibleRows)
         if place then row.name:SetText(A.Plain(place.name)) end
     end
 end
@@ -146,11 +159,12 @@ function M.WorldPlanShow(frame)
     local place = s.chosen
     s.title:SetText(place and A.Plain(place.name) or "")
     s.go:SetShown(place ~= nil); s.show:SetShown(place ~= nil)
-    if not place then s.sub:SetText(""); s.body:SetText(""); return end
+    if not place then s.sub:SetText(""); s.body:SetText("");s.document.Set({key="empty",title=A.L("worldPlanTo"),entries={{text=A.L("worldPlanHint")}}}); return end
     local plan, why = Plan.Journey(place)
     s.sub:SetText(A.L("worldPlanFromYou"))
     if not plan then
         s.body:SetText(A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute"))
+        s.document.Set({key=place.name,title=place.name,subtitle=A.L("worldPlanFromYou"),entries={{text=A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute")}}})
         return
     end
     local lines = {}
@@ -159,6 +173,10 @@ function M.WorldPlanShow(frame)
     local plain = {}
     for _, line in ipairs(lines) do plain[#plain + 1] = line:find("|c", 1, true) and line or A.Plain(line) end
     s.body:SetText(table.concat(plain, "\n"))
+    local entries={}
+    for i,step in ipairs(plan.steps) do entries[#entries+1]={text=i..". "..M.StepText(step):gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r",""),head=true} end
+    entries[#entries+1]={text=string.format(A.L("worldPlanTotal"),M.Clock(plan.seconds)),head=true}
+    s.document.Set({key=place.name,title=place.name,subtitle=A.L("worldPlanFromYou"),entries=entries})
 end
 
 function M.WorldPlanRefresh(frame)

@@ -25,8 +25,10 @@ local text = {
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
 local function detailOf(rp, recipe)
-    local d, C = rp.detail, rp.kit.C
-    d.Reset()
+    local d = rp.detail
+    local ink = rp.kit.ParchmentText
+    local C = {text=ink.ink,mist=ink.mutedInk}
+    d.SetTheme("quest");d.Reset("recipe:"..recipe.id)
     d.Text(A.Plain(recipe.name), C.text, 16)
     d.Text(M.recipeLines and M.recipeLines[recipe.line] or "", C.mist, 11)
     if recipe.out then
@@ -101,22 +103,31 @@ function M.BuildRecipes(body, kit)
     local C = kit.C
     local rp = {kit = kit, body = body, rows = {}, chips = {}, results = {}, offset = 0, visibleRows = 8, query = ""}
     body.recipes = rp
+    M.recipePage = rp
     rp.box = CreateFrame("EditBox", nil, body, "InputBoxTemplate")
     rp.box:SetSize(240, 26); rp.box:SetPoint("TOPLEFT", 6, -4); rp.box:SetAutoFocus(false); rp.box:SetMaxLetters(60); rp.box:SetFont(kit.fontPath(), 12, "")
     rp.box:SetScript("OnTextChanged", function(self) rp.query = self:GetText() or ""; filter(rp) end)
     rp.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     rp.count = kit.label(body, 11, C.mist); rp.count:SetPoint("LEFT", rp.box, "RIGHT", 12, 0)
-    -- the professions: two rows of chips
+    -- A native profession menu leaves room for the recipe itself, even in a narrow window.
+    rp.professionButton=kit.Button(body,"recipesAll",190,"ghost",function() rp.professionMenu:SetShown(not rp.professionMenu:IsShown()) end)
+    rp.professionButton:SetPoint("TOPRIGHT",0,-2)
+    rp.professionMenu=CreateFrame("Frame",nil,body);rp.professionMenu:SetSize(230,250);rp.professionMenu:SetPoint("TOPRIGHT",rp.professionButton,"BOTTOMRIGHT",0,-4)
+    rp.professionMenu:SetFrameLevel((body:GetFrameLevel() or 1)+30);A.NativeFrame(rp.professionMenu,kit.C);rp.professionMenu:Hide()
+    local menuScroll=kit.ScrollArea(rp.professionMenu,8);menuScroll:ClearAllPoints();menuScroll:SetPoint("TOPLEFT",8,-8);menuScroll:SetPoint("BOTTOMRIGHT",-10,8)
+    menuScroll.child:SetHeight(13*30)
     local order = {0}
     for _, line in ipairs(ORDER) do order[#order + 1] = line end
     for i, key in ipairs(order) do
-        local chip = kit.Chip(body, function() rp.line = key ~= 0 and key or nil; filter(rp) end)
-        local col, row = (i - 1) % 7, math.floor((i - 1) / 7)
-        if col == 0 then chip:SetPoint("TOPLEFT", 0, -38 - row * 30) else chip:SetPoint("LEFT", rp.chips[order[i - 1]], "RIGHT", 6, 0) end
+        local chip = kit.Chip(menuScroll.child, function()
+            rp.line = key ~= 0 and key or nil;rp.professionMenu:Hide();filter(rp)
+            rp.professionButton.text:SetText((M.recipeLines and M.recipeLines[rp.line]) or A.L("recipesAll"))
+        end)
+        chip:SetPoint("TOPLEFT",0,-(i-1)*30);chip:SetPoint("TOPRIGHT",0,-(i-1)*30)
         rp.chips[key] = chip
     end
     local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, 0.55}
-    rp.list = CreateFrame("Frame", nil, body); rp.list:SetPoint("TOPLEFT", 0, -102); rp.list:SetPoint("BOTTOMLEFT", 0, 0); rp.list:SetWidth(270)
+    rp.list = CreateFrame("Frame", nil, body); rp.list:SetPoint("TOPLEFT", 0, -44); rp.list:SetPoint("BOTTOMLEFT", 0, 0); rp.list:SetWidth(270)
     rp.listBg = CreateFrame("Frame", nil, body); rp.listBg:SetFrameLevel(math.max(0, (rp.list:GetFrameLevel() or 1) - 1))
     rp.listBg:SetPoint("TOPLEFT", rp.list, "TOPLEFT", -3, 3); rp.listBg:SetPoint("BOTTOMRIGHT", rp.list, "BOTTOMRIGHT", 3, -3); kit.fill(rp.listBg, C.well, 0.6); kit.outline(rp.listBg, edge)
     rp.list:EnableMouse(true); if rp.list.EnableMouseWheel then rp.list:EnableMouseWheel(true) end
@@ -138,22 +149,34 @@ function M.BuildRecipes(body, kit)
     end
     rp.panel = CreateFrame("Frame", nil, body)
     rp.panel:SetPoint("TOPLEFT", rp.list, "TOPRIGHT", 12, 3); rp.panel:SetPoint("BOTTOMRIGHT", 0, -3)
-    kit.fill(rp.panel, C.well, 0.6); kit.outline(rp.panel, edge)
-    local parchment = rp.panel:CreateTexture(nil, "BACKGROUND"); parchment:SetPoint("TOPLEFT", 2, -2); parchment:SetPoint("BOTTOMRIGHT", -2, 2)
-    parchment:SetTexture("Interface\\QuestFrame\\QuestBG"); parchment:SetVertexColor(1, 0.96, 0.84); parchment:SetAlpha(0.09)
+    A.NativeParchment(rp.panel,C)
     rp.detail = M.GuideDetail(kit, body)
     rp.detail.scroll:SetPoint("TOPLEFT", rp.panel, "TOPLEFT", 10, -10); rp.detail.scroll:SetPoint("BOTTOMRIGHT", rp.panel, "BOTTOMRIGHT", -28, 10)
     rp.nodata = kit.label(body, 12, C.peach); rp.nodata:SetPoint("TOPLEFT", 0, -110); rp.nodata:Hide()
     local function layout()
         local width, height = body:GetWidth() or 640, body:GetHeight() or 420
         rp.list:SetWidth(math.max(210, math.min(300, width * 0.38)))
-        rp.visibleRows = math.max(3, math.min(ROWS_MAX, math.floor((height - 102) / ROW_H)))
+        rp.visibleRows = math.max(3, math.min(ROWS_MAX, math.floor((height - 44) / ROW_H)))
         rp.detail.SetWidth(width - rp.list:GetWidth() - 12 - 40)
         refreshRows(rp)
     end
     body:SetScript("OnSizeChanged", layout)
     layout()
     return rp
+end
+
+function M.OpenRecipe(id)
+    if A.ShowView then A.ShowView("recipes") end
+    local rp=M.recipePage
+    if not rp then return false end
+    for _,recipe in ipairs(M.recipes or {}) do
+        if recipe.id==id then
+            rp.line=recipe.line;rp.query="";rp.box:SetText("");filter(rp)
+            for i,entry in ipairs(rp.results) do if entry.id==id then rp.offset=math.max(0,i-1);break end end
+            rp.professionButton.text:SetText(M.recipeLines[recipe.line] or A.L("recipesAll"));choose(rp,recipe);return true
+        end
+    end
+    return false
 end
 
 function M.RefreshRecipes(body)

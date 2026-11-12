@@ -860,11 +860,9 @@ class MapTests(unittest.TestCase):
         s = frame.db
         M.OpenDatabaseEntry("quest", 200)
         self.assertEqual(str(s.title.text), "Kobold Candles")
-        used = int(s.view.used.link)
-        rows = [s.view.pools.link[i] for i in range(1, used + 1)]
-        npc_rows = [r for r in rows if str(r.title.text) == "Marshal McBride"]
+        npc_rows = [s.view.pools.hit[i] for i in range(1, int(s.view.used.hit) + 1) if s.view.pools.hit[i].person and s.view.pools.hit[i].person.id == 100]
         self.assertEqual(len(npc_rows), 2, "he gives the quest and takes it in")
-        self.assertTrue(npc_rows[0].icon.texture, "with an icon")
+        self.assertTrue(npc_rows[0].person.name, "the inline contact keeps its readable name")
         npc_rows[0].scripts.OnClick(npc_rows[0])
         self.assertEqual((str(s.selected.kind), int(s.selected.id)), ("npc", 100), "a click opens the person")
         self.assertEqual(str(s.title.text), "Marshal McBride")

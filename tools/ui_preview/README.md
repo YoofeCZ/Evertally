@@ -12,8 +12,11 @@ python tools/ui_preview/preview.py settings --size 700x460
 python tools/ui_preview/preview.py viewer --tab equipped
 python tools/ui_preview/preview.py setup --tab 1
 python tools/ui_preview/preview.py guides --no-shots
+python tools/ui_preview/preview.py database --tab quest --quest-id 96395 --language cs
 ```
 
 Výchozí výstup je `output/ui-preview`; `--out` vybere jiný adresář. `--openmap` vloží testovací rozhraní OpenMap. Selhání snímání skončí chybou.
 
 Náhledy ověřují rozložení, ořezání a přesahy na modelu rámů. Fonty a herní textury jsou náhrady. Neprokazují skutečný vzhled, tooltipy, výkon ve hře ani přenos mezi skutečnými hráči.
+
+Rozpoznaná místní ikonová grafika se načítá z již dostupných exportů a souborů addonů. Pergamen a kámen mají modelované barvy; nejsou vyfotografovanou herní texturou. Talentový náhled používá výslovně testovací stromy. `--quest-id` vloží skutečná přibalená fakta daného questu do testovacího rozhraní databáze.

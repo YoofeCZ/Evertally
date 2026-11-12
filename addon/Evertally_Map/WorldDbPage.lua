@@ -3,7 +3,7 @@ local A = _G.Evertally
 -- The database tab as it looks: a search box, a list, and what is known about the chosen NPC, quest or item with buttons to show
 -- the places on the map or to navigate to the nearest one. The reading of QuestieDB is in WorldDb.lua (M.Db).
 local Db = M.Db
-local ROWS, ROW_H, MAX_RESULTS = 12, 28, 60
+local ROWS, ROW_H, MAX_RESULTS = 18, 34, 100
 local HEAD = "|cffa78bfa"
 
 -- ---------------------------------------------------------------- what to show about one entity
@@ -154,8 +154,9 @@ end
 
 --- Draws an entry's detail with the shared detail view: headings, text and rows with an icon that open the entry they name.
 local function render(s, d, selected)
-    local v, C = s.view, s.kit.C
-    v.Reset()
+    local v = s.view
+    local C = {text=s.kit.ParchmentText.ink,mist=s.kit.ParchmentText.mutedInk}
+    v.SetTheme("parchment"); v.Reset(selected.kind and (selected.kind .. ":" .. tostring(selected.id)))
     if d then
         if #d.spots > 0 and (selected.kind == "npc" or selected.kind == "object") then
             local where, seen = {}, {}
@@ -188,10 +189,13 @@ function M.WorldDbRows(frame)
     for i, row in ipairs(s.rows) do
         local id = s.results[s.offset + i]
         row.id = id
-        row:SetShown(id ~= nil)
+        row:SetShown(id ~= nil and i <= (s.visibleRows or ROWS))
         if id then
             local values = s.dbHandle and Db.Get(s.dbHandle, s.kind, id)
             row.name:SetText(A.Plain(values and values.name or tostring(id)))
+            if row.icon then row.icon:SetTexture(s.kind == "item" and M.ItemLook(id) or ICON_OF[s.kind] or M.guideQuestion) end
+            if row.level then row.level:SetText(s.kind == "quest" and values and values.questLevel and tostring(values.questLevel) or "") end
+            row.bg:SetAlpha(s.selected and s.selected.kind == s.kind and s.selected.id == id and 0.22 or 0.05)
         end
     end
 end
@@ -201,14 +205,24 @@ function M.WorldDbDetail(frame)
     local selected = s.selected
     s.detail = selected and s.dbHandle and Db.Detail(s.dbHandle, selected.kind, selected.id) or nil
     local d = s.detail
+    s.quest = selected and selected.kind == "quest" and M.DatabaseQuestModel(s.dbHandle, selected.id, nil, d) or nil
+    if s.quest and not d then
+        d = {title = s.quest.title, subtitle = "", sections = {}, spots = {}, kind = "quest", id = selected.id}
+        for _, person in ipairs(s.quest.starts or {}) do if person.spot then d.spots[#d.spots + 1] = person.spot end end
+        for _, person in ipairs(s.quest.turnin or {}) do if person.spot then d.spots[#d.spots + 1] = person.spot end end
+        d.map = d.spots[1] and d.spots[1].map
+        s.detail = d
+    end
     s.title:SetText(d and A.Plain(d.title) or "")
     local icon = d and selected.kind == "item" and (A.Call(GetItemIcon, selected.id) or (C_Item and A.Call(C_Item.GetItemIconByID, selected.id)))
     s.icon.itemId = icon and selected.id or nil
     s.icon:SetShown(icon ~= nil and icon ~= false)
     if icon then s.icon.tex:SetTexture(icon) end
-    s.title:ClearAllPoints(); s.title:SetPoint("TOPLEFT", icon and 348 or 306, -60)
+    s.title:ClearAllPoints(); s.title:SetPoint("TOPLEFT", (s.listWidth or 220) + (icon and 54 or 12), -64)
     s.subtitle:SetText(d and A.Plain(d.subtitle or "") or "")
-    render(s, d, selected or {})
+    s.title:SetShown(not s.quest); s.subtitle:SetShown(not s.quest)
+    if s.quest then M.RenderQuestCard(s.view, s.quest) else render(s, d, selected or {}) end
+    if s.Layout then s.Layout() end
     s.show:SetShown(d ~= nil and d.map ~= nil); s.go:SetShown(d ~= nil and #d.spots > 0)
 end
 
@@ -263,15 +277,17 @@ local function build(frame, kit)
     if s.list.EnableMouseWheel then s.list:EnableMouseWheel(true) end
     s.list:SetScript("OnMouseWheel", function(_, delta)
         local step = math.max(3, math.floor(#s.results / 120))   -- (a list of thousands moves faster)
-        s.offset = math.max(0, math.min(math.max(0, #s.results - ROWS), s.offset - delta * step))
+        s.offset = math.max(0, math.min(math.max(0, #s.results - (s.visibleRows or ROWS)), s.offset - delta * step))
         M.WorldDbRows(frame)
     end)
     s.rows = {}
     for i = 1, ROWS do
         local row = CreateFrame("Button", nil, s.list)
-        row:SetSize(290, ROW_H - 2); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H)
+        row:SetHeight(ROW_H - 2); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_H)
         row.bg = kit.fill(row, {1, 1, 1}, 1); row.bg:SetAlpha(0.05)   -- the alpha IS the strength: a colour alpha on top would multiply
-        row.name = kit.label(row, 12, C.text); row.name:SetPoint("LEFT", 8, 0); row.name:SetWidth(270); row.name:SetJustifyH("LEFT")
+        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(22, 22); row.icon:SetPoint("LEFT", 6, 0)
+        row.level = kit.label(row, 10, C.gold); row.level:SetPoint("RIGHT", -7, 0); row.level:SetJustifyH("RIGHT")
+        row.name = kit.label(row, 12, C.text); row.name:SetPoint("LEFT", 34, 0); row.name:SetPoint("RIGHT", -32, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
         row:SetScript("OnEnter", function() row.bg:SetAlpha(0.14) end)
         row:SetScript("OnLeave", function() row.bg:SetAlpha(0.05) end)
         row:SetScript("OnClick", function() if row.id then s.selected = {kind = s.kind, id = row.id}; M.WorldDbDetail(frame) end end)
@@ -292,13 +308,7 @@ local function build(frame, kit)
     s.view = M.GuideDetail(kit, frame)
     s.view.scroll:SetPoint("TOPLEFT", s.subtitle, "BOTTOMLEFT", 0, -10); s.view.scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -24, 76)
     s.view.SetWidth(324)
-    -- the detail and the status line follow the width of the window (the list on the left keeps its size)
-    frame:SetScript("OnSizeChanged", function(_, w)
-        w = tonumber(w) or 0
-        if w < 200 then return end
-        local detail = math.max(180, w - 312)
-        s.title:SetWidth(detail); s.subtitle:SetWidth(detail); s.view.SetWidth(detail - 26); s.status:SetWidth(math.max(100, w - 12))
-    end)
+
     s.show = kit.Button(frame, "worldDbShow", 160, "primary", function()
         local d = s.detail
         if d and d.map then M.ShowOnWorldMap(d.spots, d.map) end
@@ -316,6 +326,45 @@ local function build(frame, kit)
         if best and A.NavigateToPoint then A.NavigateToPoint(best.title or d.title, best.map, best.x, best.y, chosen and {tab = "db", kind = chosen.kind, id = chosen.id} or nil) end
     end)
     s.go:SetPoint("BOTTOMLEFT", 306, 0)   -- one above the other: side by side they would not fit the narrowest window
+    -- A reader occupies most of the page; the quest title and all main facts are INSIDE its parchment.
+    function s.Layout()
+        local w, h = tonumber(frame:GetWidth()) or 640, tonumber(frame:GetHeight()) or 400
+        -- A newly created anchored body can briefly report zero (the small unit-test mock reports 100) before its parent lays out.
+        if w < 300 then w = 640 end
+        if h < 150 then h = 400 end
+        s.listWidth = math.max(160, math.min(238, math.floor(w * 0.30)))
+        s.visibleRows = math.max(1, math.min(ROWS, math.floor((h - 58) / ROW_H)))
+        s.list:SetWidth(s.listWidth); s.list:SetHeight(math.max(34, h - 58))
+        local left, detail = s.listWidth + 16, math.max(180, w - s.listWidth - 20)
+        local boxW = math.max(140, math.min(230, math.floor(w * 0.34)))
+        s.box:SetWidth(boxW)
+        local buttonW = math.max(55, math.min(72, math.floor((w - boxW - 36) / 4)))
+        for index, kind in ipairs(Db.kinds) do
+            local b = s.kindButtons[kind]; b:ClearAllPoints(); b:SetPoint("TOPLEFT", boxW + 18 + (index - 1) * (buttonW + 6), -2); b:SetWidth(buttonW)
+        end
+        s.icon:ClearAllPoints(); s.icon:SetPoint("TOPLEFT", left, -60)
+        s.title:ClearAllPoints(); s.title:SetPoint("TOPLEFT", left + (s.icon.itemId and 42 or 0), -62); s.title:SetWidth(detail - (s.icon.itemId and 42 or 0))
+        s.subtitle:SetWidth(detail)
+        local footer = detail >= 345 and 44 or 78
+        s.view.scroll:ClearAllPoints()
+        s.view.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", left + 12, s.quest and -72 or -112)
+        s.view.scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -32, footer)
+        s.view.SetWidth(math.max(160, detail - 42))
+        s.show:ClearAllPoints(); s.go:ClearAllPoints()
+        if detail >= 345 then
+            local bw = math.floor((detail - 12) / 2)
+            s.show:SetWidth(bw); s.go:SetWidth(bw); s.show:SetPoint("BOTTOMLEFT", left, 2); s.go:SetPoint("BOTTOMLEFT", s.show, "BOTTOMRIGHT", 8, 0)
+        else
+            s.show:SetWidth(detail); s.go:SetWidth(detail); s.show:SetPoint("BOTTOMLEFT", left, 36); s.go:SetPoint("BOTTOMLEFT", left, 2)
+        end
+        s.status:SetWidth(math.max(100, w - 12))
+        M.WorldDbRows(frame)
+    end
+    frame:SetScript("OnSizeChanged", function()
+        s.Layout()
+        if s.quest then M.RenderQuestCard(s.view, s.quest) end
+    end)
+    s.Layout()
     -- the names are read a few milliseconds per frame while the tab is open
     frame:SetScript("OnUpdate", function()
         local db = s.dbHandle

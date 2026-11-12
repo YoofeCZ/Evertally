@@ -148,12 +148,12 @@ local function build(frame, kit, mode)
         s.rows[i] = row
     end
     s.card = CreateFrame("Frame", nil, frame); s.card:SetPoint("TOPLEFT", s.list, "TOPRIGHT", 12, 0); s.card:SetPoint("BOTTOMRIGHT")
-    kit.fill(s.card, kit.C.card, 0.65)
-    s.title = kit.label(s.card, 16, kit.C.text); s.title:SetPoint("TOPLEFT", 12, -12); s.title:SetPoint("TOPRIGHT", -12, -12); s.title:SetJustifyH("LEFT")
+    local ink=A.NativeParchment(s.card,kit.C)
+    s.title = kit.label(s.card, 16, ink.heading); s.title:SetPoint("TOPLEFT", 12, -12); s.title:SetPoint("TOPRIGHT", -12, -12); s.title:SetJustifyH("LEFT")
     local scroll = CreateFrame("ScrollFrame", nil, s.card, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 12, -48); scroll:SetPoint("BOTTOMRIGHT", -28, 86)
     s.scrollContent = CreateFrame("Frame", nil, scroll); s.scrollContent:SetSize(260, 180)
-    s.detail = kit.label(s.scrollContent, 12, kit.C.mist); s.detail:SetPoint("TOPLEFT"); s.detail:SetJustifyH("LEFT"); s.detail:SetJustifyV("TOP"); scroll:SetScrollChild(s.scrollContent)
+    s.detail = kit.label(s.scrollContent, 12, ink.ink); s.detail:SetPoint("TOPLEFT"); s.detail:SetJustifyH("LEFT"); s.detail:SetJustifyV("TOP"); scroll:SetScrollChild(s.scrollContent)
     s.show = kit.Button(s.card, "catalogShow", 158, "primary", function()
         local places = spotsFor(mode, s.selected)
         local nearest = M.NearestLayerSpot(places) or places[1]
