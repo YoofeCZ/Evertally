@@ -11,6 +11,65 @@ local sqrt, pi = math.sqrt, math.pi
 local N = {target = nil, plan = nil, planAt = 0, planTo = nil, shown = {}}
 M.nav = N
 local frame, ticker
+local terrainText={
+    en={navGround="Terrain path",navGroundSnapped="Terrain · approximate endpoints",navGroundPending="Finding terrain · direct for now",navGroundDirect="Direct · no terrain path available"},
+    cs={navGround="Cesta po terénu",navGroundSnapped="Terén · přiblížené konce",navGroundPending="Hledám terén · zatím přímý směr",navGroundDirect="Přímý směr · bez terénní cesty"},
+}
+for lang,entries in pairs(terrainText) do if A.locale and A.locale[lang] then for key,value in pairs(entries) do A.locale[lang][key]=value end end end
+local function clearGround()
+    if N.ground and M.Terrain then M.Terrain.Cancel(N.ground.job) end
+    N.ground,N.groundStatus=nil,nil
+end
+local function dist(ax,ay,bx,by) local dx,dy=ax-bx,ay-by;return sqrt(dx*dx+dy*dy) end
+local function segmentDistance(x,y,a,b)
+    local dx,dy=b[1]-a[1],b[2]-a[2];local length=dx*dx+dy*dy
+    local t=length>0 and math.max(0,math.min(1,((x-a[1])*dx+(y-a[2])*dy)/length)) or 0
+    return dist(x,y,a[1]+t*dx,a[2]+t*dy)
+end
+-- The active walking leg, independent of the transport planner's next eight-second refresh.
+-- A target move or deviation cancels the old coroutine before another job can replace it.
+local function groundPointer(pc,px,py,qc,qx,qy,now)
+    local T=M.Terrain
+    if not T or pc~=qc then clearGround();N.groundStatus="direct";return qx,qy end
+    -- No mask is a normal fallback, not a repeatedly retried search each frame.
+    if not T.maps[pc] then clearGround();N.groundStatus="direct";return qx,qy end
+    local g=N.ground
+    local changed=not g or g.map~=pc or dist(qx,qy,g.x,g.y)>T.maps[pc].cell*2
+    if g and not changed then
+        local result=g.job.result
+        local off=result and segmentDistance(px,py,result.points[math.max(1,g.index-1)],result.points[g.index])>96
+        local moved=dist(px,py,g.startX,g.startY)>64
+        if (off or (g.job.state~="ready" and moved)) and now-g.at>=1 then changed=true end
+        if g.job.state=="failed" and now-g.at>=8 then changed=true end
+    end
+    if changed then
+        clearGround()
+        g={map=pc,x=qx,y=qy,startX=px,startY=py,at=now,index=2,job=T.Begin(pc,px,py,qx,qy)};N.ground=g
+    end
+    T.Step(g.job)
+    local result=g.job.result
+    if g.job.state=="ready" and result then
+        local points=result.points
+        g.index=math.min(g.index,#points)
+        local point=points[g.index]
+        while g.index<#points and dist(px,py,point[1],point[2])<=math.max(5,g.job.map.cell*0.6) do
+            g.index=g.index+1;point=points[g.index]
+        end
+        N.groundStatus=result.snapped and "snapped" or "terrain"
+        return point[1],point[2],dist(px,py,point[1],point[2])+(result.tails[g.index] or 0)
+    end
+    N.groundStatus=g.job.state=="pending" and "pending" or "direct"
+    return qx,qy
+end
+local function groundHint()
+    return A.L(N.groundStatus=="terrain" and "navGround" or N.groundStatus=="snapped" and "navGroundSnapped" or N.groundStatus=="pending" and "navGroundPending" or N.groundStatus=="direct" and "navGroundDirect" or "navHint")
+end
+local function groundPin()
+    local g=N.ground
+    if not g or not g.job.result or g.job.state~="ready" then return end
+    local point=g.job.result.points[g.index];local c=M.data and M.data.yards[g.map]
+    if point and c then N.shown[#N.shown+1]={id="terrain",u=c[1]+point[2]*c[2],v=c[3]+point[1]*c[4],title=A.L("navGround")} end
+end
 
 -- ---------------------------------------------------------------- small helpers
 local function clock(seconds)
@@ -72,6 +131,10 @@ local function stepText(step, pointerYards)
     if mode == "boat" or mode == "zeppelin" or mode == "airship" then return string.format(A.L("navShip"), modeName(mode), step.from, step.to, clock(step.wait or 0)) end
     return string.format(A.L("navOther"), modeName(mode), step.from, step.to)
 end
+--- what the journey tab of the window uses: the text of a step, a time, and the planner options for this character
+function M.StepText(step) return stepText(step) end
+function M.Clock(seconds) return clock(seconds) end
+function M.JourneyOptions() return {side = side(), speed = speed()} end
 
 -- ---------------------------------------------------------------- the tracker frame
 local function fontPath() return A.FontPath and A.FontPath() or "Fonts\\FRIZQT__.TTF" end
@@ -80,44 +143,126 @@ local function text(parent, size, r, g, b)
     fs:SetFont(fontPath(), size, ""); fs:SetTextColor(r, g, b, 1); fs:SetJustifyH("LEFT")
     return fs
 end
+-- Shortest Path Forever is the one installed addon that searches real terrain: QuestMaster hands its targets to
+-- ShortestPathForever.API too and Questie reaches it through its TomTom stand-in. So the tracker offers it as a button.
+local function terrainApi()
+    local spf = rawget(_G, "ShortestPathForever")
+    local api = type(spf) == "table" and spf.API
+    if type(api) == "table" and type(api.Navigate) == "function" then return api end
+    return nil
+end
+local function terrainActive(api)
+    if not api or type(api.CurrentStop) ~= "function" then return false end
+    local ok, stop = pcall(api.CurrentStop, "Evertally")
+    return ok and stop ~= nil and stop ~= false
+end
+
+--- The colour of the arrow for the angle between where you face and where the goal is (radians, 0 = straight ahead): green while you
+--- face it, through orange when it is off to the side, to red when it is behind you. Returns r, g, b.
+local GREEN, ORANGE, RED = {0.25, 0.95, 0.35}, {1, 0.62, 0.12}, {0.95, 0.18, 0.15}
+function M.ArrowColor(angle)
+    local a = math.min(math.abs(tonumber(angle) or 0), pi)
+    local t = math.max(0, (a - 0.25) / (pi - 0.25))     -- (the first 14 degrees count as facing it)
+    local from, to, k = GREEN, ORANGE, t / 0.5
+    if t >= 0.5 then from, to, k = ORANGE, RED, (t - 0.5) / 0.5 end
+    return from[1] + (to[1] - from[1]) * k, from[2] + (to[2] - from[2]) * k, from[3] + (to[3] - from[3]) * k
+end
+
+local function outlined(parent, size, r, g, b)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    fs:SetFont(fontPath(), size, "OUTLINE"); fs:SetTextColor(r, g, b, 1); fs:SetJustifyH("CENTER"); fs:SetWidth(236)
+    return fs
+end
+
 local function ensureFrame()
     if frame then return frame end
+    -- the arrow with the distance under it and the name of the goal under that, floating over the game (no panel): the arrow changes colour with
+    -- how you are turned to the goal (M.ArrowColor), so a glance says whether you are heading the right way
     local f = CreateFrame("Frame", "EvertallyTracker", UIParent)
-    f:SetSize(262, 66); f:SetFrameStrata("MEDIUM"); f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(true)
-    local saved = A.db and A.db.settings.navPos
-    if type(saved) == "table" and A.Number(saved[2], -5000, 5000) and A.Number(saved[3], -5000, 5000) then f:SetPoint("CENTER", UIParent, "CENTER", saved[2], saved[3])
-    elseif Minimap then f:SetPoint("TOP", Minimap, "BOTTOM", 0, -26)
-    else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
-    f.bg = f:CreateTexture(nil, "BACKGROUND"); f.bg:SetAllPoints()
-    if f.bg.SetColorTexture then f.bg:SetColorTexture(0.075, 0.067, 0.11, 0.88) else f.bg:SetTexture(0.075, 0.067, 0.11, 0.88) end
-    f.arrow = f:CreateTexture(nil, "ARTWORK"); f.arrow:SetSize(40, 40); f.arrow:SetPoint("LEFT", 8, 0)
-    f.arrow:SetTexture(MEDIA .. "arrow"); f.arrow:SetVertexColor(0.655, 0.545, 0.98)
-    f.title = text(f, 12, 0.97, 0.97, 0.97); f.title:SetPoint("TOPLEFT", 56, -8); f.title:SetWidth(190)
-    f.line1 = text(f, 10, 0.80, 0.80, 0.85); f.line1:SetPoint("TOPLEFT", 56, -24); f.line1:SetWidth(196)
-    f.line2 = text(f, 10, 0.60, 0.60, 0.68); f.line2:SetPoint("TOPLEFT", 56, -38); f.line2:SetWidth(196)
-    f.hint = text(f, 9, 0.45, 0.46, 0.52); f.hint:SetPoint("BOTTOMLEFT", 56, 5); f.hint:SetWidth(196)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local x, y = self:GetCenter(); local ux, uy = UIParent:GetCenter()
-        if A.db and x and ux then A.db.settings.navPos = {"CENTER", math.floor(x - ux), math.floor(y - uy)} end
+    -- the frame is the arrow itself (its centre is what is placed and scaled); the text hangs under it and counts as part of it for the mouse
+    f:SetSize(58, 58); f:SetFrameStrata("MEDIUM"); f:SetClampedToScreen(true); f:SetMovable(true); f:EnableMouse(true)
+    f:SetHitRectInsets(-90, -90, 0, -100)
+    if M.ArrowApplyLayout then M.ArrowApplyLayout(f)
+    elseif Minimap then f:SetPoint("TOP", Minimap, "BOTTOM", 0, -26) else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
+    f.arrow = f:CreateTexture(nil, "ARTWORK"); f.arrow:SetAllPoints(f)
+    f.arrow:SetTexture(MEDIA .. "arrow"); f.arrow:SetVertexColor(GREEN[1], GREEN[2], GREEN[3])
+    f.distance = outlined(f, 20, 1, 1, 1); f.distance:SetPoint("TOP", f.arrow, "BOTTOM", 0, -6)
+    f.title = outlined(f, 12, 0.97, 0.97, 0.97); f.title:SetPoint("TOP", f.distance, "BOTTOM", 0, -3)
+    f.line1 = outlined(f, 10, 0.86, 0.86, 0.9); f.line1:SetPoint("TOP", f.title, "BOTTOM", 0, -3)
+    f.line2 = outlined(f, 10, 0.7, 0.7, 0.78); f.line2:SetPoint("TOP", f.line1, "BOTTOM", 0, -2)
+    f.hint = outlined(f, 9, 0.6, 0.62, 0.68); f.hint:SetPoint("TOP", f.line2, "BOTTOM", 0, -2)
+    -- terrain guidance by Shortest Path Forever; only visible when that addon is there (see show)
+    local terrain = CreateFrame("Button", nil, f)
+    terrain:SetSize(46, 13); terrain:SetPoint("LEFT", f, "RIGHT", 8, 0)
+    terrain.bg = terrain:CreateTexture(nil, "BACKGROUND"); terrain.bg:SetAllPoints()
+    if terrain.bg.SetColorTexture then terrain.bg:SetColorTexture(0.27, 0.22, 0.42, 0.9) else terrain.bg:SetTexture(0.27, 0.22, 0.42, 0.9) end
+    terrain.label = text(terrain, 9, 0.92, 0.92, 0.97); terrain.label:SetPoint("CENTER", 0, 0); terrain.label:SetJustifyH("CENTER")
+    terrain:SetScript("OnClick", function()
+        local ok, reason = M.NavigateTerrain()
+        A.Print(A.L(ok and "terrainStarted" or ("terrainErr_" .. tostring(reason))))
     end)
-    f:SetScript("OnMouseUp", function(_, button) if button == "RightButton" then M.Stop() end end)
+    terrain:Hide()
+    f.terrain = terrain
+    -- drag to move it; a left click opens what it leads to; a right click opens the menu (resize, hide, reset, stop: ArrowMenu.lua)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnMouseDown", function(self) self.moved = false end)
+    f:SetScript("OnDragStart", function(self) self.moved = true; self:StartMoving() end)
+    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); if M.ArrowSavePosition then M.ArrowSavePosition(self) end end)
+    f:SetScript("OnMouseUp", function(self, button)
+        if button == "RightButton" then if M.ArrowMenuOpen then M.ArrowMenuOpen() end
+        elseif button == "LeftButton" and not self.moved and M.OpenGoalInfo then M.OpenGoalInfo() end
+    end)
+    -- the corner that is dragged to change the size (shown by the menu's "Change size", gone when the button is let go)
+    f.grip = CreateFrame("Button", nil, f)
+    f.grip:SetSize(22, 22); f.grip:SetPoint("CENTER", f, "CENTER", 30, -30); f.grip:SetFrameLevel((f:GetFrameLevel() or 1) + 5)
+    f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up"); f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    f.grip:SetScript("OnMouseDown", function() f.resizing = true end)
+    f.grip:SetScript("OnMouseUp", function() f.resizing = false; f.grip:Hide() end)
+    f.grip:Hide()
+    -- One bounded search slice per rendered frame; the 0.25s navigation tick also advances it.
+    -- Hiding/stopping navigation releases the pending coroutine instead of doing background work.
+    f:SetScript("OnUpdate",function(self, elapsed)
+        if N.aim and N.target and M.ArrowLive then M.ArrowLive(elapsed) end
+        if self.resizing and M.ArrowResizeStep then M.ArrowResizeStep(self) end
+        if N.target and N.ground and M.Terrain and N.ground.job.state=="pending" then M.Terrain.Step(N.ground.job) end
+    end)
     f:Hide()
     frame = f
     return f
 end
 
-local function setArrow(rotation)
+--- Turns the arrow (rotation: radians off straight ahead, nil = no direction) and writes the distance under it.
+local function setArrow(rotation, distanceYards)
     if not frame then return end
+    frame.distance:SetText(type(distanceYards) == "number" and yards(distanceYards) or "")
     if rotation == nil then frame.arrow:Hide(); return end
     frame.arrow:Show()
     if frame.arrow.SetRotation then pcall(frame.arrow.SetRotation, frame.arrow, rotation) end
+    frame.arrow:SetVertexColor(M.ArrowColor(rotation))
+end
+--- Between two ticks of the navigation the arrow keeps turning with you: the angle and the distance are worked out again every frame from where
+--- you face now and from where you stand (read twenty times a second), so it turns smoothly, not in steps of the tick.
+function M.ArrowLive(elapsed)
+    local aim = N.aim
+    if not aim or not frame then return end
+    N.liveFor = (N.liveFor or 1) + (tonumber(elapsed) or 0)
+    if N.liveFor >= 0.05 then
+        N.liveFor = 0
+        local u, v = M.PlayerPosition()
+        if u then local c, x, y = M.ToYards(u, v); N.livePos = {c, x, y} else N.livePos = nil end
+    end
+    local at, facing = N.livePos, A.Call(GetPlayerFacing)
+    if not at or not facing then return end
+    local bearing, distance = M.Bearing(at[1], at[2], at[3], aim.c, aim.x, aim.y)
+    if not bearing then return end
+    setArrow(normalize(bearing - facing), distance + (aim.tail or 0))
 end
 local function show(title, line1, line2, hint)
     if not frame then return end
     frame.title:SetText(title or ""); frame.line1:SetText(line1 or ""); frame.line2:SetText(line2 or ""); frame.hint:SetText(hint or "")
+    local api = terrainApi()
+    frame.terrain:SetShown(api ~= nil)
+    if api then frame.terrain.label:SetText(A.L(terrainActive(api) and "terrainOn" or "terrainButton")) end
 end
 
 -- ---------------------------------------------------------------- one update
@@ -130,14 +275,16 @@ end
 function N.Update()
     local target = N.target
     if not target then return end
+    N.aim = nil   -- (set again below where there is a direction to give)
     local f = ensureFrame()
     local tm, tx, ty, label, stale = resolve(target)
-    if not tm then show(target.name or target.label or "?", A.L("navLost"), "", A.L("navHint")); setArrow(nil); N.shown = {}; return end
+    if not tm then clearGround();show(target.name or target.label or "?", A.L("navLost"), "", A.L("navHint")); setArrow(nil); N.shown = {}; return end
     local tu, tv = M.ToUV(tm, tx, ty)
-    if not tu then show(label, A.L("navNoMap"), "", A.L("navHint")); setArrow(nil); N.shown = {}; return end
+    if not tu then clearGround();show(label, A.L("navNoMap"), "", A.L("navHint")); setArrow(nil); N.shown = {}; return end
     local meU, meV, meMap, meX, meY = M.PlayerPosition()
     local title = (stale and "? " or "") .. tostring(label or "?")
     if not meU then
+        clearGround()
         -- on a ship, in an instance, between maps: keep what was shown, but say the position is unknown
         show(title, f.line1:GetText(), f.line2:GetText(), A.L("navNoPosition")); setArrow(nil); N.shown = {}; return
     end
@@ -154,7 +301,13 @@ function N.Update()
 
     local plan = N.plan
     local _, direct = M.Bearing(pc, pX, pY, tc, tX, tY)
-    if direct and direct <= ARRIVED then
+    -- A nearby goal can still be across a wall. Arrival must not discard a necessary detour.
+    local nearClear=true
+    -- Within three real yards, trust the actual coordinates: a 16-yard mask cell may
+    -- mark a perfectly usable doorway or indoor floor blocked, even directly underfoot.
+    if direct and direct>3 and direct<=ARRIVED and M.Terrain and M.Terrain.maps[pc] then nearClear=M.Terrain.Clear(M.Terrain.maps[pc],pX,pY,tX,tY,false) end
+    if direct and direct <= ARRIVED and nearClear then
+        clearGround()
         show(title, A.L("navArrived"), "", A.L("navHint")); setArrow(nil); N.shown = {{id = "goal", u = tu, v = tv, title = title}}
         if target.kind ~= "player" then N.arrivedAt = N.arrivedAt or now; if now - N.arrivedAt > 15 then M.Stop() end end
         return
@@ -162,41 +315,50 @@ function N.Update()
     N.arrivedAt = nil
 
     if not plan or not plan.steps[1] then
-        if direct then show(title, string.format(A.L("navDirect"), yards(direct)), A.L("navNoRoute"), A.L("navHint")) else show(title, A.L("navNoRoute"), "", A.L("navHint")) end
-        local bearing = direct and M.Bearing(pc, pX, pY, tc, tX, tY)
+        local gx,gy,remaining=groundPointer(pc,pX,pY,tc,tX,tY,now)
+        if direct then show(title, string.format(A.L("navDirect"), yards(remaining or direct)), A.L("navNoRoute"), groundHint()) else show(title, A.L("navNoRoute"), "", A.L("navHint")) end
+        local bearing, toPoint = M.Bearing(pc, pX, pY, tc, gx, gy)
+        if direct and bearing then N.aim = {c = tc, x = gx, y = gy, tail = (remaining or direct) - (toPoint or 0)} end
         local facing = A.Call(GetPlayerFacing)
-        setArrow(bearing and facing and normalize(bearing - facing) or nil)
+        setArrow(direct and bearing and facing and normalize(bearing - facing) or nil, remaining or direct)
         N.shown = {{id = "goal", u = tu, v = tv, title = title}}
+        groundPin()
         return
     end
 
     -- the pointer: where the first step wants you to go
     local step = plan.steps[1]
     local pu, pv = step.tu, step.tv
+    local walking=step.mode=="walk"
     if step.mode ~= "walk" and step.fu then
         local bc, bx, by = M.ToYards(step.fu, step.fv)
         local _, away = M.Bearing(pc, pX, pY, bc, bx, by)
-        if away and away > BOARD then pu, pv = step.fu, step.fv end -- walk to where it starts first
+        if away and away > BOARD then pu, pv,walking = step.fu, step.fv,true end -- walk to where it starts first
     end
     local pointerYards, rotation
     if pu then
         local qc, qx, qy = M.ToYards(pu, pv)
+        local remaining
+        if walking then qx,qy,remaining=groundPointer(pc,pX,pY,qc,qx,qy,now) else clearGround() end
         local bearing, d = M.Bearing(pc, pX, pY, qc, qx, qy)
-        pointerYards = d
+        pointerYards = remaining or d
+        if bearing and d then N.aim = {c = qc, x = qx, y = qy, tail = pointerYards - d} end
         local facing = A.Call(GetPlayerFacing)
         if bearing and facing then rotation = normalize(bearing - facing) end
-        if d and d < 40 and step.mode == "walk" and #plan.steps > 1 then N.force = true end -- reached the end of this walk: look further ahead
+        local _,legDistance=M.Bearing(pc,pX,pY,M.ToYards(pu,pv))
+        if legDistance and legDistance < 40 and step.mode == "walk" and #plan.steps > 1 then N.force = true end -- reached the actual leg endpoint, not an intermediate terrain bend
     end
-    setArrow(rotation)
+    setArrow(rotation, pointerYards)
     local more = #plan.steps - 1
     local second = more > 0 and (A.L("navThen") .. " " .. stepText(plan.steps[2])) or string.format(A.L("navTotal"), clock(plan.seconds))
     if more > 0 then second = second .. "  ·  " .. string.format(A.L("navTotal"), clock(plan.seconds)) end
-    local hint = A.L("navHint")
+    local hint = walking and groundHint() or A.L("navHint")
     if plan.steps[1].estimated then hint = A.L("navEstimate") .. "  " .. hint end
     show(title, stepText(step, step.mode == "walk" and pointerYards or nil), second, hint)
 
     N.shown = {{id = "goal", u = tu, v = tv, title = title}}
     if pu and (step.mode ~= "walk" or #plan.steps > 1) then N.shown[#N.shown + 1] = {id = "next", u = pu, v = pv, title = stepText(step)} end
+    groundPin()
 end
 
 -- ---------------------------------------------------------------- public
@@ -208,17 +370,25 @@ function M.Navigate(target)
     elseif target.kind == "point" then
         if not M.ToUV(target.map, target.x, target.y) then return false, "unknown_map" end
     else return false, "no_target" end
+    clearGround()
+    M.route = nil   -- a route that was only shown gives way to the one navigation draws
     N.target, N.plan, N.planned, N.planTo, N.arrivedAt, N.force = target, nil, false, nil, nil, true
-    local f = ensureFrame(); f:Show()
+    local f = ensureFrame()
+    if M.ArrowShown and not M.ArrowShown() then f:Hide(); A.Print(A.L("arrowHiddenNote")) else f:Show() end
     if not ticker and C_Timer and C_Timer.NewTicker then ticker = C_Timer.NewTicker(TICK, N.Update) end
     N.Update()
+    if A.db and A.db.settings.navSpfAuto == true and terrainApi() then pcall(M.NavigateTerrain) end   -- (the route line from Shortest Path Forever)
     return true
 end
 
 function M.Stop()
-    N.target, N.plan, N.planned, N.shown = nil, nil, false, {}
+    clearGround()
+    local spf = terrainApi()
+    if spf and A.db and A.db.settings.navSpfAuto == true and type(spf.Cancel) == "function" then pcall(spf.Cancel, "Evertally") end
+    N.target, N.plan, N.planned, N.shown, N.aim = nil, nil, false, {}, nil
     if ticker then ticker:Cancel(); ticker = nil end
-    if frame then frame:Hide() end
+    if frame then frame:Hide(); frame.resizing = false; if frame.grip then frame.grip:Hide() end end
+    if M.ArrowMenuClose then M.ArrowMenuClose() end
 end
 
 -- Explicit handoff to the optional Shortest Path Forever addon. Its terrain
@@ -233,6 +403,32 @@ function M.NavigateTerrain()
     if not ok or not started then return false, "refused" end
     return true
 end
+
+--- Whether Shortest Path Forever is installed, and the choice to let it draw the route line (as QuestMaster does): it finds the way on
+--- roads and round obstacles with its own data, and the journey is handed to it when the navigation starts.
+function M.SpfInstalled() return terrainApi() ~= nil end
+function M.SpfAuto() return A.db ~= nil and A.db.settings.navSpfAuto == true end
+function M.SetSpfAuto(on)
+    if not A.db then return false end
+    A.db.settings.navSpfAuto = on and true or nil
+    local api = terrainApi()
+    if on and api and N.target then pcall(M.NavigateTerrain) end
+    if not on and api and type(api.Cancel) == "function" then pcall(api.Cancel, "Evertally") end
+    if M.RefreshRoute then M.RefreshRoute(true) end
+    return true
+end
+--- True while the journey is Shortest Path Forever's and it draws the line: Evertally's own dotted line is left off then.
+function M.SpfDrawsRoute()
+    if not (A.db and A.db.settings.navSpfAuto == true and N.target) then return false end
+    local api = terrainApi()
+    return api ~= nil and terrainActive(api) == true
+end
+
+--- The arrow's frame (nil before the first navigation).
+function M.NavFrame() return frame end
+
+--- The plan of the navigation in progress (the steps the line on the map follows), or nil.
+function M.RoutePlan() return N.target and N.plan or nil end
 
 --- Pins for what navigation points at: the goal and, on a journey, the next stop. {id, map, x, y, title}
 function M.NavPins()

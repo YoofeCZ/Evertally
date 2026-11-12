@@ -99,6 +99,8 @@ def _journal_text(text: str) -> str:
 
 def build() -> None:
     t0 = time.time()
+    icon_manifest = ROOT / "shared/assets/item-icons.json"
+    client_icons = json.loads(icon_manifest.read_text(encoding="utf8"))["items"] if icon_manifest.is_file() else {}
     shutil.rmtree(OUT, ignore_errors=True)
     OUT.mkdir(parents=True)
     maps = json.loads((MEDIA / "maps" / "manifest.json").read_text(encoding="utf8"))["maps"]
@@ -199,7 +201,7 @@ def build() -> None:
             quest_rewards[quest_id].append(item_id)
         items[item_id] = {
             "id": item_id, "name": name, "q": None, "ilvl": row.get(9) or None, "req": row.get(10) or None, "cat": CLASS_NAMES.get(q.field("Item", item_id, 12, row)),
-            "slot": None, "sub": None, "tip": [], "icon": None, "src": [], "bosses": [], "chance": None, "change": None, "status": None, "lite": True,
+            "slot": None, "sub": None, "tip": [], "icon": f"client:{client_icons[str(item_id)]}" if str(item_id) in client_icons else None, "src": [], "bosses": [], "chance": None, "change": None, "status": None, "lite": True,
             "npcDrops": npc_drops, "objDrops": ids(q.field("Item", item_id, 3, row)), "vendors": vendors, "rewards": rewards, "starts": ids(q.field("Item", item_id, 5, row)),
             "pct": {str(k): v for k, v in pct.items()}, "wh": f"https://www.wowhead.com/forever/item={item_id}",
         }
@@ -338,7 +340,7 @@ def build() -> None:
     cats = sorted({it["cat"] for it in items.values() if it["cat"]})
     slots = sorted({it["slot"] for it in items.values() if it["slot"]})
     search = {
-        "items": [[i, it["name"], it["q"], it["ilvl"], it["req"], cats.index(it["cat"]) if it["cat"] in cats else -1, slots.index(it["slot"]) if it["slot"] in slots else -1, item_index[i], 1 if it.get("lite") else 0] for i, it in sorted(items.items())],
+        "items": [[i, it["name"], it["q"], it["ilvl"], it["req"], cats.index(it["cat"]) if it["cat"] in cats else -1, slots.index(it["slot"]) if it["slot"] in slots else -1, item_index[i], 1 if it.get("lite") else 0, client_icons.get(str(i))] for i, it in sorted(items.items())],
         "npcs": [[i, n["name"], n["lvl"][0], n["lvl"][1], n["rank"], n["services"], 1 if n["spawns"] else 0, npc_index[i], n["zone"] or (next(iter(n["spawns"])) if n["spawns"] else None)] for i, n in sorted(npcs.items())],
         "quests": [[i, qd["name"], qd["lvl"], qd["req"], qd["zone"] or qd["sort"], qd["fac"], quest_index[i]] for i, qd in sorted(quests.items())],
         "cats": cats, "slots": slots,
@@ -526,3 +528,6 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     build()
     publish()
+    # The services layer is derived from this DB; publishing must not leave it missing.
+    from build_services import main as build_services
+    build_services()

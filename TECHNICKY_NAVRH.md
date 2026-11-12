@@ -52,7 +52,7 @@ fixtures/           syntetická a výslovně poskytnutá očištěná testovací
 docs/               metodika, provoz a kompatibilita
 ```
 
-Jde o budoucí strukturu. Tyto implementační adresáře zatím nebyly vytvořeny.
+Jde o původní návrh struktury z 9. 11. 2026, ne o skutečné rozložení. Skutečné repo (0.6.0) má `addon/` (Evertally, Evertally_Export, Evertally_Map), `platform/` (web a API), `sync/` a `desktop/` (Rust), `tools/`, `tests/` a `shared/`; viz `IMPLEMENTATION_CONTRACT.md`.
 
 ## 2. Vrstva kompatibility s WoW
 

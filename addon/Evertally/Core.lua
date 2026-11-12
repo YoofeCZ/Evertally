@@ -128,12 +128,14 @@ function A.ResetExport()
     end
     -- A new policy starts a fresh outbox: a half-walked route or an old guild snapshot must not leak into it.
     if A.ResetPeople then A.ResetPeople() end
+    if A.RefreshConnections then A.RefreshConnections() end
 end
 function A.SetWeb(enabled)
     if enabled and not A.ExportStore() then A.Print(A.L("missingExport"));return false end
     A.db.settings.web=enabled==true
     A.db.settings.consentEpoch=A.db.settings.consentEpoch+1;A.db.settings.since=A.Now()
     A.ResetExport();A.Changed()
+    if A.OpticalClear then A.OpticalClear() end
     if not enabled then A.Print(A.L("revokeHint")) end
     return true
 end

@@ -137,6 +137,10 @@ function A.PumpSync()
     lastRefill=now
     if tokens<1 then return end
     local item=table.remove(outgoing,1)
+    -- Recheck deferred live beacons after a friend goes offline or the server rejects the name.
+    -- Manually requested inspect/trade whispers use other keys and retain their normal behavior.
+    if item.channel=="WHISPER" and item.key and item.key:sub(1,4)=="L:F:" and A.LiveWhisperAllowed
+        and not A.LiveWhisperAllowed(item.target,item.text=="S|E") then return end
     local revoke=item.text:sub(1,2)=="R|"
     if not revoke and not item.social and (not A.db.settings.ingame or not allowed(item.channel)) then return end
     if C_ChatInfo and type(C_ChatInfo.SendAddonMessage)=="function" then

@@ -1,18 +1,19 @@
-# Evertally 0.4.0
+# Evertally 0.7.0
 
-Samostatný addon pro WoW Forever. Nevyžaduje Questie, QuestMaster, Dungeon Ledger ani web. Kompatibilita `.toc`: interface 16001. Verze 0.4.0 prošla 34 Lua replay testy a je souborově nainstalovaná s hash kontrolou; nové UI zatím nebylo vizuálně ověřené ve hře. Záloha předchozí instalace je `backups/20261109-231144-927`. Součástí je i oprava pádu při číselném ID ikony.
+Samostatný addon pro WoW Forever, interface 16001. Základní deník, přehled, žebříčky a sběr nevyžadují Questie, QuestMaster ani web. Rozšířené hledání NPC/questů/itemů na stránce Svět používá volitelně nainstalovanou QuestieDB. Nové UI má měnitelnou velikost, boční nabídku a sjednocené stránky. Automatické testy nejsou vizuálním ověřením ve WoW; aktuální důkazy a limity uvádí hlavní NAVOD.md a VYDANI-0.7.0.md.
 
 ## Instalace
 
-Windows aplikaci instaluje `releases/EvertallySetup.exe`; může volitelně nainstalovat také oba addony a zálohovat předchozí verzi. Samostatně je možné použít `Install-Addon.ps1` nebo z balíčku zkopírovat oba adresáře vedle sebe:
+Windows most instaluje `releases/EvertallySetup.exe`; může volitelně nainstalovat také všechny tři addony a zálohovat předchozí verzi. Samostatně lze použít `Install-Addon.ps1` nebo z balíčku zkopírovat tři adresáře vedle sebe:
 
 ```text
 World of Warcraft/_forever_/Interface/AddOns/
   Evertally/
   Evertally_Export/
+  Evertally_Map/
 ```
 
-Při instalaci/aktualizaci hru sám restartuj, aby načetla nové soubory `.toc`, nyní i `Identity.lua`. Pomocný `Evertally_Export` vytváří samostatný exportní soubor; samotný addon může běžet bez něj.
+Při instalaci/aktualizaci hru sám úplně vypni a spusť, aby načetla nové soubory `.toc`. Pomocný `Evertally_Export` vytváří samostatný exportní soubor; samotný addon může běžet bez něj. Mapový modul se načítá po zapnutí mapy a minimapy; obsahuje i Sbírání a Dungeony/Raidy.
 
 ## Ovládání
 
@@ -49,7 +50,7 @@ Sekce Atlas ukazuje vlastní získaná fakta. Žebříček řadí dostupné post
 
 UI používá ikony class/ras v hlavičce a přehledech. Klikací detail výpravy nabízí dostupné boss časy a splity, obtížnost, vlastní úmrtí, skupinu a časové hranice. Profese mají hledání, recepty a cooldowny. Místa jsou souhrn navštívených oblastí, nikdy hráčské piny nebo živá poloha.
 
-Web a instalovaná desktopová aplikace mají navíc skutečné mapové podklady a oddělený referenční katalog. Katalogové NPC výskyty nejsou důkazem vlastního pozorování ani součástí hráčského exportu. Aktivita na webu sčítá přispívající účty za 24 hodin až od tří účtů na oblast; nejde o online hráče.
+Web má navíc skutečné mapové podklady a oddělený referenční katalog; Windows Bridge je od verze 0.5.0 nemá. Katalogové NPC výskyty nejsou důkazem vlastního pozorování ani součástí hráčského exportu. Aktivita na webu sčítá přispívající účty za 24 hodin až od tří účtů na oblast; nejde o online hráče.
 
 ## Dokončení dungeonů
 

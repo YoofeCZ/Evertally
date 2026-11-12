@@ -90,10 +90,10 @@ Závěr: profesní sběr musí respektovat kontext a načtení dat. Výrobu nelz
 | Existují služby používající externí přenos z logů/SavedVariables | Doloženo uvedenými primárními popisy |
 | Dungeon Ledger má ingame datové transporty | Ověřeno čtením konkrétního balíčku; bez runtime testu |
 | Nainstalované addony používají uvedená questová, mapová a profesní rozhraní | Ověřeno zdrojovým čtením |
-| Náš addon sbírá, sdílí nebo exportuje skutečné údaje | Zatím neimplementováno |
+| Náš addon sbírá, sdílí nebo exportuje skutečné údaje | Implementováno od 0.4.0 a pokryto Lua replay testy (107 v 0.6.0); v živé hře neověřeno |
 | Umíme přesně časovat všechny dungeony/raidy | Neověřeno; předpokládá etapa 0 a validace každého rulesetu |
 | Máme kompletní spawn místa, drop rate nebo celoserverová data | Ne; návrh takové tvrzení zakazuje bez odpovídajícího podkladu |
-| Web a ingame databáze se synchronizují v živém klientu | Zatím neimplementováno a neověřeno |
+| Web a ingame databáze se synchronizují v živém klientu | Částečně od 0.6.0: historie přes uložení hry a Bridge, živá vlastní poloha přes datový proužek; obojí ve hře neověřeno |
 | Veřejné výsledky jsou nezfalšovatelné | Ne; klientské reporty takový důkaz neposkytují |
 | Název Forever Atlas je dostupný | Ne — používá ho jiný addon na CurseForge (Talexander977). Projekt přejmenován na Evertally (2026-11-09) |
 

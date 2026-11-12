@@ -21,6 +21,29 @@ pub enum ApiError {
     Network(String),
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn live_reply_distinguishes_stored_and_ignored_points() {
+        let stored: LiveResult =
+            serde_json::from_value(json!({"accepted":1,"expiresAt":130})).unwrap();
+        let ignored: LiveResult =
+            serde_json::from_value(json!({"accepted":0,"expiresAt":130})).unwrap();
+        assert_eq!((stored.accepted, stored.expires_at), (1, 130));
+        assert_eq!(ignored.accepted, 0);
+        for malformed in [
+            json!({}),
+            json!({"accepted":true,"expiresAt":130}),
+            json!({"accepted":-1,"expiresAt":130}),
+            json!({"accepted":1}),
+        ] {
+            assert!(serde_json::from_value::<LiveResult>(malformed).is_err());
+        }
+    }
+}
+
 impl ApiError {
     #[must_use]
     pub fn code(&self) -> &str {
@@ -65,12 +88,31 @@ pub struct UploadResult {
     pub duplicates: u64,
 }
 
+/// A live request can succeed without storing a point (for example, an older or duplicate sample).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveResult {
+    pub accepted: u64,
+    pub expires_at: u64,
+}
+
 pub struct Client {
     agent: ureq::Agent,
     origin: String,
 }
 
 impl Client {
+    pub fn live(
+        &self,
+        token: &str,
+        packet: &crate::optical::LivePacket,
+    ) -> Result<LiveResult, ApiError> {
+        self.post(
+            "/api/device/live",
+            &serde_json::to_value(packet).map_err(|e| ApiError::Network(e.to_string()))?,
+            Some(token),
+        )
+    }
     #[must_use]
     pub fn new(origin: String) -> Self {
         let agent: ureq::Agent = ureq::Agent::config_builder()

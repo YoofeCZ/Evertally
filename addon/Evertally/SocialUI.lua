@@ -44,14 +44,14 @@ local function ensurePopup()
     local k = K()
     local f = CreateFrame("Frame", "EvertallySocialPopup", UIParent)
     f:SetSize(440, 250); f:SetPoint("TOP", UIParent, "TOP", 0, -150); f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
-    k.fill(f, k.C.canvas, 0.98); k.outline(f, {k.C.lilac[1], k.C.lilac[2], k.C.lilac[3], 0.5})
-    f.title = k.label(f, 15, k.C.text); f.title:SetPoint("TOPLEFT", 18, -16); f.title:SetWidth(404)
+    A.NativeFrame(f, k.C)
+    f.title = k.label(f, 15, k.C.gold); f.title:SetPoint("TOPLEFT", 18, -16); f.title:SetWidth(404)
     f.body = k.label(f, 12, k.C.mist); f.body:SetPoint("TOPLEFT", 18, -46); f.body:SetWidth(404); f.body:SetJustifyV("TOP")
     f.checks, f.buttons = {}, {}
     for i = 1, 3 do
         local b = k.Button(f, nil, 404, "ghost", function() end); b:SetPoint("TOPLEFT", 18, -112 - (i - 1) * 32); b:Hide(); f.checks[i] = b
     end
-    for i = 1, 3 do f.buttons[i] = k.Button(f, nil, 126, "ghost", function() end); f.buttons[i]:Hide() end
+    for i = 1, 3 do f.buttons[i] = k.Button(f, nil, 126, i == 1 and "primary" or "ghost", function() end); f.buttons[i]:Hide() end
     popup = f
     return f
 end
@@ -122,7 +122,7 @@ local function meetPopup(meet)
         {label = A.L("meetWaypoint"), fn = function() if not A.SetMeetWaypoint(meet) then A.Print(A.L("mapUnavailable")) end end},
         {label = A.L("meetNavigate"), fn = function()
             local label = meet.label ~= "" and meet.label or A.L("meetDefault")
-            local ok, err = A.NavigateToPoint(label, meet.mapId, meet.x, meet.y)
+            local ok, err = A.NavigateToPoint(label, meet.mapId, meet.x, meet.y, {view = "people"})
             A.Print(ok and string.format(A.L("navStarted"), plain(label)) or A.L("navErr_" .. tostring(err)))
         end},
         {label = A.L("meetDismiss"), fn = function() end},
@@ -130,41 +130,48 @@ local function meetPopup(meet)
 end
 
 -- ---------------------------------------------------------------- viewer: what somebody showed you
-local SLOTS = 19
 local function openViewer(view)
     local ok, err = pcall(function()
         local k = K()
+        local C = k.C
         if not viewer then
             local f = CreateFrame("Frame", "EvertallyViewFrame", UIParent)
-            f:SetSize(780, 540); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true)
-            k.fill(f, k.C.canvas, 0.99); k.outline(f, {k.C.lilac[1], k.C.lilac[2], k.C.lilac[3], 0.4})
+            f:SetSize(820, 560); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
+            A.NativeFrame(f, C)
             f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", function() f:StartMoving() end); f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
-            f.title = k.label(f, 18, k.C.text); f.title:SetPoint("TOPLEFT", 18, -14); f.title:SetWidth(560)
-            f.sub = k.label(f, 11, k.C.mist); f.sub:SetPoint("TOPLEFT", 18, -40); f.sub:SetWidth(740)
+            f.title = k.label(f, 18, C.gold); f.title:SetPoint("TOPLEFT", 18, -14); f.title:SetWidth(560)
+            f.sub = k.label(f, 11, C.mist); f.sub:SetPoint("TOPLEFT", 18, -40); f.sub:SetWidth(760)
+            f.close = k.Button(f, nil, 30, "ghost", function() f:Hide() end); f.close:SetPoint("TOPRIGHT", -14, -12); f.close.text:SetText("x")
             f.tabs = {}
-            for i, mode in ipairs({"equipped", "bags", "professions", "gold"}) do
-                local b = k.Button(f, nil, 108, "ghost", function() f.mode = mode; A.SocialRefreshViewer() end); b:SetPoint("TOPLEFT", 18 + (i - 1) * 114, -64); f.tabs[mode] = b
+            local previous
+            for _, mode in ipairs({"equipped", "bags", "professions", "gold"}) do
+                local chip = k.Chip(f, function() f.mode = mode; A.SocialRefreshViewer() end)
+                if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", 18, -66) end
+                f.tabs[mode] = chip; previous = chip
             end
-            f.list = k.ListView(f, 104); f.list:ClearAllPoints(); f.list:SetPoint("TOPLEFT", 18, -104); f.list:SetPoint("BOTTOMLEFT", 18, 20); f.list:SetWidth(430); f.list.child:SetWidth(424)
-            f.offerTitle = k.label(f, 13, k.C.lilac); f.offerTitle:SetPoint("TOPLEFT", 470, -68); f.offerTitle:SetWidth(290)
-            f.offers = k.ListView(f, 104); f.offers:ClearAllPoints(); f.offers:SetPoint("TOPLEFT", 470, -92); f.offers:SetSize(290, 250); f.offers.child:SetWidth(284)
-            f.goldLabel = k.label(f, 11, k.C.mist); f.goldLabel:SetPoint("TOPLEFT", 470, -352)
-            f.gold = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.gold:SetSize(90, 24); f.gold:SetPoint("TOPLEFT", 474, -368)
+            -- what they showed: icons for gear and bags, rows for professions and gold
+            f.grid = k.IconGrid(f, 40, 6); f.grid:ClearAllPoints(); f.grid:SetPoint("TOPLEFT", 18, -102); f.grid:SetPoint("BOTTOMLEFT", 18, 36); f.grid:SetWidth(444)
+            f.list = k.ListView(f, 102); f.list:ClearAllPoints(); f.list:SetPoint("TOPLEFT", 18, -102); f.list:SetPoint("BOTTOMLEFT", 18, 36); f.list:SetWidth(444); f.list.child:SetWidth(436)
+            -- what I offer back
+            f.offerTitle = k.label(f, 13, C.lilac); f.offerTitle:SetPoint("TOPLEFT", 492, -68); f.offerTitle:SetWidth(310)
+            f.offers = k.IconGrid(f, 36, 6); f.offers:ClearAllPoints(); f.offers:SetPoint("TOPLEFT", 492, -92); f.offers:SetSize(310, 214)
+            f.goldLabel = k.label(f, 11, C.mist); f.goldLabel:SetPoint("TOPLEFT", 492, -318)
+            f.gold = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.gold:SetSize(90, 24); f.gold:SetPoint("TOPLEFT", 496, -334)
             f.gold:SetAutoFocus(false); f.gold:SetMaxLetters(7); f.gold:SetFont(FONT, 12, ""); f.gold:SetNumeric(true)
-            f.noteLabel = k.label(f, 11, k.C.mist); f.noteLabel:SetPoint("TOPLEFT", 470, -398)
-            f.note = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.note:SetSize(280, 24); f.note:SetPoint("TOPLEFT", 474, -414)
+            f.noteLabel = k.label(f, 11, C.mist); f.noteLabel:SetPoint("TOPLEFT", 492, -364)
+            f.note = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.note:SetSize(300, 24); f.note:SetPoint("TOPLEFT", 496, -380)
             f.note:SetAutoFocus(false); f.note:SetMaxLetters(120); f.note:SetFont(FONT, 12, "")
-            f.send = k.Button(f, nil, 180, "primary", function() A.SocialSendFromViewer() end); f.send:SetPoint("BOTTOMLEFT", 470, 20)
-            f.close = k.Button(f, nil, 90, "ghost", function() f:Hide() end); f.close:SetPoint("BOTTOMRIGHT", -20, 20)
-            f.status = k.label(f, 11, k.C.green); f.status:SetPoint("BOTTOMLEFT", 470, 58); f.status:SetWidth(290)
-            f.hint = k.label(f, 10, k.C.faint); f.hint:SetPoint("BOTTOMLEFT", 18, 2); f.hint:SetWidth(740)
+            f.send = k.Button(f, nil, 180, "primary", function() A.SocialSendFromViewer() end); f.send:SetPoint("BOTTOMLEFT", 492, 36)
+            f.status = k.label(f, 11, C.green); f.status:SetPoint("BOTTOMLEFT", 492, 72); f.status:SetWidth(310)
+            f.hint = k.label(f, 10, C.faint); f.hint:SetPoint("BOTTOMLEFT", 18, 12); f.hint:SetWidth(780)
+            if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyViewFrame" end
             viewer = f
         end
         viewer.view = view; viewer.mode = viewer.mode or "equipped"; viewer.wanted, viewer.offered = {}, {}
         viewer.gold:SetText(""); viewer.note:SetText(""); viewer.status:SetText("")
         viewer:Show(); A.SocialRefreshViewer()
     end)
-    if not ok then A.errors.social_viewer = (A.errors.social_viewer or 0) + 1 end
+    if not ok then A.errors.social_viewer = (A.errors.social_viewer or 0) + 1; A.lastUIError = tostring(err) end
 end
 
 local function cycle(map, id, stack)
@@ -181,38 +188,44 @@ function A.SocialRefreshViewer()
     local k = K();local v = f.view
     f.title:SetText(string.format(A.L("viewTitle"), plain(base(v.sender))))
     f.sub:SetText(string.format(A.L("viewReceived"), (A.Call(date, "%H:%M", v.at) or "")) .. "   " .. kindsText(v.kinds or ""))
-    for mode, b in pairs(f.tabs) do b.text:SetText(A.L("viewTab_" .. mode)); b:SetAlpha(f.mode == mode and 1 or 0.55) end
+    for mode, chip in pairs(f.tabs) do chip.SetLabel(A.L("viewTab_" .. mode)); chip.SetOn(f.mode == mode) end
     f.offerTitle:SetText(A.L("viewMyOffer")); f.goldLabel:SetText(A.L("viewGoldOffer")); f.noteLabel:SetText(A.L("viewNote"))
-    f.send.text:SetText(A.L("viewSend")); f.close.text:SetText(A.L("close")); f.hint:SetText(A.L("viewHint"))
-    local rows = {}
+    f.send.text:SetText(A.L("viewSend")); f.hint:SetText(A.L("viewHint"))
+    local icons = f.mode == "equipped" or f.mode == "bags"
+    f.grid:SetShown(icons); f.list:SetShown(not icons)
     if f.mode == "equipped" then
+        local cells = {}
         for _, e in ipairs(v.equipped) do
             local id = e[2]
-            rows[#rows + 1] = {title = itemName(id), sub = A.L("viewSlot" .. e[1]), icon = k.itemIcon(id), itemId = id, tag = f.wanted[id] and A.L("viewWant") or nil, tagColor = k.C.green,
+            cells[#cells + 1] = {itemId = id, icon = k.itemIcon(id), slot = A.L("viewSlot" .. e[1]), mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and A.L("viewWant") or nil,
                 onClick = function() cycle(f.wanted, id, 1); A.SocialRefreshViewer() end}
         end
+        f.grid.SetCells(cells, A.L("noData"))
     elseif f.mode == "bags" then
+        local cells = {}
         for _, e in ipairs(v.bags) do
             local id, n = e[1], e[2]
-            rows[#rows + 1] = {title = itemName(id), sub = "x" .. n, icon = k.itemIcon(id), itemId = id, right = f.wanted[id] and ("x" .. f.wanted[id]) or nil, tag = f.wanted[id] and A.L("viewWant") or nil, tagColor = k.C.green,
+            cells[#cells + 1] = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and (f.wanted[id] >= n and n > 1 and "x" .. n or A.L("viewWant")) or nil,
                 onClick = function() cycle(f.wanted, id, n); A.SocialRefreshViewer() end}
         end
+        f.grid.SetCells(cells, A.L("noData"))
     elseif f.mode == "professions" then
+        local rows = {}
         for _, p in ipairs(v.professions) do
             rows[#rows + 1] = {title = p.name ~= "" and p.name or ("#" .. p.id), sub = string.format(A.L("viewRecipes"), #p.recipes), icon = k.ICON.profession, right = string.format("%s/%s", p.skill or "?", p.max or "?")}
         end
+        f.list.SetItems(rows, A.L("viewNoProf"))
     else
-        rows[1] = {title = v.gold and money(v.gold) or A.L("viewNoGold"), sub = A.L("socialGold"), icon = k.ICON.vendor}
+        f.list.SetItems({{title = v.gold and money(v.gold) or A.L("viewNoGold"), sub = A.L("socialGold"), icon = k.ICON.vendor}}, A.L("noData"))
     end
-    f.list.SetItems(rows, f.mode == "professions" and A.L("viewNoProf") or A.L("noData"))
     -- what I could offer: my own bags
-    local mine, offerRows = A.OwnInventory().bags, {}
-    for _, e in ipairs(mine) do
+    local cells = {}
+    for _, e in ipairs(A.OwnInventory().bags) do
         local id, n = e[1], e[2]
-        offerRows[#offerRows + 1] = {title = itemName(id), sub = "x" .. n, icon = k.itemIcon(id), itemId = id, right = f.offered[id] and ("x" .. f.offered[id]) or nil, tag = f.offered[id] and A.L("viewOffer") or nil, tagColor = k.C.peach,
+        cells[#cells + 1] = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.offered[id] and "offer" or nil, markText = f.offered[id] and (f.offered[id] >= n and n > 1 and "x" .. n or A.L("viewOffer")) or nil,
             onClick = function() cycle(f.offered, id, n); A.SocialRefreshViewer() end}
     end
-    f.offers.SetItems(offerRows, A.L("noData"))
+    f.offers.SetCells(cells, A.L("viewNoOffer"))
 end
 
 function A.SocialSendFromViewer()
@@ -241,7 +254,7 @@ local function proposalRows()
     for _, p in ipairs(A.social.proposals) do
         local entry = p
         rows[#rows + 1] = {title = (p.dir == "in" and A.L("socialIn") or A.L("socialOut")) .. " " .. plain(base(p.peer)), sub = itemsText(p.want) .. "  <>  " .. itemsText(p.offer) .. ((p.gold or 0) > 0 and ("  +" .. money(p.gold)) or ""),
-            icon = K().ICON.item, tag = A.L("socialStatus_" .. p.status):upper(), tagColor = (p.status == "accepted" and K().C.green) or (p.status == "declined" and K().C.red) or K().C.peach,
+            icon = K().ICON.item, tag = A.Upper(A.L("socialStatus_" .. p.status)), tagColor = (p.status == "accepted" and K().C.green) or (p.status == "declined" and K().C.red) or K().C.peach,
             onClick = (p.dir == "in" and p.status == "open") and function() proposalPopup(entry) end or nil}
     end
     return rows
@@ -269,9 +282,9 @@ local function liveRows()
     end
     for _, g in ipairs(A.LivePings()) do
         local ping = g
-        rows[#rows + 1] = {title = plain(g.label ~= "" and g.label or A.L("pingTitle")), sub = string.format(A.L("liveRowSub"), plain(g.mine and A.L("navYou") or g.name), zoneName(g.map) .. "  ·  " .. ago(g.at)), icon = K().ICON.places, tag = A.L("pingTitle"):upper(), tagColor = K().C.peach,
+        rows[#rows + 1] = {title = plain(g.label ~= "" and g.label or A.L("pingTitle")), sub = string.format(A.L("liveRowSub"), plain(g.mine and A.L("navYou") or g.name), zoneName(g.map) .. "  ·  " .. ago(g.at)), icon = K().ICON.places, tag = A.Upper(A.L("pingTitle")), tagColor = K().C.peach,
             onClick = function()
-                local ok, err = A.NavigateToPoint(ping.label ~= "" and ping.label or A.L("pingTitle"), ping.map, ping.x, ping.y)
+                local ok, err = A.NavigateToPoint(ping.label ~= "" and ping.label or A.L("pingTitle"), ping.map, ping.x, ping.y, {view = "people"})
                 A.Print(ok and string.format(A.L("navStarted"), plain(ping.label ~= "" and ping.label or A.L("pingTitle"))) or A.L("navErr_" .. tostring(err)))
             end}
     end
@@ -282,40 +295,133 @@ local function privacyRows()
     for _, s in ipairs(A.social.shown) do rows[#rows + 1] = {title = plain(s.name), sub = A.L("socialShownTitle") .. " " .. kindsText(s.kinds) .. "  ·  " .. (A.Call(date, "%H:%M", s.at) or ""), icon = K().ICON.peers} end
     for name in pairs(A.db.settings.socialBlock or {}) do
         local blockedName = name
-        rows[#rows + 1] = {title = plain(name), sub = A.L("socialBlockedHint"), icon = K().ICON.unknown, tag = A.L("socialBlock"):upper(), tagColor = K().C.red, onClick = function() A.SocialUnblock(blockedName); A.RefreshUI() end}
+        rows[#rows + 1] = {title = plain(name), sub = A.L("socialBlockedHint"), icon = K().ICON.unknown, tag = A.Upper(A.L("socialBlock")), tagColor = K().C.red, onClick = function() A.SocialUnblock(blockedName); A.RefreshUI() end}
     end
     return rows
 end
 
+-- the people around you, to pick one to look at: your target, the group, players who share a live position, those who showed you something
+local function fullName(name, realm)
+    name, realm = A.Text(name, 80), A.Text(realm, 80)
+    if not name then return nil end
+    return realm and realm ~= "" and (name .. "-" .. realm) or name
+end
+local CLASS_ID = {WARRIOR = 1, PALADIN = 2, HUNTER = 3, ROGUE = 4, PRIEST = 5, DEATHKNIGHT = 6, SHAMAN = 7, MAGE = 8, WARLOCK = 9, MONK = 10, DRUID = 11, DEMONHUNTER = 12, EVOKER = 13}
+local function classIdOfGuid(guid)
+    if type(guid) ~= "string" or type(GetPlayerInfoByGUID) ~= "function" then return nil end
+    local ok, _, classFile = pcall(GetPlayerInfoByGUID, guid)
+    return ok and CLASS_ID[classFile] or nil
+end
+local lastRosterAsk = 0
+local MAX_ROSTER = 120
+-- everybody you could look at, nearest first: your target, the group, those who share a live position, online friends, online guild members and
+-- those who already showed you something. Clicking a row puts the name into the request.
+local function rosterRows()
+    local rows, seen = {}, {}
+    local myName = A.Text(A.Call(UnitName, "player"), 80)
+    local function add(order, name, class, whyKey, level, zone)
+        name = A.Text(name, 120)
+        if not name or seen[base(name):lower()] or base(name) == myName or #rows >= MAX_ROSTER then return end
+        seen[base(name):lower()] = true
+        local sub = A.L(whyKey)
+        if A.Number(level, 1, 200) then sub = sub .. "  ·  " .. A.L("level") .. " " .. level end
+        if A.Text(zone, 80) and zone ~= "" then sub = sub .. "  ·  " .. plain(zone) end
+        local picked = name
+        rows[#rows + 1] = {order = order, title = plain(base(name)), sub = sub, class = class, icon = K().ICON.peers,
+            titleColor = class and K().classColor(class) or nil,
+            onClick = function() if page and page.name then page.name:SetText(picked) end; A.RefreshUI() end}
+    end
+    local function unitClass(unit) local _, _, id = A.Call(UnitClass, unit); return A.Number(id, 1, 100) end
+    if A.Call(UnitExists, "target") == true and A.Call(UnitIsPlayer, "target") == true then add(0, fullName(A.Call(UnitFullName, "target")), unitClass("target"), "socialRosterTarget", A.Call(UnitLevel, "target")) end
+    local raid = A.Call(IsInRaid) == true
+    for i = 1, raid and 40 or 4 do
+        local unit = (raid and "raid" or "party") .. i
+        if A.Call(UnitExists, unit) == true then add(1, fullName(A.Call(UnitFullName, unit)), unitClass(unit), "socialRosterGroup", A.Call(UnitLevel, unit)) end
+    end
+    for _, p in ipairs(A.LivePeers()) do add(2, p.name, p.class, "socialRosterLive", nil, p.map and zoneName(p.map) or nil) end
+    -- friends who are online (the game's friend list, not Battle.net)
+    if C_FriendList and type(C_FriendList.GetNumFriends) == "function" and type(C_FriendList.GetFriendInfoByIndex) == "function" then
+        for i = 1, A.Number(A.Call(C_FriendList.GetNumFriends), 0, 500) or 0 do
+            local info = A.Call(C_FriendList.GetFriendInfoByIndex, i)
+            if type(info) == "table" and A.Field(info, "connected") == true then
+                add(3, A.Field(info, "name"), classIdOfGuid(A.Field(info, "guid")), "socialRosterFriend", A.Field(info, "level"), A.Field(info, "area"))
+            end
+        end
+    elseif type(GetNumFriends) == "function" and type(GetFriendInfo) == "function" then
+        for i = 1, A.Number(A.Call(GetNumFriends), 0, 500) or 0 do
+            local name, level, _, area, connected = A.Call(GetFriendInfo, i)
+            if connected == true then add(3, name, nil, "socialRosterFriend", level, area) end
+        end
+    end
+    -- guild members who are online; the roster arrives only after the game was asked for it
+    if A.Call(IsInGuild) == true then
+        if A.Monotonic() - lastRosterAsk > 60 then
+            lastRosterAsk = A.Monotonic()
+            local ask = C_GuildInfo and C_GuildInfo.GuildRoster or GuildRoster
+            if type(ask) == "function" then pcall(ask) end
+        end
+        for i = 1, A.Number(A.Call(GetNumGuildMembers), 0, 1000) or 0 do
+            local ok, name, _, _, level, _, zone, _, _, online, _, classFile = pcall(GetGuildRosterInfo, i)
+            if ok and online == true then add(4, name, CLASS_ID[classFile], "socialRosterGuild", level, zone) end
+        end
+    end
+    for _, v in ipairs(A.social.views) do add(5, v.sender, nil, "socialRosterSeen") end
+    table.sort(rows, function(x, y) if x.order ~= y.order then return x.order < y.order end return tostring(x.title) < tostring(y.title) end)
+    return rows
+end
+A.SocialRoster = rosterRows   -- read by the tests and the layout preview
+
 function A.BuildSocialPage(host, k)
     page = host; A.social.page = host
+    local C = k.C
     k.PageHeader(page, "social")
     page.mode = "ask"
     page.tabs = {}
-    for i, mode in ipairs({"ask", "live", "proposals", "meets", "privacy"}) do
-        local b = k.Button(page, nil, 120, "ghost", function() page.mode = mode; A.RefreshUI() end); b:SetPoint("TOPLEFT", (i - 1) * 126, -56); page.tabs[mode] = b
+    local previous
+    for _, mode in ipairs({"ask", "live", "proposals", "meets", "privacy"}) do
+        local chip = k.Chip(page, function() page.mode = mode; A.RefreshUI() end)
+        if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -54) end
+        page.tabs[mode] = chip; previous = chip
     end
-    -- ask
-    page.ask = {}
-    page.name = CreateFrame("EditBox", nil, page, "InputBoxTemplate"); page.name:SetSize(220, 26); page.name:SetPoint("TOPLEFT", 6, -100)
+
+    -- ask: the people around you on the left, the request and what they showed you on the right
+    page.cols = k.Columns(page, {2, 3}, 12)
+    page.cols:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -90); page.cols:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
+    local rosterCard = k.Card(page.cols.cells[1]); rosterCard:SetAllPoints(page.cols.cells[1])
+    page.rosterTitle = k.label(rosterCard, 13, C.gold); page.rosterTitle:SetPoint("TOPLEFT", 14, -12)
+    local rosterInner = CreateFrame("Frame", nil, rosterCard); rosterInner:SetPoint("TOPLEFT", 8, -36); rosterInner:SetPoint("BOTTOMRIGHT", -8, 8)
+    page.roster = k.ListView(rosterInner, 0)
+    local right = page.cols.cells[2]
+    local form = k.Card(right, C.lilac); form:SetPoint("TOPLEFT", right, "TOPLEFT", 0, 0); form:SetPoint("TOPRIGHT", right, "TOPRIGHT", 0, 0); form:SetHeight(152)
+    page.formTitle = k.label(form, 13, C.gold); page.formTitle:SetPoint("TOPLEFT", 14, -12)
+    page.name = CreateFrame("EditBox", nil, form, "InputBoxTemplate"); page.name:SetHeight(26)
+    page.name:SetPoint("TOPLEFT", form, "TOPLEFT", 20, -38); page.name:SetPoint("TOPRIGHT", form, "TOPRIGHT", -132, -38)
     page.name:SetAutoFocus(false); page.name:SetMaxLetters(80); page.name:SetFont(FONT, 12, "")
-    page.target = k.Button(page, "socialTarget", 130, "ghost", function()
+    page.target = k.Button(form, "socialTarget", 108, "ghost", function()
         local name, realm = A.Call(UnitFullName, "target")
         name = A.Text(name or A.Call(UnitName, "target"), 80)
         if name then page.name:SetText(name .. ((A.Text(realm, 80) or "") ~= "" and ("-" .. A.Text(realm, 80)) or "")) end
-    end); page.target:SetPoint("LEFT", page.name, "RIGHT", 12, 0)
+    end); page.target:SetPoint("TOPRIGHT", form, "TOPRIGHT", -14, -36)
     page.kinds = {i = true, p = true, g = false}
     page.kindButtons = {}
-    for n, key in ipairs({"i", "p", "g"}) do
-        local b = k.Button(page, nil, 200, "ghost", function() page.kinds[key] = not page.kinds[key]; A.RefreshUI() end); b:SetPoint("TOPLEFT", (n - 1) * 206, -136); page.kindButtons[key] = b
+    local last
+    for _, key in ipairs({"i", "p", "g"}) do
+        local chip = k.Chip(form, function() page.kinds[key] = not page.kinds[key]; A.RefreshUI() end)
+        if last then chip:SetPoint("LEFT", last, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", form, "TOPLEFT", 14, -74) end
+        page.kindButtons[key] = chip; last = chip
     end
-    page.sendRequest = k.Button(page, "socialSend", 180, "primary", function()
+    page.sendRequest = k.Button(form, "socialSend", 150, "primary", function()
         local chosen = ""; for _, key in ipairs({"i", "p", "g"}) do if page.kinds[key] then chosen = chosen .. key end end
         local ok, err = A.RequestInspect(page.name:GetText() or "", chosen)
         page.status:SetText(ok and string.format(A.L("socialWaiting"), plain(base(page.name:GetText() or ""))) or A.L("socialErr_" .. tostring(err)))
         A.RefreshUI()
-    end); page.sendRequest:SetPoint("TOPLEFT", 0, -172)
-    page.status = k.label(page, 11, k.C.green); page.status:SetPoint("LEFT", page.sendRequest, "RIGHT", 14, 0); page.status:SetWidth(430)
+    end); page.sendRequest:SetPoint("TOPLEFT", form, "TOPLEFT", 14, -108)
+    page.status = k.label(form, 11, C.green); page.status:SetPoint("LEFT", page.sendRequest, "RIGHT", 12, 0); page.status:SetPoint("RIGHT", form, "RIGHT", -14, 0)
+    local viewsCard = k.Card(right); viewsCard:SetPoint("TOPLEFT", form, "BOTTOMLEFT", 0, -10); viewsCard:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 0)
+    page.viewsTitle = k.label(viewsCard, 13, C.gold); page.viewsTitle:SetPoint("TOPLEFT", 14, -12)
+    local viewsInner = CreateFrame("Frame", nil, viewsCard); viewsInner:SetPoint("TOPLEFT", 8, -36); viewsInner:SetPoint("BOTTOMRIGHT", -8, 8)
+    page.viewList = k.ListView(viewsInner, 0)
+
     -- meets
     page.meetLabel = CreateFrame("EditBox", nil, page, "InputBoxTemplate"); page.meetLabel:SetSize(300, 26); page.meetLabel:SetPoint("TOPLEFT", 6, -100)
     page.meetLabel:SetAutoFocus(false); page.meetLabel:SetMaxLetters(60); page.meetLabel:SetFont(FONT, 12, "")
@@ -334,26 +440,28 @@ function A.BuildSocialPage(host, k)
             page.meetStatus:SetText(ok and A.L("socialMeetSent") or A.L("socialMeetErr_" .. tostring(err)))
         end); b:SetPoint("TOPLEFT", (n - 1) * 146, -136); page.meetButtons[#page.meetButtons + 1] = b
     end
-    page.meetStatus = k.label(page, 11, k.C.green); page.meetStatus:SetPoint("TOPLEFT", 0, -172); page.meetStatus:SetWidth(600)
+    page.meetStatus = k.label(page, 11, C.green); page.meetStatus:SetPoint("TOPLEFT", 0, -172); page.meetStatus:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -172)
     -- live
     page.ping = k.Button(page, "socialPing", 150, "primary", function()
         local ok, err = A.SendPing("")
         A.Print(ok and A.L("pingSent") or A.L("pingErr_" .. tostring(err))); A.RefreshUI()
     end); page.ping:SetPoint("TOPLEFT", 0, -100)
     page.stopNav = k.Button(page, "socialStopNav", 190, "ghost", function() A.StopNavigation(); A.Print(A.L("navStopped")) end); page.stopNav:SetPoint("LEFT", page.ping, "RIGHT", 10, 0)
-    page.liveNote = k.label(page, 11, k.C.mist); page.liveNote:SetPoint("TOPLEFT", 0, -144); page.liveNote:SetWidth(620)
+    page.liveNote = k.label(page, 11, C.mist); page.liveNote:SetPoint("TOPLEFT", 0, -144); page.liveNote:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -144)
     -- privacy
-    page.privacy = k.label(page, 11, k.C.mist); page.privacy:SetPoint("TOPLEFT", 0, -96); page.privacy:SetWidth(620)
+    page.privacy = k.label(page, 11, C.mist); page.privacy:SetPoint("TOPLEFT", 0, -96); page.privacy:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -96)
     page.list = k.ListView(page, 204)
     function page.Refresh()
         local mode = page.mode
-        for key, b in pairs(page.tabs) do b.text:SetText(A.L("socialTab_" .. key)); b:SetAlpha(mode == key and 1 or 0.55) end
-        for _, w in ipairs({page.name, page.target, page.sendRequest, page.status}) do w:SetShown(mode == "ask") end
-        for key, b in pairs(page.kindButtons) do b:SetShown(mode == "ask"); b.text:SetText((page.kinds[key] and "[x]  " or "[  ]  ") .. A.L(({i = "socialInv", p = "socialProf", g = "socialGold"})[key])) end
+        for key, chip in pairs(page.tabs) do chip.SetLabel(A.L("socialTab_" .. key)); chip.SetOn(mode == key) end
+        page.cols:SetShown(mode == "ask"); page.cols.Layout()
+        for key, chip in pairs(page.kindButtons) do chip.SetLabel(A.L(({i = "socialInv", p = "socialProf", g = "socialGold"})[key])); chip.SetOn(page.kinds[key]) end
+        page.rosterTitle:SetText(A.L("socialRoster")); page.formTitle:SetText(A.L("socialAsk")); page.viewsTitle:SetText(A.L("socialViewsTitle"))
         page.meetLabel:SetShown(mode == "meets"); page.meetStatus:SetShown(mode == "meets")
         for _, b in ipairs(page.meetButtons) do b:SetShown(mode == "meets"); b.text:SetText(A.L(b.localeKey)) end
         page.privacy:SetShown(mode == "privacy"); page.privacy:SetText(A.L("socialPrivacyInfo"))
         for _, w in ipairs({page.ping, page.stopNav, page.liveNote}) do w:SetShown(mode == "live") end
+        page.list:SetShown(mode ~= "ask")
         page.ping.text:SetText(A.L("socialPing")); page.stopNav.text:SetText(A.L("socialStopNav"))
         page.liveNote:SetText(A.LiveActive() and A.L("liveHint") or (A.L("liveOffNote") .. "  " .. A.L("liveHint")))
         page.target.text:SetText(A.L("socialTarget")); page.sendRequest.text:SetText(A.L("socialSend"))
@@ -366,7 +474,8 @@ function A.BuildSocialPage(host, k)
                 page.status:SetText(key == "waiting" and string.format(A.L("socialWaiting"), who) or key == "receiving" and string.format(A.L("socialReceiving"), who, newest.done or 0, newest.total or 0)
                     or key == "denied" and string.format(A.L("socialDenied"), who) or key == "noanswer" and string.format(A.L("socialNoAnswer"), who) or key == "done" and string.format(A.L("socialDone"), who) or "")
             end
-            page.list.SetItems(viewRows(), A.L("socialNoViews"))
+            page.roster.SetItems(rosterRows(), A.L("socialNoRoster"))
+            page.viewList.SetItems(viewRows(), A.L("socialNoViews"))
         elseif mode == "live" then page.list.SetItems(liveRows(), A.L("liveNone"))
         elseif mode == "proposals" then page.list.SetItems(proposalRows(), A.L("socialNoProposals"))
         elseif mode == "meets" then page.list.SetItems(meetRows(), A.L("socialNoMeets"))
@@ -436,3 +545,13 @@ local text = {
     },
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
+
+local more = {
+    en = {social = "People", sub_social = "Look at a player's gear and bags (they decide what to show), propose a trade, send a meet or a ping.",
+        socialRoster = "People nearby", socialNoRoster = "Nobody here. Target a player or type a name on the right.", socialRosterTarget = "your target", socialRosterGroup = "in your group",
+        socialRosterLive = "shares a live position", socialRosterSeen = "showed you things", socialViewsTitle = "What they showed you", socialRosterFriend = "friend", socialRosterGuild = "guild", viewNoOffer = "Your bags are empty, so there is nothing to offer."},
+    cs = {social = "Lidé", sub_social = "Pohled na výbavu a tašky hráče (on rozhodne, co ukáže), návrh výměny, sraz nebo ping.",
+        socialRoster = "Lidé v okolí", socialNoRoster = "Nikdo tu není. Označ hráče nebo napiš jméno vpravo.", socialRosterTarget = "tvůj cíl", socialRosterGroup = "ve tvé skupině",
+        socialRosterLive = "sdílí živou polohu", socialRosterSeen = "ukázal ti věci", socialViewsTitle = "Co ti ukázali", socialRosterFriend = "přítel", socialRosterGuild = "cech", viewNoOffer = "Tvoje tašky jsou prázdné, nemáš co nabídnout."},
+}
+for lang, entries in pairs(more) do for key, value in pairs(entries) do A.locale[lang][key] = value end end

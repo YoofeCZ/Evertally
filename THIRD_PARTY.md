@@ -1,6 +1,6 @@
 # Použité cizí podklady a licence
 
-Stav: 10. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform/`, `tools/`, `shared/`). Zdrojové soubory, ze kterých se data generují, jsou v `shared/sources/` včetně licenčních textů, kde je zdroj dodává.
+Stav: 11. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform/`, `tools/`, `shared/`). Zdrojové soubory, ze kterých se data generují, jsou v `shared/sources/` včetně licenčních textů, kde je zdroj dodává.
 
 **Rozsah podkladů:** vedle faktických údajů projekt obsahuje také převzaté nebo odvozené databáze, textové tipy, knihovny a grafiku. Pouhé vlastnictví herního klienta samo o sobě neprokazuje oprávnění tyto soubory dál veřejně šířit. Práva a licenční podmínky je nutné posuzovat podle konkrétního zdroje a způsobu použití.
 
@@ -21,6 +21,7 @@ Stav: 10. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform
 | CallbackHandler-1.0 (Ace3) | licence Ace3 (BSD s doložkou o samostatném šíření; zde je vložená do addonu, ne šířená samostatně) | závislost HereBeDragons | `addon/Evertally_Map/Libs/`, text v `Ace3-LICENSE.txt` |
 | LibStub | public domain (uvedeno v souboru) | závislost HereBeDragons | `addon/Evertally_Map/Libs/` |
 | Shortest Path Forever → `walk.bin` (terén) | GPL-3.0-or-later | maska průchodnosti kontinentů (0 zablokováno, 1 země, 2 voda) z terénních dat v GatherLite (`plugins/routes/navigation/vendor/Nav`, vlastní bake klienta od SPF), zmenšená na 16yardové buňky; z ní se hledají cesty po terénu na webu | `tools/build_walkmask.py` → `platform/public/media/world/walk.bin` |
+| QuestieDB (čtení za běhu) | GPL-3.0 | Databázová karta a vrstvy služeb v okně Evertally čtou nainstalovaný addon QuestieDB přes jeho veřejné rozhraní (`LibQuestieDB`: `Npc`, `Quest`, `Item`, zónové tabulky). Nic z jeho dat ani kódu se nekopíruje do Evertally. | `addon/Evertally_Map/WorldDb.lua`, `WorldDbPage.lua` |
 | Shortest Path Forever → `addon/Evertally_Map/Data.lua` | GPL-3.0 | tytéž cestovní údaje jako na webu, převedené do Lua pro navigaci ve hře | `tools/build_map_lua.py` |
 
 ## Co se úmyslně nepoužívá
@@ -29,9 +30,11 @@ Stav: 10. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform
 - **RareScanner** (All Rights Reserved) a **Leatrix Maps** (bez licence): jen jako inspirace pro chování mapy.
 - **Raider.IO**: architektura přenosu dat je popsána v `ZDROJE.md`; jeho data se nepoužívají.
 
-**Před veřejným vydáním:** data uzlů (GatherLite) mají původ ve Wowheadu a o jejich právním stavu nemám podklad; stejně tak QuestieDB-odvozené polohy trenérů a obchodníků (`tools/build_services.py`). Do ostrého webu to nenasazuj, dokud si to nepotvrdíš (nebo vrstvu Sbírání vypni).
+Mapa ve hře je OpenMap (MIT), na které je modul mapy závislý (`## Dependencies: OpenMap`); Evertally z ní nic nepřebírá ani nešíří. Ikony surovin jsou ikony předmětů hry, čtené podle ID souboru (`GatherIcons.lua`, jen čísla).
 
-Složka `addon/Evertally_Map` obsahuje číselné údaje odvozené z GPL-3.0 zdroje (Shortest Path Forever), takže se šíří jako GPL-3.0-or-later (uvedeno v jejím TOC). Knihovny v `Libs/` si drží své licence, viz `Libs/NOTICE.txt`. Ikony bodů na mapě jsou vlastní (`tools/build_map_icons.py`), nic z nich není z hry ani cizích addonů. Nejsou přibalená terénní data průchodnosti (12 MB v GatherLite, GPL-3.0).
+**Před veřejným vydáním:** data uzlů (GatherLite) mají původ ve Wowheadu a o jejich právním stavu nemám podklad; stejně tak QuestieDB-odvozené polohy trenérů a obchodníků (`tools/build_services.py`). Nasazení těchto vrstev neprokazuje právní vypořádání jejich původu.
+
+Složka `addon/Evertally_Map` obsahuje číselné údaje odvozené z GPL-3.0 zdroje (Shortest Path Forever), takže se šíří jako GPL-3.0-or-later (uvedeno v jejím TOC). Knihovny v `Libs/` si drží své licence, viz `Libs/NOTICE.txt`. Ikony bodů na mapě jsou vlastní (`tools/build_map_icons.py`), nic z nich není z cizích addonů; výjimkou jsou ikony surovin, které jsou ikonami předmětů hry čtenými podle ID souboru (`addon/Evertally_Map/GatherIcons.lua`, jen čísla, vyrobená `tools/build_gather_icons.py` z tabulky předmětů klienta Forever), takže se žádná grafika nepřibaluje. Verze 0.7.0 přibaluje kompaktní TerrainData.lua odvozené z téže masky průchodnosti jako web; obsahuje 4 208 940 buněk v 16yardovém rozlišení. Text GPL-3.0 je přiložen jako addon/Evertally_Map/LICENSE.txt, původ shrnuje NOTICE.txt.
 
 ## Licenční poznámka k projektu
 

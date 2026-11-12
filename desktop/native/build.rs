@@ -4,10 +4,7 @@ fn main() {
         winresource::WindowsResource::new()
             .set_icon("../src-tauri/icons/icon.ico")
             .set("ProductName", "Evertally")
-            .set(
-                "FileDescription",
-                "Evertally — background WoW sync bridge",
-            )
+            .set("FileDescription", "Evertally — background WoW sync bridge")
             .compile()
             .expect("embed Evertally Windows icon");
     }

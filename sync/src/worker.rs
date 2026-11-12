@@ -7,7 +7,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::api::{ApiError, Client, PollResult};
+use crate::api::{ApiError, Client, LiveResult, PollResult};
 use crate::config::{self, Config, Paths};
 use crate::lang::{Texts, fill};
 use crate::platform::{self, TokenStore};
@@ -33,6 +33,8 @@ pub enum Command {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiState {
+    #[serde(default)]
+    pub live_status: Option<String>,
     pub status: String,
     pub tooltip: String,
     pub paired: bool,
@@ -67,6 +69,13 @@ pub struct Worker {
     dirs: Vec<PathBuf>,
     processed: HashMap<PathBuf, SystemTime>,
     open_browser: bool,
+    live_poll: Instant,
+    live_sent: Option<(String, u64)>,
+    live_status: Option<String>,
+    /// Who plays, learned from the exported file: what a live marker is resolved against.
+    identity: crate::optical::Identity,
+    marker_fresh: crate::optical::Freshness,
+    base_status: String,
 }
 
 impl Worker {
@@ -100,6 +109,12 @@ impl Worker {
             dirs: Vec::new(),
             processed: HashMap::new(),
             open_browser,
+            live_poll: Instant::now() - Duration::from_secs(5),
+            live_sent: None,
+            live_status: None,
+            identity: crate::optical::Identity::default(),
+            marker_fresh: crate::optical::Freshness::default(),
+            base_status: String::new(),
         }
     }
 
@@ -107,9 +122,11 @@ impl Worker {
         config::log(&self.paths.log, message);
     }
 
-    fn show(&self, status: String) {
+    fn show(&mut self, status: String) {
+        self.base_status = status.clone();
         let tooltip = format!("Evertally Sync\n{status}");
         (self.publish)(UiState {
+            live_status: self.live_status.clone(),
             tooltip: tooltip.chars().take(120).collect(),
             status,
             paired: self.token.is_some(),
@@ -137,8 +154,15 @@ impl Worker {
 
         let mut dirty: HashSet<PathBuf> = HashSet::new();
         let mut settle_at: Option<Instant> = None;
+        let mut last_rescan = Instant::now();
         loop {
-            let timeout = settle_at.map_or(TICK, |at| at.saturating_duration_since(Instant::now()));
+            if self.token.is_some() && self.live_poll.elapsed() >= Duration::from_secs(2) {
+                self.live_step();
+                self.live_poll = Instant::now();
+            }
+            let timeout = settle_at
+                .map_or(TICK, |at| at.saturating_duration_since(Instant::now()))
+                .min(Duration::from_secs(2));
             match rx.recv_timeout(timeout) {
                 Ok(Command::FileChanged(path)) => {
                     dirty.insert(path);
@@ -162,20 +186,76 @@ impl Worker {
                 Ok(Command::Unpair) => {
                     self.tokens.clear();
                     self.token = None;
+                    self.live_status = None;
+                    self.live_sent = None;
                     self.log("disconnected by user");
                     self.show(self.texts.not_paired.to_owned());
                 }
                 Ok(Command::Quit) | Err(RecvTimeoutError::Disconnected) => return,
                 Err(RecvTimeoutError::Timeout) => {
-                    if settle_at.take().is_some() {
+                    if settle_at.is_some_and(|at| at <= Instant::now()) {
+                        settle_at = None;
                         let paths: Vec<PathBuf> = dirty.drain().collect();
                         self.sync_paths(&paths, true);
-                    } else {
+                    } else if last_rescan.elapsed() >= TICK {
+                        last_rescan = Instant::now();
                         self.refresh_watch();
                         self.sync_all(false);
                     }
                 }
             }
+        }
+    }
+
+    fn live_step(&mut self) {
+        let Some(token) = self.token.clone() else {
+            return;
+        };
+        let marker = crate::optical::capture(self.config.wow_path.as_deref());
+        let status = if let Some(marker) = marker {
+            // Not compared with the PC's clock (it can be far off); the server checks the time.
+            if !self.marker_fresh.moving(marker.t, Instant::now()) {
+                self.texts.live_stale.to_owned()
+            } else if let Ok(packet) = self.identity.resolve(&marker) {
+                let character = packet.c["id"].as_str().unwrap_or("").to_owned();
+                if self.live_sent.as_ref() == Some(&(character.clone(), packet.t)) {
+                    return;
+                }
+                match self.client.live(&token, &packet) {
+                    Ok(result) => self.record_live_result(character, packet.t, &result),
+                    Err(ApiError::Server { status: 401, .. }) => {
+                        self.token = None;
+                        self.tokens.clear();
+                        self.texts.disconnected.to_owned()
+                    }
+                    Err(error) => fill(self.texts.live_failed, &[("error", &error.to_string())]),
+                }
+            } else if self
+                .identity
+                .resolve(&marker)
+                .is_err_and(|error| error == crate::optical::Unresolved::AmbiguousCharacter)
+            {
+                self.texts.live_ambiguous.to_owned()
+            } else {
+                self.texts.live_unknown.to_owned()
+            }
+        } else {
+            self.texts.live_waiting.to_owned()
+        };
+        if self.live_status.as_ref() != Some(&status) {
+            self.live_status = Some(status);
+            self.show(self.base_status.clone());
+        }
+    }
+
+    fn record_live_result(&mut self, character: String, at: u64, result: &LiveResult) -> String {
+        // Acknowledged samples, including ignored duplicates, need not be retried every poll.
+        // A new timestamp is still sent normally, without advancing the last accepted point on the server.
+        self.live_sent = Some((character, at));
+        if result.accepted == 1 {
+            fill(self.texts.live_sent, &[("time", &platform::local_time())])
+        } else {
+            self.texts.live_ignored.to_owned()
         }
     }
 
@@ -194,6 +274,7 @@ impl Worker {
             self.token = self.tokens.load();
             self.client = Client::new(origin);
             self.state = UploadState::default();
+            self.live_sent = None;
             let _ = self.state.save(&self.paths.state);
         }
         self.config = config;
@@ -335,6 +416,7 @@ impl Worker {
                 return FileResult::Retry;
             }
         };
+        self.identity.absorb(&envelope);
         let (source, batches) = match upload::plan(&envelope, &self.state) {
             Ok(Plan::Disabled) => return FileResult::Disabled,
             Ok(Plan::UpToDate) => return FileResult::UpToDate,
@@ -407,6 +489,7 @@ impl Worker {
         }
         let code = pairing.user_code.clone();
         (self.publish)(UiState {
+            live_status: self.live_status.clone(),
             status: fill(self.texts.pairing, &[("code", &code)]),
             tooltip: fill(self.texts.pairing_tooltip, &[("code", &code)]),
             paired: false,
@@ -493,6 +576,46 @@ fn open_browser(url: &str) {
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex, mpsc};
+
+    #[test]
+    fn only_a_stored_live_reply_reports_sent_and_ignored_samples_are_not_retried() {
+        let dir =
+            std::env::temp_dir().join(format!("evertally-live-result-test-{}", std::process::id()));
+        let paths = Paths {
+            config: dir.join("config.json"),
+            state: dir.join("state.json"),
+            log: dir.join("sync.log"),
+            dir,
+        };
+        let (tx, _rx) = mpsc::channel();
+        // An invalid origin prevents reading any real token. This test invokes neither capture nor HTTP.
+        let mut worker = Worker::new(
+            &crate::lang::EN,
+            paths,
+            Config {
+                server: "http://invalid.example".into(),
+                wow_path: None,
+            },
+            "http://127.0.0.1:9".into(),
+            Box::new(|_| {}),
+            tx,
+            false,
+        );
+        let ignored = LiveResult {
+            accepted: 0,
+            expires_at: 130,
+        };
+        let status = worker.record_live_result("guid".into(), 100, &ignored);
+        assert_eq!(status, crate::lang::EN.live_ignored);
+        assert_eq!(worker.live_sent, Some(("guid".into(), 100)));
+        let stored = LiveResult {
+            accepted: 1,
+            expires_at: 132,
+        };
+        let status = worker.record_live_result("guid".into(), 102, &stored);
+        assert!(status.starts_with("Live position sent"));
+        assert_eq!(worker.live_sent, Some(("guid".into(), 102)));
+    }
 
     #[test]
     fn invalid_server_keeps_pairing_disabled_instead_of_using_fallback() {

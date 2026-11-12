@@ -49,7 +49,7 @@ def runtime(record_globals=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Runs.lua", "Collectors.lua", "People.lua", "Sync.lua", "Social.lua", "Live.lua", "Community.lua", "UI.lua", "SocialUI.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Runs.lua", "Collectors.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Live.lua", "Community.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "WorldHost.lua", "Guides.lua", "Talents.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -407,6 +407,31 @@ class ReplayTests(unittest.TestCase):
     def mock_ui(self):
         self.lua.execute(MOCK_UI_LUA)
 
+    def test_window_size_is_kept_between_sessions_rounded_and_limited(self):
+        self.mock_ui()
+        self.assertEqual(self.a.GetUIScale(), 1, "the default")
+        self.assertEqual(self.a.SetUIScale(1.04), 1.05, "in steps of five percent")
+        self.assertEqual(self.a.db.settings.uiScale, 1.05)
+        self.assertEqual(self.a.SetUIScale(9), 1.6, "at most 160 %")
+        self.assertEqual(self.a.SetUIScale(0.01), 0.6, "at least 60 %")
+        self.assertEqual(self.a.GetUIScale(), 0.6)
+        self.a.db.settings.uiScale = "junk"
+        self.assertEqual(self.a.GetUIScale(), 1, "a damaged value falls back to the default")
+        self.a.db.settings.uiScale = 1.3
+        self.a.OpenUI()  # builds the window at the saved size without error
+        def caption(button):
+            text = button.text
+            return str(text if isinstance(text, str) else getattr(text, "text", ""))
+        buttons = [self.lua.globals().MOCKBUTTONS[i] for i in range(1, len(self.lua.globals().MOCKBUTTONS) + 1)]
+        zoom = [b for b in buttons if caption(b) in ("+", "-")]
+        self.assertEqual(len(zoom), 2, "the header has - and +")
+        plus = [b for b in zoom if caption(b) == "+"][0]
+        plus.scripts.OnClick(plus)
+        self.assertAlmostEqual(self.a.GetUIScale(), 1.4)
+        minus = [b for b in zoom if caption(b) == "-"][0]
+        minus.scripts.OnClick(minus); minus.scripts.OnClick(minus)
+        self.assertAlmostEqual(self.a.GetUIScale(), 1.2)
+
     def test_ui_builds_and_opens_each_tab_with_mock_native_frames(self):
         self.mock_ui()
         self.a.Record("quest.accepted",self.lua.table_from({"questId":182,"title":"Mock quest"}))
@@ -422,7 +447,7 @@ class ReplayTests(unittest.TestCase):
             end
             return table.concat(views,",")
         end''')()
-        self.assertEqual(opened,"overview,history,professions,places,facts,rankings,peers,community,social,settings")
+        self.assertEqual(opened,"overview,journal,history,places,facts,professions,database,dungeons,recipes,talents,world,guides,community,social,rankings,settings")
         # Toggles in Settings change real settings, and language switching re-renders.
         self.lua.execute('''for _,b in ipairs(MOCKBUTTONS) do if b.localeKey=="web" and b.Update then b.scripts.OnClick(b) end end''')
         self.assertTrue(self.a.db.settings.web)

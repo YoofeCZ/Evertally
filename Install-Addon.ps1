@@ -39,6 +39,17 @@ foreach ($addonName in $names) {
             throw "Nesouhlasi overeni souboru $relative"
         }
     }
+    # Files that an older version of this add-on had and this one no longer has are removed (the backup above holds them), so the
+    # folder is exactly the source. Only inside the add-on's own folder.
+    $known = @{}
+    foreach ($entry in Get-ChildItem -LiteralPath $source -Recurse -File) { $known[$entry.FullName.Substring($source.Length).TrimStart('\').ToLowerInvariant()] = $true }
+    foreach ($entry in Get-ChildItem -LiteralPath $target -Recurse -File) {
+        $relative = $entry.FullName.Substring($target.Length).TrimStart('\')
+        if (-not $known.ContainsKey($relative.ToLowerInvariant()) -and $entry.FullName.StartsWith($target + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Item -LiteralPath $entry.FullName -Force
+            Write-Output "Odstraneno, v nove verzi uz neni: $relative"
+        }
+    }
     Write-Output "Nainstalovano a overeno: $target"
 }
 if (-not $CheckOnly) {

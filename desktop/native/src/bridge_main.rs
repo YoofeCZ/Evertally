@@ -138,7 +138,7 @@ impl ConnectionSettings {
             ui.checkbox(&mut self.autostart, label);
             ui.add_space(14.0);
             ui.label(self.t("Map, database, rankings and your history are on the website. The addon works inside the game.", "Mapu, databázi, žebříčky a historii najdeš na webu. Addon funguje přímo ve hře."));
-            ui.weak(self.t("Current transfer uses saved addon data after /reload or logout. Live web position is not available yet.", "Přenos zatím používá data uložená po /reload či odhlášení. Živá poloha na webu ještě není dostupná."));
+            ui.weak(self.t("Live position reads the addon marker while the game corner is visible, including on a second monitor. Enable Website export, My character, My route and Live position on the website.", "Živá poloha čte značku addonu, když je vidět levý horní roh hry, i na druhém monitoru. Zapni Webový export, Moji postavu, Moji trasu a Živou polohu na webu."));
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 if ui.button(self.t("Save settings", "Uložit nastavení")).clicked() && !self.preview {
@@ -180,6 +180,7 @@ impl ConnectionSettings {
             ui.label(RichText::new(if paired {self.t("This PC is paired", "Tento počítač je spárovaný")} else if code.is_some() {self.t("Pair this PC", "Spárovat tento počítač")} else {self.t("This PC is not paired", "Tento počítač není spárovaný")}).size(22.0));
             ui.add_space(9.0);
             ui.label(state.map_or(self.t("Starting the background bridge…", "Spouštím most na pozadí…"),|s|s.status.as_str()));
+            if let Some(status)=state.and_then(|s|s.live_status.as_deref()){ui.label(RichText::new(status).color(Color32::from_rgb(143,213,175)));}
             if let Some(code)=code {
                 ui.add_space(8.0);
                 ui.label(RichText::new(code).monospace().size(28.0).color(Color32::from_rgb(182,159,250)));
@@ -247,7 +248,7 @@ impl ConnectionSettings {
             }
         }
         ui.add_space(16.0);
-        ui.weak(self.t("WoW currently saves export data on /reload or logout. Live web position is not available yet.", "WoW zatím ukládá export při /reload či odhlášení. Živá poloha na webu ještě není dostupná."));
+        ui.weak(self.t("Live position sends without /reload while the game corner is visible. Other history arrives after /reload or logout.", "Živá poloha se přenáší bez /reload, když je vidět levý horní roh hry. Ostatní historie se ukládá při /reload či odhlášení."));
         if let Some(snapshot) = &snapshot {
             ui.weak(format!("Server: {}", snapshot.server));
         }
@@ -351,7 +352,9 @@ fn style(ctx: &egui::Context) {
 
 fn main() {
     if let Err(error) = run() {
-        if std::env::args().any(|arg| arg == "--render-preview" || arg == "--diagnostics") {
+        if std::env::args()
+            .any(|arg| arg == "--render-preview" || arg == "--diagnostics" || arg == "--live-check")
+        {
             eprintln!("Evertally Bridge: {error}");
         } else {
             platform::error_dialog(&format!("Evertally Bridge: {error}"));
@@ -370,7 +373,22 @@ fn run() -> Result<(), String> {
     if args.iter().any(|a| a == "--diagnostics") {
         println!(
             "{}",
-            serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"mode":"tray-bridge","mainWindow":false,"webMap":true,"liveWebPosition":false})
+            serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"mode":"tray-bridge","mainWindow":false,"webMap":true,"liveWebPosition":true,"gameVerified":false})
+        );
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--live-check") {
+        let paths = Paths::new().map_err(|e| e.to_string())?;
+        let config = config::load_config(&paths.config).map_err(|e| e.to_string())?;
+        let packet = evertally_sync::optical::capture(config.wow_path.as_deref());
+        // Read-only diagnostic: no window, input, network, character name or token output.
+        println!(
+            "{}",
+            match packet {
+                Some(p) => serde_json::json!({"decoded":true,"mapId":p.m,"observedAt":p.t}),
+                None =>
+                    serde_json::json!({"decoded":false,"reason":"No readable addon marker in a visible WoW window"}),
+            }
         );
         return Ok(());
     }
@@ -387,6 +405,14 @@ fn run() -> Result<(), String> {
                     at: bridge::now(),
                     server: config::DEFAULT_SERVER.to_owned(),
                     state: evertally_sync::worker::UiState {
+                        live_status: (page == "paired").then(|| {
+                            if cs {
+                                "Živá poloha odeslána · zkušební náhled"
+                            } else {
+                                "Live position sent · preview fixture"
+                            }
+                            .into()
+                        }),
                         status: if cs {
                             "Zkušební náhled spojení"
                         } else {
@@ -401,7 +427,12 @@ fn run() -> Result<(), String> {
                 });
                 app.permissions = vec![Some((
                     true,
-                    vec!["world_facts".into(), "own_runs".into(), "own_track".into()],
+                    vec![
+                        "world_facts".into(),
+                        "own_runs".into(),
+                        "own_character".into(),
+                        "own_track".into(),
+                    ],
                 ))];
                 let mut renderer = preview::SoftwareRenderer::default();
                 for _ in 0..3 {

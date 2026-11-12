@@ -27,6 +27,13 @@ pub struct Texts {
     pub no_pairing: &'static str,
     pub no_folders: &'static str,
     pub folders: &'static str,
+    pub live_waiting: &'static str,
+    pub live_stale: &'static str,
+    pub live_unknown: &'static str,
+    pub live_ambiguous: &'static str,
+    pub live_sent: &'static str,
+    pub live_ignored: &'static str,
+    pub live_failed: &'static str,
 }
 
 pub const EN: Texts = Texts {
@@ -56,6 +63,13 @@ pub const EN: Texts = Texts {
     no_pairing: "No pairing in progress",
     no_folders: "Looking for WoW folders…",
     folders: "WoW account folders: {count}",
+    live_waiting: "Live position: waiting for the addon marker (WoW must be visible in its top-left corner; Settings: Website export + Live position on the website).",
+    live_stale: "Live position: the addon marker is stale.",
+    live_unknown: "Live position: this character is not in the exported file yet; one /reload or logout adds it.",
+    live_ambiguous: "Live position: more than one exported identity matches the marker; this sample will not be sent.",
+    live_sent: "Live position sent · {time}",
+    live_ignored: "The server did not store this live point; waiting for a newer sample.",
+    live_failed: "Live position: {error}",
 };
 
 pub const CS: Texts = Texts {
@@ -85,6 +99,13 @@ pub const CS: Texts = Texts {
     no_pairing: "Párování právě neprobíhá",
     no_folders: "Hledám složky WoW…",
     folders: "Složky účtů WoW: {count}",
+    live_waiting: "Živá poloha: čekám na značku addonu (WoW musí být vidět v levém horním rohu; Nastavení: Webový export + Živá poloha na webu).",
+    live_stale: "Živá poloha: značka addonu je zastaralá.",
+    live_unknown: "Živá poloha: tuhle postavu ještě neznám ze souboru exportu; stačí jednou /reload nebo odhlášení.",
+    live_ambiguous: "Živá poloha: značce odpovídá více exportovaných identit; tento bod neodešlu.",
+    live_sent: "Živá poloha odeslána · {time}",
+    live_ignored: "Server tento živý bod neuložil; čekám na novější vzorek.",
+    live_failed: "Živá poloha: {error}",
 };
 
 /// Fills `{name}` placeholders.

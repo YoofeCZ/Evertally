@@ -144,6 +144,10 @@ fn batches(envelope: &Value, pending: &[&Value]) -> Result<Vec<Value>> {
 
 fn with_events(envelope: &Value, events: Vec<Value>) -> Value {
     let mut batch = envelope.clone();
+    // Relationship metadata travels only in the authenticated live channel, never historical/community imports.
+    if let Some(object) = batch.as_object_mut() {
+        object.remove("connections");
+    }
     batch["events"] = Value::Array(events);
     batch
 }
@@ -170,6 +174,15 @@ mod tests {
     fn envelope(count: usize, payload_len: usize) -> Value {
         let events: Vec<Value> = (0..count).map(|i| json!({ "eventId": format!("p:s:{i}"), "kind": "quest.turned_in", "payload": { "title": "x".repeat(payload_len) } })).collect();
         json!({ "schemaVersion": 1, "enabled": true, "producerId": "p", "consentEpoch": 3, "since": 1, "scopes": ["world_facts"], "events": events })
+    }
+
+    #[test]
+    fn local_connection_metadata_never_enters_historical_uploads() {
+        let mut value = envelope(1, 1);
+        value["connections"] = json!({"key":7,"entries":[{"name":"PrivateFriend","realm":"Realm","kind":"friend"}]});
+        let Plan::Send { batches, .. } = plan(&value, &UploadState::default()).expect("valid plan") else { panic!("expected upload"); };
+        assert!(batches[0].get("connections").is_none());
+        assert!(value.get("connections").is_some());
     }
 
     #[test]

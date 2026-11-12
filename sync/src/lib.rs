@@ -8,6 +8,7 @@ pub mod bridge;
 pub mod config;
 pub mod lang;
 pub mod local;
+pub mod optical;
 pub mod platform;
 pub mod savedvars;
 pub mod shutdown;

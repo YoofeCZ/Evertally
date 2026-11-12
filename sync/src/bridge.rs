@@ -86,6 +86,7 @@ mod tests {
             std::process::id()
         ));
         let state = UiState {
+            live_status: None,
             status: "Waiting for approval".into(),
             tooltip: "Bridge".into(),
             paired: false,

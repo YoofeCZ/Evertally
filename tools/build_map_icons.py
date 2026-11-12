@@ -86,6 +86,20 @@ def ping(x, y):
     return 0
 
 
+def goal(x, y):
+    # a bullseye for the place navigation points at: bold ring, gap, centre dot, dark outline on both sides of each
+    d = math.hypot(x, y)
+    if d <= 0.24:
+        return 1
+    if d <= 0.33:
+        return 2
+    if 0.58 <= d <= 0.8:
+        return 1
+    if 0.5 <= d < 0.58 or 0.8 < d <= 0.9:
+        return 2
+    return 0
+
+
 def write(name: str, shape) -> None:
     rows = render(shape)
     header = struct.pack("<BBBHHBHHHHBB", 0, 0, 2, 0, 0, 0, 0, 0, SIZE, SIZE, 32, 0x08)
@@ -99,5 +113,5 @@ def write(name: str, shape) -> None:
 
 
 if __name__ == "__main__":
-    for name, shape in (("dot.tga", dot), ("arrow.tga", arrow), ("flag.tga", flag), ("ping.tga", ping)):
+    for name, shape in (("dot.tga", dot), ("arrow.tga", arrow), ("flag.tga", flag), ("ping.tga", ping), ("goal.tga", goal)):
         write(name, shape)

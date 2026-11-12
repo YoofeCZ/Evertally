@@ -1,0 +1,18 @@
+Evertally Map
+
+Travel reference data and walkability data are derived from Shortest Path Forever
+by cjber, distributed under GPL-3.0-or-later:
+https://github.com/cjber/shortest-path-forever
+The GPLv3 text is included in LICENSE.txt.
+Evertally converters and routing integration are in the project's tools/ directory.
+
+Gathering locations are derived from the installed GatherLite reference database.
+Dungeon/raid entrance facts use the project's existing OpenMap/DungeonJournal sources.
+Coordinates describe reference locations, not current availability of an object.
+The picture of each gathering resource is the game's own item icon, named only by its file ID (GatherIcons.lua);
+no artwork is shipped. The map itself is OpenMap's (MIT), which this add-on depends on and does not redistribute.
+
+The libraries in Libs/ retain their own licenses; see Libs/NOTICE.txt.
+Game artwork belongs to Blizzard Entertainment. The software licenses above do
+not grant additional rights to Blizzard artwork or third-party source databases.
+See the project's THIRD_PARTY.md for source provenance and unresolved permissions.

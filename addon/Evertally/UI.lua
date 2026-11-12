@@ -1,21 +1,28 @@
 local _, A = ...
--- Evertally window: dark dusk theme matching the website. Only built-in game textures are
+-- Evertally window: native dark stone, bronze and gold. Only built-in game textures are
 -- used (plus the addon logo with a built-in fallback), so nothing depends on new files.
 
-local WIDTH, HEIGHT, HEADER, SIDEBAR, PAD, ROW = 880, 580, 54, 178, 20, 42
+-- The window is resizable: these are its default and smallest size; below COMPACT_BELOW the side menu shrinks to icons.
+local DEFAULT_W, DEFAULT_H, MIN_W, MIN_H = 960, 620, 700, 460
+local WIDTH, HEIGHT, HEADER, SIDEBAR, PAD, ROW = DEFAULT_W, DEFAULT_H, 54, 192, 20, 42
+local COMPACT_SIDEBAR, COMPACT_BELOW, HEAD_ROW = 56, 860, 30
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
+-- The look is the game's own, like the Dungeon Journal's: dark stone, a bronze edge, gold titles and rules, red buttons. (lilac is the accent colour of
+-- the pages: it is gold now; violet is the fill of a selected or primary thing: the dark red of the game's buttons.)
 local C = {
-    canvas = {0.075, 0.067, 0.110}, header = {0.106, 0.090, 0.165}, side = {0.090, 0.082, 0.133},
-    card = {0.125, 0.118, 0.188}, well = {0.055, 0.052, 0.075}, line = {1, 1, 1, 0.08},
-    text = {0.97, 0.97, 0.97}, mist = {0.66, 0.65, 0.70}, faint = {0.45, 0.46, 0.52},
-    violet = {0.333, 0.247, 0.514}, lilac = {0.655, 0.545, 0.980}, green = {0.37, 0.72, 0.55},
-    peach = {0.92, 0.70, 0.54}, red = {0.89, 0.47, 0.42}, off = {0.26, 0.25, 0.31},
+    canvas = {0.052, 0.046, 0.040}, header = {0.140, 0.100, 0.055}, side = {0.075, 0.064, 0.050},
+    card = {0.118, 0.094, 0.066}, well = {0.036, 0.032, 0.028}, line = {0.68, 0.52, 0.20, 0.32},
+    text = {0.96, 0.94, 0.88}, mist = {0.76, 0.70, 0.58}, faint = {0.54, 0.49, 0.40},
+    violet = {0.46, 0.11, 0.09}, lilac = {0.96, 0.79, 0.25}, green = {0.48, 0.80, 0.42},
+    peach = {0.96, 0.66, 0.38}, red = {0.90, 0.38, 0.32}, off = {0.30, 0.26, 0.20}, sky = {0.45, 0.70, 0.95},
+    gold = {0.96, 0.79, 0.25}, silver = {0.80, 0.80, 0.84}, bronze = {0.80, 0.52, 0.30},
 }
 local ICON = {
-    overview = "Interface\\Icons\\INV_Misc_Book_09", history = "Interface\\Icons\\INV_Sword_04",
+    overview = "Interface\\Icons\\INV_Misc_Book_09", journal = "Interface\\Icons\\INV_Scroll_03", history = "Interface\\Icons\\INV_Sword_04",
     facts = "Interface\\Icons\\INV_Misc_Map_01", rankings = "Interface\\Icons\\Ability_Warrior_BattleShout",
     peers = "Interface\\Icons\\INV_Misc_GroupNeedMore", settings = "Interface\\Icons\\INV_Misc_Gear_01",
-    social = "Interface\\Icons\\INV_Misc_Note_01", community = "Interface\\Icons\\INV_Misc_Map_01", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\INV_Misc_Map_01",
+    social = "Interface\\Icons\\INV_Misc_GroupNeedMore", community = "Interface\\Icons\\INV_Misc_GroupLooking", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\Ability_Tracking", world = "Interface\\Icons\\Spell_Nature_FarSight",
+    database = "Interface\\Icons\\INV_Misc_Book_11", dungeons = "Interface\\Icons\\INV_Misc_Key_13", guides = "Interface\\Icons\\INV_Misc_Note_01", recipes = "Interface\\Icons\\INV_Scroll_06", talents = "Interface\\Icons\\Ability_Marksmanship",
     quest = "Interface\\GossipFrame\\AvailableQuestIcon", questDone = "Interface\\GossipFrame\\ActiveQuestIcon",
     npc = "Interface\\Icons\\INV_Misc_Head_Human_01", vendor = "Interface\\Icons\\INV_Misc_Bag_10",
     item = "Interface\\Icons\\INV_Misc_Bag_08", profession = "Interface\\Icons\\Trade_Engineering",
@@ -23,9 +30,24 @@ local ICON = {
     raid = "Interface\\Icons\\INV_Misc_Head_Dragon_01", run = "Interface\\Icons\\INV_Sword_04",
     unknown = "Interface\\Icons\\INV_Misc_QuestionMark",
 }
-local VIEWS = {"overview", "history", "professions", "places", "facts", "rankings", "peers", "community", "social", "settings"}
+-- The side menu: groups with a small heading, in the order the pages are built.
+-- (what you did: history; what the game has: the guide; who plays with you: people)
+local NAV = {
+    {head = "navHistory", "overview", "journal", "history", "places", "facts", "professions"},
+    {head = "navGuide", "database", "dungeons", "recipes", "talents", "world", "guides"},
+    {head = "navPeople", "community", "social", "rankings"},
+    {"settings"},
+}
+local VIEWS = {}
+for _, group in ipairs(NAV) do for _, view in ipairs(group) do VIEWS[#VIEWS + 1] = view end end
+local pageText = {
+    en = {pageSearch="Search by name or ID",pageResults="Results",pageProfessionCount="Saved professions",pageRecipeCount="Known recipes",pageCooldownCount="Active cooldowns",pageAreaCount="Visited areas",pageVisitCount="Recorded entries",pageQuestFacts="Quest observations",pageNpcFacts="NPC observations",pageItemFacts="Loot observations",pageAll="All",pageQuests="Quests",pageNpcs="NPCs",pageItems="Loot",pageAllFacts="Retained observations",pageCacheState="Cache",pageCacheFresh="Available offline",pageCacheEmpty="No snapshot",pageCacheExpired="Expired",pageOnlyOwn="Your own retained observations",pageNoMatch="No matching records.",pageActionHint="Sharing and export use only the permissions selected above.",pageLiveWebHint="For live web position enable Web export, My character, My route and Live position to website, then run the paired Windows bridge. History is saved separately on /reload or logout."},
+    cs = {pageSearch="Hledat podle názvu nebo ID",pageResults="Výsledky",pageProfessionCount="Uložené profese",pageRecipeCount="Známé recepty",pageCooldownCount="Aktivní cooldowny",pageAreaCount="Navštívené oblasti",pageVisitCount="Zaznamenané vstupy",pageQuestFacts="Pozorování questů",pageNpcFacts="Pozorování NPC",pageItemFacts="Záznamy lootu",pageAll="Vše",pageQuests="Questy",pageNpcs="NPC",pageItems="Loot",pageAllFacts="Uchovaná pozorování",pageCacheState="Mezipaměť",pageCacheFresh="Dostupná i offline",pageCacheEmpty="Bez vzorku",pageCacheExpired="Platnost vypršela",pageOnlyOwn="Vlastní uchovaná pozorování",pageNoMatch="Žádné odpovídající záznamy.",pageActionHint="Sdílení a export používají pouze oprávnění zvolená výše.",pageLiveWebHint="Pro živou polohu na web zapni Webový export, Moji postavu, Moji trasu a Živou polohu na web a spusť spárovaný Windows most. Historie se ukládá zvlášť při /reload nebo odhlášení."},
+}
+for lang,entries in pairs(pageText) do for key,value in pairs(entries) do A.locale[lang][key]=value end end
 
 local frame, content, pages, navButtons, header = nil, nil, {}, {}, {}
+local shell, navByView, navHeads = {}, {}, {}
 local fontStrings, toggles, copyFrame, minimapButton = {}, {}, nil, nil
 local selected = "overview"
 local showRun, showEvent, showProfession, showCommunityDetail
@@ -84,6 +106,15 @@ local function applyFonts()
     for _, entry in ipairs(fontStrings) do entry.fs:SetFont(path, entry.size, "") end
 end
 local function plain(v) local text = tostring(A.Plain(v) or A.L("unknown")); return (text:gsub("|", "||")) end
+-- string.upper leaves the Czech letters alone, so they are mapped by hand
+local UPPER = {["á"] = "Á", ["č"] = "Č", ["ď"] = "Ď", ["é"] = "É", ["ě"] = "Ě", ["í"] = "Í", ["ň"] = "Ň", ["ó"] = "Ó", ["ř"] = "Ř", ["š"] = "Š", ["ť"] = "Ť", ["ú"] = "Ú", ["ů"] = "Ů", ["ý"] = "Ý", ["ž"] = "Ž"}
+local function upper(text)
+    text = tostring(text or ""):upper()
+    for low, high in pairs(UPPER) do text = text:gsub(low, high) end
+    return text
+end
+function A.Upper(text) return upper(text) end
+local function clockText(at) at = A.Number(at, 0); return at and (A.Call(date, "%H:%M", at) or "") or "" end
 local function stamp(at) at = A.Number(at, 0); return at and (A.Call(date, "%d.%m. %H:%M", at) or tostring(at)) or "?" end
 local function duration(ms)
     local s = math.floor((A.Number(ms, 0) or 0) / 1000)
@@ -129,24 +160,30 @@ end
 
 -- ---------- controls ----------
 
+local localeButtons = {}
 local function Button(parent, key, width, kind, onClick)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(width, 30)
-    local bg = fill(b, kind == "primary" and C.violet or {1, 1, 1}, kind == "primary" and 1 or 0.08)
-    local text = label(b, 12, C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
+    local primary = kind == "primary"
+    A.NativeButton(b, C, primary)
+    local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, primary and 0.9 or 0.45}
+    outline(b, edge)
+    local glow = b:CreateTexture(nil, "ARTWORK"); glow:SetPoint("TOPLEFT", 1, -1); glow:SetPoint("BOTTOMRIGHT", -1, 1); paint(glow, C.gold, 0)
+    local text = label(b, 12, primary and C.gold or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
     b.text, b.localeKey = text, key
-    b:SetScript("OnEnter", function() bg:SetAlpha(0.8) end)
-    b:SetScript("OnLeave", function() bg:SetAlpha(1) end)
+    if key then text:SetText(A.L(key)); localeButtons[#localeButtons + 1] = b end
+    b:SetScript("OnEnter", function() paint(glow, C.gold, 0.12) end)
+    b:SetScript("OnLeave", function() paint(glow, C.gold, 0) end)
     b:SetScript("OnClick", onClick)
     return b
 end
 
 local function Toggle(parent, key, get, set)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(560, 26)
+    b:SetSize(560, 36)
     local track = b:CreateTexture(nil, "ARTWORK"); track:SetSize(30, 16); track:SetPoint("LEFT")
     local knob = b:CreateTexture(nil, "OVERLAY"); knob:SetSize(12, 12); paint(knob, C.text)
-    local text = label(b, 12, C.text); text:SetPoint("LEFT", track, "RIGHT", 10, 0)
+    local text = label(b, 12, C.text); text:SetPoint("LEFT", track, "RIGHT", 10, 0);text:SetPoint("RIGHT",b,"RIGHT",0,0);text:SetWordWrap(true)
     b.localeKey, b.get = key, get
     function b.Update()
         local on = get() == true
@@ -179,7 +216,7 @@ end
 local function ScrollArea(parent, top)
     local scroll = CreateFrame("ScrollFrame", nil, parent)
     scroll:SetPoint("TOPLEFT", 0, -top); scroll:SetPoint("BOTTOMRIGHT", -8, 0)
-    local child = CreateFrame("Frame", nil, scroll); child:SetSize(WIDTH - SIDEBAR - PAD * 2 - 8, 10)
+    local child = CreateFrame("Frame", nil, scroll); child:SetSize(560, 10)
     scroll:SetScrollChild(child)
     local thumb = scroll:CreateTexture(nil, "OVERLAY"); thumb:SetWidth(3); paint(thumb, C.lilac, 0.5)
     local function update()
@@ -194,25 +231,37 @@ local function ScrollArea(parent, top)
         local max = math.max(0, (child:GetHeight() or 0) - (self:GetHeight() or 0))
         self:SetVerticalScroll(math.min(max, math.max(0, (self:GetVerticalScroll() or 0) - delta * ROW * 2))); update()
     end)
+    scroll:SetScript("OnSizeChanged", function(self, width)
+        width = tonumber(width) or self:GetWidth() or 0
+        if width > 40 then child:SetWidth(width) end
+        if scroll.onResize then scroll.onResize(child:GetWidth()) end
+        update()
+    end)
     scroll.child, scroll.UpdateThumb = child, update
     return scroll
 end
 
 local function NewRow(parent)
     local r = CreateFrame("Button", nil, parent); r:SetHeight(ROW - 4)
-    local bg = fill(r, C.card, 0.55)
+    r.bg = fill(r, C.card, 0.55)
+    -- the highlight is a texture of its own: changing the alpha of the card colour would multiply with the alpha it already has
+    r.hover = r:CreateTexture(nil, "HIGHLIGHT"); r.hover:SetAllPoints(r); paint(r.hover, {1, 1, 1}, 0.07)
     r:SetScript("OnEnter", function(self)
-        bg:SetAlpha(1)
+        if self.heading then return end
         if self.itemId and GameTooltip then pcall(function() GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink("item:" .. self.itemId); GameTooltip:Show() end) end
     end)
-    r:SetScript("OnLeave", function() bg:SetAlpha(0.55); if GameTooltip then GameTooltip:Hide() end end)
+    r:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     r.icon = r:CreateTexture(nil, "ARTWORK"); r.icon:SetSize(26, 26); r.icon:SetPoint("LEFT", 8, 0)
     r.raceIcon = r:CreateTexture(nil, "ARTWORK"); r.raceIcon:SetSize(22, 22); r.raceIcon:SetPoint("LEFT", r.icon, "RIGHT", 4, 0); r.raceIcon:Hide()
-    r.title = label(r, 13, C.text); r.title:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 10, 1)
-    r.sub = label(r, 10, C.mist); r.sub:SetPoint("BOTTOMLEFT", r.icon, "BOTTOMRIGHT", 10, 1)
+    r.title = label(r, 13, C.text)
+    r.sub = label(r, 10, C.mist)
     r.right = label(r, 13, C.text); r.right:SetPoint("RIGHT", -12, 0); r.right:SetJustifyH("RIGHT")
     r.tag = Pill(r); r.tag:SetPoint("RIGHT", r.right, "LEFT", -10, 0)
     r.chevron = label(r, 12, C.lilac); r.chevron:SetPoint("RIGHT", -7, 0)
+    -- a heading row (a day in the journal): text and a thin rule instead of a card
+    r.head = label(r, 11, C.lilac); r.head:SetPoint("BOTTOMLEFT", 4, 7)
+    r.headRight = label(r, 10, C.faint); r.headRight:SetPoint("BOTTOMRIGHT", -4, 7); r.headRight:SetJustifyH("RIGHT")
+    r.headLine = r:CreateTexture(nil, "BORDER"); r.headLine:SetHeight(1); r.headLine:SetPoint("BOTTOMLEFT", 0, 3); r.headLine:SetPoint("BOTTOMRIGHT", 0, 3); paint(r.headLine, C.line)
     r:SetScript("OnClick", function(self) if type(self.action) == "function" then self.action() end end)
     return r
 end
@@ -220,42 +269,65 @@ end
 local function ListView(parent, top)
     local scroll = ScrollArea(parent, top)
     local rows, empty = {}, label(scroll, 12, C.mist)
-    empty:SetPoint("TOP", 0, -40); empty:SetWidth(460); empty:SetJustifyH("CENTER")
+    empty:SetPoint("TOPLEFT", 14, -40); empty:SetPoint("TOPRIGHT", -14, -40); empty:SetJustifyH("CENTER")
     function scroll.SetItems(items, emptyText)
-        local width = scroll.child:GetWidth() or 640
+        scroll.items, scroll.emptyText = items, emptyText
+        local compact = (tonumber(scroll.child:GetWidth()) or 640) < 470
+        scroll.compact = compact
+        local y = 0
         for i, item in ipairs(items) do
             local r = rows[i] or NewRow(scroll.child); rows[i] = r
-            r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -(i - 1) * ROW); r:SetWidth(width)
-            if item.class then classIcon(r.icon, item.class) else setIcon(r.icon, item.icon) end
-            r.raceIcon:SetShown(item.race ~= nil)
-            if item.race then raceIcon(r.raceIcon, item.race) end
-            local anchor = item.race and r.raceIcon or r.icon
-            r.title:ClearAllPoints(); r.title:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 10, 1)
-            r.sub:ClearAllPoints(); r.sub:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 10, 1)
-            r.title:SetWidth(math.max(120, width - (item.race and 300 or 274)))
-            r.sub:SetWidth(math.max(120, width - (item.race and 180 or 154)))
-            r.title:SetWordWrap(false); r.sub:SetWordWrap(false)
-            r.right:SetWidth(100); r.right:ClearAllPoints(); r.right:SetPoint("RIGHT", item.onClick and -26 or -12, 0)
-            r.action = item.onClick; r.itemId = item.itemId; r.chevron:SetText(item.onClick and ">" or "")
-            r.title:SetText(item.title or ""); r.sub:SetText(item.sub or ""); r.right:SetText(item.right or "")
-            local tc = item.titleColor or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
-            if item.tag then r.tag.Set(item.tag, item.tagColor or C.mist); r.tag:Show() else r.tag:Hide() end
+            local heading = item.heading ~= nil
+            r.heading = heading
+            r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -y); r:SetPoint("TOPRIGHT", 0, -y)
+            r:SetHeight((heading and HEAD_ROW or ROW) - 4)
+            r.bg:SetShown(not heading); r.hover:SetShown(not heading)
+            r.head:SetShown(heading); r.headRight:SetShown(heading); r.headLine:SetShown(heading)
+            if heading then
+                r.head:SetText(item.heading); r.headRight:SetText(item.right or "")
+                for _, widget in ipairs({r.icon, r.raceIcon, r.title, r.sub, r.right, r.tag, r.chevron}) do widget:Hide() end
+                r.action, r.itemId = nil, nil
+            else
+                r.icon:Show(); r.title:Show(); r.sub:Show(); r.right:Show(); r.chevron:Show()
+                if item.class then classIcon(r.icon, item.class) else setIcon(r.icon, item.icon) end
+                r.raceIcon:SetShown(item.race ~= nil)
+                if item.race then raceIcon(r.raceIcon, item.race) end
+                local anchor = item.race and r.raceIcon or r.icon
+                r.title:SetWordWrap(false); r.sub:SetWordWrap(false)
+                r.right:SetWidth(compact and 60 or 100); r.right:ClearAllPoints(); r.right:SetPoint("RIGHT", item.onClick and -26 or -12, 0)
+                r.action = item.onClick; r.itemId = item.itemId; r.chevron:SetText(item.onClick and ">" or "")
+                r.title:SetText(item.title or ""); r.sub:SetText(item.sub or ""); r.right:SetText(item.right or "")
+                local tc = item.titleColor or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
+                -- the right side keeps room for what is really there: the chevron, the value and the tag (a narrow list shows no tag)
+                local reserve = (item.onClick and 26 or 12) + ((item.right and item.right ~= "") and (compact and 66 or 110) or 0)
+                if item.tag and not compact then
+                    r.tag.Set(item.tag, item.tagColor or C.mist); r.tag:Show()
+                    reserve = reserve + (tonumber(r.tag:GetWidth()) or 80) + 10
+                else r.tag:Hide() end
+                r.title:ClearAllPoints(); r.title:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 10, 1); r.title:SetPoint("TOPRIGHT", r, "TOPRIGHT", -reserve, -5)
+                r.sub:ClearAllPoints(); r.sub:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 10, 1); r.sub:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -reserve, 5)
+            end
             r:Show()
+            y = y + (heading and HEAD_ROW or ROW)
         end
         for i = #items + 1, #rows do rows[i]:Hide() end
-        scroll.child:SetHeight(math.max(1, #items * ROW))
+        scroll.child:SetHeight(math.max(1, y))
         empty:SetText(#items == 0 and (emptyText or A.L("noData")) or "")
         scroll.UpdateThumb()
+    end
+    -- the rows are laid out for the width they have: crossing the narrow limit draws them again
+    scroll.onResize = function(width)
+        if scroll.items and ((tonumber(width) or 640) < 470) ~= scroll.compact then scroll.SetItems(scroll.items, scroll.emptyText) end
     end
     return scroll
 end
 
 -- ---------- data → rows ----------
 
-local function eventItem(e)
+local function eventItem(e, clock)
     local p, kind = e.payload or {}, e.kind
-    local item = {title = plain(p.title or p.name or (kind=="zone.visited" and p.mapName) or (p.questId and "Quest #" .. p.questId) or (p.itemId and "Item #" .. p.itemId) or kind),
-        sub = A.L(kind) .. "  ·  " .. stamp(e.observedAt), tag = A.L(kind):upper(), tagColor = C.mist}
+    local item = {title = plain(p.title or p.name or (kind=="zone.visited" and p.mapName) or (p.questId and "Quest #" .. p.questId) or (p.itemId and "Item #" .. p.itemId) or (kind == "character.level" and (A.L("level") .. " " .. tostring(p.level or "?"))) or (kind == "craft.result" and p.recipeId and ("#" .. p.recipeId)) or A.L(kind)),
+        sub = A.L(kind) .. "  ·  " .. (clock and clockText(e.observedAt) or stamp(e.observedAt)), tag = upper(A.L(kind)), tagColor = C.mist}
     if kind == "quest.accepted" then item.icon, item.tagColor = ICON.quest, C.peach
     elseif kind == "quest.turned_in" then item.icon, item.tagColor = ICON.questDone, C.green
     elseif kind == "quest.abandoned" then item.icon = ICON.quest
@@ -289,7 +361,7 @@ local function runItem(run, live)
     local c=type(run.character)=="table" and run.character or nil
     return {icon = run.instanceType == "raid" and ICON.raid or ICON.run, class=c and c.classId, race=c and c.raceId, title = plain(run.name),
         sub = stamp(run.startedAt) .. "  ·  " .. (c and plain(c.name) .. "  ·  " or "") .. (run.bossCount or 0) .. " " .. A.L("bosses"),
-        right = run.durationMs and duration(run.durationMs) or "—", tag = tostring(tag):upper(), tagColor = tc,
+        right = run.durationMs and duration(run.durationMs) or "—", tag = upper(tag), tagColor = tc,
         onClick=function() showRun(run,live) end}
 end
 
@@ -321,52 +393,59 @@ end
 -- ---------- pages ----------
 
 local function PageHeader(page, key)
-    page.title = label(page, 20, C.text); page.title:SetPoint("TOPLEFT", 0, 0)
-    page.subtitle = label(page, 11, C.mist); page.subtitle:SetPoint("TOPLEFT", page.title, "BOTTOMLEFT", 0, -6)
-    page.subtitle:SetWidth(WIDTH - SIDEBAR - PAD * 2)
+    page.title = label(page, 20, C.gold); page.title:SetPoint("TOPLEFT", 0, 0)
+    page.subtitle = label(page, 11, C.mist)
+    page.subtitle:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -28); page.subtitle:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -28)
     page.titleKey = key
 end
 
-local function StatCard(parent, index, iconPath, key)
-    local width = (WIDTH - SIDEBAR - PAD * 2 - 30) / 4
-    local card = CreateFrame("Frame", nil, parent); card:SetSize(width, 78)
-    card:SetPoint("TOPLEFT", (index - 1) * (width + 10), -52)
-    fill(card, C.card); outline(card)
-    local accent = card:CreateTexture(nil, "ARTWORK"); accent:SetHeight(2); accent:SetPoint("TOPLEFT"); accent:SetPoint("TOPRIGHT"); paint(accent, C.lilac, 0.6)
-    local icon = card:CreateTexture(nil, "ARTWORK"); icon:SetSize(22, 22); icon:SetPoint("TOPLEFT", 12, -12); setIcon(icon, iconPath)
-    card.value = label(card, 24, C.text); card.value:SetPoint("TOPRIGHT", -12, -10); card.value:SetJustifyH("RIGHT")
-    card.caption = label(card, 10, C.mist); card.caption:SetPoint("BOTTOMLEFT", 12, 10); card.caption:SetWidth(width - 24)
-    card.key = key
-    return card
+-- Shared content chrome for the older pages: the same cards and chips as the dashboard.
+-- All columns anchor to the page width; no fixed-width toolbar can escape a narrow window.
+local function Metrics(page, definitions)
+    local kit=A.UIKit();local weights={};for i=1,#definitions do weights[i]=1 end
+    local row=kit.Columns(page,weights,10)
+    row:SetPoint("TOPLEFT",0,-54);row:SetPoint("TOPRIGHT",0,-54);row:SetHeight(72)
+    local cards={}
+    for i,definition in ipairs(definitions) do
+        local card=kit.Stat(row.cells[i],definition.icon or ICON.facts,definition.color or C.lilac)
+        card:SetAllPoints(row.cells[i]);cards[i]=card
+    end
+    page.metrics=cards
+    page.metricRow=row
+    function page.RefreshMetrics(values)
+        for i,definition in ipairs(definitions) do
+            cards[i].value:SetText(tostring(values[i] or 0));cards[i].caption:SetText(A.L(definition.key));cards[i].delta:SetText("")
+        end
+    end
+    return row
+end
+local function Search(page,top,onChange)
+    local search=A.UIKit().SearchBox(page,200,onChange)
+    search:SetPoint("TOPLEFT",8,-top);search:SetPoint("TOPRIGHT",-8,-top)
+    page.search=search
+    return search
+end
+local function Filters(page,definitions,top,onChange)
+    local chips={};local kit=A.UIKit()
+    for i,definition in ipairs(definitions) do
+        local value,key=definition[1],definition[2]
+        local b=kit.Chip(page,function() onChange(value) end)
+        if i==1 then b:SetPoint("TOPLEFT",0,-top) else b:SetPoint("LEFT",chips[i-1],"RIGHT",6,0) end
+        b.value,b.localeKey=value,key;chips[i]=b
+    end
+    page.filters=chips
+    return function(selected)
+        for _,b in ipairs(chips) do b.SetLabel(A.L(b.localeKey));b.SetOn(b.value==selected) end
+    end
 end
 
-local function buildOverview(page)
+local function overviewFallback(page)
     PageHeader(page, "overview")
-    page.cards = {StatCard(page, 1, ICON.facts, "count"), StatCard(page, 2, ICON.history, "runs"), StatCard(page, 3, ICON.overview, "pending"), StatCard(page, 4, ICON.peers, "players")}
-    page.who = CreateFrame("Frame", nil, page); page.who:SetSize(400, 22); page.who:SetPoint("TOPRIGHT", 0, -4)
-    page.whoIcon = page.who:CreateTexture(nil, "ARTWORK"); page.whoIcon:SetSize(18, 18); page.whoIcon:SetPoint("RIGHT")
-    page.whoRace = page.who:CreateTexture(nil, "ARTWORK"); page.whoRace:SetSize(18, 18); page.whoRace:SetPoint("RIGHT", page.whoIcon, "LEFT", -4, 0)
-    page.whoText = label(page.who, 12, C.text); page.whoText:SetPoint("RIGHT", page.whoRace, "LEFT", -6, 0); page.whoText:SetJustifyH("RIGHT"); page.whoText:SetWidth(350)
-    page.recent = label(page, 13, C.text); page.recent:SetPoint("TOPLEFT", 0, -146)
-    page.warning = label(page, 11, C.peach); page.warning:SetPoint("TOPRIGHT", 0, -148); page.warning:SetJustifyH("RIGHT")
-    page.list = ListView(page, 168)
+    page.list = ListView(page, 52)
     function page.Refresh()
-        local db, out = A.db, A.ExportStore()
-        local peers = 0; for _ in pairs(A.peerDB.peers) do peers = peers + 1 end
-        local values = {#db.events, #db.runs, out and #out.events or 0, peers}
-        for i, card in ipairs(page.cards) do card.value:SetText(tostring(values[i])); card.caption:SetText(A.L(card.key)) end
-        local c = A.Character()
-        if c then
-            classIcon(page.whoIcon, c.classId)
-            raceIcon(page.whoRace, c.raceId)
-            page.whoText:SetText(plain(c.name) .. "  ·  " .. plain(c.realm) .. "  ·  " .. A.L("level") .. " " .. plain(c.level))
-            local cc = classColor(c.classId); page.whoText:SetTextColor(cc[1], cc[2], cc[3])
-        end
-        page.recent:SetText(A.L("recent"))
-        page.warning:SetText((A.storageFull or A.exportFull) and A.L("capped") or "")
         local items, run = {}, A.ActiveRun()
         if run then items[1] = runItem(run, true) end
-        for i = #db.events, math.max(1, #db.events - 59), -1 do items[#items + 1] = eventItem(db.events[i]) end
+        for i = #A.db.events, math.max(1, #A.db.events - 59), -1 do items[#items + 1] = eventItem(A.db.events[i]) end
         page.list.SetItems(items, A.L("noData"))
     end
 end
@@ -383,7 +462,7 @@ local function showCommunityImport()
         local f = CreateFrame("Frame", "EvertallyCommunityImport", UIParent)
         communityImportFrame = f
         f:SetSize(720, 460); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
-        fill(f, C.canvas, 0.99); outline(f)
+        A.NativeFrame(f, C)
         f.hint = label(f, 12, C.mist); f.hint:SetPoint("TOPLEFT", 18, -16); f.hint:SetWidth(680)
         local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
         scroll:SetPoint("TOPLEFT", 18, -68); scroll:SetPoint("BOTTOMRIGHT", -38, 82)
@@ -408,65 +487,97 @@ local function showCommunityImport()
 end
 
 local function buildCommunity(page)
-    PageHeader(page, "community")
-    page.kind, page.query = "", ""
-    page.import = Button(page, "communityImport", 140, "primary", showCommunityImport); page.import:SetPoint("TOPLEFT", 0, -62)
-    page.clear = Button(page, "communityClear", 90, "ghost", function() A.ClearCommunity() end); page.clear:SetPoint("LEFT", page.import, "RIGHT", 8, 0)
-    page.kindButton = Button(page, nil, 110, "ghost", function()
-        local nextKind = {[""]="quest",quest="npc",npc="item",item=""}; page.kind = nextKind[page.kind]; A.RefreshUI()
-    end)
-    page.kindButton:SetPoint("LEFT", page.clear, "RIGHT", 8, 0)
-    local search = CreateFrame("EditBox", nil, page, "InputBoxTemplate")
-    search:SetSize(230, 26); search:SetPoint("LEFT", page.kindButton, "RIGHT", 14, 0)
-    search:SetAutoFocus(false); search:SetMaxLetters(200); search:SetFont(fontPath(), 12, "")
-    fontStrings[#fontStrings+1] = {fs=search,size=12}
-    search:SetScript("OnTextChanged", function(self) page.query=self:GetText() or ""; A.RefreshUI() end)
-    search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    page.info = label(page, 11, C.mist); page.info:SetPoint("TOPLEFT", 0, -106); page.info:SetWidth(640)
-    page.list = ListView(page, 164)
+    PageHeader(page,"community");page.kind,page.query="",""
+    Metrics(page,{{key="communityEntities",icon=ICON.facts},{key="count",icon=ICON.quest},{key="pageCacheState",icon=ICON.community}})
+    page.import=Button(page,"communityImport",140,"primary",showCommunityImport);page.import:SetPoint("TOPLEFT",0,-140)
+    page.clear=Button(page,"communityClear",100,"ghost",function() A.ClearCommunity() end);page.clear:SetPoint("LEFT",page.import,"RIGHT",8,0)
+    local refreshFilters=Filters(page,{{"","communityKind_"},{"quest","communityKind_quest"},{"npc","communityKind_npc"},{"item","communityKind_item"}},140,function(kind) page.kind=kind;A.RefreshUI() end)
+    page.filters[1]:ClearAllPoints();page.filters[1]:SetPoint("LEFT",page.clear,"RIGHT",12,0)
+    Search(page,180,function(value) page.query=value;A.RefreshUI() end)
+    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-214);page.info:SetPoint("TOPRIGHT",0,-214);page.info:SetHeight(30);page.info:SetWordWrap(true)
+    page.list=ListView(page,252)
     function page.Refresh()
-        page.import.text:SetText(A.L("communityImport")); page.clear.text:SetText(A.L("communityClear"))
-        page.kindButton.text:SetText(A.L("communityKind_" .. page.kind))
-        local snapshot, stale = A.GetCommunity()
-        local info = A.L("communityNoData")
-        if snapshot then info = string.format("%s %s  ·  %s %s\n%s %d/%d  ·  %s %d%s", A.L("communityGenerated"), stamp(snapshot.generatedAt),
-            A.L("communityExpires"), stamp(snapshot.expiresAt), A.L("communityEntities"), #snapshot.entities, snapshot.provenance.entityCount,
-            A.L("count"), snapshot.provenance.observationCount, stale and ("  ·  " .. A.L("communityStale")) or "") end
+        page.import.text:SetText(A.L("communityImport"));page.clear.text:SetText(A.L("communityClear"));refreshFilters(page.kind)
+        page.search.hint:SetText(A.L("pageSearch"))
+        local snapshot,stale=A.GetCommunity()
+        page.RefreshMetrics({snapshot and #snapshot.entities or 0,snapshot and snapshot.provenance.observationCount or 0,not snapshot and "—" or stale and "!" or "OK"})
+        page.metrics[3].delta:SetText(A.L(not snapshot and "pageCacheEmpty" or stale and "pageCacheExpired" or "pageCacheFresh"))
+        -- Status has its own full-width line; it cannot collide with the actions or the search field.
+        local info=A.L("communityNoData")
+        if snapshot then info=A.L("communityGenerated")..": "..stamp(snapshot.generatedAt).."  ·  "..A.L("communityExpires")..": "..stamp(snapshot.expiresAt) end
         page.info:SetText(info)
-        local items = {}
-        for _, e in ipairs(A.CommunityEntries(page.kind, page.query)) do
-            items[#items+1] = {title=plain(e.name),icon=e.kind=="npc" and ICON.npc or e.kind=="item" and ICON.item or ICON.quest,
-                sub=e.kind .. " #" .. e.id .. "  ·  " .. stamp(e.lastSeen) .. (e.mapId and ("  ·  " .. mapName(e.mapId)) or "") ..
-                    (e.x and e.y and string.format("  %.1f, %.1f", e.x*100,e.y*100) or ""),right=tostring(e.count),tag=A.L("community"),tagColor=C.lilac,
-                onClick=function() showCommunityDetail(e) end}
+        local items={}
+        for _,e in ipairs(A.CommunityEntries(page.kind,page.query)) do
+            local current=e
+            items[#items+1]={title=plain(e.name),icon=e.kind=="npc" and ICON.npc or e.kind=="item" and ICON.item or ICON.quest,
+                sub=e.kind.." #"..e.id.."  ·  "..stamp(e.lastSeen)..(e.mapId and ("  ·  "..mapName(e.mapId)) or "")..
+                    (e.x and e.y and string.format("  %.1f, %.1f",e.x*100,e.y*100) or ""),right=tostring(e.count),tag=A.L("community"),tagColor=stale and C.peach or C.lilac,
+                onClick=function() showCommunityDetail(current) end}
         end
-        page.list.SetItems(items, A.L("communityNoData"))
+        page.list.SetItems(items,A.L("communityNoData"))
     end
 end
 
-local function historyItems()
-    local items, run = {}, A.ActiveRun()
-    if run then items[1] = runItem(run, true) end
-    for i = #A.db.runs, math.max(1, #A.db.runs - 199), -1 do items[#items + 1] = runItem(A.db.runs[i]) end
-    return items, A.L("noRuns")
-end
-local function factItems()
-    local items = {}
-    for i = #A.db.events, math.max(1, #A.db.events - 199), -1 do
-        local e = A.db.events[i]
-        if A.ScopeFor[e.kind] == "world_facts" then items[#items + 1] = eventItem(e) end
+for lang, entries in pairs({
+    en = {histRuns = "Saved runs", histCompleted = "Completed", histBest = "Best time", histBosses = "Bosses killed", histAll = "All", histDone = "Completed", histCut = "Interrupted"},
+    cs = {histRuns = "Uložené běhy", histCompleted = "Dokončené", histBest = "Nejlepší čas", histBosses = "Zabité bossy", histAll = "Vše", histDone = "Dokončené", histCut = "Přerušené"},
+}) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
+local function buildHistory(page)
+    PageHeader(page, "history"); page.filter = "all"
+    Metrics(page, {{key = "histRuns", icon = ICON.run}, {key = "histCompleted", icon = ICON.questDone, color = C.green}, {key = "histBest", icon = ICON.cooldown, color = C.peach}, {key = "histBosses", icon = ICON.raid, color = C.sky}})
+    local paintFilters = Filters(page, {{"all", "histAll"}, {"completed", "histDone"}, {"interrupted", "histCut"}}, 134, function(value) page.filter = value; A.RefreshUI() end)
+    page.list = ListView(page, 170)
+    function page.Refresh()
+        local runs, completed, best, bosses = A.db.runs, 0, nil, 0
+        for _, run in ipairs(runs) do
+            if run.status == "completed" then
+                completed = completed + 1
+                local ms = A.Number(run.durationMs, 1)
+                if ms and (not best or ms < best) then best = ms end
+            end
+            bosses = bosses + (A.Number(run.bossCount, 0) or 0)
+        end
+        page.RefreshMetrics({#runs, completed, best and duration(best) or "—", bosses})
+        paintFilters(page.filter)
+        local items, run = {}, A.ActiveRun()
+        if run and page.filter == "all" then items[1] = runItem(run, true) end
+        local shown = 0
+        for i = #runs, 1, -1 do
+            local r = runs[i]
+            if page.filter == "all" or (page.filter == "completed" and r.status == "completed") or (page.filter == "interrupted" and r.status == "interrupted") then
+                items[#items + 1] = runItem(r); shown = shown + 1
+                if shown >= 200 then break end
+            end
+        end
+        page.list.SetItems(items, A.L("noRuns"))
     end
-    return items, A.L("noData")
 end
-local function peerItems()
-    local items = {}
-    for sender, peer in pairs(A.peerDB.peers) do
-        local c = peer.character
-        items[#items + 1] = {class = c and c.classId, race=c and c.raceId, title = plain(sender), titleColor = classColor(c and c.classId),
-            sub = identityText(c) .. "  ·  " .. A.L("seen") .. " " .. stamp(peer.receivedAt), right = tostring(#(peer.runs or {})) .. " " .. A.L("history"):lower()}
+local function buildFacts(page)
+    PageHeader(page,"facts");page.kind,page.query="all",""
+    Metrics(page,{{key="pageQuestFacts",icon=ICON.quest},{key="pageNpcFacts",icon=ICON.npc},{key="pageItemFacts",icon=ICON.item}})
+    local kit=A.UIKit()
+    local refreshFilters=Filters(page,{{"all","pageAll"},{"quests","pageQuests"},{"npcs","pageNpcs"},{"items","pageItems"}},140,function(kind) page.kind=kind;A.RefreshUI() end)
+    Search(page,178,function(value) page.query=value;A.RefreshUI() end)
+    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-212);page.info:SetPoint("TOPRIGHT",0,-212)
+    page.list=ListView(page,238)
+    function page.Refresh()
+        local counts={quests=0,npcs=0,items=0};local items={};local query=kit.fold(page.query);local total=0
+        for i=#A.db.events,1,-1 do
+            local e=A.db.events[i]
+            if A.ScopeFor[e.kind]=="world_facts" then
+                local category=e.kind:match("^quest%.") and "quests" or (e.kind=="npc.observed" or e.kind=="vendor.snapshot") and "npcs" or e.kind=="loot.received" and "items" or "other"
+                if counts[category] then counts[category]=counts[category]+1 end
+                total=total+1
+                if page.kind=="all" or page.kind==category then
+                    local row=eventItem(e)
+                    if kit.fold((row.title or "").." "..(row.sub or "").." "..tostring((e.payload or {}).questId or (e.payload or {}).npcId or (e.payload or {}).itemId or "")):find(query,1,true) and #items<200 then items[#items+1]=row end
+                end
+            end
+        end
+        page.RefreshMetrics({counts.quests,counts.npcs,counts.items});refreshFilters(page.kind);page.search.hint:SetText(A.L("pageSearch"))
+        page.info:SetText(A.L("pageOnlyOwn").."  ·  "..A.L("pageResults")..": "..#items.." / "..total)
+        page.list.SetItems(items,A.L(total==0 and "noData" or "pageNoMatch"))
     end
-    table.sort(items, function(a, b) return a.title < b.title end)
-    return items, A.L("noPeers")
 end
 
 -- Details read retained own observations; opening a row never records, exports or
@@ -476,19 +587,31 @@ local function showDetails(title, subtitle, items, position)
     if not detailFrame then
         local f=CreateFrame("Frame","EvertallyDetailFrame",UIParent);detailFrame=f
         f:SetSize(720,500);f:SetPoint("CENTER");f:SetFrameStrata("DIALOG");f:EnableMouse(true)
-        fill(f,C.canvas,0.99);outline(f)
-        f.title=label(f,18,C.text);f.title:SetPoint("TOPLEFT",18,-16);f.title:SetWidth(680)
+        A.NativeFrame(f,C)
+        f.title=label(f,18,C.gold);f.title:SetPoint("TOPLEFT",18,-16);f.title:SetWidth(680)
         f.subtitle=label(f,11,C.mist);f.subtitle:SetPoint("TOPLEFT",18,-44);f.subtitle:SetWidth(680)
         f.list=ListView(f,86);f.list:ClearAllPoints();f.list:SetPoint("TOPLEFT",18,-86);f.list:SetPoint("BOTTOMRIGHT",-26,58);f.list.child:SetWidth(676)
         f.close=Button(f,"close",110,"ghost",function() f:Hide() end);f.close:SetPoint("BOTTOMRIGHT",-18,16)
         f.map=Button(f,"openMap",140,"primary",function()
             if not A.OpenRecordedMap(f.position) then A.Print(A.L("mapUnavailable")) end
         end);f.map:SetPoint("BOTTOMLEFT",18,16)
+        f.database=Button(f,"openDatabase",200,"ghost",function()
+            if f.entryKind and A.OpenDatabaseEntry then f:Hide(); A.OpenDatabaseEntry(f.entryKind,f.entryId) end
+        end);f.database:SetPoint("BOTTOMLEFT",168,16)
         if type(UISpecialFrames)=="table" then UISpecialFrames[#UISpecialFrames+1]="EvertallyDetailFrame" end
     end
     local f=detailFrame;f.position=position
     f.title:SetText(title);f.subtitle:SetText(subtitle or "")
     f.close.text:SetText(A.L("close"));f.map.text:SetText(A.L("openMap"));f.map:SetShown(position and A.Number(position.mapId,1,100000)~=nil)
+    -- a record of a quest, an NPC or an item can be opened in the database
+    f.entryKind,f.entryId=nil,nil
+    if type(position)=="table" then
+        for _,pair in ipairs({{"quest","questId"},{"npc","npcId"},{"item","itemId"}}) do
+            local id=A.Number(position[pair[2]],1,10000000)
+            if id then f.entryKind,f.entryId=pair[1],id;break end
+        end
+    end
+    f.database.text:SetText(A.L("openDatabase"));f.database:SetShown(f.entryKind~=nil)
     f.list:SetVerticalScroll(0);f.list.SetItems(items,A.L("noData"));f:Show()
 end
 function A.OpenRecordedMap(position)
@@ -546,8 +669,14 @@ end
 showEvent=function(e)
     local p=type(e.payload)=="table" and e.payload or {}
     local items={detailRow("observedAt",stamp(e.observedAt)),detailRow("observationType",A.L(e.kind))}
-    if p.npcId then items[#items+1]=detailRow("npcId",p.npcId,ICON.npc) end
-    if p.questId then items[#items+1]=detailRow("questId",p.questId,ICON.quest) end
+    if p.npcId then
+        items[#items+1]=detailRow("npcId",p.npcId,ICON.npc)
+        for i,row in ipairs(A.DatabaseRows("npc",p.npcId)) do if i<=4 then items[#items+1]={title=plain(row.title),sub=plain(row.sub or ""),icon=ICON.npc} end end
+    end
+    if p.questId then
+        items[#items+1]=detailRow("questId",p.questId,ICON.quest)
+        for _,row in ipairs(A.DatabaseRows("quest",p.questId)) do items[#items+1]={title=plain(row.title),sub=plain(row.sub or ""),icon=ICON.quest} end
+    end
     if p.itemId then items[#items+1]={title=plain(p.name or ("Item #"..p.itemId)),sub=A.L("itemId")..": "..p.itemId,icon=itemIcon(p.itemId) or ICON.item,right=p.quantity and ("x"..p.quantity) or ""} end
     if p.xp then items[#items+1]=detailRow("questXP",p.xp) end
     if p.money then items[#items+1]=detailRow("questMoney",p.money) end
@@ -628,24 +757,22 @@ showProfession=function(entry)
 end
 A.UIShowProfessionDetail=showProfession
 local function buildProfessions(page)
-    PageHeader(page,"professions");page.mode="professions";page.query="";page.index=1
-    page.modeButton=Button(page,nil,128,"ghost",function()
-        page.mode=({professions="recipes",recipes="cooldowns",cooldowns="professions"})[page.mode];page.index=1;A.RefreshUI()
-    end);page.modeButton:SetPoint("TOPLEFT",0,-62)
-    local search=CreateFrame("EditBox",nil,page,"InputBoxTemplate");search:SetSize(248,26);search:SetPoint("LEFT",page.modeButton,"RIGHT",14,0)
-    search:SetAutoFocus(false);search:SetMaxLetters(160);search:SetFont(fontPath(),12,"");fontStrings[#fontStrings+1]={fs=search,size=12}
-    search:SetScript("OnTextChanged",function(self) page.query=self:GetText() or "";page.index=1;A.RefreshUI() end)
-    search:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
-    page.prev=Button(page,nil,32,"ghost",function() page.index=math.max(1,page.index-1);A.RefreshUI() end);page.prev:SetPoint("LEFT",search,"RIGHT",12,0);page.prev.text:SetText("<")
+    PageHeader(page,"professions");page.mode,page.query,page.index="professions","",1
+    Metrics(page,{{key="pageProfessionCount",icon=ICON.profession},{key="pageRecipeCount",icon=ICON.craft},{key="pageCooldownCount",icon=ICON.cooldown,color=C.peach}})
+    local refreshFilters=Filters(page,{{"professions","professionMode_professions"},{"recipes","professionMode_recipes"},{"cooldowns","professionMode_cooldowns"}},140,function(mode) page.mode=mode;page.index=1;A.RefreshUI() end)
+    Search(page,178,function(value) page.query=value;page.index=1;A.RefreshUI() end)
+    page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-212);page.info:SetPoint("TOPRIGHT",0,-212);page.info:SetHeight(30);page.info:SetWordWrap(true)
+    page.list=ListView(page,250);page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",0,-250);page.list:SetPoint("BOTTOMRIGHT",-8,34)
+    page.prev=Button(page,nil,32,"ghost",function() page.index=math.max(1,page.index-1);A.RefreshUI() end);page.prev:SetPoint("BOTTOMRIGHT",-108,0);page.prev.text:SetText("<")
     page.next=Button(page,nil,32,"ghost",function() page.index=page.index+1;A.RefreshUI() end);page.next:SetPoint("LEFT",page.prev,"RIGHT",6,0);page.next.text:SetText(">")
-    page.counter=label(page,11,C.mist);page.counter:SetPoint("LEFT",page.next,"RIGHT",8,0)
-    page.info=label(page,11,C.mist);page.info:SetPoint("TOPLEFT",0,-106);page.info:SetWidth(640)
-    page.list=ListView(page,144)
+    page.counter=label(page,11,C.mist);page.counter:SetPoint("BOTTOMRIGHT",0,8);page.counter:SetWidth(58);page.counter:SetJustifyH("RIGHT")
     function page.Refresh()
-        local rows,query={},fold(page.query)
-        page.modeButton.text:SetText(A.L("professionMode_"..page.mode));page.info:SetText(A.L("professionSnapshot"))
-        for _,entry in ipairs(A.ProfessionSummaries()) do
+        local rows,query={},fold(page.query);local entries=A.ProfessionSummaries();local recipes,cooldowns=0,0
+        refreshFilters(page.mode);page.search.hint:SetText(A.L("pageSearch"));page.info:SetText(A.L("professionSnapshot"))
+        for _,entry in ipairs(entries) do
             local p,c=entry.payload,entry.character
+            recipes=recipes+#entry.recipes
+            for _,recipe in ipairs(entry.recipes) do if recipe.cooldown and recipe.cooldown.readyAt>A.Now() then cooldowns=cooldowns+1 end end
             if page.mode=="professions" then
                 local matches=fold(p.name):find(query,1,true) or fold(c and c.name):find(query,1,true)
                 for _,recipe in ipairs(entry.recipes) do if fold(recipe.name):find(query,1,true) then matches=true;break end end
@@ -658,12 +785,14 @@ local function buildProfessions(page)
                 end
             end
         end
+        page.RefreshMetrics({#entries,recipes,cooldowns})
         local total=math.max(1,math.ceil(#rows/100));page.index=math.min(page.index,total)
         local visible={};for i=(page.index-1)*100+1,math.min(#rows,page.index*100) do visible[#visible+1]=rows[i] end
         page.counter:SetText(page.index.." / "..total);page.prev:SetAlpha(page.index>1 and 1 or 0.35);page.next:SetAlpha(page.index<total and 1 or 0.35)
         page.list.SetItems(visible,A.L("noProfessions"))
     end
 end
+
 function A.PlaceSummaries()
     local areas={}
     for _,e in ipairs(A.db.events or {}) do
@@ -681,24 +810,24 @@ function A.PlaceSummaries()
     table.sort(out,function(a,b) if a.lastSeen==b.lastSeen then return a.mapId<b.mapId end return a.lastSeen>b.lastSeen end)
     return out
 end
-local function placeItems()
-    local items={}
-    for _,area in ipairs(A.PlaceSummaries()) do
-        items[#items+1]={title=plain(area.mapName or mapName(area.mapId)),sub=A.L("lastVisit")..": "..stamp(area.lastSeen),icon=ICON.places,
-            right=tostring(area.count),tag=A.L("recordedVisits"),tagColor=C.lilac,onClick=function()
-                showDetails(plain(area.mapName or mapName(area.mapId)),A.L("areaOnly"),{detailRow("recordedVisits",area.count),detailRow("lastVisit",stamp(area.lastSeen))},area)
-            end}
-    end
-    return items,A.L("noPlaces")
-end
 local function buildPlaces(page)
-    PageHeader(page,"places");page.info=label(page,12,C.lilac);page.info:SetPoint("TOPLEFT",0,-54)
-    page.list=ListView(page,84)
+    PageHeader(page,"places");page.query=""
+    Metrics(page,{{key="pageAreaCount",icon=ICON.places},{key="pageVisitCount",icon=ICON.facts,color=C.green}})
+    Search(page,142,function(value) page.query=value;A.RefreshUI() end)
+    page.list=ListView(page,182)
     function page.Refresh()
-        local items,empty=placeItems();local visits=0
-        for _,area in ipairs(A.PlaceSummaries()) do visits=visits+area.count end
-        page.info:SetText(A.L("visitedAreas")..": "..#items.."  ·  "..A.L("recordedVisits")..": "..visits)
-        page.list.SetItems(items,empty)
+        local items={};local areas=A.PlaceSummaries();local visits=0;local query=fold(page.query)
+        for _,area in ipairs(areas) do
+            visits=visits+area.count
+            if fold((area.mapName or mapName(area.mapId)).." "..area.mapId):find(query,1,true) then
+                local current=area
+                items[#items+1]={title=plain(area.mapName or mapName(area.mapId)),sub=A.L("lastVisit")..": "..stamp(area.lastSeen),icon=ICON.places,
+                    right=tostring(area.count),tag=A.L("recordedVisits"),tagColor=C.lilac,onClick=function()
+                        showDetails(plain(current.mapName or mapName(current.mapId)),A.L("areaOnly"),{detailRow("recordedVisits",current.count),detailRow("lastVisit",stamp(current.lastSeen))},current)
+                    end}
+            end
+        end
+        page.RefreshMetrics({#areas,visits});page.search.hint:SetText(A.L("pageSearch"));page.list.SetItems(items,A.L(#areas==0 and "noPlaces" or "pageNoMatch"))
     end
 end
 
@@ -710,7 +839,7 @@ local function showCopy()
     if not copyFrame then
         copyFrame = CreateFrame("Frame", "EvertallyCopyFrame", UIParent)
         copyFrame:SetSize(720, 460); copyFrame:SetPoint("CENTER"); copyFrame:SetFrameStrata("DIALOG"); copyFrame:EnableMouse(true)
-        fill(copyFrame, C.canvas, 0.98); outline(copyFrame, {C.lilac[1], C.lilac[2], C.lilac[3], 0.35})
+        A.NativeFrame(copyFrame, C)
         local hint = label(copyFrame, 12, C.mist); hint:SetPoint("TOPLEFT", 18, -16); hint:SetWidth(680); hint:SetText(A.L("copyHint"))
         local scroll = CreateFrame("ScrollFrame", nil, copyFrame, "UIPanelScrollFrameTemplate")
         scroll:SetPoint("TOPLEFT", 18, -56); scroll:SetPoint("BOTTOMRIGHT", -38, 52)
@@ -729,73 +858,80 @@ local function SectionTitle(parent, key, y)
 end
 
 local function buildSettings(page)
-    PageHeader(page, "settings")
-    local scroll = ScrollArea(page, 52)
-    local body, y = scroll.child, 0
-    page.sections = {}
-    local function section(key) page.sections[#page.sections + 1] = SectionTitle(body, key, y); y = y - 26 end
-    local function place(control, height) control:SetPoint("TOPLEFT", 0, y); y = y - (height or 30) end
-    local s = function() return A.db.settings end
-
+    PageHeader(page,"settings")
+    local kit=A.UIKit();local scroll=ScrollArea(page,52);page.scroll=scroll
+    local body,y,card,cy=scroll.child,0,nil,0
+    page.sections={};page.settingCards={}
+    local function finish()
+        if card then local height=-cy+12;card:SetHeight(height);y=y-height-12 end
+    end
+    local function section(key)
+        finish();card=kit.Card(body,C.lilac);card:SetPoint("TOPLEFT",0,y);card:SetPoint("TOPRIGHT",body,"TOPRIGHT",0,y);cy=-38
+        page.settingCards[#page.settingCards+1]=card
+        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",12,-12);page.sections[#page.sections+1]=fs
+    end
+    local function place(control,height,indent)
+        control:ClearAllPoints();control:SetPoint("TOPLEFT",12+(indent or 0),cy);control:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy)
+        control:SetHeight(height or 36);cy=cy-(height or 36)
+    end
+    local function note(height)
+        local fs=label(card,11,C.mist);fs:SetPoint("TOPLEFT",12,cy-4);fs:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy-4);fs:SetHeight(height);fs:SetWordWrap(true);cy=cy-height-10
+        return fs
+    end
+    local s=function() return A.db.settings end
     section("sharingSection")
-    place(Toggle(body, "share", function() return s().ingame end, A.SetIngame))
-    local group = Toggle(body, "group", function() return s().group end, function(v) s().group = v end); group.disabled = function() return not s().ingame end; place(group)
-    local guild = Toggle(body, "guild", function() return s().guild end, function(v) s().guild = v end); guild.disabled = function() return not s().ingame end; place(guild)
-    place(Toggle(body, "socialEnabled", function() return s().social ~= false end, function(v) s().social = v end))
-    y = y - 10
+    place(Toggle(card,"share",function() return s().ingame end,A.SetIngame))
+    local group=Toggle(card,"group",function() return s().group end,function(v) s().group=v end);group.disabled=function() return not s().ingame end;place(group,36,18)
+    local guild=Toggle(card,"guild",function() return s().guild end,function(v) s().guild=v end);guild.disabled=function() return not s().ingame end;place(guild,36,18)
+    place(Toggle(card,"socialEnabled",function() return s().social~=false end,function(v) s().social=v end))
 
     section("liveSection")
-    place(Toggle(body, "liveParty", function() return s().liveParty == true end, function(v) A.SetLive("party", v) end))
-    place(Toggle(body, "liveGuild", function() return s().liveGuild == true end, function(v) A.SetLive("guild", v) end))
-    place(Toggle(body, "mapPins", function() return s().mapPins == true end, function(v) A.SetMapPins(v) end))
-    page.liveHint = label(body, 11, C.mist); page.liveHint:SetPoint("TOPLEFT", 0, y - 2); page.liveHint:SetWidth(600); y = y - 66
+    place(Toggle(card,"liveParty",function() return s().liveParty==true end,function(v) A.SetLive("party",v) end))
+    place(Toggle(card,"liveGuild",function() return s().liveGuild==true end,function(v) A.SetLive("guild",v) end))
+    place(Toggle(card,"liveFriends",function() return s().liveFriends==true end,function(v) A.SetLive("friends",v) end))
+    place(Toggle(card,"mapPins",function() return s().mapPins==true end,function(v) A.SetMapPins(v) end))
+    page.liveHint=note(48)
 
     section("webSection")
-    place(Toggle(body, "web", function() return s().web end, A.SetWeb))
-    for _, scope in ipairs({"world_facts", "own_runs", "own_character", "own_professions", "own_track", "guild_share"}) do
-        local t = Toggle(body, scope, function() return s().scopes[scope] == true end, function(v) A.SetScope(scope, v) end)
-        t.disabled = function() return not s().web end
-        t:SetPoint("TOPLEFT", 22, y); y = y - 28
+    place(Toggle(card,"web",function() return s().web end,A.SetWeb))
+    for _,scope in ipairs({"world_facts","own_runs","own_character","own_professions","own_track","guild_share"}) do
+        local key=scope
+        local t=Toggle(card,key,function() return s().scopes[key]==true end,function(v) A.SetScope(key,v) end);t.disabled=function() return not s().web end;place(t,40,18)
     end
-    page.webHint = label(body, 11, C.mist); page.webHint:SetPoint("TOPLEFT", 0, y - 4); page.webHint:SetWidth(600); y = y - 52
+    local liveWeb=Toggle(card,"liveWeb",function() return s().liveWeb==true end,function(v) s().liveWeb=v==true;if A.OpticalTick then A.OpticalTick() end end)
+    liveWeb.disabled=function() return not s().web end;place(liveWeb,40,18)
+    page.webLiveHint=note(60);page.webHint=note(60)
 
     section("interfaceSection")
-    page.langLabel = label(body, 12, C.text); page.langLabel:SetPoint("TOPLEFT", 0, y - 6)
-    page.langButtons = {}
-    for i, lang in ipairs({"en", "cs"}) do
-        local b = Button(body, nil, 48, "ghost", function() A.db.settings.language = lang; applyFonts(); A.RefreshUI() end)
-        b:SetPoint("TOPLEFT", 120 + (i - 1) * 54, y); b.text:SetText(lang:upper()); b.lang = lang
-        page.langButtons[i] = b
+    page.langLabel=label(card,12,C.text);page.langLabel:SetPoint("TOPLEFT",12,cy-6);page.langButtons={}
+    for i,lang in ipairs({"en","cs"}) do
+        local choice=lang
+        local b=Button(card,nil,48,"ghost",function() A.SetLanguage(choice) end)
+        b:SetPoint("TOPLEFT",132+(i-1)*54,cy);b.text:SetText(choice:upper());b.lang=choice;page.langButtons[i]=b
     end
-    y = y - 38
-    place(Toggle(body, "minimap", function() return not s().hideMinimap end, function(v) s().hideMinimap = not v; if minimapButton then minimapButton:SetShown(v) end end))
-    y = y - 10
+    cy=cy-38
+    place(Toggle(card,"minimap",function() return not s().hideMinimap end,function(v) s().hideMinimap=not v;if minimapButton then minimapButton:SetShown(v) end end))
 
     section("actionsSection")
-    page.actions = {
-        Button(body, "send", 150, "primary", function() local ok, err = A.ShareNow(); if not ok then A.Print(err or "sharing_error") end end),
-        Button(body, "export", 150, "ghost", showCopy),
-        Button(body, "confirm", 190, "ghost", function() A.FinishRun("manual", "last_boss"); A.RefreshUI() end),
+    page.actions={
+        Button(card,"send",150,"primary",function() local ok,err=A.ShareNow();if not ok then A.Print(err or "sharing_error") end end),
+        Button(card,"export",150,"ghost",showCopy),
+        Button(card,"confirm",190,"ghost",function() A.FinishRun("manual","last_boss");A.RefreshUI() end),
+        Button(card,"setupRun",150,"ghost",function() if A.OpenOnboarding then A.OpenOnboarding() end end),
     }
-    local x = 0
-    for _, b in ipairs(page.actions) do b:SetPoint("TOPLEFT", x, y); x = x + b:GetWidth() + 10 end
-    y = y - 50
+    local actionRow=kit.Columns(card,{1,1,1,1},8);actionRow:SetPoint("TOPLEFT",12,cy);actionRow:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy);actionRow:SetHeight(34)
+    for i,b in ipairs(page.actions) do b:ClearAllPoints();b:SetAllPoints(actionRow.cells[i]);b.text:SetPoint("LEFT",6,0);b.text:SetPoint("RIGHT",-6,0);b.text:SetWordWrap(true) end
+    cy=cy-42;page.actionHint=note(32)
 
-    section("diagnostics")
-    page.diag = label(body, 11, C.mist); page.diag:SetPoint("TOPLEFT", 0, y); page.diag:SetWidth(600)
-    y = y - 90
-    body:SetHeight(-y)
-
+    section("diagnostics");page.diag=note(100)
+    finish();body:SetHeight(math.max(1,-y))
     function page.Refresh()
-        for _, t in ipairs(toggles) do t.Update() end
-        for _, fs in ipairs(page.sections) do fs:SetText(A.L(fs.localeKey)) end
-        for _, b in ipairs(page.actions) do b.text:SetText(A.L(b.localeKey)) end
-        page.webHint:SetText(A.L("webHint"))
-        page.liveHint:SetText(A.L("liveHint"))
-        page.langLabel:SetText(A.L("language"))
-        for _, b in ipairs(page.langButtons) do b.text:SetTextColor(unpack(b.lang == s().language and C.lilac or C.mist)) end
-        page.diag:SetText(A.Diagnostics())
-        scroll.UpdateThumb()
+        for _,t in ipairs(toggles) do t.Update() end
+        for _,fs in ipairs(page.sections) do fs:SetText(A.L(fs.localeKey)) end
+        for _,b in ipairs(page.actions) do b.text:SetText(A.L(b.localeKey)) end
+        page.webHint:SetText(A.L("webHint"));page.webLiveHint:SetText(A.L("pageLiveWebHint"));page.liveHint:SetText(A.L("liveHint"));page.actionHint:SetText(A.L("pageActionHint"))
+        page.langLabel:SetText(A.L("language"));for _,b in ipairs(page.langButtons) do b.text:SetTextColor(unpack(b.lang==s().language and C.lilac or C.mist)) end
+        page.diag:SetText(A.Diagnostics());scroll.UpdateThumb()
     end
 end
 
@@ -808,83 +944,283 @@ function A.Diagnostics()
     for event, state in pairs(A.capabilities) do if state == "unsupported" then unavailable[#unavailable + 1] = event end end
     table.sort(unavailable)
     out[#out + 1] = A.L("unsupported") .. ": " .. (#unavailable > 0 and table.concat(unavailable, ", ") or "0")
+    if A.lastUIError then out[#out + 1] = "ui: " .. plain(A.lastUIError) end
     return table.concat(out, "\n")
+end
+
+-- The scale of the window: 60 % to 160 %, kept between sessions (the header has - and + and Ctrl + mouse wheel works too).
+local SCALE_MIN, SCALE_MAX, SCALE_STEP = 0.6, 1.6, 0.05
+function A.GetUIScale()
+    local value = A.db and A.db.settings and tonumber(A.db.settings.uiScale)
+    return value and math.max(SCALE_MIN, math.min(SCALE_MAX, value)) or 1
+end
+
+-- The size of the window: dragged by the corner, kept between sessions and never bigger than the screen.
+local function screenRoom()
+    local scale = frame and frame.GetScale and frame:GetScale()
+    scale = math.max(SCALE_MIN, tonumber(scale) or A.GetUIScale())
+    local parentWidth = type(UIParent) == "table" and UIParent.GetWidth and UIParent:GetWidth()
+    local parentHeight = type(UIParent) == "table" and UIParent.GetHeight and UIParent:GetHeight()
+    local sw, sh = tonumber(parentWidth) or 1920, tonumber(parentHeight) or 1080
+    return math.max(MIN_W, math.floor(sw / scale) - 30), math.max(MIN_H, math.floor(sh / scale) - 30)
+end
+function A.GetUISize()
+    local s = A.db and A.db.settings
+    local w = s and tonumber(s.uiWidth) or DEFAULT_W
+    local h = s and tonumber(s.uiHeight) or DEFAULT_H
+    local maxW, maxH = screenRoom()
+    return math.max(MIN_W, math.min(maxW, math.floor(w + 0.5))), math.max(MIN_H, math.min(maxH, math.floor(h + 0.5)))
+end
+local layoutShell, ensureNavVisible
+local function applyLimits()
+    if not frame then return end
+    local maxW, maxH = screenRoom()
+    if frame.SetResizeBounds then pcall(frame.SetResizeBounds, frame, MIN_W, MIN_H, maxW, maxH)
+    else
+        if frame.SetMinResize then pcall(frame.SetMinResize, frame, MIN_W, MIN_H) end
+        if frame.SetMaxResize then pcall(frame.SetMaxResize, frame, maxW, maxH) end
+    end
+end
+function A.SetUISize(width, height)
+    if not A.db then return DEFAULT_W, DEFAULT_H end
+    local s = A.db.settings
+    s.uiWidth, s.uiHeight = tonumber(width) or DEFAULT_W, tonumber(height) or DEFAULT_H
+    local w, h = A.GetUISize()
+    s.uiWidth, s.uiHeight = w, h
+    if frame then frame:SetSize(w, h); applyLimits(); if layoutShell then layoutShell() end end
+    return w, h
+end
+function A.ResetUISize()
+    if A.db then A.db.settings.uiWidth, A.db.settings.uiHeight = nil, nil end
+    local w, h = A.GetUISize()
+    if frame then frame:SetSize(w, h); frame:ClearAllPoints(); frame:SetPoint("CENTER"); applyLimits(); if layoutShell then layoutShell() end end
+    return w, h
+end
+function A.SetUIScale(value)
+    if not A.db then return 1 end
+    value = math.max(SCALE_MIN, math.min(SCALE_MAX, math.floor((tonumber(value) or 1) / SCALE_STEP + 0.5) * SCALE_STEP))
+    A.db.settings.uiScale = value
+    if frame then
+        frame:SetScale(value)
+        -- a bigger scale leaves less room on the screen: keep the window inside it
+        local w, h = A.GetUISize(); frame:SetSize(w, h); applyLimits(); if layoutShell then layoutShell() end
+    end
+    return value
 end
 
 local function select(view)
     selected = view
+    if A.db then A.db.settings.lastView = view end
     for key, page in pairs(pages) do page:SetShown(key == view) end
+    if ensureNavVisible then ensureNavVisible(view) end
     A.RefreshUI()
 end
 
-local function NavButton(parent, view, index)
-    local b = CreateFrame("Button", nil, parent); b:SetSize(SIDEBAR - 16, 36)
-    b:SetPoint("TOPLEFT", 8, -14 - (index - 1) * 40)
-    b.bg = fill(b, C.lilac, 0)
+local function navScroll(value)
+    local scroll = shell.navScroll
+    if not scroll then return end
+    value = math.max(0, math.min(tonumber(scroll.maxScroll) or 0, tonumber(value) or 0))
+    scroll:SetVerticalScroll(value)
+    if shell.navUp then shell.navUp:SetShown(value > 0) end
+    if shell.navDown then shell.navDown:SetShown(value < (scroll.maxScroll or 0)) end
+end
+ensureNavVisible = function(view)
+    local scroll, button = shell.navScroll, navByView[view]
+    if not scroll or not button or not button.navTop then return end
+    local value = tonumber(scroll:GetVerticalScroll()) or 0
+    local height = tonumber(scroll:GetHeight()) or 0
+    if button.navTop < value then value = button.navTop - 4
+    elseif button.navBottom > value + height then value = button.navBottom - height + 4 end
+    navScroll(value)
+end
+
+local function NavButton(parent, view)
+    local b = CreateFrame("Button", nil, parent); b:SetHeight(30)
+    b.bg = fill(b, C.lilac, 1); b.bg:SetAlpha(0)   -- the tint is its alpha: it shows when the item is selected or hovered
     b.bar = b:CreateTexture(nil, "ARTWORK"); b.bar:SetSize(3, 22); b.bar:SetPoint("LEFT"); paint(b.bar, C.lilac)
     b.icon = b:CreateTexture(nil, "ARTWORK"); b.icon:SetSize(20, 20); b.icon:SetPoint("LEFT", 14, 0); setIcon(b.icon, ICON[view])
     b.text = label(b, 13, C.mist); b.text:SetPoint("LEFT", b.icon, "RIGHT", 10, 0)
     b.viewKey, b.localeKey = view, view
-    b:SetScript("OnEnter", function() if selected ~= view then b.bg:SetAlpha(0.06) end end)
-    b:SetScript("OnLeave", function() if selected ~= view then b.bg:SetAlpha(0) end end)
+    b:SetScript("OnEnter", function()
+        if selected ~= view then b.bg:SetAlpha(0.06) end
+        -- with only the icons left the name is shown as a tooltip
+        if shell.compact and GameTooltip then pcall(function() GameTooltip:SetOwner(b, "ANCHOR_RIGHT"); GameTooltip:SetText(A.L(view)); GameTooltip:Show() end) end
+    end)
+    b:SetScript("OnLeave", function() if selected ~= view then b.bg:SetAlpha(0) end; if GameTooltip then GameTooltip:Hide() end end)
     b:SetScript("OnClick", function() select(view) end)
     return b
 end
 
--- The helpers other addon files (SocialUI.lua) build their windows from.
+-- Positions the side menu for the height of the window and for the compact (icons only) form.
+local function layoutNav()
+    if not frame then return end
+    local compact = shell.compact == true
+    local height = tonumber(shell.navScroll:GetHeight()) or ((tonumber(frame:GetHeight()) or DEFAULT_H) - HEADER - 40)
+    local headings = 0
+    for _, group in ipairs(NAV) do if group.head then headings = headings + 1 end end
+    local headH = compact and 14 or 24
+    local avail = height - headings * headH - 28
+    local itemH = math.max(24, math.min(34, math.floor(avail / #VIEWS)))
+    local y = -10
+    for g, group in ipairs(NAV) do
+        if group.head then
+            local entry = navHeads[group.head]
+            entry.fs:ClearAllPoints(); entry.fs:SetPoint("TOPLEFT", 18, y - 6); entry.fs:SetShown(not compact)
+            entry.rule:ClearAllPoints(); entry.rule:SetPoint("TOPLEFT", 12, y - 7); entry.rule:SetPoint("TOPRIGHT", -12, y - 7); entry.rule:SetShown(compact)
+            y = y - headH
+        elseif g > 1 then y = y - 8 end
+        for _, view in ipairs(group) do
+            local b = navByView[view]
+            b:ClearAllPoints(); b:SetPoint("TOPLEFT", 8, y); b:SetPoint("TOPRIGHT", -8, y); b:SetHeight(itemH)
+            b.icon:ClearAllPoints(); b.icon:SetPoint(compact and "CENTER" or "LEFT", compact and 2 or 14, 0)
+            b.text:SetShown(not compact)
+            b.navTop, b.navBottom = -y, -y + itemH
+            y = y - itemH
+        end
+    end
+    shell.navChild:SetSize(shell.side:GetWidth(), math.max(height, -y + 10))
+    shell.navScroll.maxScroll = math.max(0, -y + 10 - height)
+    shell.navScroll.scrollStep = itemH * 3
+    navScroll(shell.navScroll:GetVerticalScroll())
+    ensureNavVisible(selected)
+end
+
+layoutShell = function()
+    if not frame or not shell.side then return end
+    local width = tonumber(frame:GetWidth()) or DEFAULT_W
+    shell.compact = width < COMPACT_BELOW
+    shell.side:SetWidth(shell.compact and COMPACT_SIDEBAR or SIDEBAR)
+    header.hint:SetShown(not shell.compact)
+    layoutNav()
+end
+
+-- The helpers other addon files (SocialUI.lua and the page files) build their windows from; Widgets.lua adds to them.
+local kitCache
 function A.UIKit()
-    return {C = C, ICON = ICON, Button = Button, label = label, fill = fill, outline = outline, ScrollArea = ScrollArea, ListView = ListView, PageHeader = PageHeader,
-        SectionTitle = SectionTitle, setIcon = setIcon, classIcon = classIcon, plain = plain, stamp = stamp, itemIcon = itemIcon, WIDTH = WIDTH, SIDEBAR = SIDEBAR, PAD = PAD, ROW = ROW}
+    if kitCache then return kitCache end
+    kitCache = {C = C, ICON = ICON, Button = Button, label = label, fill = fill, outline = outline, paint = paint, gradient = gradient, ScrollArea = ScrollArea, ListView = ListView,
+        PageHeader = PageHeader, SectionTitle = SectionTitle, setIcon = setIcon, classIcon = classIcon, classColor = classColor, raceIcon = raceIcon, identityText = identityText,
+        mapName = mapName, plain = plain, stamp = stamp, duration = duration, itemIcon = itemIcon, fold = fold, eventItem = eventItem, runItem = runItem, fontPath = fontPath,
+        trackFont = function(fs, size) fontStrings[#fontStrings + 1] = {fs = fs, size = size} end,
+        WIDTH = WIDTH, SIDEBAR = SIDEBAR, PAD = PAD, ROW = ROW}
+    if A.ExtendKit then A.ExtendKit(kitCache) end
+    return kitCache
+end
+
+-- Builds one page with code from another file; whatever goes wrong there leaves a plain page and a counted error, never a broken window.
+local function buildExternal(view, builder, errorKey, fallback)
+    local page = pages[view]
+    if builder then
+        local ok, err = pcall(builder, page, A.UIKit())
+        if not ok then A.errors[errorKey] = (A.errors[errorKey] or 0) + 1; A.lastUIError = tostring(err) end
+        if ok and page.Refresh then return end
+    end
+    if fallback then fallback(page) end
+    if not page.title then PageHeader(page, view) end
+    if not page.Refresh then page.Refresh = function() end end
 end
 
 local function build()
+    local width, height = A.GetUISize()
     frame = CreateFrame("Frame", "EvertallyFrame", UIParent)
-    frame:SetSize(WIDTH, HEIGHT); frame:SetPoint("CENTER"); frame:SetFrameStrata("HIGH")
+    frame:SetSize(width, height); frame:SetPoint("CENTER"); frame:SetFrameStrata("HIGH")
     frame:SetMovable(true); frame:EnableMouse(true); frame:SetClampedToScreen(true)
-    fill(frame, C.canvas, 0.97); outline(frame, {C.lilac[1], C.lilac[2], C.lilac[3], 0.25})
+    frame:SetScale(A.GetUIScale())
+    if frame.SetResizable then pcall(frame.SetResizable, frame, true) end
+    applyLimits()
+    frame:EnableMouseWheel(true)
+    frame:SetScript("OnMouseWheel", function(_, delta) if IsControlKeyDown and IsControlKeyDown() then A.SetUIScale(A.GetUIScale() + delta * 0.1) end end)
+    A.NativeFrame(frame, C)
 
-    local bar = CreateFrame("Frame", nil, frame); bar:SetPoint("TOPLEFT"); bar:SetPoint("TOPRIGHT"); bar:SetHeight(HEADER)
-    gradient(fill(bar, C.header), {0.20, 0.15, 0.30}, C.canvas)
-    local rule = bar:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); paint(rule, C.line)
+    local bar = CreateFrame("Frame", nil, frame); bar:SetPoint("TOPLEFT", 6, -6); bar:SetPoint("TOPRIGHT", -6, -6); bar:SetHeight(HEADER)
+    fill(bar, C.header, 0.97)
+    local top = bar:CreateTexture(nil, "BORDER"); top:SetHeight(1); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); paint(top, {C.gold[1] * 0.7, C.gold[2] * 0.66, C.gold[3] * 0.8}, 0.65)
+    local rule = bar:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); paint(rule, {C.gold[1] * 0.7, C.gold[2] * 0.66, C.gold[3] * 0.8}, 0.45)
     bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() frame:StartMoving() end)
     bar:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
     local logo = bar:CreateTexture(nil, "ARTWORK"); logo:SetSize(30, 30); logo:SetPoint("LEFT", 16, 0); setLogo(logo)
-    header.title = label(bar, 18, C.text); header.title:SetPoint("LEFT", logo, "RIGHT", 10, 1); header.title:SetText("Evertally")
+    header.title = label(bar, 18, C.gold); header.title:SetPoint("LEFT", logo, "RIGHT", 10, 1); header.title:SetText("Evertally")
     header.version = label(bar, 10, C.faint); header.version:SetPoint("LEFT", header.title, "RIGHT", 8, -1); header.version:SetText("v" .. A.version)
+    local zoomOut = Button(bar, nil, 28, "ghost", function() A.SetUIScale(A.GetUIScale() - 0.1) end); zoomOut:SetPoint("LEFT", header.version, "RIGHT", 18, 0); zoomOut.text:SetText("-")
+    local zoomIn = Button(bar, nil, 28, "ghost", function() A.SetUIScale(A.GetUIScale() + 0.1) end); zoomIn:SetPoint("LEFT", zoomOut, "RIGHT", 4, 0); zoomIn.text:SetText("+")
     local close = Button(bar, nil, 30, "ghost", function() frame:Hide() end); close:SetPoint("RIGHT", -14, 0); close.text:SetText("x")
     header.web = Pill(bar); header.web:SetPoint("RIGHT", close, "LEFT", -12, 0)
     header.share = Pill(bar); header.share:SetPoint("RIGHT", header.web, "LEFT", -8, 0)
     header.live = Pill(bar); header.live:SetPoint("RIGHT", header.share, "LEFT", -8, 0)
 
-    local side = CreateFrame("Frame", nil, frame); side:SetPoint("TOPLEFT", 0, -HEADER); side:SetPoint("BOTTOMLEFT"); side:SetWidth(SIDEBAR)
+    local side = CreateFrame("Frame", nil, frame); side:SetPoint("TOPLEFT", 6, -HEADER - 6); side:SetPoint("BOTTOMLEFT", 6, 6); side:SetWidth(SIDEBAR)
+    shell.side = side
     fill(side, C.side, 0.9)
     local sideRule = side:CreateTexture(nil, "BORDER"); sideRule:SetWidth(1); sideRule:SetPoint("TOPRIGHT"); sideRule:SetPoint("BOTTOMRIGHT"); paint(sideRule, C.line)
-    for i, view in ipairs(VIEWS) do navButtons[i] = NavButton(side, view, i) end
-    header.hint = label(side, 10, C.faint); header.hint:SetPoint("BOTTOMLEFT", 14, 14); header.hint:SetWidth(SIDEBAR - 28); header.hint:SetText("/etally")
+    local navViewport = CreateFrame("ScrollFrame", "EvertallyNavigationScroll", side)
+    navViewport:SetPoint("TOPLEFT"); navViewport:SetPoint("BOTTOMRIGHT", 0, 28)
+    navViewport:EnableMouseWheel(true)
+    local navChild = CreateFrame("Frame", "EvertallyNavigationContent", navViewport); navChild:SetSize(SIDEBAR, 500)
+    navViewport:SetScrollChild(navChild)
+    shell.navScroll, shell.navChild = navViewport, navChild
+    navViewport:SetScript("OnMouseWheel", function(self, delta)
+        if IsControlKeyDown and IsControlKeyDown() then A.SetUIScale(A.GetUIScale() + delta * 0.1)
+        else navScroll((tonumber(self:GetVerticalScroll()) or 0) - delta * (self.scrollStep or 72)) end
+    end)
+    local footerRule = side:CreateTexture(nil, "BORDER"); footerRule:SetHeight(1)
+    footerRule:SetPoint("BOTTOMLEFT", 8, 27); footerRule:SetPoint("BOTTOMRIGHT", -8, 27); paint(footerRule, C.line)
+    shell.navDown = Button(side, nil, 18, "ghost", function() navScroll((tonumber(navViewport:GetVerticalScroll()) or 0) + (navViewport.scrollStep or 72)) end)
+    shell.navDown:SetHeight(18); shell.navDown:SetPoint("BOTTOMRIGHT", -8, 5); shell.navDown.text:SetText("v")
+    shell.navUp = Button(side, nil, 18, "ghost", function() navScroll((tonumber(navViewport:GetVerticalScroll()) or 0) - (navViewport.scrollStep or 72)) end)
+    shell.navUp:SetHeight(18); shell.navUp:SetPoint("RIGHT", shell.navDown, "LEFT", -2, 0); shell.navUp.text:SetText("^")
+    for _, group in ipairs(NAV) do
+        if group.head then
+            local rule = navChild:CreateTexture(nil, "BORDER"); rule:SetHeight(1); paint(rule, C.line); rule:Hide()
+            navHeads[group.head] = {fs = label(navChild, 10, C.faint), rule = rule, head = group.head}
+            navHeads[#navHeads + 1] = navHeads[group.head]
+        end
+        for _, view in ipairs(group) do
+            local b = NavButton(navChild, view)
+            navButtons[#navButtons + 1] = b; navByView[view] = b
+        end
+    end
+    header.hint = label(side, 10, C.faint); header.hint:SetPoint("BOTTOMLEFT", 14, 9); header.hint:SetWidth(SIDEBAR - 72); header.hint:SetText("/etally")
 
     content = CreateFrame("Frame", nil, frame)
-    content:SetPoint("TOPLEFT", SIDEBAR + PAD, -HEADER - PAD); content:SetPoint("BOTTOMRIGHT", -PAD, PAD)
+    content:SetPoint("TOPLEFT", side, "TOPRIGHT", PAD, -PAD); content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PAD - 6, PAD + 6)
     for _, view in ipairs(VIEWS) do
         local page = CreateFrame("Frame", nil, content); page:SetAllPoints(content); page:Hide()
         pages[view] = page
     end
-    buildOverview(pages.overview)
-    buildList(pages.history, "history", historyItems)
+    buildExternal("overview", A.BuildOverviewPage, "overview_page", overviewFallback)
+    buildExternal("journal", A.BuildJournalPage, "journal_page")
+    buildHistory(pages.history)
     buildProfessions(pages.professions)
     buildPlaces(pages.places)
-    buildList(pages.facts, "facts", factItems)
-    buildList(pages.rankings, "rankings", function() return rankingItems(), A.L("noData") end)
-    buildList(pages.peers, "peers", peerItems)
+    buildFacts(pages.facts)
+    buildExternal("rankings", A.BuildRankingsPage, "rankings_page", function(page) buildList(page, "rankings", function() return rankingItems(), A.L("noData") end) end)
     buildCommunity(pages.community)
     buildSettings(pages.settings)
-    -- the Social page lives in SocialUI.lua; if it cannot be built the rest of the window still works
-    if A.BuildSocialPage then
-        local ok = pcall(A.BuildSocialPage, pages.social, A.UIKit())
-        if not ok then A.errors.social_page = (A.errors.social_page or 0) + 1 end
-    end
-    if not pages.social.Refresh then PageHeader(pages.social, "social"); pages.social.Refresh = function() end end
+    -- the Social page lives in SocialUI.lua, the World page in WorldHost.lua (its code in Evertally_Map, loaded on first use)
+    buildExternal("social", A.BuildSocialPage, "social_page")
+    buildExternal("world", A.BuildWorldPage, "world_page")
+    buildExternal("database", A.BuildDatabasePage, "database_page")
+    buildExternal("dungeons", A.BuildDungeonsPage, "dungeons_page")
+    buildExternal("recipes", A.BuildRecipesPage, "recipes_page")
+    buildExternal("talents", A.BuildTalentsPage, "talents_page")
+    buildExternal("guides", A.BuildGuidesPage, "guides_page")
     if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyFrame" end
+
+    -- the corner that resizes the window
+    local grip = CreateFrame("Button", nil, frame)
+    grip:SetSize(18, 18); grip:SetPoint("BOTTOMRIGHT", -3, 3); grip:SetFrameLevel((frame:GetFrameLevel() or 1) + 30)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetScript("OnMouseDown", function() if frame.StartSizing then frame:StartSizing("BOTTOMRIGHT") end end)
+    grip:SetScript("OnMouseUp", function() frame:StopMovingOrSizing(); A.SetUISize(frame:GetWidth(), frame:GetHeight()) end)
+    shell.grip = grip
+    frame:SetScript("OnSizeChanged", function() layoutShell() end)
+
+    local saved = A.db.settings.lastView
+    if type(saved) == "string" and pages[saved] then selected = saved end
+    layoutShell()
     pages[selected]:Show()
 end
 
@@ -896,6 +1232,8 @@ function A.RefreshUI()
     -- sharing a live position must never be invisible
     header.live:SetShown(A.LiveActive and A.LiveActive() or false)
     if header.live:IsShown() then header.live.Set(A.L("livePill"), C.peach) end
+    for _, entry in ipairs(navHeads) do entry.fs:SetText(A.L(entry.head)) end
+    for _, b in ipairs(localeButtons) do b.text:SetText(A.L(b.localeKey)) end
     for _, b in ipairs(navButtons) do
         local on = b.viewKey == selected
         b.text:SetText(A.L(b.viewKey)); b.text:SetTextColor(unpack(on and C.text or C.mist))
@@ -903,7 +1241,9 @@ function A.RefreshUI()
     end
     local page = pages[selected]
     page.title:SetText(A.L(page.titleKey)); page.subtitle:SetText(A.L("sub_" .. page.titleKey))
-    page.Refresh()
+    -- a page that fails to draw is counted and reported by /etally diag; it must not take the event that asked for the redraw down with it
+    local ok, err = pcall(page.Refresh)
+    if not ok then A.errors.ui_refresh = (A.errors.ui_refresh or 0) + 1; A.lastUIError = selected .. ": " .. tostring(err) end
 end
 
 function A.OpenUI()
@@ -912,8 +1252,35 @@ function A.OpenUI()
     frame:Show(); A.RefreshUI()
 end
 
+--- Opens the window on one of its pages.
+function A.ShowView(view)
+    A.OpenUI()
+    if pages[view] then select(view) end
+end
+
 function A.ToggleUI()
     if frame and frame:IsShown() then frame:Hide() else A.OpenUI() end
+end
+function A.OverviewShown() return frame ~= nil and frame:IsShown() and selected == "overview" end
+
+--- The language of the add-on ("en" or "cs"): kept, the fonts that carry the letters follow it and every page is drawn again.
+function A.SetLanguage(language)
+    if not A.db or (language ~= "en" and language ~= "cs") then return false end
+    A.db.settings.language = language
+    applyFonts()
+    A.RefreshUI()
+    return true
+end
+--- Shows or hides the button at the minimap (kept in the settings).
+function A.SetMinimapButton(show)
+    if not A.db then return end
+    A.db.settings.hideMinimap = not show
+    if minimapButton then minimapButton:SetShown(show and true or false) end
+end
+--- Whether OpenMap is installed (it publishes OpenMapAPI when it loads).
+function A.OpenMapInstalled()
+    local api = rawget(_G, "OpenMapAPI")
+    return type(api) == "table" and type(api.RegisterMenuToggle) == "function"
 end
 
 -- ---------- minimap button ----------
@@ -970,6 +1337,12 @@ local function slash(text)
     elseif text == "finish" then A.FinishRun("manual")
     elseif text == "export" then showCopy()
     elseif text == "diag" then A.Print(A.Diagnostics())
+    elseif text == "reset" then A.ResetUISize(); A.Print(A.L("windowReset"))
+    elseif text == "setup" then
+        if A.OpenOnboarding then A.OpenOnboarding() end
+    elseif text == "map" then
+        -- the map: OpenMap's (Evertally's layers are drawn on it)
+        if type(ToggleWorldMap) == "function" then pcall(ToggleWorldMap) end
     elseif text == "web on" then A.SetWeb(true)
     elseif text == "web off" then A.SetWeb(false)
     elseif text == "share on" then A.SetIngame(true)
@@ -986,6 +1359,8 @@ local function slash(text)
         local ok, err = A.NavigateByName(text:match("^go%s+(.+)$"))
         A.Print(ok and string.format(A.L("navStarted"), A.Text(text:match("^go%s+(.+)$"), 60)) or A.L("navErr_" .. tostring(err)))
     elseif text == "stop" then A.StopNavigation(); A.Print(A.L("navStopped"))
+    elseif text == "arrow" then
+        if not A.ToggleArrow() and not (A.map and A.map.SetArrowShown) then A.Print(A.L("terrainMapOff")) end
     elseif text == "terrain" then
         if not A.map or not A.map.NavigateTerrain then A.Print(A.L("terrainMapOff"))
         else

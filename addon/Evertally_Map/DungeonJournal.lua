@@ -1,0 +1,479 @@
+local _, M = ...
+local A = _G.Evertally
+-- The Dungeon Journal page, built like the journal itself: a grid of cards with the dungeon's banner, and inside a dungeon three tabs: Bosses (a list
+-- of them with their level; the loot of one as rows with the item's icon, its name in the colour of its quality and its slot; the game's tooltip on the
+-- mouse), Quests (the quests of the dungeon: what they ask, who gives them, where to hand them in, what they reward) and Map (the dungeon's map with
+-- its bosses). The data and the art are the DungeonJournal add-on's (ForeverDungeonJournal_NS: DB, BOSS_LEVELS, DUNGEON_HOME_ART, DUNGEON_MAPS); the
+-- art is used by its file path, nothing is copied. Without that add-on the page lists the instances Evertally knows and says what is missing.
+local CARD_H, GAP, ROW_H, ROWS_MAX = 118, 10, 36, 16
+local GOLD = {1, 0.82, 0.25}
+local QUEST_ICON, BOSS_ICON = "Interface\\GossipFrame\\AvailableQuestIcon", "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01"
+
+local text = {
+    en = {dungeonsSearch = "Search for dungeons", dungeonsCount = "%d dungeons and raids", dungeonsBosses = "Bosses", dungeonsQuests = "Quests", dungeonsMap = "Map",
+        dungeonsBack = "< Dungeons", dungeonsNone = "Nothing found.", dungeonsQuestCount = "%d quests", dungeonsLv = "LV %s", dungeonsFrom = "Available from level %s",
+        dungeonsObjective = "Objective", dungeonsStarts = "Starts at", dungeonsTurnin = "Turn in", dungeonsChoose = "Choose one reward", dungeonsAlso = "You will also receive",
+        dungeonsLoot = "Loot", dungeonsNoLoot = "No loot is listed.", dungeonsNoBosses = "No bosses are listed for this one.", dungeonsNoQuests = "No quests are listed for this one.",
+        dungeonsNoMap = "There is no map for this dungeon.", dungeonsEntrance = "Entrance", dungeonsShow = "Show the entrance on the map", dungeonsGo = "Navigate to the entrance",
+        dungeonsNoJournal = "The DungeonJournal add-on is not installed, so there is no list of bosses, loot and quests here. Install it (CurseForge) and reload.",
+        dungeonsFaction = "%s only", dungeonsInDb = "Open the quest in the database", dungeonsPlayers = "%d players", dungeonsIn = "In %s",
+        dungeonsLevel = "Level %s", dungeonsPickup = "From", dungeonsRewards = "Reward"},
+    cs = {dungeonsSearch = "Hledat dungeony", dungeonsCount = "Dungeonů a raidů: %d", dungeonsBosses = "Bossové", dungeonsQuests = "Questy", dungeonsMap = "Mapa",
+        dungeonsBack = "< Dungeony", dungeonsNone = "Nic nenalezeno.", dungeonsQuestCount = "Questů: %d", dungeonsLv = "LV %s", dungeonsFrom = "Dostupné od úrovně %s",
+        dungeonsObjective = "Cíl", dungeonsStarts = "Začíná u", dungeonsTurnin = "Odevzdat u", dungeonsChoose = "Vyber jednu odměnu", dungeonsAlso = "Dostaneš také",
+        dungeonsLoot = "Loot", dungeonsNoLoot = "Žádný loot není uvedený.", dungeonsNoBosses = "U tohohle nejsou uvedení žádní bossové.", dungeonsNoQuests = "U tohohle nejsou uvedené žádné questy.",
+        dungeonsNoMap = "Pro tenhle dungeon není mapa.", dungeonsEntrance = "Vchod", dungeonsShow = "Ukázat vchod na mapě", dungeonsGo = "Navigovat ke vchodu",
+        dungeonsNoJournal = "Addon DungeonJournal není nainstalovaný, takže tu není seznam bossů, lootu a questů. Nainstaluj ho (CurseForge) a načti znovu.",
+        dungeonsFaction = "Jen %s", dungeonsInDb = "Otevřít quest v databázi", dungeonsPlayers = "Hráčů: %d", dungeonsIn = "V %s",
+        dungeonsLevel = "Úroveň %s", dungeonsPickup = "Od", dungeonsRewards = "Odměna"},
+}
+for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
+
+-- ---------------------------------------------------------------- the data
+local function journal()
+    local ns = rawget(_G, "ForeverDungeonJournal_NS")
+    return type(ns) == "table" and type(ns.DB) == "table" and ns or nil
+end
+local function firstNumber(level) return tonumber(tostring(level or ""):match("^(%d+)")) or 0 end
+
+--- The dungeons and raids, lowest level first: {key, name, level, min, location, icon, source, data, banner, texcoord, quests}. From the DungeonJournal
+--- add-on when it is there, else from the instances Evertally has the entrances of.
+function M.DungeonList()
+    local out, fdj = {}, journal()
+    if fdj then
+        for name, d in pairs(fdj.DB) do
+            if type(d) == "table" and type(name) == "string" then
+                local art = type(fdj.DUNGEON_HOME_ART) == "table" and fdj.DUNGEON_HOME_ART[name] or nil
+                local coords = type(fdj.DUNGEON_HOME_TEXCOORD) == "table" and fdj.DUNGEON_HOME_TEXCOORD[name] or nil
+                out[#out + 1] = {key = name, name = name, level = tostring(d.level or ""), min = firstNumber(d.level), location = type(d.location) == "string" and d.location or "",
+                    icon = d.icon, source = "journal", data = d, banner = art, texcoord = coords, quests = type(d.quests) == "table" and #d.quests or 0}
+            end
+        end
+    elseif M.Instances then
+        for _, item in ipairs(M.Instances("", "all")) do
+            local level = item.level and (tostring(item.level[1]) .. "-" .. tostring(item.level[2])) or ""
+            out[#out + 1] = {key = item.key, name = item.name, level = level, min = item.level and item.level[1] or 0, location = item.map and M.MapName(item.map) or "", source = "layer", item = item, quests = 0}
+        end
+    end
+    table.sort(out, function(a, b) if a.min ~= b.min then return a.min < b.min end return a.name < b.name end)
+    return out
+end
+
+local function matches(entry, query)
+    if query == "" then return true end
+    return entry.name:lower():find(query, 1, true) ~= nil or (entry.location or ""):lower():find(query, 1, true) ~= nil
+end
+
+--- The entrance of a dungeon on the map, when Evertally has it: the instance with the same name.
+local function entranceOf(entry)
+    if entry.item and entry.item.map then return entry.item end
+    for _, item in ipairs(M.Instances and M.Instances(entry.name, "all") or {}) do
+        if item.map and item.name:lower() == entry.name:lower() then return item end
+    end
+    for _, item in ipairs(M.Instances and M.Instances(entry.name, "all") or {}) do if item.map then return item end end
+end
+
+--- The quests of the dungeon journal by id, as rows for the record window (a quest QuestieDB does not know is often there).
+function M.DungeonQuestRows(id)
+    local fdj = journal()
+    if not fdj then return nil end
+    for dungeon, d in pairs(fdj.DB) do
+        for _, quest in ipairs(type(d) == "table" and type(d.quests) == "table" and d.quests or {}) do
+            if quest.id == id then
+                local rows = {{title = A.Plain(quest.name or ("#" .. tostring(id))), sub = A.Plain(tostring(dungeon) .. (quest.level and ("  ·  " .. string.format(A.L("dungeonsLevel"), quest.level)) or ""))}}
+                local function add(label, value)
+                    if type(value) == "string" and value ~= "" then rows[#rows + 1] = {title = A.Plain(value), sub = A.L(label)} end
+                end
+                add("dungeonsObjective", quest.objective); add("dungeonsPickup", quest.pickup); add("dungeonsTurnin", quest.turnin); add("dungeonsRewards", (quest.rewards or ""):gsub("\n", "  ·  "))
+                return rows
+            end
+        end
+    end
+end
+
+local function portraitOf(boss)
+    if boss.customIcon then return boss.customIcon end
+    local saved = rawget(_G, "ForeverDungeonJournalDB")
+    local cache = type(saved) == "table" and saved.portraitTexturesByNpcID
+    local portrait = type(cache) == "table" and boss.npcID and cache[boss.npcID]
+    return portrait or BOSS_ICON
+end
+local function bossLevel(entry, boss)
+    local fdj = journal()
+    local levels = fdj and type(fdj.BOSS_LEVELS) == "table" and fdj.BOSS_LEVELS[entry.name]
+    return type(levels) == "table" and levels[boss.name] or nil
+end
+
+-- ---------------------------------------------------------------- the detail of a boss and of a quest
+local function showBoss(dj, boss)
+    local d = dj.detail
+    d.Reset()
+    local level = bossLevel(dj.selected, boss)
+    d.Text(tostring(boss.name or "?") .. (level and ("   " .. string.format(A.L("dungeonsLv"), level)) or ""), dj.kit.C.text, 16)
+    d.Head(A.L("dungeonsLoot"))
+    local shown = 0
+    for _, item in ipairs(type(boss.loot) == "table" and boss.loot or {}) do
+        local id = type(item) == "table" and tonumber(item[1])
+        if id then
+            shown = shown + 1
+            d.Link({icon = M.ItemLook(id), title = item[2] or ("#" .. id), sub = item[3], quality = item[4], itemId = id, extra = item[3],
+                onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item", id) end end})
+        end
+    end
+    if shown == 0 then d.Text(A.L("dungeonsNoLoot"), dj.kit.C.mist) end
+    d.Done()
+end
+
+local function showQuest(dj, quest)
+    local d, C = dj.detail, dj.kit.C
+    d.Reset()
+    d.Text(tostring(quest.name or "?"), C.text, 16)
+    local bits = {}
+    if quest.requires then bits[#bits + 1] = string.format(A.L("dungeonsFrom"), quest.requires) end
+    if quest.level then bits[#bits + 1] = string.format(A.L("dungeonsLevel"), quest.level) end
+    if quest.faction and quest.faction ~= "Both" then bits[#bits + 1] = string.format(A.L("dungeonsFaction"), quest.faction) end
+    if #bits > 0 then d.Text(table.concat(bits, "  ·  "), C.mist, 11) end
+    local function section(key, value)
+        if type(value) == "string" and value ~= "" then d.Head(A.L(key)); d.Text(value, C.text) end
+    end
+    section("dungeonsObjective", quest.objective)
+    section("dungeonsStarts", quest.pickup)
+    section("dungeonsTurnin", quest.turnin)
+    local rewards = {}
+    for _, item in ipairs(type(quest.rewardItems) == "table" and quest.rewardItems or {}) do
+        if type(item) == "table" and tonumber(item[1]) then rewards[#rewards + 1] = item end
+    end
+    if #rewards > 0 then
+        d.Head(A.L(quest.rewardChoice and "dungeonsChoose" or "dungeonsRewards"))
+        for _, item in ipairs(rewards) do
+            local id = tonumber(item[1])
+            d.Link({icon = M.ItemLook(id), title = item[2] or ("#" .. id), quality = item[3], itemId = id, onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item", id) end end})
+        end
+    end
+    if type(quest.rewards) == "string" and quest.rewards ~= "" then
+        local extra = {}
+        for line in (quest.rewards .. "\n"):gmatch("([^\n]*)\n") do
+            if line ~= "" and not line:find("^Choose") then extra[#extra + 1] = line end
+        end
+        if #extra > 0 then d.Head(A.L("dungeonsAlso")); for _, line in ipairs(extra) do d.Text(line, C.text) end end
+    end
+    if tonumber(quest.id) then
+        d.Link({icon = QUEST_ICON, title = A.L("dungeonsInDb"), sub = "#" .. quest.id, onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("quest", tonumber(quest.id)) end end})
+    end
+    d.Done()
+end
+
+-- ---------------------------------------------------------------- the map of a dungeon: the art of its floor and a numbered mark for each boss
+local function drawMap(dj)
+    local m = dj.map
+    for _, tile in ipairs(m.tiles) do tile:Hide() end
+    for _, mark in ipairs(m.marks) do mark:Hide() end
+    m.single:Hide(); m.note:SetText("")
+    local fdj, entry = journal(), dj.selected
+    local data = fdj and type(fdj.DUNGEON_MAPS) == "table" and fdj.DUNGEON_MAPS[entry.name]
+    local floor = data and data.floors and data.floors[dj.floorIndex or 1]
+    if not floor then m.note:SetText(A.L("dungeonsNoMap")); return end
+    local aspect = floor.texture and (1 / (floor.texBottom or 1)) or 1002 / 668
+    local w, h = m.area:GetWidth() or 400, m.area:GetHeight() or 300
+    local mw = math.min(w, h * aspect); local mh = mw / aspect
+    m.frame:ClearAllPoints(); m.frame:SetSize(mw, mh); m.frame:SetPoint("CENTER", m.area, "CENTER", 0, 0)
+    if floor.texture then
+        m.single:SetTexture(floor.texture); m.single:SetTexCoord(0, 1, 0, floor.texBottom or 1); m.single:Show()
+    elseif floor.tiles then
+        for i = 1, 12 do
+            local tile = m.tiles[i]
+            local col, row = (i - 1) % 4, math.floor((i - 1) / 4)
+            tile:ClearAllPoints()
+            tile:SetPoint("TOPLEFT", m.frame, "TOPLEFT", col * 256 / 1002 * mw, -row * 256 / 668 * mh)
+            tile:SetSize(256 / 1002 * mw, 256 / 668 * mh)
+            tile:SetTexture(floor.tiles .. i)
+            tile:SetTexCoord(0, col == 3 and (1002 - 768) / 256 or 1, 0, row == 2 and (668 - 512) / 256 or 1)
+            tile:Show()
+        end
+    end
+    local at = 0
+    for i, boss in ipairs(data.bosses or {}) do
+        if (boss.floor or 1) == (dj.floorIndex or 1) and tonumber(boss.x) and tonumber(boss.y) then
+            at = at + 1
+            local mark = m.marks[at]
+            if not mark then
+                mark = CreateFrame("Button", nil, m.frame)
+                mark:SetSize(24, 24)
+                mark.bg = mark:CreateTexture(nil, "BACKGROUND"); mark.bg:SetAllPoints(); mark.bg:SetTexture("Interface\\AddOns\\Evertally_Map\\Media\\dot")
+                mark.num = dj.kit.label(mark, 11, {1, 1, 1}); mark.num:SetPoint("CENTER"); mark.num:SetJustifyH("CENTER")
+                mark:SetScript("OnEnter", function(self) if GameTooltip then pcall(function() GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(self.bossName or "?"); GameTooltip:Show() end) end end)
+                mark:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+                m.marks[at] = mark
+            end
+            mark.bossName = boss.name
+            mark.bg:SetVertexColor(0.55, 0.15, 0.15)
+            mark.num:SetText(tostring(i))
+            mark:ClearAllPoints(); mark:SetPoint("CENTER", m.frame, "TOPLEFT", boss.x * mw, -boss.y * mh)
+            mark:Show()
+        end
+    end
+end
+
+-- ---------------------------------------------------------------- the home grid and the dungeon view
+local function layout(dj)
+    local body = dj.body
+    local width, height = body:GetWidth() or 640, body:GetHeight() or 420
+    dj.w, dj.h = width, height
+    dj.scroll:ClearAllPoints(); dj.scroll:SetPoint("TOPLEFT", 0, -40); dj.scroll:SetPoint("BOTTOMRIGHT", -24, 0)
+    dj.gridWidth = math.max(300, width - 30)
+    dj.cols = dj.gridWidth >= 620 and 2 or 1
+    dj.cardW = math.floor((dj.gridWidth - GAP * (dj.cols - 1)) / dj.cols)
+    dj.listWidth = math.max(190, math.min(260, width * 0.33))
+    dj.list:SetWidth(dj.listWidth)
+    dj.visibleRows = math.max(3, math.min(ROWS_MAX, math.floor((height - 96) / ROW_H)))
+    dj.detail.SetWidth(width - dj.listWidth - 12 - 40)
+    dj.mapArea:ClearAllPoints(); dj.mapArea:SetPoint("TOPLEFT", 0, -86); dj.mapArea:SetPoint("BOTTOMRIGHT", 0, 80)
+end
+
+local function refreshCards(dj)
+    local cols, cardW = dj.cols or 2, dj.cardW or 300
+    for i, card in ipairs(dj.cards) do
+        local entry = dj.results[i]
+        card.entry = entry
+        card:SetShown(entry ~= nil and dj.mode == "home")
+        if entry then
+            card:ClearAllPoints()
+            card:SetPoint("TOPLEFT", dj.grid, "TOPLEFT", ((i - 1) % cols) * (cardW + GAP), -math.floor((i - 1) / cols) * (CARD_H + GAP))
+            card:SetSize(cardW, CARD_H)
+            if entry.banner then
+                card.art:SetTexture(entry.banner)
+                local c = entry.texcoord
+                if type(c) == "table" then card.art:SetTexCoord(c[1], c[2], c[3], c[4]) else card.art:SetTexCoord(0, 1, 0, 1) end
+                card.art:SetVertexColor(1, 1, 1)
+            else
+                card.art:SetTexture(entry.icon or M.guideQuestion); card.art:SetTexCoord(0.2, 0.8, 0.2, 0.8); card.art:SetVertexColor(0.55, 0.55, 0.65)
+            end
+            card.title:SetText(A.Plain(entry.name))
+            card.level:SetText(entry.level ~= "" and string.format(A.L("dungeonsLv"), entry.level) or "")
+            card.quests:SetText(entry.quests and entry.quests > 0 and string.format(A.L("dungeonsQuestCount"), entry.quests) or "")
+        end
+    end
+    local rows = math.ceil(#dj.results / cols)
+    dj.grid:SetSize(dj.gridWidth or 600, math.max(60, rows * (CARD_H + GAP)))
+end
+
+local function refreshList(dj)
+    local items = dj.items or {}
+    for i, row in ipairs(dj.rows) do
+        local item = items[dj.offset + i]
+        row.item = item
+        row:SetShown(item ~= nil and i <= dj.visibleRows and dj.mode == "dungeon" and dj.tab ~= "map")
+        if item then
+            row.icon:SetTexture(item.icon or BOSS_ICON)
+            row.name:SetText(A.Plain(item.title)); row.sub:SetText(A.Plain(item.sub or "")); row.badge:SetText(item.badge or "")
+            row.bg:SetAlpha(item == dj.chosen and 0.16 or 0.05)
+            row.sub:SetShown(item.sub ~= nil and item.sub ~= "")
+        end
+    end
+end
+
+local function chooseItem(dj, item)
+    dj.chosen = item
+    if item then
+        if dj.tab == "bosses" then showBoss(dj, item.boss) elseif dj.tab == "quests" then showQuest(dj, item.quest) end
+    else
+        dj.detail.Reset(); dj.detail.Text(A.L(dj.tab == "bosses" and "dungeonsNoBosses" or "dungeonsNoQuests"), dj.kit.C.mist); dj.detail.Done()
+    end
+    refreshList(dj)
+end
+
+local function detailShown(dj, on)
+    dj.panel:SetShown(on); dj.detail.scroll:SetShown(on)
+end
+
+local function setTab(dj, tab)
+    dj.tab = tab
+    local entry = dj.selected
+    local d = entry and entry.data
+    dj.items, dj.offset, dj.chosen = {}, 0, nil
+    if entry and entry.source == "journal" and d then
+        if tab == "bosses" then
+            for _, boss in ipairs(type(d.bosses) == "table" and d.bosses or {}) do
+                local level = bossLevel(entry, boss)
+                dj.items[#dj.items + 1] = {title = boss.name or "?", icon = portraitOf(boss), badge = level and ("LV " .. level) or "", boss = boss}
+            end
+        elseif tab == "quests" then
+            for _, quest in ipairs(type(d.quests) == "table" and d.quests or {}) do
+                local sub = quest.requires and string.format(A.L("dungeonsFrom"), quest.requires) or nil
+                if quest.faction and quest.faction ~= "Both" then sub = (sub and (sub .. "  ·  ") or "") .. string.format(A.L("dungeonsFaction"), quest.faction) end
+                dj.items[#dj.items + 1] = {title = quest.name or "?", icon = QUEST_ICON, sub = sub, quest = quest}
+            end
+        end
+    end
+    local isMap = tab == "map"
+    dj.list:SetShown(dj.mode == "dungeon" and not isMap); detailShown(dj, dj.mode == "dungeon" and not isMap); dj.listBg:SetShown(dj.mode == "dungeon" and not isMap)
+    dj.mapArea:SetShown(dj.mode == "dungeon" and isMap)
+    for key, chip in pairs(dj.tabs) do chip.SetOn(key == tab) end
+    if isMap then drawMap(dj) else chooseItem(dj, dj.items[1]) end
+    refreshList(dj)
+end
+
+local function showMode(dj)
+    local home = dj.mode == "home"
+    dj.scroll:SetShown(home); dj.box:SetShown(home); dj.count:SetShown(home)
+    dj.head:SetShown(not home)
+    dj.show:SetShown(not home and dj.entrance ~= nil); dj.go:SetShown(not home and dj.entrance ~= nil)
+    if home then dj.list:Hide(); dj.listBg:Hide(); detailShown(dj, false); dj.mapArea:Hide() end
+    refreshCards(dj)
+end
+
+local function openDungeon(dj, entry)
+    dj.selected, dj.mode, dj.floorIndex = entry, "dungeon", 1
+    dj.title:SetText(A.Plain(entry.name))
+    local bits = {}
+    if entry.level ~= "" then bits[#bits + 1] = string.format(A.L("dungeonsLevel"), entry.level) end
+    if entry.location ~= "" then bits[#bits + 1] = entry.location end
+    dj.subtitle:SetText(A.Plain(table.concat(bits, "  ·  ")))
+    dj.entrance = entranceOf(entry)
+    dj.noJournal:SetShown(entry.source ~= "journal")
+    showMode(dj)
+    local hasData = entry.source == "journal"
+    for _, chip in pairs(dj.tabs) do chip:SetShown(hasData) end
+    if hasData then setTab(dj, "bosses")
+    else
+        dj.list:Hide(); dj.listBg:Hide(); dj.mapArea:Hide(); detailShown(dj, true); dj.detail.Reset()
+        local item = entry.item
+        if item then
+            dj.detail.Text(string.format(A.L("dungeonsPlayers"), item.players or 0), dj.kit.C.mist)
+            if item.map then dj.detail.Text(string.format(A.L("dungeonsIn"), M.MapName(item.map)), dj.kit.C.text) end
+        end
+        dj.detail.Done()
+    end
+end
+
+local function refresh(dj)
+    local query = (dj.query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    dj.results = {}
+    for _, entry in ipairs(M.DungeonList()) do if matches(entry, query) then dj.results[#dj.results + 1] = entry end end
+    dj.count:SetText(#dj.results > 0 and string.format(A.L("dungeonsCount"), #dj.results) or A.L("dungeonsNone"))
+    for key, chip in pairs(dj.tabs) do chip.SetLabel(A.L(key == "bosses" and "dungeonsBosses" or key == "quests" and "dungeonsQuests" or "dungeonsMap")) end
+    dj.back.text:SetText(A.L("dungeonsBack")); dj.show.text:SetText(A.L("dungeonsShow")); dj.go.text:SetText(A.L("dungeonsGo"))
+    dj.noJournal:SetText(A.L("dungeonsNoJournal"))
+    layout(dj)
+    if dj.mode == "dungeon" and dj.selected then
+        -- (only the words are written again: the tab, the boss or quest and the scrolling stay as they are)
+        for _, entry in ipairs(M.DungeonList()) do if entry.key == dj.selected.key then return end end
+        dj.mode = "home"
+    end
+    showMode(dj)
+end
+
+function M.BuildDungeons(body, kit)
+    local C = kit.C
+    local dj = {kit = kit, body = body, mode = "home", tab = "bosses", results = {}, rows = {}, cards = {}, offset = 0, visibleRows = 8, query = "", items = {}, cols = 2, cardW = 300}
+    body.dungeons = dj
+    -- home: the search and the grid of cards
+    dj.box = CreateFrame("EditBox", nil, body, "InputBoxTemplate")
+    dj.box:SetSize(260, 26); dj.box:SetPoint("TOPLEFT", 6, -4); dj.box:SetAutoFocus(false); dj.box:SetMaxLetters(60); dj.box:SetFont(kit.fontPath(), 12, "")
+    dj.box:SetScript("OnTextChanged", function(self) dj.query = self:GetText() or ""; refresh(dj) end)
+    dj.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    dj.count = kit.label(body, 11, C.mist); dj.count:SetPoint("LEFT", dj.box, "RIGHT", 12, 0)
+    dj.scroll = CreateFrame("ScrollFrame", nil, body, "UIPanelScrollFrameTemplate")
+    dj.grid = CreateFrame("Frame", nil, dj.scroll); dj.grid:SetSize(600, 400); dj.scroll:SetScrollChild(dj.grid)
+    for i = 1, 60 do
+        local card = CreateFrame("Button", nil, dj.grid)
+        card.bg = kit.fill(card, C.card, 1)
+        card.art = card:CreateTexture(nil, "ARTWORK"); card.art:SetPoint("TOPLEFT", 2, -2); card.art:SetPoint("BOTTOMRIGHT", -2, 2)
+        card.shade = card:CreateTexture(nil, "OVERLAY"); card.shade:SetPoint("BOTTOMLEFT", 2, 2); card.shade:SetPoint("BOTTOMRIGHT", -2, 2); card.shade:SetHeight(34); kit.paint(card.shade, {0, 0, 0}, 0.55)
+        card.top = card:CreateTexture(nil, "OVERLAY"); card.top:SetPoint("TOPLEFT", 2, -2); card.top:SetPoint("TOPRIGHT", -2, -2); card.top:SetHeight(34); kit.paint(card.top, {0, 0, 0}, 0.4)
+        card.title = card:CreateFontString(nil, "OVERLAY"); card.title:SetFont(kit.fontPath(), 15, "OUTLINE"); card.title:SetTextColor(GOLD[1], GOLD[2], GOLD[3], 1)
+        card.title:SetPoint("TOPLEFT", 12, -9); card.title:SetPoint("TOPRIGHT", -110, -9); card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(false)
+        card.quests = card:CreateFontString(nil, "OVERLAY"); card.quests:SetFont(kit.fontPath(), 11, "OUTLINE"); card.quests:SetTextColor(GOLD[1], GOLD[2], GOLD[3], 1)
+        card.quests:SetPoint("TOPRIGHT", -12, -11); card.quests:SetJustifyH("RIGHT")
+        card.level = card:CreateFontString(nil, "OVERLAY"); card.level:SetFont(kit.fontPath(), 11, "OUTLINE"); card.level:SetTextColor(1, 1, 1, 1)
+        card.level:SetPoint("BOTTOMLEFT", 12, 9); card.level:SetJustifyH("LEFT")
+        local hover = card:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(card); kit.paint(hover, {1, 1, 1}, 0.08)
+        card:SetScript("OnClick", function(self) if self.entry then openDungeon(dj, self.entry) end end)
+        card:Hide()
+        dj.cards[i] = card
+    end
+    -- a dungeon: the header with the way back and the tabs
+    dj.head = CreateFrame("Frame", nil, body); dj.head:SetPoint("TOPLEFT"); dj.head:SetPoint("TOPRIGHT"); dj.head:SetHeight(80)
+    dj.back = kit.Button(dj.head, "dungeonsBack", 110, "ghost", function() dj.mode = "home"; showMode(dj) end); dj.back:SetPoint("TOPLEFT", 0, -2)
+    dj.title = kit.label(dj.head, 18, C.text); dj.title:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -2); dj.title:SetPoint("RIGHT", -4, 0); dj.title:SetWordWrap(false); dj.title:SetJustifyH("LEFT")
+    dj.subtitle = kit.label(dj.head, 11, C.mist); dj.subtitle:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -24); dj.subtitle:SetPoint("RIGHT", -4, 0); dj.subtitle:SetWordWrap(false); dj.subtitle:SetJustifyH("LEFT")
+    dj.tabs = {}
+    local previous
+    for _, key in ipairs({"bosses", "quests", "map"}) do
+        local chip = kit.Chip(dj.head, function() setTab(dj, key) end)
+        if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", 0, -48) end
+        dj.tabs[key] = chip; previous = chip
+    end
+    dj.noJournal = kit.label(dj.head, 11, C.peach); dj.noJournal:SetPoint("TOPLEFT", 0, -48); dj.noJournal:SetPoint("TOPRIGHT", 0, -48); dj.noJournal:SetWordWrap(true); dj.noJournal:Hide()
+    dj.head:Hide()
+    -- a dungeon: the list on the left (bosses or quests) and the detail on the right
+    dj.list = CreateFrame("Frame", nil, body); dj.list:SetPoint("TOPLEFT", 0, -86); dj.list:SetPoint("BOTTOMLEFT", 0, 76); dj.list:SetWidth(240)
+    dj.list:EnableMouse(true); if dj.list.EnableMouseWheel then dj.list:EnableMouseWheel(true) end
+    dj.list:SetScript("OnMouseWheel", function(_, delta)
+        dj.offset = math.max(0, math.min(math.max(0, #dj.items - dj.visibleRows), dj.offset - delta * 2)); refreshList(dj)
+    end)
+    for i = 1, ROWS_MAX do
+        local row = CreateFrame("Button", nil, dj.list); row:SetHeight(ROW_H - 3)
+        row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_H)
+        row.bg = kit.fill(row, {1, 1, 1}, 1); row.bg:SetAlpha(0.05)
+        local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, {1, 1, 1}, 0.07)
+        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(26, 26); row.icon:SetPoint("LEFT", 6, 0); row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        row.badge = kit.label(row, 10, C.gold or GOLD); row.badge:SetPoint("RIGHT", -8, 0); row.badge:SetJustifyH("RIGHT")
+        row.name = kit.label(row, 12, C.text); row.name:SetPoint("TOPLEFT", 40, -4); row.name:SetPoint("RIGHT", row.badge, "LEFT", -4, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
+        row.sub = kit.label(row, 10, C.mist); row.sub:SetPoint("BOTTOMLEFT", 40, 4); row.sub:SetPoint("BOTTOMRIGHT", -6, 4); row.sub:SetWordWrap(false); row.sub:SetJustifyH("LEFT")
+        row:SetScript("OnClick", function(self) if self.item then chooseItem(dj, self.item) end end)
+        row:Hide()
+        dj.rows[i] = row
+    end
+    local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, 0.55}
+    dj.listBg = CreateFrame("Frame", nil, body); dj.listBg:SetFrameLevel(math.max(0, (dj.list:GetFrameLevel() or 1) - 1))
+    dj.listBg:SetPoint("TOPLEFT", dj.list, "TOPLEFT", -3, 3); dj.listBg:SetPoint("BOTTOMRIGHT", dj.list, "BOTTOMRIGHT", 3, -3)
+    kit.fill(dj.listBg, C.well, 0.6); kit.outline(dj.listBg, edge); dj.listBg:Hide()
+    dj.panel = CreateFrame("Frame", nil, body)
+    dj.panel:SetPoint("TOPLEFT", dj.list, "TOPRIGHT", 12, 3); dj.panel:SetPoint("BOTTOMRIGHT", 0, -3)
+    kit.fill(dj.panel, C.well, 0.6); kit.outline(dj.panel, edge)
+    local parchment = dj.panel:CreateTexture(nil, "BACKGROUND"); parchment:SetPoint("TOPLEFT", 2, -2); parchment:SetPoint("BOTTOMRIGHT", -2, 2)
+    parchment:SetTexture("Interface\\QuestFrame\\QuestBG"); parchment:SetVertexColor(1, 0.96, 0.84); parchment:SetAlpha(0.09)
+    dj.panel:Hide()
+    dj.detail = M.GuideDetail(kit, body)
+    dj.detail.scroll:SetPoint("TOPLEFT", dj.panel, "TOPLEFT", 10, -10); dj.detail.scroll:SetPoint("BOTTOMRIGHT", dj.panel, "BOTTOMRIGHT", -28, 10)
+    dj.detail.scroll:Hide()
+    dj.show = kit.Button(body, "dungeonsShow", 230, "primary", function()
+        local item = dj.entrance
+        if item and M.ShowOnWorldMap then M.ShowOnWorldMap({{map = item.map, x = item.x, y = item.y, title = dj.selected and dj.selected.name or item.name}}, item.map) end
+    end)
+    dj.show:SetPoint("BOTTOMLEFT", 0, 38); dj.show:Hide()
+    dj.go = kit.Button(body, "dungeonsGo", 230, "ghost", function()
+        local item = dj.entrance
+        if item and M.NavigateLayerSpot then M.NavigateLayerSpot({map = item.map, x = item.x, y = item.y, title = dj.selected and dj.selected.name or item.name, source = {dungeon = dj.selected and dj.selected.key}}) end
+    end)
+    dj.go:SetPoint("BOTTOMLEFT", 0, 4); dj.go:Hide()
+    -- the map tab
+    dj.mapArea = CreateFrame("Frame", nil, body); dj.mapArea:Hide()
+    local m = {area = dj.mapArea, tiles = {}, marks = {}}
+    m.frame = CreateFrame("Frame", nil, dj.mapArea); m.frame:SetSize(400, 300)
+    m.single = m.frame:CreateTexture(nil, "ARTWORK"); m.single:SetAllPoints(); m.single:Hide()
+    for i = 1, 12 do m.tiles[i] = m.frame:CreateTexture(nil, "ARTWORK"); m.tiles[i]:Hide() end
+    m.note = kit.label(dj.mapArea, 12, C.mist); m.note:SetPoint("TOPLEFT", 0, -10)
+    dj.map = m
+    body:SetScript("OnSizeChanged", function() layout(dj); if dj.mode == "dungeon" then if dj.tab == "map" then drawMap(dj) end; refreshList(dj) else refreshCards(dj) end end)
+    layout(dj)
+    return dj
+end
+
+function M.RefreshDungeons(body)
+    local dj = body.dungeons
+    if dj then refresh(dj) end
+end
+
+--- Opens the journal on one dungeon by its name (the arrow's click on a journey to a dungeon's entrance).
+function M.OpenDungeonEntry(name)
+    if A.ShowView then A.ShowView("dungeons") end
+    local body = A.dungeonsBody
+    local dj = body and body.dungeons
+    if not dj then return false end
+    dj.query = ""; if dj.box then dj.box:SetText("") end
+    refresh(dj)
+    for _, entry in ipairs(dj.results) do if entry.key == name then openDungeon(dj, entry); return true end end
+    return false
+end
