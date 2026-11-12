@@ -80,6 +80,8 @@ export function parseExport(text:string):ExportEnvelope{
   if(!source)throw new Error("The file is empty.");
   let value:unknown;
   try{value=source.startsWith("{")?JSON.parse(source):new SavedVariableParser(source).parse();}catch(error){throw new Error(`Cannot read the export: ${error instanceof Error?error.message:"invalid format"}`);}
+  // Local-only metadata is for the live bridge; manual/community history imports never forward contacts.
+  if(value&&typeof value==="object"&&!Array.isArray(value))delete (value as Record<string,unknown>).connections;
   const parsed=exportSchema.safeParse(value);
   if(!parsed.success)throw new Error(`Invalid export: ${parsed.error.issues.slice(0,3).map(issue=>`${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
   return parsed.data;

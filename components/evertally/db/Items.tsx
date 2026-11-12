@@ -43,7 +43,7 @@ export function ItemDetailView({ id }: { id: number }) {
   return (
     <article className="db-detail">
       <header className="db-head">
-        <ItemIcon id={id} quality={row[2]} category={category} cached={row[8] === 0} size={64} />
+        <ItemIcon id={id} quality={row[2]} category={category} fileId={row[9]} cached={row[8] === 0} size={64} />
         <div>
           <h2 className={qualityClass(row[2])}>{row[1]}</h2>
           <div className="chips">
@@ -169,7 +169,7 @@ export function ItemsList({ query, selected }: { query: string; selected: number
       <p className="fine-print">{matches.length.toLocaleString()} {s.matches}</p>
       {matches.length ? <ul className="result-list">{matches.slice(current * PAGE, (current + 1) * PAGE).map(row => (
         <li key={row[0]}><a href={`#database/items/${row[0]}`} className={selected === row[0] ? "is-selected" : ""}>
-          <ItemIcon id={row[0]} quality={row[2]} category={index.search.cats[row[5]]} cached={row[8] === 0} size={34} />
+          <ItemIcon id={row[0]} quality={row[2]} category={index.search.cats[row[5]]} fileId={row[9]} cached={row[8] === 0} size={34} />
           <span className="rl-main"><strong className={qualityClass(row[2])}>{row[1]}</strong><small>{[index.search.slots[row[6]], index.search.cats[row[5]]].filter(Boolean).join(" · ") || "—"}</small></span>
           <span className="rl-meta mono">{row[3] ? `ilvl ${row[3]}` : ""}{row[4] ? ` · ${row[4]}` : ""}</span>
         </a></li>))}</ul> : <p className="muted">{s.noResults}</p>}

@@ -85,12 +85,13 @@ export function CategoryGlyph({ category, size = 20 }: { category?: string | nul
 }
 
 /** Game item icon framed in its quality colour; falls back to a category glyph when no art exists. */
-export function ItemIcon({ id, quality, category, size = 34, cached = true, title }: { id: number; quality?: number | null; category?: string | null; size?: number; cached?: boolean; title?: string }) {
-  const [failed, setFailed] = useState(false);
-  const show = cached && !failed;
+export function ItemIcon({ id, fileId, quality, category, size = 34, cached = true, title }: { id: number; fileId?:number|null; quality?: number | null; category?: string | null; size?: number; cached?: boolean; title?: string }) {
+  const [failed, setFailed] = useState<string|null>(null);
+  const source=itemIconUrl(id,fileId);
+  const show = (cached || Boolean(fileId)) && failed!==source;
   return (
     <span className={`item-icon ${qualityClass(quality)}`} style={{ width: size, height: size }} title={title}>
-      {show ? <img src={itemIconUrl(id)} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(true)} /> : <CategoryGlyph category={category} size={Math.round(size * 0.58)} />}
+      {show ? <img src={source} alt="" width={size} height={size} loading="lazy" decoding="async" onError={() => setFailed(source)} /> : <CategoryGlyph category={category} size={Math.round(size * 0.58)} />}
     </span>
   );
 }

@@ -12,6 +12,7 @@
 //
 // Everything here takes the database as a parameter so the exact SQL can be exercised against SQLite in tests.
 import { ApiError } from "./policy";
+import { livePositions } from "./live-query";
 
 export interface Stmt {
   bind(...values: unknown[]): Stmt;
@@ -111,6 +112,11 @@ export function toPath(row: Row): TrackPath | null {
 
 // A route observation only counts while its grant is live and still carries the scopes it needs.
 export const GRANT_OK = (needs: string[]) => `g.revoked_at IS NULL AND ${needs.map((scope) => `EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value='${scope}')`).join(" AND ")}`;
+export async function ownLive(db:Db,userId:string) {
+  const profiles=await db.prepare("SELECT id,name,class_id FROM atlas_profiles WHERE user_id=?").bind(userId).all();
+  const positions=await livePositions(db,profiles.results.map(p=>String(p.id)),["own_track"]);
+  return profiles.results.flatMap(p=>{const position=positions.get(String(p.id));return position?[{profileId:String(p.id),name:typeof p.name==="string"?p.name:null,classId:typeof p.class_id==="number"?p.class_id:null,...position}]:[];});
+}
 
 export async function myTrail(db: Db, userId: string, options: { profileId?: string; since: number }) {
   const rows = await db.prepare(`SELECT o.id,o.profile_id,o.payload FROM atlas_observations o
@@ -123,6 +129,7 @@ export async function myTrail(db: Db, userId: string, options: { profileId?: str
   const characters = await db.prepare("SELECT id,name,realm,class_id,level FROM atlas_profiles WHERE user_id=? ORDER BY last_seen DESC").bind(userId).all();
   return {
     paths, truncated,
+    live: [...await livePositions(db,characters.results.map(c=>String(c.id)),["own_track"])].map(([profileId,position])=>({profileId,...position})),
     characters: characters.results.map((c) => ({ id: String(c.id), name: typeof c.name === "string" ? c.name : null, realm: typeof c.realm === "string" ? c.realm : null, classId: typeof c.class_id === "number" ? c.class_id : null, level: typeof c.level === "number" ? c.level : null })),
   };
 }
@@ -171,19 +178,7 @@ async function guildMembers(db: Db, id: string, roster: RosterEntry[], guild: { 
   const accounts = await db.prepare("SELECT profile_id,user_id,name,share FROM et_guild_members WHERE guild_id=? AND status='active'").bind(id).all();
   const active = accounts.results.filter((row) => eligibleFor(guild, String(row.user_id), String(row.name)));
   const shared = active.filter((row) => row.share !== "off");
-  const positions = new Map<string, GuildMember["position"]>();
-  if (shared.length) {
-    const rows = await db.prepare(`SELECT m.profile_id,o.payload FROM et_guild_members m
-      JOIN atlas_observations o ON o.id=(SELECT o2.id FROM atlas_observations o2 JOIN atlas_grants g ON g.id=o2.grant_id AND g.user_id=o2.user_id
-        WHERE o2.profile_id=m.profile_id AND o2.kind='track.path' AND ${GRANT_OK(["own_track", "guild_share"])} ORDER BY o2.observed_at DESC LIMIT 1)
-      WHERE m.guild_id=? AND m.status='active' AND m.share<>'off'`).bind(id).all();
-    for (const row of rows.results) {
-      const path = toPath({ id: "", payload: row.payload, profile_id: row.profile_id });
-      if (!path) continue;
-      const last = path.points[path.points.length - 1];
-      positions.set(String(row.profile_id), { mapId: path.mapId, x: last[1], y: last[2], at: path.startedAt + last[0] });
-    }
-  }
+  const positions = await latestPositions(db,shared.map(row=>String(row.profile_id)),["own_track","guild_share"]);
   const byName = new Map(active.map((row) => [baseName(String(row.name)), row]));
   const members = roster.map<GuildMember>(([name, rankIndex, level, classId]) => {
     const account = byName.get(baseName(String(name)));
@@ -245,6 +240,7 @@ export async function latestPositions(db: Db, profileIds: string[], needs: strin
     const last = path.points[path.points.length - 1];
     out.set(String(row.profile_id), { mapId: path.mapId, x: last[1], y: last[2], at: path.startedAt + last[0] });
   }
+  for(const [id,position] of await livePositions(db,profileIds,needs))out.set(id,position);
   return out;
 }
 
@@ -252,6 +248,8 @@ export async function latestPositions(db: Db, profileIds: string[], needs: strin
 export function releaseStatements(db: Db, userId: string): Stmt[] {
   const t = now();
   return [
+    db.prepare("DELETE FROM et_game_connections WHERE user_id=?").bind(userId),
+    db.prepare("DELETE FROM et_live_positions WHERE user_id=?").bind(userId),
     db.prepare("DELETE FROM et_guild_members WHERE user_id=?").bind(userId),
     db.prepare("UPDATE et_guilds SET owner_user_id=NULL,owner_name=NULL,roster='[]',roster_at=NULL WHERE owner_user_id=?").bind(userId),
     db.prepare("DELETE FROM et_circle_members WHERE user_id=?").bind(userId),
@@ -259,5 +257,7 @@ export function releaseStatements(db: Db, userId: string): Stmt[] {
     db.prepare("DELETE FROM et_meet_rsvps WHERE meet_id IN (SELECT id FROM et_meets WHERE user_id=?) OR user_id=?").bind(userId, userId),
     db.prepare("DELETE FROM et_meet_access WHERE meet_id IN (SELECT id FROM et_meets WHERE user_id=?) OR user_id=?").bind(userId, userId),
     db.prepare("DELETE FROM et_meets WHERE user_id=?").bind(userId),
+    db.prepare("DELETE FROM et_sharing WHERE user_id=?").bind(userId),
+    db.prepare("DELETE FROM et_friends WHERE user_a=? OR user_b=?").bind(userId, userId),
   ];
 }

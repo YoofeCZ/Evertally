@@ -73,7 +73,7 @@ img { display: block; }
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 2000; /* above the map, its panels and its controls, so the menu is always there */
   display: flex;
   align-items: center;
   gap: 24px;

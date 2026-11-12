@@ -6,7 +6,7 @@ import { parseWalk, type Walk } from "./terrain";
 import type { Travel } from "./travel";
 
 // ---- compact search rows (see tools/build_db.py) -------------------------------------------
-export type ItemRow = [id: number, name: string, quality: number | null, ilvl: number | null, req: number | null, cat: number, slot: number, shard: number, lite: 0 | 1];
+export type ItemRow = [id: number, name: string, quality: number | null, ilvl: number | null, req: number | null, cat: number, slot: number, shard: number, lite: 0 | 1, iconFileId?: number | null];
 export type NpcRow = [id: number, name: string, lvlMin: number, lvlMax: number, rank: number, services: string[], spawns: 0 | 1, shard: number, zone: string | null];
 export type QuestRow = [id: number, name: string, lvl: number | null, req: number | null, zoneOrSort: string | null, faction: string, shard: number];
 export type Search = { items: ItemRow[]; npcs: NpcRow[]; quests: QuestRow[]; cats: string[]; slots: string[] };
@@ -143,7 +143,7 @@ export const loadItem = (index: Index, id: number) => { const row = index.items.
 export const QUALITY_NAMES = ["Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Artifact"];
 export const RANK = ["", "Elite", "Rare Elite", "Boss", "Rare"];
 export const qualityClass = (q: number | null | undefined) => `q${q ?? 1}`;
-export const itemIconUrl = (id: number) => `/media/identity/items/${id}.jpg`;
+export const itemIconUrl = (id: number, fileId?:number|null) => fileId ? `/media/identity/client-items/${fileId}.jpg` : `/media/identity/items/${id}.jpg`;
 export const hrefItem = (id: number) => `#database/items/${id}`;
 export const hrefNpc = (id: number) => `#database/npcs/${id}`;
 export const hrefQuest = (id: number) => `#database/quests/${id}`;

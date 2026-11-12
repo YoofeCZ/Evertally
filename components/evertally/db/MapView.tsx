@@ -17,6 +17,7 @@ import { POI, PoiBadge } from "./icons";
 import { levelClass } from "./levels";
 import { DbProvider, Fold, ItemChips, useDb, npcLevel, rankName } from "./parts";
 import { MeetsPanel, useMeets } from "./Meets";
+import { Movable } from "./Movable";
 import { PeoplePanel, usePeople } from "./People";
 import { GatherPanel, useGatherLayer } from "./Gather";
 import { ServicesPanel, useServiceMarkers } from "./Services";
@@ -30,7 +31,7 @@ import { useS } from "./strings";
 const MapCanvas = lazy(() => import("./MapCanvas"));
 
 const WORLD = "azeroth";
-const DEFAULT_LAYERS: Record<string, boolean> = { meets: false, gather: false, services: false, route: false, guild: false, qs: true, qe: true, inn: true, dungeon: true, flight: true, transport: true, activity: true };
+const DEFAULT_LAYERS: Record<string, boolean> = { players: true, meets: false, gather: false, services: false, route: false, guild: false, qs: true, qe: true, inn: true, dungeon: true, flight: true, transport: true, activity: true };
 const SERVICE_LAYERS = ["qs", "qe", "inn", "vendor", "trainer", "repair", "bank", "auction", "stable", "battle", "spirit", "mail"];
 const CS: Record<string, string> = { qs: "Zadavatelé questů", qe: "Odevzdání questů", vendor: "Obchodníci", trainer: "Trenéři", inn: "Hostinští", bank: "Bankéři", auction: "Aukcionáři", stable: "Správci stájí", battle: "Bojoví mistři", repair: "Opravy", spirit: "Léčitelé duší", mail: "Schránky", dungeon: "Vstupy do dungeonů a raidů", flight: "Letištní mistři", transport: "Lodě, zeppeliny a vzducholodě" };
 const EN: Record<string, string> = { qs: "Quest givers", qe: "Quest turn-ins", vendor: "Vendors", trainer: "Trainers", inn: "Innkeepers", bank: "Banks", auction: "Auction houses", stable: "Stable masters", battle: "Battlemasters", repair: "Repair", spirit: "Spirit healers", mail: "Mailboxes", dungeon: "Dungeon & raid entrances", flight: "Flight masters", transport: "Boats, zeppelins & airships" };
@@ -289,6 +290,7 @@ function LayerDock({ layers, toggle, poiLabel, mobsLabel, activityLabel }: { lay
     ["route", "route", s.myRoute],
     ["guild", "guild", s.guildLayer],
     ["meets", "meet", s.meetsLayer],
+    ["players", "guild", s.playersLayer],
     ...["dungeon", "flight", "transport"].map(id => [id, id === "transport" ? "boat" : id, poiLabel(id)] as [string, string, string]),
     ...SERVICE_LAYERS.map(id => [id, id, poiLabel(id)] as [string, string, string]),
     ["mobs", "mob", mobsLabel],
@@ -674,7 +676,7 @@ function Inner({ route, user, signIn }: { route: string; user: User | null; sign
               <span className="muted small">{s.drawingsCount}: {drawings.length} · {s.drawHint}</span>
             </div>
           )}
-          <div className="map-float"><PeoplePanel panel={people.panel} signIn={signIn} onLayer={enableLayer} onRoute={(name, at) => { setTravelPlace("to", { label: name, u: at[0], v: at[1] }); if (people.latestPlace) setTravelPlace("from", people.latestPlace); flyTo({ points: [at] }); }} /><MeetsPanel panel={meets.panel} signIn={signIn} index={index} dungeons={dungeonList} tools={meetTools} /><GatherPanel panel={gather.panel} farmContext={{ zone: view.zone, start: people.latestPlace ? [people.latestPlace.u, people.latestPlace.v] : null, travel: travel.data, speed }} /><ServicesPanel panel={services.panel} /></div>
+          <div className="map-float"><Movable id="people"><PeoplePanel panel={people.panel} signIn={signIn} onLayer={enableLayer} onRoute={(name, at) => { setTravelPlace("to", { label: name, u: at[0], v: at[1] }); if (people.latestPlace) setTravelPlace("from", people.latestPlace); flyTo({ points: [at] }); }} /></Movable><Movable id="meets"><MeetsPanel panel={meets.panel} signIn={signIn} index={index} dungeons={dungeonList} tools={meetTools} /></Movable><Movable id="gather"><GatherPanel panel={gather.panel} farmContext={{ zone: view.zone, start: people.latestPlace ? [people.latestPlace.u, people.latestPlace.v] : null, travel: travel.data, speed }} /></Movable><Movable id="services"><ServicesPanel panel={services.panel} /></Movable></div>
           <LayerDock layers={layers} toggle={toggle} poiLabel={poiLabel} mobsLabel={s.mobsLayer} activityLabel={s.activity} />
           <div className="stage-top">
             <nav className="crumbs" aria-label={s.region}>{crumbs.map((key, i) => <button key={key} type="button" className={i === crumbs.length - 1 ? "on" : ""} onClick={() => { go(key); flyTo({ key }); }}>{zoneName(key)}{i === crumbs.length - 1 && viewEntry?.level ? <i className={levelClass(viewEntry.level, level)}>{viewEntry.level[0]}–{viewEntry.level[1]}</i> : null}</button>)}</nav>

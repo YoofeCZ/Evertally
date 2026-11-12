@@ -21,6 +21,12 @@ function lua(value:unknown):string{
 }
 
 test("JSON roundtrip zachová data a UTF-8",()=>assert.deepEqual(parseExport(JSON.stringify(envelope())),envelope()));
+test("Kontakty pro živý most se nepřidají do ručního ani komunitního importu",()=>{
+  const original=envelope();
+  const input={...original,connections:{key:7,entries:[{name:"PrivateFriend",realm:"Realm",kind:"friend"}]}};
+  assert.deepEqual(parseExport(JSON.stringify(input)),original);
+  assert.equal("connections" in parseExport(JSON.stringify(input)),false);
+});
 test("Skutečný tvar SavedVariables: indexed arrays, comments, BOM",()=>assert.deepEqual(parseExport("\uFEFF-- snapshot\nEvertallyExportDB = "+lua(envelope())+";\n-- end"),envelope()));
 test("Prázdné Lua arrays scopes/events u vypnutého exportu",()=>assert.deepEqual(parseExport('EvertallyExportDB={schemaVersion=1,enabled=false,producerId="source",consentEpoch=0,since=0,scopes={},events={}}'),{schemaVersion:1,enabled:false,producerId:"source",consentEpoch:0,since:0,scopes:[],events:[]}));
 test("České UTF-8 decimal byte escape sekvence",()=>{const data=lua(envelope());assert.equal(parseExport('EvertallyExportDB='+data.replace("Trollí","Troll\\195\\173")).events[0].payload.title,"Trollí jeskyně");});

@@ -46,7 +46,7 @@ export function RecipeDetailView({ id }: { id: number }) {
   return (
     <article className="db-detail">
       <header className="db-head">
-        {output ? <ItemIcon id={output[0]} quality={output[2]} category={index.search.cats[output[5]]} cached={output[8] === 0} size={64} /> : <span className="npc-portrait"><Icon name="anvil" size={30} /></span>}
+        {output ? <ItemIcon id={output[0]} quality={output[2]} category={index.search.cats[output[5]]} fileId={output[9]} cached={output[8] === 0} size={64} /> : <span className="npc-portrait"><Icon name="anvil" size={30} /></span>}
         <div>
           <h2 className={output ? qualityClass(output[2]) : undefined}>{recipe.name}</h2>
           <div className="chips"><span className="chip mono">#{recipe.id}</span>{profession && <span className="chip">{profession}</span>}<Skill skill={recipe.skill} /></div>
@@ -114,7 +114,7 @@ export function RecipesList({ query, selected }: { query: string; selected: numb
         const output = recipe.out ? index.items.get(recipe.out) : undefined;
         return (
           <li key={recipe.id}><a href={`#database/recipes/${recipe.id}`} className={selected === recipe.id ? "is-selected" : ""}>
-            {output ? <ItemIcon id={output[0]} quality={output[2]} category={index.search.cats[output[5]]} cached={output[8] === 0} size={34} /> : <span className="item-icon q1" style={{ width: 34, height: 34 }}><Icon name="anvil" size={18} /></span>}
+            {output ? <ItemIcon id={output[0]} quality={output[2]} category={index.search.cats[output[5]]} fileId={output[9]} cached={output[8] === 0} size={34} /> : <span className="item-icon q1" style={{ width: 34, height: 34 }}><Icon name="anvil" size={18} /></span>}
             <span className="rl-main"><strong className={output ? qualityClass(output[2]) : undefined}>{recipe.name}</strong><small>{book.data!.professions[String(recipe.line)]} · {recipe.reagents.length} {s.reagents.toLowerCase()}</small></span>
             <Skill skill={recipe.skill} compact />
           </a></li>

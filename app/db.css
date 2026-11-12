@@ -178,7 +178,8 @@ a.q0:hover, a.q1:hover, a.q2:hover, a.q3:hover, a.q4:hover, a.q5:hover, a.q6:hov
 
 /* ---------- map ---------- */
 .map-page { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; box-sizing: border-box; width: 100%; max-width: 1760px; height: calc(100dvh - 72px); min-height: 600px; margin: 0 auto; padding: 16px 24px 20px; }
-.map-page.is-full { position: fixed; inset: 0; z-index: 400; max-width: none; height: 100dvh; padding: 12px; background: var(--canvas); }
+/* full screen starts below the menu, which stays visible (EvertallyApp.tsx sets --topbar-h) */
+.map-page.is-full { position: fixed; inset: var(--topbar-h, 72px) 0 0 0; z-index: 400; max-width: none; height: calc(100dvh - var(--topbar-h, 72px)); padding: 12px; background: var(--canvas); }
 .map-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding-right: 4px; overflow-y: auto; scrollbar-width: thin; }
 .ms-block { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--carriage); box-shadow: inset 0 0 0 1px var(--ring); }
 .ms-block > header { display: flex; align-items: center; justify-content: space-between; }
@@ -453,7 +454,15 @@ a.q0:hover, a.q1:hover, a.q2:hover, a.q3:hover, a.q4:hover, a.q5:hover, a.q6:hov
 .person.self::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--pc, #ffd24a); opacity: 0.8; animation: person-pulse 2.2s ease-out infinite; }
 @keyframes person-pulse { from { transform: scale(0.7); opacity: 0.9; } to { transform: scale(1.35); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .person.self::after { animation: none; } }
-.map-float { position: absolute; z-index: 560; left: 62px; top: 92px; display: flex; flex-direction: column; gap: 10px; width: min(340px, calc(100% - 80px)); max-height: calc(100% - 150px); overflow-y: auto; scrollbar-width: none; pointer-events: none; }
+.map-float { position: absolute; z-index: 560; left: 62px; top: 92px; display: flex; flex-direction: column; gap: 10px; width: min(340px, calc(100% - 80px)); pointer-events: none; }
+/* the open layer list is 210 px wide: the panels start right of it instead of covering it */
+.map-page:has(.layer-dock.wide) .map-float { left: 232px; width: min(340px, calc(100% - 252px)); }
+/* panels can be dragged by their header (Movable.tsx), so the stack no longer clips them; each panel scrolls inside itself */
+.movable { position: relative; }
+.movable:empty { display: none; }
+.movable.moved, .movable.moving { z-index: 2; }
+.movable > .people-panel > header { cursor: grab; touch-action: none; user-select: none; }
+.movable.moving > .people-panel > header { cursor: grabbing; }
 .map-float:empty { display: none; }
 .map-float > * { pointer-events: auto; flex: none; }
 .people-panel { display: flex; flex-direction: column; max-height: min(650px, calc(100vh - 180px)); border-radius: 14px; background: rgba(19, 17, 28, 0.98); box-shadow: inset 0 0 0 1px rgba(255, 210, 74, 0.28), 0 14px 32px rgba(0, 0, 0, 0.5); overflow: hidden; }
@@ -503,7 +512,14 @@ a.q0:hover, a.q1:hover, a.q2:hover, a.q3:hover, a.q4:hover, a.q5:hover, a.q6:hov
 .pp-route { padding: 2px 8px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: var(--text); font-size: 11px; }
 .pp-route.on { background: rgba(255, 210, 74, 0.25); color: #ffe08a; }
 .btn.danger { color: #ff9a96; }
-@media (max-width: 1000px) { .map-float { left: 12px; top: auto; bottom: 12px; width: calc(100% - 24px); max-height: 50%; } }
+.pp-notice.pp-live { background: rgba(61,153,105,.18); color: #c3f2d7; }
+.pp-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+.pp-toggle input { width: 15px; height: 15px; accent-color: var(--lilac, #a78bfa); }
+.pp-friend-add { display: flex; gap: 8px; }
+.pp-friend-add input { flex: 1; min-width: 0; min-height: 30px; padding: 4px 10px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: var(--text); font-size: 13px; }
+.pp-friend { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 13px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.pp-friend .btn-row { display: flex; gap: 6px; }
+@media (max-width: 1000px) { .map-float, .map-page:has(.layer-dock.wide) .map-float { left: 12px; top: auto; bottom: 12px; width: calc(100% - 24px); max-height: 50%; overflow-y: auto; scrollbar-width: none; } .movable > .people-panel > header { cursor: default; touch-action: auto; } }
 @media (max-width: 1000px) { .people-panel { max-height: 42vh; } }
 @media (max-width: 380px) { .pp-group-actions { grid-template-columns: 1fr; } }
 

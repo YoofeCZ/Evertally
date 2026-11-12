@@ -104,7 +104,7 @@ export function ItemLink({ id, name, quality, icon = true, count, className = ""
   const { hover, show, hide } = useHoverCard(load);
   return <>
     <a className={`ilink ${qualityClass(q)} ${className}`} href={hrefItem(id)} onMouseEnter={event => show(event.currentTarget)} onMouseLeave={hide} onFocus={event => show(event.currentTarget)} onBlur={hide}>
-      {icon && <ItemIcon id={id} quality={q} category={index?.search.cats[row?.[5] ?? -1]} cached={row ? row[8] === 0 : true} size={22} />}
+      {icon && <ItemIcon id={id} quality={q} category={index?.search.cats[row?.[5] ?? -1]} fileId={row?.[9]} cached={row ? row[8] === 0 : true} size={22} />}
       <span>{label}</span>{count}
     </a>
     <HoverCard hover={hover} />

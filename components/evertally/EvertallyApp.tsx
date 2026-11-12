@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { hasKey, useI18n, type Lang } from "@/lib/i18n";
 import { useApi } from "./api";
 import type { Status, View } from "./types";
@@ -37,6 +37,17 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   const user = status.data?.user ?? null;
 
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+  // the menu stays on top of everything while the page scrolls; the full-screen map starts below it (db.css reads --topbar-h)
+  const bar = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const set = () => document.documentElement.style.setProperty("--topbar-h", `${element.getBoundingClientRect().height}px`);
+    set();
+    const observer = new ResizeObserver(set);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const go = (next: View) => {
     // /link is a separate route; leaving it is a full navigation to the main page.
@@ -63,7 +74,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   return (
     <div className="site">
       <a className="skip" href="#main">Skip to content</a>
-      <header className="topbar">
+      <header className="topbar" ref={bar}>
         <button className="wordmark" onClick={() => go("overview")} aria-label="Evertally"><Logo /> <span>Evertally</span></button>
         <nav className="nav" aria-label="Main">
           {NAV.map((item) => (
