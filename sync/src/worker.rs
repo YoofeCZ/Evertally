@@ -19,6 +19,8 @@ use crate::wow;
 const SETTLE: Duration = Duration::from_secs(3);
 /// Catch-up and retry interval when nothing happens.
 const TICK: Duration = Duration::from_mins(5);
+/// How often the forum is exchanged with the website while the app runs (a save of the game's files triggers it at once).
+const FORUM_EVERY: Duration = Duration::from_mins(3);
 
 pub enum Command {
     FileChanged(PathBuf),
@@ -70,6 +72,7 @@ pub struct Worker {
     processed: HashMap<PathBuf, SystemTime>,
     open_browser: bool,
     live_poll: Instant,
+    forum_poll: Instant,
     live_sent: Option<(String, u64)>,
     live_status: Option<String>,
     /// Who plays, learned from the exported file: what a live marker is resolved against.
@@ -110,6 +113,7 @@ impl Worker {
             processed: HashMap::new(),
             open_browser,
             live_poll: Instant::now() - Duration::from_secs(5),
+            forum_poll: Instant::now() - FORUM_EVERY,
             live_sent: None,
             live_status: None,
             identity: crate::optical::Identity::default(),
@@ -160,6 +164,10 @@ impl Worker {
                 self.live_step();
                 self.live_poll = Instant::now();
             }
+            if self.token.is_some() && self.forum_poll.elapsed() >= FORUM_EVERY {
+                self.forum_poll = Instant::now();
+                self.forum_step();
+            }
             let timeout = settle_at
                 .map_or(TICK, |at| at.saturating_duration_since(Instant::now()))
                 .min(Duration::from_secs(2));
@@ -171,6 +179,7 @@ impl Worker {
                 Ok(Command::SyncNow) => {
                     self.refresh_watch();
                     self.sync_all(true);
+                    self.forum_poll = Instant::now() - FORUM_EVERY;
                 }
                 Ok(Command::Pair) => {
                     if !self.pair(rx) {
@@ -197,12 +206,60 @@ impl Worker {
                         settle_at = None;
                         let paths: Vec<PathBuf> = dirty.drain().collect();
                         self.sync_paths(&paths, true);
+                        // the game saved its files: what was written in game is now in them
+                        self.forum_poll = Instant::now() - FORUM_EVERY;
                     } else if last_rescan.elapsed() >= TICK {
                         last_rescan = Instant::now();
                         self.refresh_watch();
                         self.sync_all(false);
                     }
                 }
+            }
+        }
+    }
+
+    /// Sends the forum posts written in game and writes the website's forum next to the addon. Never changes the status line:
+    /// the forum is an extra, and a failure here must not hide the state of the export upload.
+    fn forum_step(&mut self) {
+        let Some(token) = self.token.clone() else {
+            return;
+        };
+        if self.dirs.is_empty() {
+            return;
+        }
+        let outbox = crate::forum::read_outboxes(&self.dirs);
+        let answer = match self.client.forum(&token, &outbox) {
+            Ok(answer) => answer,
+            Err(ApiError::Server { status: 401, .. }) => {
+                self.log("forum: device token rejected; unpaired");
+                self.tokens.clear();
+                self.token = None;
+                self.show(self.texts.disconnected.to_owned());
+                return;
+            }
+            Err(error) => {
+                self.log(&format!("forum: {error}"));
+                return;
+            }
+        };
+        if !outbox.is_empty() {
+            self.log(&format!(
+                "forum: sent {} written in game, accepted {}, already known {}, refused {}",
+                outbox.len(),
+                answer["accepted"],
+                answer["duplicates"],
+                answer["rejected"]
+            ));
+        }
+        let text = crate::forum::data_file(&answer);
+        for dir in self.dirs.clone() {
+            let Some(addon) = crate::forum::addon_folder(&dir) else {
+                continue;
+            };
+            match crate::forum::write_if_changed(&addon.join(crate::forum::DATA_FILE), &text) {
+                Ok(true) => self.log(&format!("forum: updated {}", addon.display())),
+                Ok(false) => {}
+                Err(error) => self.log(&format!("forum: cannot write {}: {error}", addon.display())),
             }
         }
     }

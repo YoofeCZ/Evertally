@@ -107,13 +107,13 @@ class ContentPageTests(unittest.TestCase):
         self.assertTrue(self.a.db.settings.web);self.assertTrue(self.a.db.settings.scopes.own_track)
 
     def test_summary_columns_and_search_stretch_at_the_smallest_content_width(self):
-        for key in ('professions','places','facts','community'):
+        for key in ('professions','places','facts','webfacts'):
             page=self.page(key)
             page.metricRow.Layout(580)
             self.assertLessEqual(sum(page.metricRow.cells[i].w for i in range(1,len(page.metricRow.cells)+1))+10*(len(page.metricRow.cells)-1),581)
             self.assertEqual(page.search.points[1][1],'TOPLEFT')
             self.assertEqual(page.search.points[2][1],'TOPRIGHT')
-        community=self.page('community')
+        community=self.page('webfacts')
         self.assertEqual(community.metrics[3].value.text,'—')
         self.assertEqual(community.metrics[3].delta.text,self.a.L('pageCacheEmpty'))
 
