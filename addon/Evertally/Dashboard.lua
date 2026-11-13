@@ -102,9 +102,10 @@ end
 
 function A.BuildOverviewPage(page, kit)
     local C, label = kit.C, kit.label
-    local ink = {0.20, 0.12, 0.055}
-    local muted = {0.36, 0.26, 0.14}
-    local heading = {0.42, 0.23, 0.055}
+    -- dark ranking-table look: light text on stone, gold figures
+    local ink = {0.96, 0.93, 0.86}
+    local muted = {0.79, 0.77, 0.73}
+    local heading = {1, 0.72, 0.11}
     A.overviewPage = page
     kit.PageHeader(page, "overview")
     page.columns = kit.Columns(page, {2, 4}, 12)
@@ -112,7 +113,7 @@ function A.BuildOverviewPage(page, kit)
 
     -- A character dossier, with a portrait and ruled journal entries rather than four dashboard tiles.
     local hero = CreateFrame("Frame", nil, page.columns.cells[1]); hero:SetAllPoints(page.columns.cells[1])
-    A.NativeParchment(hero, C); page.hero = hero
+    A.NativePanel(hero, C); page.hero = hero
     page.portrait = hero:CreateTexture(nil, "ARTWORK"); page.portrait:SetSize(54, 54); page.portrait:SetPoint("TOPLEFT", 12, -14)
     page.heroClass = hero:CreateTexture(nil, "OVERLAY"); page.heroClass:SetSize(22, 22); page.heroClass:SetPoint("BOTTOMRIGHT", page.portrait, "BOTTOMRIGHT", 2, -2)
     page.heroRace = hero:CreateTexture(nil, "OVERLAY"); page.heroRace:SetSize(20, 20); page.heroRace:SetPoint("BOTTOMLEFT", page.portrait, "BOTTOMLEFT", -2, -2)
@@ -124,10 +125,11 @@ function A.BuildOverviewPage(page, kit)
     local rule = hero:CreateTexture(nil, "BORDER"); rule:SetPoint("TOPLEFT", 12, -155); rule:SetPoint("TOPRIGHT", -12, -155); rule:SetHeight(1); kit.paint(rule, heading, 0.4)
     page.stats = {}
     for i, icon in ipairs({kit.ICON.questDone, kit.ICON.run, kit.ICON.places, kit.ICON.overview}) do
-        local entry = CreateFrame("Frame", nil, hero); entry:SetPoint("TOPLEFT", 12, -152-(i-1)*24); entry:SetPoint("TOPRIGHT", -12, -152-(i-1)*24); entry:SetHeight(22)
-        entry.icon = entry:CreateTexture(nil, "ARTWORK"); entry.icon:SetSize(18, 18); entry.icon:SetPoint("LEFT"); kit.setIcon(entry.icon, icon)
-        entry.caption = label(entry, 10, ink); entry.caption:SetPoint("LEFT", entry.icon, "RIGHT", 6, 0); entry.caption:SetPoint("RIGHT", -45, 0); entry.caption:SetWordWrap(false)
-        entry.value = label(entry, 15, heading); entry.value:SetPoint("RIGHT"); entry.value:SetJustifyH("RIGHT")
+        local entry = CreateFrame("Frame", nil, hero); entry:SetPoint("TOPLEFT", 8, -152-(i-1)*26); entry:SetPoint("TOPRIGHT", -8, -152-(i-1)*26); entry:SetHeight(26)
+        kit.fill(entry, i % 2 == 1 and {0.17, 0.165, 0.16} or {0.137, 0.133, 0.129}, 1)
+        entry.icon = entry:CreateTexture(nil, "ARTWORK"); entry.icon:SetSize(18, 18); entry.icon:SetPoint("LEFT", 6, 0); kit.setIcon(entry.icon, icon)
+        entry.caption = label(entry, 10, ink); entry.caption:SetPoint("LEFT", entry.icon, "RIGHT", 6, 0); entry.caption:SetPoint("RIGHT", -60, 0); entry.caption:SetWordWrap(false)
+        entry.value = label(entry, 15, heading); entry.value:SetPoint("RIGHT", -8, 0); entry.value:SetJustifyH("RIGHT")
         entry.delta = label(entry, 10, muted); entry.delta:Hide()
         page.stats[i] = entry
     end
@@ -150,7 +152,7 @@ function A.BuildOverviewPage(page, kit)
     page.areas = kit.BarList(inner); page.areas:SetPoint("TOPLEFT", 6, -3); page.areas:SetPoint("BOTTOMRIGHT", -6, 0)
     page.loot = kit.IconGrid(inner, 38, 6)
     local chart = CreateFrame("Frame", nil, right); chart:SetPoint("BOTTOMLEFT"); chart:SetPoint("BOTTOMRIGHT"); chart:SetHeight(150)
-    A.NativeParchment(chart, C)
+    A.NativePanel(chart, C)
     page.chartTitle = label(chart, 12, heading); page.chartTitle:SetPoint("TOPLEFT", 12, -9)
     page.legend = kit.Legend(chart); page.legend:SetPoint("TOPLEFT", 12, -29)
     page.chart = kit.BarChart(chart); page.chart:SetPoint("TOPLEFT", 12, -50); page.chart:SetPoint("BOTTOMRIGHT", -12, 8)
