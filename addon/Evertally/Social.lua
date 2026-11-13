@@ -441,6 +441,25 @@ function A.SendProposal(target,proposal)
     table.insert(S.proposals,1,entry);while #S.proposals>MAX_PROPOSALS do table.remove(S.proposals) end
     emit("proposalSent",entry);return true,id
 end
+--- Opens the trade window with a player standing close by (nameplate, target, group or raid unit within trade range).
+--- The sender may arrive as "Name Realm", so a unit also matches when its name is the start of that.
+function A.TradeWithPlayer(name)
+    local want=baseName(name):lower();if want=="" then return false end
+    local units={"target","mouseover","focus"}
+    for i=1,4 do units[#units+1]="party"..i end
+    for i=1,40 do units[#units+1]="raid"..i end
+    for i=1,40 do units[#units+1]="nameplate"..i end
+    for _,unit in ipairs(units) do
+        if A.Call(UnitExists,unit)==true and A.Call(UnitIsPlayer,unit)==true then
+            local n=A.Text(A.Call(UnitName,unit),80)
+            n=n and n:lower()
+            if n and n~="" and (n==want or want:sub(1,#n+1)==n.." ") and A.Call(CheckInteractDistance,unit,2)==true then
+                return (pcall(InitiateTrade,unit))
+            end
+        end
+    end
+    return false
+end
 function A.AnswerProposal(id,accept,message)
     for _,entry in ipairs(S.proposals) do
         if entry.id==id and entry.dir=="in" and entry.status=="open" then

@@ -37,6 +37,55 @@ local function zoneName(mapId)
     return plain(A.Field(info, "name") or (A.L("map") .. " #" .. tostring(mapId)))
 end
 
+local function itemIcon(id)
+    local icon = A.Call(GetItemIcon, id)
+    if not icon and C_Item then icon = A.Call(C_Item.GetItemIconByID, id) end
+    return icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+end
+--- A proposal's item rows: icon, name and count, with the game's item tooltip (stats included) on hover.
+local ROW_H, MAX_ROWS = 24, 16
+local function layoutItems(f, spec)
+    f.itemHeads = f.itemHeads or {}
+    f.itemRows = f.itemRows or {}
+    local y = -46
+    local used = 0
+    for g, group in ipairs(spec.items or {}) do
+        local head = f.itemHeads[g]
+        if not head then head = K().label(f, 12, K().C.gold); head:SetWidth(404); f.itemHeads[g] = head end
+        head:ClearAllPoints(); head:SetPoint("TOPLEFT", 18, y); head:SetText(group.head); head:Show(); y = y - 20
+        for _, e in ipairs(group.list) do
+            if used < MAX_ROWS then
+                used = used + 1
+                local row = f.itemRows[used]
+                if not row then
+                    row = CreateFrame("Button", nil, f); row:SetSize(404, ROW_H - 2)
+                    row.hover = row:CreateTexture(nil, "HIGHLIGHT"); row.hover:SetAllPoints(row); row.hover:SetColorTexture(1, 1, 1, 0.08)
+                    row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(20, 20); row.icon:SetPoint("LEFT", 2, 0)
+                    row.text = K().label(row, 12, K().C.mist); row.text:SetPoint("LEFT", row.icon, "RIGHT", 8, 0); row.text:SetWidth(360)
+                    row:SetScript("OnEnter", function(self)
+                        if self.itemId and GameTooltip then pcall(function() GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink("item:" .. self.itemId); GameTooltip:Show() end) end
+                    end)
+                    row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+                    f.itemRows[used] = row
+                end
+                row.itemId = e[1]
+                row:ClearAllPoints(); row:SetPoint("TOPLEFT", 18, y)
+                row.icon:SetTexture(itemIcon(e[1]))
+                row.text:SetText(itemName(e[1]) .. (e[2] > 1 and ("  x" .. e[2]) or ""))
+                row:Show(); y = y - ROW_H
+            end
+        end
+        local none = f.itemHeads[g].none
+        if #group.list == 0 then
+            if not none then none = K().label(f, 12, K().C.mist); none:SetWidth(404); f.itemHeads[g].none = none end
+            none:ClearAllPoints(); none:SetPoint("TOPLEFT", 18, y); none:SetText("-"); none:Show(); y = y - ROW_H
+        elseif none then none:Hide() end
+    end
+    for i = used + 1, #f.itemRows do f.itemRows[i]:Hide() end
+    for g = #(spec.items or {}) + 1, #f.itemHeads do f.itemHeads[g]:Hide(); if f.itemHeads[g].none then f.itemHeads[g].none:Hide() end end
+    return y
+end
+
 -- ---------------------------------------------------------------- one popup, answered one question at a time
 local function closePopup() if popup then popup:Hide() end; popup.current = nil; local nextSpec = table.remove(queue, 1); if nextSpec then A.SocialShowPopup(nextSpec) end end
 local function ensurePopup()
@@ -61,7 +110,18 @@ function A.SocialShowPopup(spec)
         local f = ensurePopup()
         if f:IsShown() and f.current then queue[#queue + 1] = spec; return end
         f.current = spec
-        f.title:SetText(spec.title or ""); f.body:SetText(spec.body or "")
+        f.title:SetText(spec.title or "")
+        f.body:ClearAllPoints()
+        if spec.items then
+            local y = layoutItems(f, spec)
+            f.body:SetPoint("TOPLEFT", 18, y - 6); f.body:SetText(spec.body or "")
+            local lines = select(2, (spec.body or ""):gsub("\n", "\n")) + (spec.body and spec.body ~= "" and 1 or 0)
+            f:SetHeight(math.max(170, math.min(560, -y + 6 + lines * 16 + 80)))
+        else
+            layoutItems(f, {})
+            f.body:SetPoint("TOPLEFT", 18, -46); f.body:SetText(spec.body or "")
+            f:SetHeight(360)
+        end
         local selected = {}
         for i, b in ipairs(f.checks) do
             local c = spec.checks and spec.checks[i]
@@ -110,11 +170,16 @@ local function askPopup(request)
     }})
 end
 local function proposalPopup(entry)
-    local lines = {A.L("propWants") .. " " .. itemsText(entry.want), A.L("propOffers") .. " " .. itemsText(entry.offer)}
+    local lines = {}
     if (entry.gold or 0) > 0 then lines[#lines + 1] = string.format(A.L("propGold"), money(entry.gold)) end
     if entry.note and entry.note ~= "" then lines[#lines + 1] = string.format(A.L("propNote"), plain(entry.note)) end
-    A.SocialShowPopup({id = entry.id, title = string.format(A.L("propTitle"), plain(base(entry.peer))), body = table.concat(lines, "\n"), buttons = {
-        {label = A.L("propAccept"), fn = function() A.AnswerProposal(entry.id, true, ""); A.Print(A.L("propAcceptedHint")) end},
+    A.SocialShowPopup({id = entry.id, title = string.format(A.L("propTitle"), plain(base(entry.peer))), body = table.concat(lines, "\n"),
+        items = {{head = A.L("propWants"), list = entry.want or {}}, {head = A.L("propOffers"), list = entry.offer or {}}}, buttons = {
+        {label = A.L("propAccept"), fn = function()
+            A.AnswerProposal(entry.id, true, "")
+            -- Close enough to trade: open the trade window straight away; otherwise just tell them to meet.
+            if A.TradeWithPlayer and A.TradeWithPlayer(entry.peer) then A.Print(A.L("propTradeOpened")) else A.Print(A.L("propAcceptedHint")) end
+        end},
         {label = A.L("propDecline"), fn = function() A.AnswerProposal(entry.id, false, "") end},
     }})
 end
@@ -637,7 +702,7 @@ local text = {
         viewSearch = "Search items...", viewSortBy = "Sort:", viewSort_default = "default", viewSort_quality = "quality", viewSort_name = "name", viewSort_type = "type (groups)", viewCount = "%d/%d", viewNoMatch = "Nothing matches.",
         viewType_weapon = "Weapons", viewType_armor = "Armor", viewType_consumable = "Consumables", viewType_container = "Bags", viewType_ammo = "Ammunition", viewType_trade = "Trade goods", viewType_recipe = "Recipes", viewType_quest = "Quest items", viewType_misc = "Other", viewType_unknown = "Not loaded yet",
         propTitle = "%s proposes a trade", propWants = "Wants from you:", propOffers = "Offers:", propGold = "Gold: %s", propNote = "Note: %s", propAccept = "Accept", propDecline = "Decline",
-        propAcceptedHint = "Accepted. Meet and use the normal trade window.", meetTitle = "%s suggests a meet", meetWaypoint = "Set waypoint", meetDismiss = "Dismiss",
+        propAcceptedHint = "Accepted. Meet and use the normal trade window.", propTradeOpened = "Accepted. Opening the trade window.", meetTitle = "%s suggests a meet", meetWaypoint = "Set waypoint", meetDismiss = "Dismiss",
         viewSlot1 = "Head", viewSlot2 = "Neck", viewSlot3 = "Shoulder", viewSlot4 = "Shirt", viewSlot5 = "Chest", viewSlot6 = "Waist", viewSlot7 = "Legs", viewSlot8 = "Feet", viewSlot9 = "Wrist", viewSlot10 = "Hands",
         viewSlot11 = "Finger 1", viewSlot12 = "Finger 2", viewSlot13 = "Trinket 1", viewSlot14 = "Trinket 2", viewSlot15 = "Back", viewSlot16 = "Main hand", viewSlot17 = "Off hand", viewSlot18 = "Ranged", viewSlot19 = "Tabard",
     },
@@ -665,7 +730,7 @@ local text = {
         viewSearch = "Hledat věci...", viewSortBy = "Řazení:", viewSort_default = "výchozí", viewSort_quality = "kvalita", viewSort_name = "název", viewSort_type = "typ (skupiny)", viewCount = "%d/%d", viewNoMatch = "Nic neodpovídá.",
         viewType_weapon = "Zbraně", viewType_armor = "Zbroj", viewType_consumable = "Spotřebky", viewType_container = "Tašky", viewType_ammo = "Střelivo", viewType_trade = "Řemeslné zboží", viewType_recipe = "Recepty", viewType_quest = "Úkolové věci", viewType_misc = "Ostatní", viewType_unknown = "Ještě nenačteno",
         propTitle = "%s navrhuje výměnu", propWants = "Chce od tebe:", propOffers = "Nabízí:", propGold = "Zlato: %s", propNote = "Poznámka: %s", propAccept = "Přijmout", propDecline = "Odmítnout",
-        propAcceptedHint = "Přijato. Sejděte se a použijte běžné okno výměny.", meetTitle = "%s navrhuje sraz", meetWaypoint = "Nastavit waypoint", meetDismiss = "Zavřít",
+        propAcceptedHint = "Přijato. Sejděte se a použijte běžné okno výměny.", propTradeOpened = "Přijato. Otevírám okno výměny.", meetTitle = "%s navrhuje sraz", meetWaypoint = "Nastavit waypoint", meetDismiss = "Zavřít",
         viewSlot1 = "Hlava", viewSlot2 = "Krk", viewSlot3 = "Ramena", viewSlot4 = "Košile", viewSlot5 = "Hruď", viewSlot6 = "Opasek", viewSlot7 = "Nohy", viewSlot8 = "Boty", viewSlot9 = "Zápěstí", viewSlot10 = "Ruce",
         viewSlot11 = "Prsten 1", viewSlot12 = "Prsten 2", viewSlot13 = "Talisman 1", viewSlot14 = "Talisman 2", viewSlot15 = "Záda", viewSlot16 = "Hlavní ruka", viewSlot17 = "Vedlejší ruka", viewSlot18 = "Střelná zbraň", viewSlot19 = "Tabard",
     },
