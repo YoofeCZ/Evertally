@@ -113,6 +113,13 @@ impl Client {
             Some(token),
         )
     }
+    /// Sends what the player wrote in game (`outbox`) and receives the current forum back.
+    ///
+    /// # Errors
+    /// Network or server failure; `invalid_token` (401) means the app was disconnected on the website.
+    pub fn forum(&self, token: &str, outbox: &[Value]) -> Result<Value, ApiError> {
+        self.post("/api/device/forum", &json!({ "outbox": outbox }), Some(token))
+    }
     #[must_use]
     pub fn new(origin: String) -> Self {
         let agent: ureq::Agent = ureq::Agent::config_builder()

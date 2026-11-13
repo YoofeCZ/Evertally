@@ -16,6 +16,7 @@ Při výpadku sítě to zkusí znovu každých 5 minut. Když server export odm�
 | Soubor | Účel |
 | --- | --- |
 | `savedvars.rs` | Datový parser `SavedVariables` → JSON |
+| `forum.rs` | Fórum: odeslání příspěvků napsaných ve hře a zápis `ForumData.lua` vedle addonu |
 | `local.rs` | Čtení místní historie a postav z `Evertally.lua`, bez uploadu |
 | `wow.rs` | Hledání instalací a exportních souborů |
 | `upload.rs` | Co odeslat a rozdělení do dávek |

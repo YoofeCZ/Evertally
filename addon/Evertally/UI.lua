@@ -21,7 +21,7 @@ local ICON = {
     overview = "Interface\\Icons\\INV_Misc_Book_09", journal = "Interface\\Icons\\INV_Scroll_03", history = "Interface\\Icons\\INV_Sword_04",
     facts = "Interface\\Icons\\INV_Misc_Map_01", rankings = "Interface\\Icons\\Ability_Warrior_BattleShout",
     peers = "Interface\\Icons\\INV_Misc_GroupNeedMore", settings = "Interface\\Icons\\INV_Misc_Gear_01",
-    social = "Interface\\Icons\\INV_Misc_GroupNeedMore", community = "Interface\\Icons\\INV_Misc_GroupLooking", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\Ability_Tracking", world = "Interface\\Icons\\Spell_Nature_FarSight",
+    social = "Interface\\Icons\\INV_Misc_GroupNeedMore", webfacts = "Interface\\Icons\\Spell_Nature_FarSight", community = "Interface\\Icons\\INV_Misc_GroupLooking", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\Ability_Tracking", world = "Interface\\Icons\\Spell_Nature_FarSight",
     database = "Interface\\Icons\\INV_Misc_Book_11", dungeons = "Interface\\Icons\\INV_Misc_Key_13", guides = "Interface\\Icons\\INV_Misc_Note_01", recipes = "Interface\\Icons\\INV_Scroll_06", talents = "Interface\\Icons\\Ability_Marksmanship",
     quest = "Interface\\GossipFrame\\AvailableQuestIcon", questDone = "Interface\\GossipFrame\\ActiveQuestIcon",
     npc = "Interface\\Icons\\INV_Misc_Head_Human_01", vendor = "Interface\\Icons\\INV_Misc_Bag_10",
@@ -35,7 +35,7 @@ local ICON = {
 local NAV = {
     {head = "navHistory", "overview", "journal", "history", "places", "facts", "professions"},
     {head = "navGuide", "database", "dungeons", "recipes", "talents", "world", "guides"},
-    {head = "navPeople", "community", "social", "rankings"},
+    {head = "navPeople", "community", "social", "rankings", "webfacts"},
     {"settings"},
 }
 local VIEWS = {}
@@ -535,7 +535,7 @@ local function showCommunityImport()
 end
 
 local function buildCommunity(page)
-    PageHeader(page,"community");page.kind,page.query="",""
+    PageHeader(page,"webfacts");page.kind,page.query="",""
     Metrics(page,{{key="communityEntities",icon=ICON.facts},{key="count",icon=ICON.quest},{key="pageCacheState",icon=ICON.community}})
     page.import=Button(page,"communityImport",110,"primary",showCommunityImport);page.import:SetPoint("TOPLEFT",0,-104)
     page.clear=Button(page,"communityClear",80,"ghost",function() A.ClearCommunity() end);page.clear:SetPoint("LEFT",page.import,"RIGHT",8,0)
@@ -559,7 +559,7 @@ local function buildCommunity(page)
             local current=e
             items[#items+1]={title=plain(e.name),icon=e.kind=="npc" and ICON.npc or e.kind=="item" and ICON.item or ICON.quest,
                 sub=e.kind.." #"..e.id.."  ·  "..stamp(e.lastSeen)..(e.mapId and ("  ·  "..mapName(e.mapId)) or "")..
-                    (e.x and e.y and string.format("  %.1f, %.1f",e.x*100,e.y*100) or ""),right=tostring(e.count),tag=A.L("community"),tagColor=stale and C.peach or C.lilac,
+                    (e.x and e.y and string.format("  %.1f, %.1f",e.x*100,e.y*100) or ""),right=tostring(e.count),tag=A.L("webfacts"),tagColor=stale and C.peach or C.lilac,
                 document={title=plain(e.name),subtitle=e.kind.." #"..e.id,entries={
                     {text=A.L("count")..": "..e.count,head=true},
                     {text=A.L("observedAt")..": "..stamp(e.lastSeen)},
@@ -767,7 +767,7 @@ A.UIShowEventDetail=showEvent
 showCommunityDetail=function(e)
     local items={detailRow("observedAt",stamp(e.lastSeen)),detailRow("count",e.count),detailRow("observationType",e.kind.." #"..e.id)}
     positionRows(e,items,true)
-    showDetails(plain(e.name),A.L("community"),items,e)
+    showDetails(plain(e.name),A.L("webfacts"),items,e)
 end
 
 local function fold(text)
@@ -1296,7 +1296,9 @@ local function build()
     buildPlaces(pages.places)
     buildFacts(pages.facts)
     buildExternal("rankings", A.BuildRankingsPage, "rankings_page", function(page) buildList(page, "rankings", function() return rankingItems(), A.L("noData") end) end)
-    buildCommunity(pages.community)
+    -- the Community page is the forum (ForumUI.lua); the old sample of website facts lives on its own page
+    buildExternal("community", A.BuildForumPage, "forum_page")
+    buildCommunity(pages.webfacts)
     buildSettings(pages.settings)
     -- the Social page lives in SocialUI.lua, the World page in WorldHost.lua (its code in Evertally_Map, loaded on first use)
     buildExternal("social", A.BuildSocialPage, "social_page")
@@ -1498,6 +1500,7 @@ local function slash(text)
         -- /etally look <name> [kinds]: ask a player to show gear, stats, talents and professions (i s t p, g for gold, w for your website)
         local name, kinds = text:match("^look%s+(%S+)%s*(%a*)")
         local ok, err = A.RequestInspect(name, kinds ~= "" and kinds or nil); A.Print(ok and string.format(A.L("socialWaiting"), name) or A.L("socialErr_" .. tostring(err)))
+    elseif text == "forum" then A.ShowView("community")
     elseif text == "minimap" then A.db.settings.hideMinimap = not A.db.settings.hideMinimap; if minimapButton then minimapButton:SetShown(not A.db.settings.hideMinimap) end
     else A.ToggleUI() end
 end

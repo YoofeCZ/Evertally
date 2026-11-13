@@ -6,6 +6,7 @@
 pub mod api;
 pub mod bridge;
 pub mod config;
+pub mod forum;
 pub mod lang;
 pub mod local;
 pub mod optical;

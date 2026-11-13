@@ -112,7 +112,7 @@ fn read_account(dir: &Path, file: &Path, max_events: usize) -> AccountData {
     data
 }
 
-fn read_history(path: &Path) -> Result<String, String> {
+pub(crate) fn read_history(path: &Path) -> Result<String, String> {
     let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
     if file.metadata().map_err(|error| error.to_string())?.len() > MAX_HISTORY_BYTES {
         return Err("Evertally history exceeds the 64 MiB limit".to_owned());

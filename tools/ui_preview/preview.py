@@ -30,7 +30,7 @@ from test_forever_traits import FOREVER_TRAITS  # noqa: E402
 CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 ICON_FILES = {}
-VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "settings"]
+VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
 
 FIXTURE = r'''
 UnitName=function() return "Mardyx" end
@@ -342,6 +342,14 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     lua.execute(f"SCREEN_W,SCREEN_H={sw},{sh}")
     lua.execute((HERE / "layout_mock.lua").read_text(encoding="utf8"))
     lua.execute(FIXTURE)
+    # a small forum, so that the Community page shows threads, a thread on parchment and a reply from another realm
+    lua.execute("""EvertallyForumData={schemaVersion=1,generatedAt=NOW-100,count=2,threads={
+      {id="wabcdef012345",category="dungeons",title="Deadmines v patek, hledam healera",author="Aria-Fixture Realm",classId=8,origin="web",pinned=false,createdAt=NOW-5000,lastPostAt=NOW-300,replies=1,posts={
+        {id="wabcdef012345",author="Aria-Fixture Realm",classId=8,origin="web",body="Kdo jde v patek vecer? Potrebuji healera a jednoho tanka. Level 18 az 22.",createdAt=NOW-5000},
+        {id="gpost00112233",author="Bran-Other Realm",classId=7,origin="game",body="Ja.",createdAt=NOW-300,replyTo="wabcdef012345"}}},
+      {id="wpinned123456",category="general",title="Pravidla foray",author="Admin-Fixture Realm",origin="web",pinned=true,createdAt=NOW-9000,lastPostAt=NOW-9000,replies=0,posts={
+        {id="wpinned123456",author="Admin-Fixture Realm",origin="web",body="Be kind.",createdAt=NOW-9000}}}}}""")
+    a.ForumResetCache()
     # Forever has C_Traits only. Leave legacy GetTalent* globals absent so a broken adapter cannot hide behind the mock.
     lua.execute(FOREVER_TRAITS)
     lua.execute('TRAIT_NODES[100001].activeRank=4;TRAIT_NODES[100201].activeRank=0')
@@ -514,7 +522,7 @@ def main():
         if args.quest_id and view == "database": name += "-" + str(args.quest_id)
         page = out / f"{name}.html"
         page.write_text(render(nodes, sw, sh, args.debug), encoding="utf8")
-        bad = [k for k in ("ui_refresh", "overview_page", "journal_page", "rankings_page", "social_page", "world_page") if a.errors[k]]
+        bad = [k for k in ("ui_refresh", "overview_page", "journal_page", "rankings_page", "social_page", "world_page", "forum_page", "forum_compose") if a.errors[k]]
         if bad or a.lastUIError:
             problems[name] = (bad, str(a.lastUIError))
         if not args.no_shots:

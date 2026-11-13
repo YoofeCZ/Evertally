@@ -23,6 +23,8 @@ Social.lua
 Armory.lua
 Live.lua
 Community.lua
+ForumData.lua
+Forum.lua
 UI.lua
 Widgets.lua
 Dashboard.lua
@@ -31,6 +33,7 @@ InstanceCatalog.lua
 Rankings.lua
 Onboarding.lua
 SocialUI.lua
+ForumUI.lua
 WorldHost.lua
 Guides.lua
 SleepingBagGuide.lua

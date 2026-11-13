@@ -49,7 +49,7 @@ def runtime(record_globals=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Live.lua", "Community.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Live.lua", "Community.lua", "Forum.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -448,7 +448,7 @@ class ReplayTests(unittest.TestCase):
             end
             return table.concat(views,",")
         end''')()
-        self.assertEqual(opened,"overview,journal,history,places,facts,professions,database,dungeons,recipes,talents,world,guides,community,social,rankings,settings")
+        self.assertEqual(opened,"overview,journal,history,places,facts,professions,database,dungeons,recipes,talents,world,guides,community,social,rankings,webfacts,settings")
         # Toggles in Settings change real settings, and language switching re-renders.
         self.lua.execute('''for _,b in ipairs(MOCKBUTTONS) do if b.localeKey=="web" and b.Update then b.scripts.OnClick(b) end end''')
         self.assertTrue(self.a.db.settings.web)
