@@ -57,6 +57,46 @@ class DetailedRankingTests(unittest.TestCase):
         self.assertEqual(len(self.a.db.runs), 4)
         self.assertEqual(self.filtered("history", kind="raid", classId=8), [])
 
+    def test_search_intersects_filters_preserves_rank_and_searches_realms(self):
+        self.lua.execute('''Evertally.peerDB.peers.Mage.character.realm="Železný svět"''')
+        all_levels = self.filtered("level")
+        mage_rank = next(row.rank for row in all_levels if row.name == "Mage")
+        for mode in ("runs", "level", "fastest", "dps", "heals", "history"):
+            with self.subTest(mode=mode):
+                result = self.filtered(mode, query="ŽELEZNÝ", classId=8, raceId=1, kind="party")
+                self.assertTrue(result)
+                self.assertTrue(all(row.name == "Mage" for row in result))
+        result = self.filtered("level", query="ŽELEZNÝ")
+        self.assertEqual(result[0].rank, mage_rank, "search preserves the real position before text filtering")
+        self.assertEqual(self.filtered("history", query="železný", kind="raid"), [])
+        dungeons = self.filtered("dungeons", query="mage", kind="party")
+        self.assertEqual([r.name for r in dungeons], ["The Deadmines"])
+        self.assertEqual(self.filtered("dungeons", query="mage", kind="raid"), [])
+
+    def test_search_control_opens_filtered_detail_and_clear_restores_rows(self):
+        self.a.ShowView("rankings")
+        page = self.a.rankingsPage
+        page.search.SetText(page.search, "mage")
+        page.search.scripts.OnTextChanged(page.search)
+        self.assertEqual(len(rows(page.data)), 1)
+        self.assertEqual(page.data[1].name, "Mage")
+        page.boardList["items"][1].onClick()
+        self.assertEqual(page.document.spec.title, "Mage")
+        page.clearSearch.scripts.OnClick()
+        self.assertEqual(page.filters.query, "")
+        self.assertGreater(len(rows(page.data)), 1)
+
+    def test_czech_heading_uppercase_preserves_utf8(self):
+        self.a.db.settings.language = "cs"
+        self.a.ShowView("rankings")
+        page = self.a.rankingsPage
+        page.mode = "level"
+        page.Refresh()
+        self.assertEqual(page.boardTitle.text, "ÚROVEŇ")
+        page.dungeon = "Český řetěz žluťoučký kůň"
+        page.Refresh()
+        self.assertEqual(page.boardTitle.text, "ČESKÝ ŘETĚZ ŽLUŤOUČKÝ KŮŇ")
+
     def test_dps_and_hps_use_individual_combat_seconds_and_exclude_partial_spikes(self):
         dps = self.filtered("dps", kind="party")
         self.assertEqual([r.name for r in dps], ["Mage", "Fixture Hero", "Healer"])

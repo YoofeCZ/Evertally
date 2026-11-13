@@ -138,13 +138,14 @@ class ForumPageTests(unittest.TestCase):
         page = self.open()
         items = page.list["items"]
         self.assertEqual(items[1].title, "* Pravidla")
-        self.assertEqual(items[2].sub.split("  ·  ")[0], "Aria-Fixture Realm")
+        self.assertTrue(items[2].sub.startswith("Aria-Fixture"))
         self.assertEqual(page.threadId, "wpinned123456")
         page.list["items"][2].onClick()
         self.assertEqual(page.threadId, "wabcdef012345")
         spec = page.doc.spec
         self.assertEqual(spec.title, "Deadmines v pátek")
         texts = [spec.entries[i].text for i in range(1, len(spec.entries) + 1)]
+        self.assertTrue(any(t.startswith("Aria-Fixture Realm") for t in texts), "the complete author remains in the opened thread")
         self.assertTrue(any(t.startswith("Bran-Other Realm") for t in texts))
         self.assertTrue(any("||cffff0000" in t for t in texts))  # a pipe from the website can never start a colour code
 
@@ -171,6 +172,35 @@ class ForumPageTests(unittest.TestCase):
         self.assertEqual(len(page.list["items"]), 0)
         self.assertEqual(page.doc.spec.key, "welcome")
         self.assertEqual(page.info.text, self.a.L("forumNoCopy"))
+
+    def test_search_combines_category_title_author_and_post_body_with_czech_case(self):
+        page = self.open()
+        def search(text):
+            page.search.SetText(page.search, text)
+            page.search.scripts.OnTextChanged(page.search)
+        search("PÁTEK")
+        self.assertEqual(len(page.list["items"]), 1)
+        self.assertEqual(page.doc.spec.title, "Deadmines v pátek")
+        search("HEALERA")
+        self.assertEqual(len(page.list["items"]), 1, "search includes visible post bodies")
+        search("BRAN-OTHER REALM")
+        self.assertEqual(len(page.list["items"]), 1, "search includes reply authors")
+        general = next(page.chips[i] for i in range(1, len(page.chips) + 1) if page.chips[i].categoryId == "general")
+        general.scripts.OnClick()
+        self.assertEqual(len(page.list["items"]), 0)
+        self.assertEqual(page.doc.spec.entries[1].text, self.a.L("forumNoResults"))
+        page.clearSearch.scripts.OnClick()
+        self.assertEqual(page.query, "")
+        self.assertEqual(len(page.list["items"]), 1)
+
+    def test_search_includes_pending_local_post_without_accessing_any_web(self):
+        ok, tid = self.a.ForumNewThread("general", "Nové téma", "Čerstvý příspěvek")
+        self.assertTrue(ok)
+        page = self.open()
+        page.search.SetText(page.search, "ČERSTVÝ")
+        page.search.scripts.OnTextChanged(page.search)
+        self.assertEqual(len(page.list["items"]), 1)
+        self.assertEqual(page.threadId, tid)
 
     def test_czech_texts_exist_for_every_english_forum_text(self):
         en, cs = self.lua.eval("Evertally.locale.en"), self.lua.eval("Evertally.locale.cs")

@@ -186,9 +186,17 @@ function openViewer(view)
             local f = CreateFrame("Frame", "EvertallyViewFrame", UIParent)
             f:SetSize(820, 560); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
             A.NativeFrame(f, C)
+            -- Two clearly separated surfaces: the shared character on the left,
+            -- your proposal on the right. Background textures never intercept input.
+            local header=k.fill(f,{0.10,0.095,0.095},1,"BACKGROUND")
+            header:ClearAllPoints();header:SetPoint("TOPLEFT",5,-5);header:SetPoint("TOPRIGHT",-5,-5);header:SetHeight(52)
+            local headerLine=f:CreateTexture(nil,"BORDER");headerLine:SetPoint("TOPLEFT",7,-55);headerLine:SetPoint("TOPRIGHT",-7,-55);headerLine:SetHeight(1);k.paint(headerLine,{0.62,0.48,0.26},0.65)
+            local profilePanel=f:CreateTexture(nil,"BACKGROUND");profilePanel:SetPoint("TOPLEFT",14,-96);profilePanel:SetPoint("BOTTOMLEFT",14,32);profilePanel:SetWidth(454);k.paint(profilePanel,{0.065,0.065,0.075},0.96)
+            local offerPanel=f:CreateTexture(nil,"BACKGROUND");offerPanel:SetPoint("TOPLEFT",482,-62);offerPanel:SetPoint("BOTTOMRIGHT",-14,32);k.paint(offerPanel,{0.095,0.088,0.088},0.98)
+            local divider=f:CreateTexture(nil,"BORDER");divider:SetPoint("TOPLEFT",482,-62);divider:SetPoint("BOTTOMLEFT",482,32);divider:SetWidth(1);k.paint(divider,{0.65,0.50,0.25},0.65)
             f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", function() f:StartMoving() end); f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
-            f.title = k.label(f, 18, C.gold); f.title:SetPoint("TOPLEFT", 18, -14); f.title:SetWidth(560)
-            f.sub = k.label(f, 11, C.mist); f.sub:SetPoint("TOPLEFT", 18, -40); f.sub:SetWidth(760)
+            f.title = k.label(f, 18, C.gold); f.title:SetPoint("TOPLEFT", 20, -10); f.title:SetWidth(560)
+            f.sub = k.label(f, 10, C.mist); f.sub:SetPoint("TOPLEFT", 20, -34); f.sub:SetWidth(740)
             f.close = k.Button(f, nil, 30, "ghost", function() f:Hide() end); f.close:SetPoint("TOPRIGHT", -14, -12); f.close.text:SetText("x")
             f.tabs = {}
             local previous
@@ -204,7 +212,7 @@ function openViewer(view)
             f.grid = k.IconGrid(f, 40, 6); f.grid:ClearAllPoints(); f.grid:SetPoint("TOPLEFT", 18, -130); f.grid:SetPoint("BOTTOMLEFT", 18, 36); f.grid:SetWidth(444)
             f.list = k.ListView(f, 102); f.list:ClearAllPoints(); f.list:SetPoint("TOPLEFT", 18, -102); f.list:SetPoint("BOTTOMLEFT", 18, 36); f.list:SetWidth(444); f.list.child:SetWidth(436)
             -- what I offer back
-            f.offerTitle = k.label(f, 13, C.lilac); f.offerTitle:SetPoint("TOPLEFT", 492, -68); f.offerTitle:SetWidth(310)
+            f.offerTitle = k.label(f, 13, C.gold); f.offerTitle:SetPoint("TOPLEFT", 492, -68); f.offerTitle:SetWidth(310)
             f.offers = k.IconGrid(f, 36, 6); f.offers:ClearAllPoints(); f.offers:SetPoint("TOPLEFT", 492, -92); f.offers:SetSize(310, 214)
             f.goldLabel = k.label(f, 11, C.mist); f.goldLabel:SetPoint("TOPLEFT", 492, -318)
             f.gold = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.gold:SetSize(90, 24); f.gold:SetPoint("TOPLEFT", 496, -334)
@@ -251,7 +259,7 @@ function A.SocialRefreshViewer()
         for i, e in ipairs(v.equipped) do
             local id = e[2]
             local slotName = A.L("viewSlot" .. e[1])
-            entries[#entries + 1] = {id = id, order = e[1] * 100 + i, cell = {itemId = id, icon = k.itemIcon(id), slot = slotName, caption = plain(slotName), mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and A.L("viewWant") or nil,
+            entries[#entries + 1] = {id = id, order = e[1] * 100 + i, cell = {itemId = id, icon = k.itemIcon(id), slot = slotName, mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and A.L("viewWant") or nil,
                 onClick = function() cycle(f.wanted, id, 1); A.SocialRefreshViewer() end}}
         end
         local cells, shown = arrange(entries, f.query, SORTS[f.sort or 1], true)

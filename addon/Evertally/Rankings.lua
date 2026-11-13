@@ -19,8 +19,37 @@ A.locale.en.rankEndManual="End this record as a manual run";A.locale.cs.rankEndM
 A.locale.en.rankAbsorbs="Absorbs";A.locale.cs.rankAbsorbs="Absorpce"
 A.locale.en.rankInterrupts="Interrupts";A.locale.cs.rankInterrupts="Přerušení"
 A.locale.en.rankDispels="Dispels";A.locale.cs.rankDispels="Dispel"
+A.locale.en.rankSearch="Find player or realm";A.locale.cs.rankSearch="Hledat hráče nebo realm"
+A.locale.en.rankClear="Clear";A.locale.cs.rankClear="Vymazat"
+A.locale.en.rankColumns="RANK / CHARACTER";A.locale.cs.rankColumns="POŘADÍ / POSTAVA"
+A.locale.en.rankResult="RESULT";A.locale.cs.rankResult="VÝSLEDEK"
+A.locale.en.rankNoMatches="No locally available players match.";A.locale.cs.rankNoMatches="Žádný místně dostupný hráč neodpovídá."
+local CS_LOWER={["Á"]="á",["Č"]="č",["Ď"]="ď",["É"]="é",["Ě"]="ě",["Í"]="í",["Ň"]="ň",["Ó"]="ó",["Ř"]="ř",["Š"]="š",["Ť"]="ť",["Ú"]="ú",["Ů"]="ů",["Ý"]="ý",["Ž"]="ž"}
+local function fold(value)
+ local s=tostring(A.Plain(value) or ""):gsub("[A-Z]",function(c)return string.char(c:byte()+32) end)
+ return (s:gsub("[\195-\197][\128-\191]",function(c)return CS_LOWER[c] or c end))
+end
+local function matchesSearch(entry,query)
+ if query=="" then return true end
+ local c=entry and entry.character or {}
+ local name=entry and entry.name or c.name
+ local full=tostring(A.Plain(name) or "").."-"..tostring(A.Plain(c.realm) or "")
+ return fold(full):find(query,1,true)~=nil
+end
 local CS_UPPER={["á"]="Á",["č"]="Č",["ď"]="Ď",["é"]="É",["ě"]="Ě",["í"]="Í",["ň"]="Ň",["ó"]="Ó",["ř"]="Ř",["š"]="Š",["ť"]="Ť",["ú"]="Ú",["ů"]="Ů",["ý"]="Ý",["ž"]="Ž"}
-local function upperText(s) s=tostring(s or ""):upper();return (s:gsub("[\195-\197][\128-\191]",function(c) return CS_UPPER[c] end)) end
+local function upperText(s)
+ s=tostring(s or ""):gsub("[a-z]",function(c) return string.char(c:byte()-32) end)
+ return (s:gsub("[\195-\197][\128-\191]",function(c) return CS_UPPER[c] or c end))
+end
+local function fitIndex(text,width,measure)
+ local value=tostring(text or "");measure:SetText(value)
+ if (measure:GetStringWidth() or 0)<=width then return value end
+ while value~="" do
+  value=value:match("^(.*)[\1-\127\194-\244][\128-\191]*$") or "";measure:SetText(value.."...")
+  if (measure:GetStringWidth() or 0)<=width then return value.."..." end
+ end
+ return "..."
+end
 local MODES={"runs","level","fastest","dungeons","dps","heals","history"}
 local CLASSES={false,1,2,3,4,5,7,8,9,11,0}
 local RACES={false,1,2,3,4,5,6,7,8,0}
@@ -109,6 +138,7 @@ local function bestRun(e)
 end
 function A.RankingRows(kit,mode,dungeon,filters)
  local list,rows=players(dungeon,filters),{}
+ local query=fold(((filters and filters.query) or ""):match("^%s*(.-)%s*$"))
  local function source(e) return e.own and A.L("rankSelf") or e.observed and A.L("rankObservedGroup") or (A.L("rankReceived").." "..kit.stamp(e.receivedAt)) end
  local function row(e,value,fraction,run) return {key=e.key,name=e.name,character=e.character,own=e.own,valueText=value,fraction=fraction,entry=e,run=run,sub=kit.identityText(e.character).." · "..source(e)} end
  if mode=="runs" or mode=="level" then
@@ -137,17 +167,20 @@ function A.RankingRows(kit,mode,dungeon,filters)
   table.sort(rows,function(a,b)return (num(a.run.startedAt) or 0)>(num(b.run.startedAt) or 0) end)
  else
   local instances,order={},{}
-  for _,e in ipairs(list) do for _,run in ipairs(e.runs) do local ms=A.Number(run.durationMs,1)
+  for _,e in ipairs(list) do if matchesSearch(e,query) then for _,run in ipairs(e.runs) do local ms=A.Number(run.durationMs,1)
    if run.status=="completed" and ms and run.name then
     local d=instances[run.name];if not d then d={name=run.name,players={},count=0};instances[run.name]=d;order[#order+1]=d end
     if not d.players[e.key] then d.players[e.key]=true;d.count=d.count+1 end
     if not d.best or ms<d.best.durationMs then d.best,d.who=run,e end
    end
-  end end
+  end end end
   table.sort(order,byName)
   for _,d in ipairs(order) do rows[#rows+1]={name=d.name,character=d.who.character,own=d.who.own,valueText=kit.duration(d.best.durationMs),fraction=1,plainName=true,run=d.best,entry=d.who,sub=kit.plain(d.who.name).." · "..string.format(A.L("rankPlayers"),d.count)} end
  end
  for i,r in ipairs(rows) do r.rank=i end
+ if query~="" and mode~="dungeons" then
+  local filtered={};for _,row in ipairs(rows) do if matchesSearch(row.entry,query) then filtered[#filtered+1]=row end end;rows=filtered
+ end
  return rows
 end
 function A.RankingDungeons(filters)
@@ -227,14 +260,23 @@ function A.BuildRankingsPage(page,kit)
  for _,mode in ipairs(MODES) do page.chips[mode]=kit.Chip(page,function()page.mode=mode;page.selection=nil;A.RefreshUI()end) end
  local function change(key,choices) page.filters[key]=cycle(choices,page.filters[key]);page.selection=nil;page.dungeon=nil;A.RefreshUI() end
  page.kind=kit.Button(page,"rankAll",150,"ghost",function()change("kind",KINDS)end);page.class=kit.Button(page,"rankClass",150,"ghost",function()change("classId",CLASSES)end);page.race=kit.Button(page,"rankRace",150,"ghost",function()change("raceId",RACES)end)
+ page.search=kit.SearchBox(page,240,function(value) if page.filters.query~=value then page.filters.query=value;page.selection=nil;A.RefreshUI() end end)
+ page.clearSearch=kit.Button(page,"rankClear",76,"ghost",function()page.search:SetText("");page.filters.query="";page.selection=nil;A.RefreshUI()end)
  page.summary=kit.label(page,10,C.mist);page.summary:SetJustifyH("LEFT");page.summary:SetWordWrap(false)
  page.book=kit.Book(page,150);page.catalog=page.book.index;page.board=page.book.paper
- page.dungeonList=kit.ListView(page.book.index,0,true);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6);page.document=kit.Document(page.book.paper)
+ page.indexMeasure=kit.label(page,13,C.text);page.indexMeasure:Hide()
+ page.metaMeasure=kit.label(page,10,C.mist);page.metaMeasure:Hide()
+ page.dungeonList=kit.ListView(page.book.index,0,true);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6)
+ page.detailFrame=CreateFrame("Frame",nil,page.book.paper);page.detailFrame:SetAllPoints(page.book.paper);kit.fill(page.detailFrame,{0.075,0.074,0.08},1)
+ page.document=A.CreateCommunityDocument and A.CreateCommunityDocument(page.detailFrame,kit) or kit.Document(page.book.paper)
  page.boardFrame=CreateFrame("Frame",nil,page.book.paper);page.boardFrame:SetPoint("TOPLEFT",4,-4);page.boardFrame:SetPoint("BOTTOMRIGHT",-4,4)
  kit.fill(page.boardFrame,{0.094,0.09,0.086},1)
- page.boardTitle=kit.label(page.boardFrame,16,{1,1,1});page.boardTitle:SetPoint("TOPLEFT",10,-12);page.boardTitle:SetPoint("TOPRIGHT",-10,-12);page.boardTitle:SetJustifyH("CENTER")
- page.boardSub=kit.label(page.boardFrame,10,{0.79,0.77,0.73});page.boardSub:SetPoint("TOPLEFT",10,-34);page.boardSub:SetPoint("TOPRIGHT",-10,-34);page.boardSub:SetJustifyH("CENTER");page.boardSub:SetWordWrap(false)
- page.boardList=kit.ListView(page.boardFrame,0,true);page.boardList:ClearAllPoints();page.boardList:SetPoint("TOPLEFT",0,-52);page.boardList:SetPoint("BOTTOMRIGHT",-8,0)
+ page.boardTitle=kit.label(page.boardFrame,16,{0.96,0.86,0.67});page.boardTitle:SetPoint("TOPLEFT",16,-12);page.boardTitle:SetPoint("TOPRIGHT",-16,-12);page.boardTitle:SetJustifyH("LEFT")
+ page.boardSub=kit.label(page.boardFrame,10,{0.70,0.68,0.64});page.boardSub:SetPoint("TOPLEFT",16,-34);page.boardSub:SetPoint("TOPRIGHT",-16,-34);page.boardSub:SetJustifyH("LEFT");page.boardSub:SetWordWrap(false)
+ page.columnNames=kit.label(page.boardFrame,10,{0.65,0.62,0.56});page.columnNames:SetPoint("TOPLEFT",16,-54)
+ page.columnValue=kit.label(page.boardFrame,10,{0.65,0.62,0.56});page.columnValue:SetPoint("TOPRIGHT",-18,-54);page.columnValue:SetJustifyH("RIGHT")
+ local rule=page.boardFrame:CreateTexture(nil,"BORDER");rule:SetPoint("TOPLEFT",16,-69);rule:SetPoint("TOPRIGHT",-16,-69);rule:SetHeight(1);kit.paint(rule,{0.70,0.55,0.30},0.5)
+ page.boardList=kit.ListView(page.boardFrame,0,true);page.boardList:ClearAllPoints();page.boardList:SetPoint("TOPLEFT",8,-75);page.boardList:SetPoint("BOTTOMRIGHT",-8,0)
  local function showSelection()
   local selected=page.selection;if not selected then return false end;local spec
   if selected.run then spec=A.RankingRunDetail(kit,selected.run,selected.character)
@@ -260,29 +302,35 @@ function A.BuildRankingsPage(page,kit)
   end
   y=y-32;local w=(width-10)/3
   for i,b in ipairs({page.kind,page.class,page.race}) do b:ClearAllPoints();b:SetPoint("TOPLEFT",(i-1)*(w+5),y);b:SetWidth(w) end
-  page.summary:ClearAllPoints();page.summary:SetPoint("TOPLEFT",0,y-38);page.summary:SetPoint("TOPRIGHT",0,y-38)
-  page.book:ClearAllPoints();page.book:SetPoint("TOPLEFT",0,y-57);page.book:SetPoint("BOTTOMRIGHT");page.book.Layout()
+  page.search:ClearAllPoints();page.search:SetPoint("TOPLEFT",0,y-38);page.search:SetWidth(math.max(90,math.min(270,width-84)))
+  page.clearSearch:ClearAllPoints();page.clearSearch:SetPoint("LEFT",page.search,"RIGHT",8,0)
+  page.summary:ClearAllPoints();page.summary:SetPoint("TOPLEFT",0,y-72);page.summary:SetPoint("TOPRIGHT",0,y-72)
+  page.book:ClearAllPoints();page.book:SetPoint("TOPLEFT",0,y-91);page.book:SetPoint("BOTTOMRIGHT");page.book.Layout()
  end
  page:SetScript("OnSizeChanged",layout)
  function page.Refresh()
-  layout();page.kind.text:SetText(kindLabel(page.filters.kind));page.class.text:SetText(A.L("rankClass")..": "..filterName(page.filters.classId,"class"));page.race.text:SetText(A.L("rankRace")..": "..filterName(page.filters.raceId,"race"))
+  layout();page.kind.text:SetText(kindLabel(page.filters.kind));page.class.text:SetText(A.L("rankClass")..": "..filterName(page.filters.classId,"class"));page.race.text:SetText(A.L("rankRace")..": "..filterName(page.filters.raceId,"race"));page.search.hint:SetText(A.L("rankSearch"));page.clearSearch.text:SetText(A.L("rankClear"));page.columnNames:SetText(A.L("rankColumns"));page.columnValue:SetText(A.L("rankResult"))
   local choices={{title=kindLabel(page.filters.kind),icon=kit.ICON.raid,onClick=function()page.dungeon=nil;page.selection=nil;A.RefreshUI()end}}
   for _,item in ipairs(A.RankingCatalog(page.filters)) do local instance=item.name
-   choices[#choices+1]={title=kit.plain(item.name),icon=item.kind=="raid" and kit.ICON.raid or kit.ICON.run,sub=item.count>0 and tostring(item.count).." · "..A.L("rankModeHistory") or A.L("rankWithoutRuns"),tag=page.dungeon==instance and "•" or nil,onClick=function()page.dungeon=instance;page.selection=nil;if page.mode=="dungeons" then page.mode="history" end;A.RefreshUI()end}
+   local available=math.max(45,(tonumber(page.book.index:GetWidth()) or 200)-86)
+   choices[#choices+1]={title=fitIndex(kit.plain(item.name),available,page.indexMeasure),icon=item.kind=="raid" and kit.ICON.raid or kit.ICON.run,sub=item.count>0 and tostring(item.count).." · "..A.L("rankModeHistory") or A.L("rankWithoutRuns"),tag=page.dungeon==instance and "•" or nil,onClick=function()page.dungeon=instance;page.selection=nil;if page.mode=="dungeons" then page.mode="history" end;A.RefreshUI()end}
   end
   page.dungeonList.SetItems(choices,A.L("rankNoData"));local data=A.RankingRows(kit,page.mode,page.dungeon,page.filters);page.data=data;page.summary:SetText(A.L("rankFilterHint"))
-  if showSelection() then page.boardFrame:Hide();page.document.scroll:Show();return end
-  page.boardFrame:Show();page.document.scroll:Hide()
+  if showSelection() then page.boardFrame:Hide();page.detailFrame:Show();page.document.scroll:Show();return end
+  page.detailFrame:Hide();page.boardFrame:Show();page.document.scroll:Hide()
   local boardRows={}
   for _,row in ipairs(data) do local selected=row
    local classId=row.character and row.character.classId
    local color=classId and A.ClassColor and A.ClassColor(classId)
-   boardRows[#boardRows+1]={class=classId,title=kit.plain(row.name),sub=row.sub or "",right=row.valueText,titleColor=type(color)=="table" and color[1] and {color[1],color[2],color[3]} or nil,
+   local metaWidth=math.max(45,(tonumber(page.boardFrame:GetWidth()) or 350)-155)
+   local realm=row.character and A.Text(row.character.realm,100)
+   local meta=(realm and realm~="" and realm.." · " or "")..(row.sub or "")
+   boardRows[#boardRows+1]={class=classId,race=row.character and row.character.raceId,title=tostring(row.rank)..".  "..kit.plain(row.name),sub=fitIndex(meta,metaWidth-(row.character and row.character.raceId and 26 or 0),page.metaMeasure),right=row.valueText,titleColor=type(color)=="table" and color[1] and {color[1],color[2],color[3]} or nil,
     onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};A.RefreshUI()end}
   end
   page.boardTitle:SetText(upperText(page.dungeon and kit.plain(page.dungeon) or modeLabel(page.mode)))
   page.boardSub:SetText((page.mode=="dps" or page.mode=="heals") and A.L("rankRateNote") or A.L("rankPersonal"))
-  page.boardList.SetItems(boardRows,A.L("rankNoData"))
+  page.boardList.SetItems(boardRows,A.L((page.filters.query or "")~="" and "rankNoMatches" or "rankNoData"))
   local entries={};if page.mode=="dps" or page.mode=="heals" then entries[#entries+1]={text=A.L("rankRateNote")} end
   for _,row in ipairs(data) do local selected=row
    entries[#entries+1]={text=tostring(row.rank)..". "..kit.plain(row.name).." · "..row.valueText,head=true,classId=row.character and row.character.classId,raceId=row.character and row.character.raceId,onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};A.RefreshUI()end}
