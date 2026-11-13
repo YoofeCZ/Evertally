@@ -1,4 +1,7 @@
 import type { Run, Entry } from "../components/evertally/types";
+// A final meter snapshot can arrive in the same whole second as run.finished.
+// The later insertion must win over the provisional record of the same kind.
+export const RUN_OBSERVATION_ORDER="o.observed_at DESC,CASE o.kind WHEN 'run.finished' THEN 3 WHEN 'run.interrupted' THEN 2 ELSE 1 END DESC,o.rowid DESC";
 
 export function rankObservedRuns(runs: readonly Run[], params: URLSearchParams) {
   const wanted=params.get("metric");

@@ -13,7 +13,7 @@ import { createMeet, listMeets, meetInput, meetPatch, respondToMeet, rsvpInput, 
 import { eraseMyTrail, guildOverview, guildTrail, myTrail, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
 import { createGrant, deleteMyData, getAtlas, getLeaderboards, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
 
-export const VERSION = "0.8.1";
+export const VERSION = "0.9.0";
 export const json = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 

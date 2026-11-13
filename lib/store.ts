@@ -7,7 +7,7 @@ import { COMMUNITY_OBSERVATIONS_SQL } from "./community";
 import { atlasEntities } from "./atlas";
 import { PUBLIC_PROFILE_ACCESS_SQL } from "./profiles";
 import { applyGuildSnapshots, pruneTracks, releaseStatements, type Db as PeopleDb, type GuildSnapshot } from "./people";
-import { rankObservedRuns } from "./run-rankings";
+import { rankObservedRuns, RUN_OBSERVATION_ORDER } from "./run-rankings";
 import { projectRunActors } from "./run-combat";
 import type { Run, RunCombat, RunMember } from "../components/evertally/types";
 
@@ -130,7 +130,7 @@ export async function deleteMyData(userId:string){const db=getBinding();await db
 
 export async function getRuns(userId?:string){
   const filter=userId?"o.user_id=?":`p.public=1 AND EXISTS(SELECT 1 FROM atlas_grants g WHERE g.id=o.grant_id AND g.user_id=o.user_id AND g.producer_id=o.producer_id AND g.revoked_at IS NULL AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value='own_runs'))`;
-  const rows=await all(`SELECT o.*,p.id AS p_id,p.name AS p_name,p.realm AS p_realm,p.class_id AS p_class_id,p.race_id AS p_race_id,p.level AS p_level FROM atlas_observations o LEFT JOIN atlas_profiles p ON p.id=o.profile_id WHERE ${filter} AND o.kind IN ('instance.entered','run.finished','run.interrupted') ORDER BY o.observed_at DESC,CASE o.kind WHEN 'run.finished' THEN 3 WHEN 'run.interrupted' THEN 2 ELSE 1 END DESC LIMIT 5000`,userId?[userId]:[]);
+  const rows=await all(`SELECT o.*,p.id AS p_id,p.name AS p_name,p.realm AS p_realm,p.class_id AS p_class_id,p.race_id AS p_race_id,p.level AS p_level FROM atlas_observations o LEFT JOIN atlas_profiles p ON p.id=o.profile_id WHERE ${filter} AND o.kind IN ('instance.entered','run.finished','run.interrupted') ORDER BY ${RUN_OBSERVATION_ORDER} LIMIT 5000`,userId?[userId]:[]);
   const runs=new Map<string,Record<string,unknown>>();
   for(const row of rows){const p=decode<Record<string,unknown>>(row.payload,{});const key=String(row.user_id)+":"+String(row.producer_id)+":"+String(p.runId);if(runs.has(key))continue;
     const snapshot=decode<Record<string,unknown>|null>(row.character_data,null);

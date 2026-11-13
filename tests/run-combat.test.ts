@@ -4,7 +4,8 @@ import {eventSchema, type AtlasEvent, type ExportEnvelope} from "../lib/contract
 import {projectExport} from "../lib/import";
 import {validateUpload} from "../lib/policy";
 import {projectRunActors} from "../lib/run-combat";
-import {rankObservedRuns} from "../lib/run-rankings";
+import {rankObservedRuns,RUN_OBSERVATION_ORDER} from "../lib/run-rankings";
+import {DatabaseSync} from "node:sqlite";
 import {observedCombatRate,combatDisplayRows} from "../components/evertally/Details";
 import type {Run,RunCombat} from "../components/evertally/types";
 
@@ -54,4 +55,15 @@ test("leaderboards filter instance/category/class/race and attribute DPS to owne
   assert.equal(rankObservedRuns([{...run,combat:{...combat,coverage:"partial"}}],params).entries.length,0);
   params.set("instanceType","raid");assert.equal(rankObservedRuns([run],params).entries.length,0);
   params.set("instanceType","party");params.delete("instanceId");assert.equal(rankObservedRuns([run],params).entries.length,0);
+});
+test("final native meter snapshot wins when provisional and final records share one timestamp",()=>{
+  const db=new DatabaseSync(":memory:");
+  try{
+    db.exec("CREATE TABLE observations(id TEXT PRIMARY KEY,observed_at INTEGER,kind TEXT,payload TEXT)");
+    const insert=db.prepare("INSERT INTO observations VALUES(?,?,?,?)");
+    insert.run("before",1000,"run.finished",JSON.stringify({coverage:"unavailable"}));
+    insert.run("after",1000,"run.finished",JSON.stringify({coverage:"observed",damage:1000}));
+    const rows=db.prepare(`SELECT payload FROM observations o ORDER BY ${RUN_OBSERVATION_ORDER}`).all();
+    assert.equal(JSON.parse(String(rows[0].payload)).damage,1000);
+  }finally{db.close();}
 });
