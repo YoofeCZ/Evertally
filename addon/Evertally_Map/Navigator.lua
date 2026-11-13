@@ -12,8 +12,8 @@ local N = {target = nil, plan = nil, planAt = 0, planTo = nil, shown = {}}
 M.nav = N
 local frame, ticker
 local terrainText={
-    en={navGround="Terrain path",navGroundRoads="Roads and passable terrain",navGroundFloor="Different floor · continue via stairs or lift",navGroundSnapped="Path · approximate endpoints",navGroundPending="Finding a passable path…",navGroundFailed="No passable path found here",navGroundDirect="Direction only · no terrain path available"},
-    cs={navGround="Cesta po terénu",navGroundRoads="Silnice a průchozí terén",navGroundFloor="Jiné patro · pokračuj po schodech nebo výtahem",navGroundSnapped="Cesta · přiblížené konce",navGroundPending="Hledám průchozí cestu…",navGroundFailed="Tady se nepodařilo najít průchozí cestu",navGroundDirect="Pouze směr · bez známé průchozí cesty"},
+    en={navGround="Terrain path",navGroundRoads="Roads and passable terrain",navGroundFloor="Different floor · continue via stairs or lift",navGroundSnapped="Path · approximate endpoints",navGroundPending="Finding a passable path…",navGroundFailed="No passable path found here",navGroundDirect="Direction only · no terrain path available",navJourneyPending="Comparing walking routes and available transport…",navKnownFlights="Only flight points confirmed for this character are used. Open a flight master's map to update them."},
+    cs={navGround="Cesta po terénu",navGroundRoads="Silnice a průchozí terén",navGroundFloor="Jiné patro · pokračuj po schodech nebo výtahem",navGroundSnapped="Cesta · přiblížené konce",navGroundPending="Hledám průchozí cestu…",navGroundFailed="Tady se nepodařilo najít průchozí cestu",navGroundDirect="Pouze směr · bez známé průchozí cesty",navJourneyPending="Porovnávám pěší cesty a dostupnou dopravu…",navKnownFlights="Používám jen letové body potvrzené pro tuto postavu. Aktualizují se otevřením mapy u letového mistra."},
 }
 for lang,entries in pairs(terrainText) do if A.locale and A.locale[lang] then for key,value in pairs(entries) do A.locale[lang][key]=value end end end
 local function clearGround()
@@ -157,7 +157,12 @@ end
 --- what the journey tab of the window uses: the text of a step, a time, and the planner options for this character
 function M.StepText(step) return stepText(step) end
 function M.Clock(seconds) return clock(seconds) end
-function M.JourneyOptions() return {side = side(), speed = speed()} end
+function M.JourneyOptions()
+    local known, revision
+    if M.TravelKnowledge then known, revision = M.TravelKnowledge.Options() end
+    local _,_,z=A.Call(UnitPosition,"player")
+    return {side = side(), speed = speed(), knownTaxi = known or {}, taxiRevision = revision,fromZ=A.Number(z)}
+end
 
 -- ---------------------------------------------------------------- the tracker frame
 local function fontPath() return A.FontPath and A.FontPath() or "Fonts\\FRIZQT__.TTF" end
@@ -290,7 +295,14 @@ end
 
 -- ---------------------------------------------------------------- one update
 local function replan(meU, meV, tu, tv, label)
-    N.plan = M.PlanJourney({u = meU, v = meV, label = A.L("navYou")}, {u = tu, v = tv, label = label}, {side = side(), speed = speed()})
+    if N.journey and M.Journey then M.Journey.Cancel(N.journey) end
+    N.journey,N.plan=nil,nil
+    local options=M.JourneyOptions()
+    local from,to={u=meU,v=meV,label=A.L("navYou")},{u=tu,v=tv,label=label}
+    if M.Journey and M.Journey.Available() then
+        N.journey=M.Journey.Begin(from,to,options)
+        M.Journey.Step(N.journey)
+    else N.plan=M.PlanJourney(from,to,options) end
     N.planAt, N.planTo = A.Monotonic(), {tu, tv}
     N.planned = true
 end
@@ -316,10 +328,24 @@ function N.Update()
     local tc, tX, tY = M.ToYards(tu, tv)
     local pc, pX, pY = M.ToYards(meU, meV)
     local movedTarget = N.planTo and select(2, M.Bearing(tc, tX, tY, M.ToYards(N.planTo[1], N.planTo[2]))) or math.huge
-    if not N.plan and N.planned and now - N.planAt < PLAN_EVERY then
+    if N.journey and N.journey.state=="pending" and not N.force and movedTarget<=MOVED_TARGET then
+        -- Exact walking searches continue under their shared frame budget.
+    elseif not N.plan and N.planned and now - N.planAt < PLAN_EVERY and not N.force then
         -- no route is known: do not search again every tick
     elseif not N.planned or now - N.planAt >= PLAN_EVERY or (movedTarget or 0) > MOVED_TARGET or N.force then
         replan(meU, meV, tu, tv, label); N.force = false
+    end
+
+    if N.journey then
+        M.Journey.Step(N.journey)
+        if N.journey.state=="ready" and N.plan~=N.journey.plan then
+            N.plan=N.journey.plan;N.planAt=now;clearGround()
+        end
+        if N.journey.state~="ready" then
+            clearGround()
+            show(title,A.L(N.journey.state=="pending" and "navJourneyPending" or "navNoRoute"),"",A.L("navKnownFlights"))
+            setArrow(nil);N.shown={{id="goal",u=tu,v=tv,title=title}};return
+        end
     end
 
     local plan = N.plan
@@ -393,6 +419,9 @@ function M.Navigate(target)
     elseif target.kind == "point" then
         if not M.ToUV(target.map, target.x, target.y) then return false, "unknown_map" end
     else return false, "no_target" end
+    if M.Plan and M.Plan.preview and M.Journey then
+        M.Journey.Cancel(M.Plan.preview);M.Plan.preview=nil
+    end
     clearGround()
     M.route = nil   -- a route that was only shown gives way to the one navigation draws
     N.target, N.plan, N.planned, N.planTo, N.arrivedAt, N.force = target, nil, false, nil, nil, true
@@ -410,6 +439,11 @@ end
 
 function M.Stop()
     clearGround()
+    if N.journey and M.Journey then M.Journey.Cancel(N.journey) end
+    N.journey=nil
+    if M.Plan and M.Plan.preview and M.Journey then
+        M.Journey.Cancel(M.Plan.preview);M.Plan.preview=nil
+    end
     local spf = terrainApi()
     if spf and terrainActive(spf) and type(spf.Cancel) == "function" then pcall(spf.Cancel, "Evertally") end
     if A.db then A.db.settings.navSpfAuto = nil end
@@ -460,6 +494,7 @@ function M.NavFrame() return frame end
 --- eight seconds ago. Reuse the arrow's terrain search and discard passed bends.
 function M.RoutePlan()
     if not N.target then return nil end
+    if N.journey and N.journey.state~="ready" then return nil end
     local plan = N.plan
     local first = plan and plan.steps and plan.steps[1]
     -- The transport planner omits very short walks. A wall can still require a

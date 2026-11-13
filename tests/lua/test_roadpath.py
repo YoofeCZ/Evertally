@@ -65,6 +65,16 @@ class RoadPathTests(unittest.TestCase):
         self.assertLess(job.result.yards, 100)
         self.assertTrue(job.result.validated)
 
+    def test_cost_only_candidate_search_matches_full_collision_path_without_drawing_points(self):
+        pair=(0,-8800,600.9950248756222,-8800,608.9552238805974)
+        cost=self.p.Begin(*pair,self.lua.table(costOnly=True))
+        self.finish(cost)
+        full=self.p.Begin(*pair)
+        self.finish(full)
+        self.assertEqual(cost.state,"ready")
+        self.assertAlmostEqual(cost.result.cost,full.result.cost)
+        self.assertIsNone(cost.result.points)
+
     def test_city_to_harbor_has_real_collision_bends_and_preserves_endpoint_heights(self):
         job = self.p.Begin(0, -8800, 600, -8300, 1450, self.lua.table(roads=True))
         self.finish(job)

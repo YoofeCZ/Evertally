@@ -28,6 +28,14 @@ class WorldPlanActionsTests(unittest.TestCase):
     def click(button):
         button.GetScript(button, "OnClick")()
 
+    def finish_preview(self, addon):
+        job = addon.map.Plan.preview
+        for _ in range(10000):
+            if job.state != "pending":
+                break
+            addon.map.Journey.Step(job)
+        self.assertEqual(job.state, "ready", job.reason)
+
     def test_controls_are_children_above_paper_and_fit_at_both_window_sizes(self):
         for size in ((960, 620), (700, 460)):
             with self.subTest(size=size):
@@ -61,7 +69,8 @@ class WorldPlanActionsTests(unittest.TestCase):
         self.assertEqual(addon.map.nav.target.source.tab, "plan")
         self.assertEqual(addon.map.nav.target.source.name, "Stormwind City")
         self.assertTrue(state.stop.IsShown(state.stop))
-        self.assertIn("Navigace běží", state.document.spec.entries[1].text)
+        self.assertEqual(addon.map.nav.journey.state, "pending")
+        self.assertIn("Porovnávám", state.document.spec.entries[1].text)
 
     def test_map_button_preserves_all_three_lua_return_values_for_a_city(self):
         lua, addon, frame, state = self.session()
@@ -70,6 +79,7 @@ class WorldPlanActionsTests(unittest.TestCase):
             Evertally.map.ShowRoute=function(plan, goals) SHOWN_GOAL=goals[1];return true end
         ''')
         self.click(state.show)
+        self.finish_preview(addon)
         point = lua.globals().SHOWN_GOAL
         self.assertEqual(point.map, 1453)
         self.assertEqual(point.x, .5)
@@ -85,6 +95,7 @@ class WorldPlanActionsTests(unittest.TestCase):
             M.ShowRoute=function(plan, goals) SHOWN_GOAL=goals[1];return true end
         ''')
         self.click(state.show)
+        self.finish_preview(addon)
         point = lua.globals().SHOWN_GOAL
         expected = addon.map.Plan.Point(state.chosen)
         self.assertEqual(point.map, expected[0])
@@ -100,6 +111,19 @@ class WorldPlanActionsTests(unittest.TestCase):
         self.assertIsNone(addon.map.route)
         self.assertFalse(state.stop.IsShown(state.stop))
         self.assertIn("zastavena", state.document.spec.entries[1].text)
+
+    def test_global_stop_cannot_publish_an_old_pending_map_preview_later(self):
+        lua, addon, frame, state = self.session()
+        lua.execute('Evertally.map.ShowRoute=function() GHOST_ROUTE=true end')
+        self.click(state.show)
+        job = addon.map.Plan.preview
+        self.assertEqual(job.state,"pending")
+        addon.StopNavigation()
+        self.assertEqual(job.state,"cancelled")
+        addon.map.Journey.Step(job)
+        addon.map.WorldPlanShow(frame)
+        self.assertIsNone(lua.globals().GHOST_ROUTE)
+        self.assertIsNone(state.wantMap)
 
     def test_navigation_rejection_is_shown_in_reader_and_chat(self):
         lua, addon, frame, state = self.session()

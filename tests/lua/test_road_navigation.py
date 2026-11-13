@@ -102,12 +102,13 @@ class FullRoadNavigationTests(unittest.TestCase):
           M.Navigate({kind="point",map=map,x=x,y=y,label="Real Stormwind wall"})
         ''')
         self.assertTrue(m.Terrain.RoadBacked(0))
-        self.assertEqual(m.nav.ground.job.provider, "roads")
-        for _ in range(2000):
-            if m.nav.ground.job.state != "pending":
-                break
+        self.assertIsNotNone(m.nav.journey)
+        for _ in range(5000):
             m.nav.Update()
+            if m.nav.ground and m.nav.ground.job.state != "pending":
+                break
         m.nav.Update()
+        self.assertEqual(m.nav.ground.job.provider, "roads")
         result = m.nav.ground.job.result
         self.assertEqual(m.nav.ground.job.state, "ready")
         self.assertGreater(result.yards, 20)

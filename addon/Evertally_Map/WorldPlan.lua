@@ -1,7 +1,7 @@
 local _, M = ...
 local A = _G.Evertally
 -- The journey tab: pick a place (a zone or a city, or a flight master, boat, zeppelin, lift or portal) and see the way from where
--- you stand: walking, flights, boats and portals with the time of each step, from the same planner the website uses (Planner.lua).
+-- you stand: walking, learned flights, boats and portals, refined against actual collision paths by Journey.lua.
 -- "Navigate" starts the arrow and tracker for the place; "Show on map" opens the map there.
 local ROWS, ROW_H, MAX_RESULTS = 8, 28, 40
 
@@ -68,7 +68,22 @@ end
 function Plan.Journey(place)
     local u, v = M.PlayerPosition()
     if not u then return nil, "no_position" end
-    local plan = M.PlanJourney({u = u, v = v, label = A.L("navYou")}, {u = place.u, v = place.v, label = place.name}, M.JourneyOptions())
+    local options=M.JourneyOptions()
+    local from,to={u=u,v=v,label=A.L("navYou")},{u=place.u,v=place.v,label=place.name}
+    local plan
+    if M.Journey and M.Journey.Available() then
+        local old=Plan.preview
+        local moved
+        if old then local c,x,y=M.ToYards(u,v);moved=select(2,M.Bearing(c,x,y,M.ToYards(old.from.u,old.from.v))) end
+        if not old or old.state=="cancelled" or old.to.u~=place.u or old.to.v~=place.v
+            or (moved or 0)>64 or old.options.taxiRevision~=options.taxiRevision or old.options.speed~=options.speed then
+            if old then M.Journey.Cancel(old) end
+            Plan.preview=M.Journey.Begin(from,to,options)
+        end
+        M.Journey.Step(Plan.preview)
+        if Plan.preview.state=="pending" then return nil,"pending" end
+        plan=Plan.preview.plan
+    else plan=M.PlanJourney(from,to,options) end
     if not plan or not plan.steps or not plan.steps[1] then return nil, "no_route" end
     return plan
 end
@@ -149,14 +164,27 @@ local function build(frame, kit)
         local map, x, y = Plan.Point(place)
         if not (map and x and y and M.ShowOnWorldMap) then report(A.L("worldPlanMapFailed")); return end
         local goal = {{map = map, x = x, y = y, title = place.name}}
-        local plan = Plan.Journey(place)
+        local plan,why = Plan.Journey(place)
         local shown
-        if plan and M.ShowRoute then shown = M.ShowRoute(plan, goal)
+        if why=="pending" then
+            local job=Plan.preview
+            s.wantMap=job
+            M.route=nil;if M.ClearRouteLines then M.ClearRouteLines() end
+            job.onDone=function(completed)
+                if s.wantMap~=completed then return end
+                s.wantMap=nil
+                if completed.state=="ready" and M.ShowRoute then M.ShowRoute(completed.plan,goal)
+                else report(A.L("worldPlanNoRoute")) end
+                M.WorldPlanShow(frame)
+            end
+        elseif plan and M.ShowRoute then shown = M.ShowRoute(plan, goal)
         else shown = M.ShowOnWorldMap(goal, map) end
         if shown == false then report(A.L("worldPlanMapFailed")) end
         M.WorldPlanShow(frame)
     end)
     s.stop = kit.Button(s.footer, "worldPlanStop", 150, "ghost", function()
+        s.wantMap=nil
+        if Plan.preview and M.Journey then M.Journey.Cancel(Plan.preview);Plan.preview=nil end
         if A.StopNavigation then A.StopNavigation() elseif M.Stop then M.Stop() end
         if M.ClearRoute then M.ClearRoute() end
         s.message = A.L("worldPlanStopped")
@@ -177,6 +205,13 @@ local function build(frame, kit)
         s.stop:SetPoint("BOTTOMLEFT"); s.more:SetPoint("BOTTOMRIGHT")
     end
     s.book.Layout()
+    local elapsed=0
+    frame:SetScript("OnUpdate",function(_,dt)
+        elapsed=elapsed+(dt or 0)
+        if elapsed<0.25 then return end;elapsed=0
+        if Plan.preview and (Plan.preview.state=="pending" or s.previewState~=Plan.preview.state) or (M.nav and M.nav.journey)
+            or s.wantMap and s.wantMap.state=="cancelled" then M.WorldPlanShow(frame) end
+    end)
 end
 
 function M.WorldPlanRows(frame)
@@ -193,22 +228,28 @@ end
 --- The chosen place with the steps of the way there.
 function M.WorldPlanShow(frame)
     local s = frame.plan
+    if s.wantMap and s.wantMap.state=="cancelled" then s.wantMap=nil end
     local place = s.chosen
     s.title:SetText(place and A.Plain(place.name) or "")
     local target = M.nav and M.nav.target
     local active = target ~= nil
     local selectedActive = active and target.source and target.source.tab == "plan" and place and target.source.name == place.name
     s.go:SetShown(place ~= nil); s.show:SetShown(place ~= nil)
-    s.stop:SetShown(active or M.route ~= nil); s.more:SetShown(place ~= nil)
+    s.stop:SetShown(active or M.route ~= nil or s.wantMap~=nil); s.more:SetShown(place ~= nil)
     s.more.text:SetText(A.L(s.details and "worldPlanLess" or "worldPlanDetails"))
     if not place then s.sub:SetText(""); s.body:SetText("");s.document.Set({key="empty",title=A.L("worldPlanTo"),entries={{text=A.L("worldPlanHint")}}}); return end
     local plan, why
-    if selectedActive and M.RoutePlan then plan = M.RoutePlan() end
-    if not plan then plan, why = Plan.Journey(place) end
+    if selectedActive and M.RoutePlan then
+        plan = M.RoutePlan()
+        if not plan and M.nav.journey then why=M.nav.journey.state=="pending" and "pending" or "no_route" end
+    end
+    if not plan and not why then plan, why = Plan.Journey(place) end
+    s.previewState=Plan.preview and Plan.preview.state
     s.sub:SetText(A.L("worldPlanFromYou"))
     if not plan then
-        s.body:SetText(A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute"))
-        s.document.Set({key=place.name,title=place.name,entries={{text=s.message or A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute")}}})
+        local reason=A.L(why=="pending" and "navJourneyPending" or why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute")
+        s.body:SetText(reason)
+        s.document.Set({key=place.name,title=place.name,entries={{text=s.message or reason},{text=A.L("navKnownFlights")}}})
         return
     end
     local function plain(step) return M.StepText(step):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end

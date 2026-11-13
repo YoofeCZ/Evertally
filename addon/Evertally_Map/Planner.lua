@@ -1,12 +1,18 @@
 local _, M = ...
 -- Journey planner: walking, flights, boats, zeppelins, lifts, the Deeprun Tram and portals as one shortest-path search.
--- A line-by-line port of platform/components/evertally/db/travel.ts (planJourney); tests/lua checks that both give the same
--- journeys. The numbers come from Shortest Path Forever (GPL-3.0) through Data.lua. Everything here is plain arithmetic.
+-- Reference topology matches the website's travel.ts. Character navigation additionally
+-- filters learned taxi nodes and supplies exact walking costs from Journey.lua.
+-- The numbers come from Shortest Path Forever (GPL-3.0) through Data.lua.
 local D = M.data
 local DETOUR, BOARDING, START_RADIUS = 1.3, 3, 9000
 local sqrt = math.sqrt
 
 local function dist(ax, ay, bx, by) local dx, dy = ax - bx, ay - by; return sqrt(dx * dx + dy * dy) end
+
+-- Directed keys: a cliff that can be descended cannot necessarily be climbed.
+function M.WalkKey(fu, fv, tu, tv)
+    return string.format("%.7f:%.7f>%.7f:%.7f", fu, fv, tu, tv)
+end
 
 -- Hubs and walk tables are visited in sorted order so equal-cost journeys always come out the same way.
 local hubIds, walkKeys = {}, {}
@@ -57,11 +63,14 @@ function M.Locate(u, v)
 end
 
 -- ---------------------------------------------------------------- the graph
-local graphs = {}
+local graphs, graphOrder = {}, {}
 local function hubPoint(id) local h = D.hubs[id]; if h and h[4] and h[5] then return h[4], h[5] end end
 
 local function buildGraph(options)
-    local key = options.side .. ":" .. options.speed .. ":" .. (options.otherSide and 1 or 0)
+    local known = {}
+    for id, value in pairs(options.knownTaxi or {}) do if value == true and tonumber(id) then known[#known + 1] = tonumber(id) end end
+    table.sort(known)
+    local key = options.side .. ":" .. options.speed .. ":" .. (options.otherSide and 1 or 0) .. ":" .. (options.knownTaxi and table.concat(known, ",") or "reference")
     if graphs[key] then return graphs[key] end
     local graph = {}
     local function add(from, edge) local list = graph[from]; if not list then list = {}; graph[from] = list end; list[#list + 1] = edge end
@@ -89,7 +98,8 @@ local function buildGraph(options)
     end end
     -- flights
     for _, f in ipairs(D.flights) do
-        if allowed(D.flightSide[f[1]]) and allowed(D.flightSide[f[2]]) then
+        if allowed(D.flightSide[f[1]]) and allowed(D.flightSide[f[2]])
+            and (not options.knownTaxi or (options.knownTaxi[f[1]] == true and options.knownTaxi[f[2]] == true)) then
             local ida, idb = "taxi" .. f[1], "taxi" .. f[2]
             local au, av = hubPoint(ida); local bu, bv = hubPoint(idb)
             add(ida, {to = idb, mode = "flight", seconds = f[3] + BOARDING, fu = au, fv = av, tu = bu, tv = bv})
@@ -119,6 +129,8 @@ local function buildGraph(options)
         end
     end
     graphs[key] = graph
+    graphOrder[#graphOrder+1]=key
+    if #graphOrder>8 then graphs[table.remove(graphOrder,1)]=nil end
     return graph
 end
 
@@ -159,10 +171,26 @@ function M.PlanJourney(from, to, options)
     end)
 
     local function edgesOf(id)
-        if id == START then return start end
-        local out, a, b = {}, base[id] or {}, extra[id] or {}
-        for _, e in ipairs(a) do out[#out + 1] = e end
-        for _, e in ipairs(b) do out[#out + 1] = e end
+        local out, a, b = {}, id == START and start or base[id] or {}, extra[id] or {}
+        for _, list in ipairs({a,b}) do for _, e in ipairs(list) do
+            if options.validateWalks and e.mode == "walk" and e.fu and e.tu then
+                local key = M.WalkKey(e.fu,e.fv,e.tu,e.tv)
+                local record = options.walkCosts and options.walkCosts[key]
+                if record ~= false then
+                    local edge={};for k,v in pairs(e) do edge[k]=v end
+                    edge.walkKey=key
+                    if record then
+                        edge.yards,edge.seconds,edge.estimated=record.cost,record.cost/options.speed,false
+                        edge.routePath=record.path
+                    else
+                        local c,x,y=M.ToYards(e.fu,e.fv);local other,tx,ty=M.ToYards(e.tu,e.tv)
+                        edge.yards=c==other and dist(x,y,tx,ty) or math.huge
+                        edge.seconds=edge.yards/options.speed;edge.needsValidation=true
+                    end
+                    out[#out+1]=edge
+                end
+            else out[#out+1]=e end
+        end end
         return out
     end
 
@@ -182,23 +210,24 @@ function M.PlanJourney(from, to, options)
     end
     if not via[GOAL] then return nil end
 
-    -- walk back, name the places and merge neighbouring walks into one step
+    -- Walk back, name places and preserve searched legs in validated mode.
     local chain, node = {}, GOAL
     while node ~= START do local step = via[node]; table.insert(chain, 1, {from = step.from, edge = step.edge}); node = step.from end
     local function label(id) if id == START then return from.label or "" elseif id == GOAL then return to.label or "" end; local h = D.hubs[id]; return h and h[6] or id end
     local steps = {}
     for _, link in ipairs(chain) do
         local edge, last = link.edge, steps[#steps]
-        if edge.mode == "walk" and last and last.mode == "walk" then
+        if edge.mode == "walk" and last and last.mode == "walk" and not options.validateWalks then
             last.to = label(edge.to); last.seconds = last.seconds + edge.seconds; last.yards = (last.yards or 0) + (edge.yards or 0)
             last.estimated = last.estimated or edge.estimated; last.tu, last.tv = edge.tu, edge.tv
         else
             steps[#steps + 1] = {mode = edge.mode, from = label(link.from), to = label(edge.to), seconds = edge.seconds, wait = edge.wait, yards = edge.yards,
-                estimated = edge.estimated, fu = edge.fu, fv = edge.fv, tu = edge.tu, tv = edge.tv}
+                estimated = edge.estimated, fu = edge.fu, fv = edge.fv, tu = edge.tu, tv = edge.tv,
+                walkKey=edge.walkKey,needsValidation=edge.needsValidation,routePath=edge.routePath}
         end
     end
     -- a walk between two places that are the same spot (a portal's exit and the next flight master) costs nothing worth showing
     local meaningful = {}
-    for _, step in ipairs(steps) do if not (step.mode == "walk" and step.seconds < 2) then meaningful[#meaningful + 1] = step end end
+    for _, step in ipairs(steps) do if options.validateWalks or not (step.mode == "walk" and step.seconds < 2) then meaningful[#meaningful + 1] = step end end
     return {steps = meaningful, seconds = best[GOAL]}
 end

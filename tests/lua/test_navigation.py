@@ -468,7 +468,7 @@ class MapTests(unittest.TestCase):
         self.a.map.Navigate(self.lua.table(kind="player", name="Grom"))
         plan = self.a.map.nav.plan
         modes = [s.mode for s in lst(plan.steps)]
-        self.assertEqual(modes, ["walk", "flight", "walk", "boat", "walk"])  # the same journey the website plans for an Alliance player
+        self.assertEqual(modes, ["walk", "boat", "walk"], "unknown flight points must not be offered to this character")
         self.assertIn("Grom", self.tracker().title.text)
         self.assertRegex(self.tracker().line2.text, r"\d+:\d\d")  # the time of the whole journey
         pins = lst(self.a.map.NavPins())

@@ -154,7 +154,10 @@ class OpenMapTests(unittest.TestCase):
 
     def journey(self):
         place = self.m.Plan.Search("shadowprey", 5)[1]
-        plan = self.m.Plan.Journey(place)
+        u, v, *_ = self.m.PlayerPosition()
+        # Explicit unrestricted reference itinerary for projection/colour tests;
+        # character flight eligibility is tested separately with confirmed nodes.
+        plan = self.m.PlanJourney(self.lua.table(u=u,v=v,label="Here"), self.lua.table(u=place.u,v=place.v,label=place.name), self.lua.table(side="A",speed=7))
         self.assertIsNotNone(plan, "a way from Elwynn to Desolace is known")
         return place, plan
 

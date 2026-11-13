@@ -13,6 +13,8 @@ import json
 import re
 import subprocess
 import sys
+import time
+import zlib
 from pathlib import Path
 from functools import lru_cache
 
@@ -329,6 +331,14 @@ def lint(nodes):
 def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     """The add-on running on the layout mock with a realistic character; returns (lua, add-on table)."""
     lua, a = runtime()
+    # The collision data uses the real client's packed-string codec. Model it
+    # with exact base64/zlib bytes, rather than silently making every path fail.
+    lua.globals().PY_NAV_UNPACK = lambda data, _method: zlib.decompress(base64.b64decode(data))
+    lua.globals().debugprofilestop = lambda: time.perf_counter() * 1000
+    lua.execute('''
+      C_EncodingUtil={DecodeBase64=function(v) return v end,DecompressString=PY_NAV_UNPACK}
+      Enum=Enum or {};Enum.CompressionMethod={Zlib=1}
+    ''')
     lua.execute(f"SCREEN_W,SCREEN_H={sw},{sh}")
     lua.execute((HERE / "layout_mock.lua").read_text(encoding="utf8"))
     lua.execute(FIXTURE)

@@ -41,9 +41,15 @@ function P.Begin(map, x, y, tx, ty, options)
     local to = {map = map, x = tx, y = ty, z = finite(options.toZ) and options.toZ or nil}
     local profile
     if options.roads ~= false then profile = ROADS end
-    job.handle = Path.Find(map, from, to, function(points, cost, handle)
+    local find=options.costOnly and Path.FindCost or Path.Find
+    job.handle = find(map, from, to, function(points, cost, handle)
         if job.state ~= "pending" then return end
         job.expanded = handle.expansions or 0
+        if options.costOnly then
+            if finite(points) then job.result={cost=points,mapId=map,validated=true};job.state="ready"
+            else job.state,job.reason="failed",type(cost)=="string" and cost or "no_path" end
+            return
+        end
         if not points or #points < 2 then job.state, job.reason = "failed", type(cost) == "string" and cost or "no_path"; return end
         local line, tails = {}, {}
         for _, point in ipairs(points) do line[#line + 1] = {point.x, point.y, point.z} end
