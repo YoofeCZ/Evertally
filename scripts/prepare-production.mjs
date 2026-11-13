@@ -73,13 +73,13 @@ function sql(command) {
   return result.flatMap((part) => part.results ?? []);
 }
 const userTables = () => sql("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','d1_migrations') ORDER BY name").map((row) => row.name);
-const schema = ["atlas_grants", "atlas_observations", "atlas_profiles", "atlas_sources", "atlas_uploads", "et_circle_members", "et_circles", "et_device_codes", "et_devices", "et_friends", "et_game_connections", "et_guild_members", "et_guilds", "et_live_positions", "et_meet_access", "et_meet_rsvps", "et_meets", "et_sessions", "et_sharing", "et_users"];
+const schema = ["atlas_grants", "atlas_observations", "atlas_profiles", "atlas_sources", "atlas_uploads", "et_circle_members", "et_circles", "et_device_codes", "et_devices", "et_forum_posts", "et_forum_threads", "et_friends", "et_game_connections", "et_guild_members", "et_guilds", "et_live_positions", "et_meet_access", "et_meet_rsvps", "et_meets", "et_sessions", "et_sharing", "et_users"];
 const summary = { config: path.relative(root, productionPath).replaceAll(path.sep, "/"), worker: target.workerName, hostname: target.hostname, database: target.database.name, databaseId: target.database.id, published: false };
 
 if (args.has("--init-db")) {
   const info = verifiedInfo();
   if (info.num_tables !== 0 || userTables().length !== 0) throw new Error("Initialisation refused: the approved D1 database is not empty. No reset or destructive repair is performed.");
-  const migrations = ["0000_fixed_cardiac.sql", "0001_futuristic_invisible_woman.sql", "0002_auth_devices.sql", "0003_people.sql", "0004_circles_meets.sql", "0005_live_positions.sql", "0006_sharing.sql", "0007_game_connections.sql"];
+  const migrations = ["0000_fixed_cardiac.sql", "0001_futuristic_invisible_woman.sql", "0002_auth_devices.sql", "0003_people.sql", "0004_circles_meets.sql", "0005_live_positions.sql", "0006_sharing.sql", "0007_game_connections.sql", "0008_forum.sql"];
   // Review every statement before the first write. The allowlist rejects DML,
   // DROP/REPLACE/PRAGMA and scripts which address attached databases.
   const prepared = [];

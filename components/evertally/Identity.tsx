@@ -20,6 +20,14 @@ export function CharacterIcons({ character, size = 22 }: { character?: Partial<C
   return <span className="character-icons"><GameIcon group="classes" id={character?.classId} size={size} label={CLASSES[character?.classId ?? 0] ?? "Unknown class"} /><GameIcon group="races" id={character?.raceId} size={size} label={RACES[character?.raceId ?? 0] ?? "Unknown race"} /></span>;
 }
 
+/** The whole name as the game writes it: Name-Realm. A character without a known realm keeps just the name. */
+export function fullName(character?: Partial<Character> | null): string {
+  const name = character?.name?.trim();
+  if (!name) return "";
+  const realm = character?.realm?.trim();
+  return realm ? `${name}-${realm}` : name;
+}
+
 export function CharacterBadge({ character, unnamed }: { character?: Character | null; unnamed: string }) {
   return <span className="character-badge"><CharacterIcons character={character} /><span><CharacterName character={character} unnamed={unnamed} /><small>{[CLASSES[character?.classId ?? 0], RACES[character?.raceId ?? 0], character?.level].filter(Boolean).join(" · ")}</small></span></span>;
 }
@@ -39,18 +47,19 @@ export function CharacterName({ character, unnamed }: { character?: Character | 
     return () => window.removeEventListener("keydown", dismiss);
   }, [open]);
   const data = useApi<ProfileResult>(open && character?.id ? `/api/profiles/${encodeURIComponent(character.id)}` : null);
-  if (!character?.name || !character.id) return <span>{character?.name ?? unnamed}</span>;
+  if (!character?.name || !character.id) return <span>{fullName(character) || unnamed}</span>;
   const zones = Array.isArray(data.data?.zones) ? data.data.zones : [];
   const runs = Array.isArray(data.data?.runs) ? data.data.runs : [];
-  return <span className="profile-anchor"><button type="button" className="profile-name" aria-expanded={open} aria-controls={region} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setPosition({ left: Math.max(15, Math.min(rect.left, window.innerWidth - 335)), top: Math.max(15, rect.bottom + 340 > window.innerHeight ? rect.top - 340 : rect.bottom + 8) }); setOpen(!open); }}>{character.name}</button>
+  return <span className="profile-anchor"><button type="button" className="profile-name" aria-expanded={open} aria-controls={region} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setPosition({ left: Math.max(15, Math.min(rect.left, window.innerWidth - 335)), top: Math.max(15, rect.bottom + 340 > window.innerHeight ? rect.top - 340 : rect.bottom + 8) }); setOpen(!open); }}>{fullName(character)}</button>
     {open && <span className="profile-preview" style={position} role="region" id={region} aria-label={cs ? "Profil postavy" : "Character profile"}>
-      <span className="profile-heading"><strong>{character.name}</strong><button type="button" className="profile-close" onClick={() => setOpen(false)} aria-label={cs ? "Zavřít profil" : "Close profile"}>×</button></span>
+      <span className="profile-heading"><strong>{fullName(character)}</strong><button type="button" className="profile-close" onClick={() => setOpen(false)} aria-label={cs ? "Zavřít profil" : "Close profile"}>×</button></span>
       {data.loading ? <span>{cs ? "Načítání profilu…" : "Loading profile…"}</span> : data.error ? <span>{cs ? "Profil není veřejný nebo není dostupný." : "This profile is private or unavailable."}</span> : <>
         <span className="profile-section-title">{cs ? "Navštívené oblasti" : "Visited zones"} · {zones.length}</span>
         {zones.length ? zones.slice(0, 12).map(zone => <span className="profile-entry" key={zone.mapId}><span>{zone.mapName || `#${zone.mapId}`}<small>{date(zone.lastVisited)}</small></span><span>{zone.visits}×</span></span>) : <span>{cs ? "Zatím žádné sdílené návštěvy oblastí." : "No shared zone visits yet."}</span>}
         {zones.length > 12 && <small>+{zones.length - 12}</small>}
         <span className="profile-section-title">{cs ? "Zaznamenané výpravy" : "Recorded runs"} · {runs.length}</span>
         {runs.slice(0, 5).map(run => <span className="profile-entry" key={run.id}><span>{run.name}</span><span className="mono">{duration(run.durationMs)}</span></span>)}
+        <a className="profile-armory" href={`#armory/${encodeURIComponent(character.id)}`}>{cs ? "Armory: výbava, statistiky, talenty, profese, tašky" : "Armory: gear, stats, talents, professions, bags"}</a>
         <small className="profile-privacy">{cs ? "Pouze navštívené oblasti. Přesná poloha ani živé sledování hráče se nezobrazuje." : "Visited zones only. No exact player location or live tracking is displayed."}</small>
       </>}
     </span>}

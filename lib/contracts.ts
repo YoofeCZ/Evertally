@@ -39,6 +39,27 @@ const guildPayload=z.object({left:z.literal(true).optional(),guildName:text.opti
     if(p.roster!==undefined&&!p.guildName)ctx.addIssue({code:z.ZodIssueCode.custom,path:["roster"],message:"A roster needs a guild name."});
   });
 
+// The armory of a character: what its owner sees in the character window. The owner's own snapshot (armory.snapshot) and what
+// another player allowed this account to keep (armory.view) share one body. A view also names its subject; the name comes
+// from the whisper that carried it, never from the data. Gold is never part of either. armory.revoked withdraws views of one player.
+export const ARMORY_STAT_KEYS=["str","agi","sta","int","spi","armor","ap","rap","crit","scrit","dodge","parry","block","hp","mana","holy","fire","nature","frost","shadow","arcane"] as const;
+const statValue=z.number().finite().min(0).max(1e7);
+// an empty Lua table is exported as an empty list
+const armoryStats=z.preprocess(v=>Array.isArray(v)&&v.length===0?undefined:v,z.object(Object.fromEntries(ARMORY_STAT_KEYS.map(k=>[k,statValue.optional()])) as Record<typeof ARMORY_STAT_KEYS[number],z.ZodOptional<z.ZodNumber>>).strict().optional());
+const armoryBody={
+  equipped:z.array(z.object({slot:integer.min(1).max(19),itemId:entityId}).strict()).max(25).optional(),
+  bags:z.array(z.object({itemId:entityId,count:integer.positive().max(100000)}).strict()).max(400).optional(),
+  stats:armoryStats,
+  talents:z.array(z.object({name:text,spent:integer.max(1000),ranks:z.array(z.tuple([integer.positive().max(1e9),integer.positive().max(100)]).rest(text)).max(80)}).strict()).max(4).optional(),
+  professions:z.array(z.object({id:entityId,name:text.optional(),skill:integer.max(10000).optional(),max:integer.max(10000).optional()}).strict()).max(12).optional(),
+};
+const armorySnapshotPayload=z.object(armoryBody).strict();
+const armoryViewPayload=z.object({
+  subject:z.object({name:z.string().min(1).max(60),realm:text.optional(),classId:entityId.max(100).optional(),raceId:entityId.max(100).optional(),level:integer.max(1000).optional()}).strict(),
+  mode:z.enum(["once","always"]),kinds:z.string().max(8).regex(/^[istp]*$/),...armoryBody,
+}).strict();
+const armoryRevokedPayload=z.object({name:z.string().min(1).max(60),realm:text.optional()}).strict();
+
 export const payloadSchemas = {
   "character.snapshot":characterPayload,"character.level":characterPayload,
   "quest.accepted":questPayload,"quest.turned_in":questPayload,"quest.abandoned":questPayload,
@@ -48,6 +69,7 @@ export const payloadSchemas = {
   "raid.encounter_finished":encounterPayload,
   "zone.visited":zonePayload,
   "track.path":trackPayload,"guild.snapshot":guildPayload,
+  "armory.snapshot":armorySnapshotPayload,"armory.view":armoryViewPayload,"armory.revoked":armoryRevokedPayload,
 } as const;
 export type EventKind = keyof typeof payloadSchemas;
 export const eventKinds=Object.keys(payloadSchemas) as EventKind[];
@@ -77,7 +99,7 @@ export const exportSchema=z.object({schemaVersion:z.literal(1),enabled:z.boolean
 });
 export type ExportEnvelope=z.infer<typeof exportSchema>;
 export function scopeFor(kind:EventKind):Scope{
-  if(kind.startsWith("character."))return "own_character";
+  if(kind.startsWith("character.")||kind.startsWith("armory."))return "own_character";
   if(kind.startsWith("run.")||kind.startsWith("instance.")||kind.startsWith("raid."))return "own_runs";
   if(kind.startsWith("profession.")||kind.startsWith("craft.")||kind.startsWith("cooldown."))return "own_professions";
   if(kind.startsWith("track."))return "own_track";

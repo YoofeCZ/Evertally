@@ -9,12 +9,14 @@ import { RankingsView, RunsView } from "./views/Data";
 import { Overview } from "./views/Overview";
 import { SyncView } from "./views/Sync";
 import { ProfessionsView } from "./views/Professions";
+import { ArmoryView } from "./views/Armory";
+import { ForumView } from "./views/Forum";
 import { DatabaseView } from "./db/Database";
 import { MapView } from "./db/MapView";
 
-const NAV: { id: Exclude<View, "link">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.sync" | "nav.account" }[] = [
+const NAV: { id: Exclude<View, "link">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
   { id: "overview", key: "nav.overview" }, { id: "runs", key: "nav.runs" }, { id: "rankings", key: "nav.rankings" },
-  { id: "atlas", key: "nav.atlas" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
+  { id: "atlas", key: "nav.atlas" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
 ];
 
 const subscribeHash = (onChange: () => void) => {
@@ -112,6 +114,8 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
         {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}
+        {view === "armory" && <ArmoryView user={user} signIn={signIn} route={route} />}
+        {view === "forum" && <ForumView route={route} user={user} signIn={signIn} />}
         {view === "sync" && <SyncView user={user} signIn={signIn} />}
         {view === "account" && <AccountView user={user} signIn={signIn} onChanged={() => setVersion((v) => v + 1)} />}
         {view === "link" && <LinkView user={user} signIn={signIn} initialCode={code} />}

@@ -4,6 +4,7 @@ import type { Scope } from "@/lib/contracts";
 import { hasKey, useI18n } from "@/lib/i18n";
 import { api, ApiFailure, useApi } from "../api";
 import type { Me, User } from "../types";
+import { fullName } from "../Identity";
 import { CLASSES, ConsoleWindow, DiscordGlyph, Empty, Icon, Tag } from "../ui";
 import { PageHead } from "./Data";
 import { SCOPE_ICON, SCOPE_ORDER } from "./Sync";
@@ -77,7 +78,7 @@ export function AccountView({ user, signIn, onChanged }: { user: User | null; si
           {data?.profiles.length ? data.profiles.map((p) => (
             <div className="row-item" key={p.id}>
               <span className="avatar">{p.name?.charAt(0) ?? "?"}</span>
-              <span><strong>{p.name ?? t("common.private")}</strong><small>{[p.realm, CLASSES[p.classId ?? 0], p.level].filter(Boolean).join(" · ")}</small></span>
+              <span><strong>{fullName(p) || t("common.private")}</strong><small>{[CLASSES[p.classId ?? 0], p.level].filter(Boolean).join(" · ")}</small></span>
               <button className={`btn btn-sm ${p.public ? "btn-on" : "btn-ghost"}`} disabled={busy}
                 onClick={() => void act(() => api(`/api/profiles/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ public: !p.public }) }))}>
                 <Icon name={p.public ? "globe" : "lock"} size={14} /> {p.public ? t("account.public") : t("account.private")}

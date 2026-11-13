@@ -1,6 +1,6 @@
 import type { Scope } from "@/lib/contracts";
 
-export type View = "overview" | "runs" | "rankings" | "atlas" | "database" | "professions" | "sync" | "account" | "link";
+export type View = "overview" | "runs" | "rankings" | "atlas" | "database" | "professions" | "armory" | "forum" | "sync" | "account" | "link";
 export type Character = { id: string; name?: string | null; realm?: string | null; classId?: number | null; raceId?: number | null; level?: number | null };
 export type CombatMetrics = { damage?: number; healing?: number; overhealing?: number; absorbs?: number; damageTaken?: number; interrupts?: number; dispels?: number; deaths?: number };
 export type RunMember = { guid: string; name?: string; classId?: number; raceId?: number; level?: number; role?: string };

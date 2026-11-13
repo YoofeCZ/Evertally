@@ -1,6 +1,7 @@
 "use client";
 import { useI18n } from "@/lib/i18n";
 import { useApi } from "../api";
+import { fullName } from "../Identity";
 import type { Entity, Entry, Run, Status, View } from "../types";
 import { CLASSES, ConsoleWindow, DuskSky, Empty, Icon, RunTable, SplitFlapBoard, Tag } from "../ui";
 
@@ -99,7 +100,7 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
             {board.data?.entries.length ? (
               <ol className="rank-list">
                 {board.data.entries.slice(0, 6).map((entry) => (
-                  <li key={entry.character.id}><span className="mono rank">{String(entry.rank).padStart(2, "0")}</span><span>{entry.character.name ?? t("common.private")}<small>{CLASSES[entry.character.classId ?? 0] ?? ""}</small></span><b className="mono">{num(entry.count)}</b></li>
+                  <li key={entry.character.id}><span className="mono rank">{String(entry.rank).padStart(2, "0")}</span><span>{fullName(entry.character) || t("common.private")}<small>{CLASSES[entry.character.classId ?? 0] ?? ""}</small></span><b className="mono">{num(entry.count)}</b></li>
                 ))}
               </ol>
             ) : <Empty icon="trophy" title={board.loading ? t("common.loading") : t("common.noData")}>{t("rankings.countEmpty")}</Empty>}

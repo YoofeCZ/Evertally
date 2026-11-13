@@ -42,19 +42,26 @@ export function DungeonsGrid() {
         <label className="search"><Icon name="search" size={16} /><input value={text} onChange={e => setText(e.target.value)} placeholder={s.tabDungeons} aria-label={s.tabDungeons} /></label>
         <label className="field"><span>{s.kind}</span><select value={type} onChange={e => setType(e.target.value)}><option value="">{s.all}</option><option value="dungeon">{s.dungeon}</option><option value="raid">{s.raid}</option></select></label>
       </div>
-      <div className="dungeon-grid">{entries.map(d => (
-        <a key={d.key} className="dungeon-card" href={`#database/dungeons/${d.key}`}>
-          <Banner dungeon={d} height={132} />
-          <div className="dc-body">
-            <strong>{d.name}</strong>
-            <span className="muted">{[d.group, d.location].filter(Boolean).join(" · ") || (d.type === "raid" ? s.raid : s.dungeon)}</span>
-            <div className="chips">
-              <span className="chip mono">{s.level} {levelText(d.lvl)}</span>
-              <span className="chip">{d.players}p</span>
-              {d.bosses.length > 0 ? <span className="chip">{d.bosses.length} {s.bossCount}</span> : <span className="chip warn">{s.statusPending.split(".")[0]}</span>}
+      <div className="rio-columns">{(["raid", "dungeon"] as const).filter(kind => !type || type === kind).map(kind => {
+        const rows = entries.filter(d => d.type === kind);
+        if (!rows.length) return null;
+        return (
+          <section key={kind} className="rio-section">
+            <h3 className="rio-heading">{kind === "raid" ? s.raid : s.dungeon}<small>{rows.length}</small></h3>
+            <div className="rio-panel">
+              <div className="rio-title">{kind === "raid" ? s.raid : s.dungeon}</div>
+              {rows.map((d, i) => (
+                <a key={d.key} className="rio-row" href={`#database/dungeons/${d.key}`}>
+                  <span className="rio-rank">{i + 1}</span>
+                  <span className="rio-thumb"><Banner dungeon={d} height={46} /></span>
+                  <span className="rio-name"><strong>{d.name}</strong><small>{[d.group, d.location].filter(Boolean).join(" · ") || (kind === "raid" ? s.raid : s.dungeon)}</small></span>
+                  <span className="rio-stat"><b>{levelText(d.lvl)}</b><small>{s.level}</small></span>
+                  <span className="rio-stat"><b>{d.players}</b><small>{d.players > 5 ? "raid" : "party"}</small></span>
+                  <span className="rio-pill">{d.bosses.length > 0 ? `${d.bosses.length} ${s.bossCount}` : s.statusPending.split(".")[0]}</span>
+                </a>))}
             </div>
-          </div>
-        </a>))}</div>
+          </section>);
+      })}</div>
     </div>
   );
 }
@@ -136,9 +143,10 @@ export function DungeonDetailView({ keyName }: { keyName: string }) {
 
       {dungeon.bosses.length > 0 && (
         <Section title={s.bossesTitle} count={dungeon.bosses.length} aside={<span className="btn-row"><button type="button" className="link-btn" onClick={() => setExpand(1)}>{lang === "cs" ? "Rozbalit vše" : "Expand all"}</button><button type="button" className="link-btn" onClick={() => setExpand(2)}>{lang === "cs" ? "Sbalit vše" : "Collapse all"}</button></span>}>
-          <div className="boss-list">{dungeon.bosses.map((boss, i) => (
-            <details key={`${expand}-${boss.name}-${i}`} className="boss" open={expand === 1 ? true : expand === 2 ? false : i < 2}>
+          <div className="boss-list rio-panel">{dungeon.bosses.map((boss, i) => (
+            <details key={`${expand}-${boss.name}-${i}`} className="boss rio-boss" open={expand === 1 ? true : expand === 2 ? false : i < 2}>
               <summary>
+                <span className="rio-rank">{i + 1}</span>
                 <span className="boss-name">{boss.npc ? <NpcLink id={boss.npc}>{boss.name}</NpcLink> : boss.name}</span>
                 {boss.rare && <span className="chip warn">{s.rareSpawn}</span>}
                 {boss.lvl && <span className="chip mono">{s.level} {boss.lvl}</span>}

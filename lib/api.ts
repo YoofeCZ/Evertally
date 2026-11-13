@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { env } from "cloudflare:workers";
 import { isLoopbackHost } from "./auth-core";
 import { discordConfigured, getSessionUser } from "./auth";
 import { SCOPES } from "./contracts";
@@ -11,6 +12,8 @@ import { circleAction, circlesOverview, circleTrail, createCircle, joinCircle } 
 import { answerFriend, getSharing, listFriends, requestFriend, setSharing, visiblePlayers } from "./sharing";
 import { createMeet, listMeets, meetInput, meetPatch, respondToMeet, rsvpInput, updateMeet } from "./meets";
 import { eraseMyTrail, guildOverview, guildTrail, myTrail, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
+import { armoryOverview } from "./armory";
+import { createThread, createPost, deleteForumPost, editForumPost, editPostInput, moderateForumThread, moderateThreadInput, isForumAdmin, deviceForum, getThread, listForum, myForumCharacters, postInput, threadInput } from "./forum";
 import { createGrant, deleteMyData, getAtlas, getLeaderboards, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
 
 export const VERSION = "0.9.0";
@@ -90,6 +93,11 @@ async function handleDeviceApi(request: Request, operation: string): Promise<Res
     const input = parse(deviceUploadInput, await readBody(request), "invalid_upload", "Invalid upload batch.");
     return json(await deviceUpload(device, input.export));
   }
+  if (operation === "device-forum") {
+    const device = await deviceFromRequest(request);
+    const result = await deviceForum(getBinding() as unknown as PeopleDb, String(device.user_id), await readBody(request, 262144));
+    return json(result);
+  }
   if (operation === "device-whoami") {
     const device = await deviceFromRequest(request);
     return json({ deviceId: String(device.id), name: String(device.name) });
@@ -119,6 +127,10 @@ export async function handleApi(request: Request, operation: string, id?: string
       const players = await visiblePlayers(getBinding() as unknown as PeopleDb, null);
       return json({ players: players.map(p => ({ profileId: p.profileId, name: p.name, classId: p.classId, level: p.level, mapId: p.mapId, x: p.x, y: p.y, at: p.at })) });
     }
+    // the forum is public to read; writing needs an account
+    const forumAdmin = () => isForumAdmin(getBinding() as unknown as PeopleDb, user?.id ?? null, (env as unknown as Record<string, string | undefined>).FORUM_ADMIN_DISCORD_IDS);
+    if (operation === "forum") return json(await listForum(getBinding() as unknown as PeopleDb, user?.id ?? null, { category: params.get("category") ?? undefined, page: Number(params.get("page")) || 0, q: params.get("q") ?? undefined }, await forumAdmin()));
+    if (operation === "forum-thread" && id) return json(await getThread(getBinding() as unknown as PeopleDb, id, user?.id ?? null, await forumAdmin()));
     if (operation === "leaderboards") return json(await getLeaderboards(params));
     if (operation === "runs" && !params.has("mine")) return json({ runs: await getRuns(), countingUnit: "participation" });
     if (operation === "export") {
@@ -129,6 +141,8 @@ export async function handleApi(request: Request, operation: string, id?: string
     if (!user) throw new ApiError("unauthorized", "Sign in to see your own data.", 401);
     if (operation === "me") return json({ user, ...await meData(user.id), devices: await listDevices(user.id) });
     if (operation === "runs") return json({ runs: await getRuns(user.id), countingUnit: "participation" });
+    // Own characters, plus what other players allowed this account to keep. Nothing else is ever returned here.
+    if (operation === "armory") return json(await armoryOverview(getBinding() as unknown as PeopleDb, user.id));
     if (operation === "consents") {
       const input = parse(grantInput, await readBody(request), "invalid_consent", "Invalid consent scope.");
       return json({ grant: await createGrant(user.id, input) }, 201);
@@ -213,6 +227,24 @@ export async function handleApi(request: Request, operation: string, id?: string
     if (operation === "friend" && id) {
       const input = parse(friendActionInput, await readBody(request, 1024), "invalid_request", "Invalid choice.");
       return json(await answerFriend(people(), user.id, id, input.action));
+    }
+    if (operation === "forum-characters") return json({ characters: await myForumCharacters(people(), user.id) });
+    if (operation === "forum-thread-create") {
+      const input = parse(threadInput, await readBody(request, 8192), "invalid_post", "Check the title and the text of the thread.");
+      return json(await createThread(people(), user.id, input), 201);
+    }
+    if (operation === "forum-post-create") {
+      const input = parse(postInput, await readBody(request, 8192), "invalid_post", "Check the text of the reply.");
+      return json(await createPost(people(), user.id, input), 201);
+    }
+    if (operation === "forum-post-delete" && id) return json(await deleteForumPost(people(), user.id, id, await forumAdmin()));
+    if (operation === "forum-post-edit" && id) {
+      const input = parse(editPostInput, await readBody(request, 8192), "invalid_post", "Check the post text and title.");
+      return json(await editForumPost(people(), user.id, id, input, await forumAdmin()));
+    }
+    if (operation === "forum-thread-moderate" && id) {
+      const input = parse(moderateThreadInput, await readBody(request, 1024), "invalid_post", "Choose a moderation action.");
+      return json(await moderateForumThread(people(), user.id, id, input, await forumAdmin()));
     }
     if (operation === "devices") return json({ devices: await listDevices(user.id) });
     if (operation === "devices-revoke" && id) {

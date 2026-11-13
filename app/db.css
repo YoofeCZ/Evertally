@@ -577,3 +577,38 @@ a.q0:hover, a.q1:hover, a.q2:hover, a.q3:hover, a.q4:hover, a.q5:hover, a.q6:hov
 .spot span { color: var(--mist); font-size: 12px; }
 
 .pp-members .acts { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---------- ranking-table look for dungeons and raids (dark striped panels, gold headings, big numbers) ---------- */
+.rio-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 24px; align-items: start; }
+.rio-heading { margin: 0 0 10px; font-family: var(--sans); font-size: 22px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: #ffb81c; }
+.rio-heading small { margin-left: 10px; font-size: 13px; font-weight: 600; color: var(--mist); letter-spacing: 0; }
+.rio-panel { overflow: hidden; border-radius: 4px; background: #181716; box-shadow: 0 0 0 1px #000, 0 6px 18px rgba(0, 0, 0, 0.35); }
+.rio-title { padding: 14px 16px; text-align: center; font-size: 17px; font-weight: 700; color: #fff; background: #1c1a19; border-bottom: 1px solid #000; }
+.rio-row { display: grid; grid-template-columns: 30px 56px minmax(0, 1fr) 56px 56px auto; align-items: center; gap: 12px; min-height: 60px; padding: 6px 14px; border-bottom: 1px solid #000; text-decoration: none; color: var(--text); }
+.rio-row:nth-of-type(odd) { background: #2b2a29; }
+.rio-row:nth-of-type(even) { background: #232221; }
+.rio-row:hover { background: #3a3836; }
+.rio-rank { color: #a89f91; font-size: 15px; text-align: center; }
+.rio-row:nth-of-type(1) .rio-rank { color: #ffd45e; } .rio-row:nth-of-type(2) .rio-rank { color: #ffa63a; } .rio-row:nth-of-type(3) .rio-rank { color: #ff7b1c; }
+.rio-thumb { width: 56px; height: 46px; overflow: hidden; border-radius: 4px; box-shadow: 0 0 0 1px #000; }
+.rio-name { display: flex; flex-direction: column; min-width: 0; }
+.rio-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 700; color: #ff8a3d; }
+.rio-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #c9c4bb; }
+.rio-stat { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.rio-stat b { font-size: 18px; font-weight: 700; color: #ffb81c; }
+.rio-stat small { font-size: 11px; text-transform: uppercase; color: #8d867b; }
+.rio-pill { padding: 5px 10px; border-radius: 4px; background: #0e0d0c; box-shadow: 0 0 0 1px #4a4640; font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; }
+.rio-foot { padding: 10px; text-align: center; font-size: 13px; color: #c9c4bb; background: #121110; }
+.boss-list.rio-panel { gap: 0; }
+.boss.rio-boss { border-radius: 0; box-shadow: none; border-bottom: 1px solid #000; }
+.boss.rio-boss:nth-of-type(odd) { background: #2b2a29; } .boss.rio-boss:nth-of-type(even) { background: #232221; }
+.boss.rio-boss[open] { background: #34322f; }
+.boss.rio-boss summary { padding: 10px 14px; }
+.boss.rio-boss .rio-rank { width: 28px; }
+.boss.rio-boss .boss-name { font-family: var(--sans); font-size: 17px; font-weight: 700; color: #ff8a3d; }
+.boss.rio-boss .boss-name .elink { color: inherit; }
+.boss.rio-boss .loot-grid { padding: 6px 16px 14px 56px; }
+.db-section > header h3 { font-family: var(--sans); font-size: 20px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: #ffb81c; }
+.db-section .data-table thead th { background: #1c1a19; color: #fff; }
+.db-section .data-table tbody tr:nth-child(odd) { background: #2b2a29; } .db-section .data-table tbody tr:nth-child(even) { background: #232221; }
+@media (max-width: 560px) { .rio-columns { grid-template-columns: 1fr; } .rio-row { grid-template-columns: 24px 44px minmax(0, 1fr) 44px; } .rio-row .rio-stat:nth-of-type(2), .rio-row .rio-pill { display: none; } }

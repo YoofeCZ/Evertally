@@ -4,6 +4,7 @@ import "@fontsource/ibm-plex-serif/500.css";
 import "@fontsource-variable/inter";
 import "./globals.css";
 import "./evertally.css";
+import "./evertally-community-design.css";
 
 export const metadata: Metadata = {
   title: "Evertally — dungeon history, world atlas and rankings for WoW Forever",
