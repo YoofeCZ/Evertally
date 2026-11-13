@@ -790,12 +790,26 @@ function A.BuildSocialPage(host, k)
     end);page.sendRequest:SetPoint("BOTTOMLEFT",14,13)
     page.status=k.label(form,11,ink);page.status:SetPoint("BOTTOMLEFT",14,54);page.status:SetPoint("BOTTOMRIGHT",-14,54);page.status:SetHeight(22)
 
+    -- The pages other than "Look" live on one dark panel; every widget is created directly on it.
+    local leaf = CreateFrame("Frame", nil, page); leaf:SetPoint("TOPLEFT", 0, -90); leaf:SetPoint("BOTTOMRIGHT"); A.NativePanel(leaf, C)
+    page.secondaryLeaf = leaf
+    local function fieldBox(w) local e = CreateFrame("EditBox", nil, leaf, "InputBoxTemplate"); e:SetSize(w, 26); e:SetAutoFocus(false); e:SetFont(FONT, 12, ""); return e end
+    -- live
+    page.ping = k.Button(leaf, "socialPing", 150, "primary", function()
+        local ok, err = A.SendPing("")
+        A.Print(ok and A.L("pingSent") or A.L("pingErr_" .. tostring(err))); A.RefreshUI()
+    end); page.ping:SetPoint("TOPLEFT", 16, -16)
+    page.stopNav = k.Button(leaf, "socialStopNav", 190, "ghost", function() A.StopNavigation(); A.Print(A.L("navStopped")) end); page.stopNav:SetPoint("LEFT", page.ping, "RIGHT", 10, 0)
+    page.liveState = k.label(leaf, 12, C.green); page.liveState:SetPoint("TOPRIGHT", -16, -22); page.liveState:SetJustifyH("RIGHT")
+    page.liveNote = k.label(leaf, 11, muted); page.liveNote:SetPoint("TOPLEFT", 16, -56); page.liveNote:SetPoint("TOPRIGHT", -16, -56); page.liveNote:SetHeight(34)
     -- meets
-    page.meetLabel = CreateFrame("EditBox", nil, page, "InputBoxTemplate"); page.meetLabel:SetSize(300, 26); page.meetLabel:SetPoint("TOPLEFT", 6, -100)
-    page.meetLabel:SetAutoFocus(false); page.meetLabel:SetMaxLetters(60); page.meetLabel:SetFont(FONT, 12, "")
+    page.meetTitle = k.label(leaf, 13, heading); page.meetTitle:SetPoint("TOPLEFT", 16, -14)
+    page.meetHelp = k.label(leaf, 11, muted); page.meetHelp:SetPoint("TOPLEFT", 16, -38); page.meetHelp:SetPoint("TOPRIGHT", -16, -38); page.meetHelp:SetHeight(34)
+    page.meetHint = k.label(leaf, 11, ink); page.meetHint:SetPoint("TOPLEFT", 16, -82)
+    page.meetLabel = fieldBox(420); page.meetLabel:SetPoint("TOPLEFT", 22, -100); page.meetLabel:SetMaxLetters(60)
     page.meetButtons = {}
     for n, def in ipairs({{"PARTY", "socialMeetParty"}, {"GUILD", "socialMeetGuild"}, {"WHISPER", "socialMeetWhisper"}}) do
-        local b = k.Button(page, def[2], 140, "ghost", function()
+        local b = k.Button(leaf, def[2], 140, n == 1 and "primary" or "ghost", function()
             local target
             if def[1] == "WHISPER" then
                 local name, realm = A.Call(UnitFullName, "target")
@@ -806,38 +820,18 @@ function A.BuildSocialPage(host, k)
             if channel == "PARTY" and A.Call(IsInRaid) == true then channel = "RAID" end
             local ok, err = A.SendMeet(channel, target, page.meetLabel:GetText() or "", 0)
             page.meetStatus:SetText(ok and A.L("socialMeetSent") or A.L("socialMeetErr_" .. tostring(err)))
-        end); b:SetPoint("TOPLEFT", (n - 1) * 146, -136); page.meetButtons[#page.meetButtons + 1] = b
+        end); b:SetPoint("TOPLEFT", 16 + (n - 1) * 148, -140); page.meetButtons[#page.meetButtons + 1] = b
     end
-    page.meetHint = k.label(page, 11, C.faint); page.meetHint:SetPoint("TOPLEFT", 330, -20)
-    page.meetHelp = k.label(page, 11, C.faint)
-    page.meetStatus = k.label(page, 11, C.green); page.meetStatus:SetPoint("TOPLEFT", 0, -172); page.meetStatus:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -172)
-    -- live
-    page.ping = k.Button(page, "socialPing", 150, "primary", function()
-        local ok, err = A.SendPing("")
-        A.Print(ok and A.L("pingSent") or A.L("pingErr_" .. tostring(err))); A.RefreshUI()
-    end); page.ping:SetPoint("TOPLEFT", 0, -100)
-    page.stopNav = k.Button(page, "socialStopNav", 190, "ghost", function() A.StopNavigation(); A.Print(A.L("navStopped")) end); page.stopNav:SetPoint("LEFT", page.ping, "RIGHT", 10, 0)
-    page.liveNote = k.label(page, 11, C.mist); page.liveNote:SetPoint("TOPLEFT", 0, -144); page.liveNote:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -144)
+    page.meetStatus = k.label(leaf, 11, C.green); page.meetStatus:SetPoint("TOPLEFT", 16, -176); page.meetStatus:SetPoint("TOPRIGHT", -16, -176); page.meetStatus:SetHeight(30)
     -- privacy
-    page.privacy = k.label(page, 11, C.mist); page.privacy:SetPoint("TOPLEFT", 0, -96); page.privacy:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -96)
-    page.list = k.ListView(page, 204)
-    page.secondaryLeaf=CreateFrame("Frame",nil,page);page.secondaryLeaf:SetPoint("TOPLEFT",0,-90);page.secondaryLeaf:SetPoint("BOTTOMRIGHT");A.NativePanel(page.secondaryLeaf,C)
-    for _,widget in ipairs({page.meetHint,page.meetHelp,page.meetLabel,page.meetStatus,page.ping,page.stopNav,page.liveNote,page.privacy,page.list})do widget:SetParent(page.secondaryLeaf)end
-    for _,widget in ipairs(page.meetButtons)do widget:SetParent(page.secondaryLeaf)end
-    page.meetLabel:ClearAllPoints();page.meetLabel:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",20,-14)
-    for i,button in ipairs(page.meetButtons)do button:ClearAllPoints();button:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14+(i-1)*146,-52)end
-    page.meetStatus:ClearAllPoints();page.meetStatus:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-92);page.meetStatus:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-92)
-    page.meetHint:ClearAllPoints();page.meetHint:SetPoint("LEFT",page.meetLabel,"RIGHT",10,0);page.meetHint:SetTextColor(unpack(muted))
-    page.meetHelp:ClearAllPoints();page.meetHelp:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-118);page.meetHelp:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-118);page.meetHelp:SetTextColor(unpack(muted))
-    page.ping:ClearAllPoints();page.ping:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-14)
-    page.liveNote:ClearAllPoints();page.liveNote:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-60);page.liveNote:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-60);page.liveNote:SetTextColor(unpack(ink))
-    page.privacy:ClearAllPoints();page.privacy:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-14);page.privacy:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-14);page.privacy:SetTextColor(unpack(ink))
+    page.privacy = k.label(leaf, 11, ink); page.privacy:SetPoint("TOPLEFT", 16, -16); page.privacy:SetPoint("TOPRIGHT", -16, -16); page.privacy:SetHeight(64)
+    page.list = k.ListView(leaf, 204)
     function page.Refresh()
         local mode = page.mode
         for key, chip in pairs(page.tabs) do chip.SetLabel(A.L("socialTab_" .. key)); chip.SetOn(mode == key) end
         page.cols:SetShown(mode == "ask"); page.cols.Layout()
         page.secondaryLeaf:SetShown(mode ~= "ask")
-        page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",10,-(mode=="proposals" and 12 or 120));page.list:SetPoint("BOTTOMRIGHT",page.secondaryLeaf,"BOTTOMRIGHT",-10,10)
+        page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",10,-(mode=="proposals" and 12 or mode=="meets" and 214 or mode=="privacy" and 90 or 96));page.list:SetPoint("BOTTOMRIGHT",page.secondaryLeaf,"BOTTOMRIGHT",-10,10)
         local webReady = A.DefaultLookKinds():find("w", 1, true) ~= nil
         for key, chip in pairs(page.kindButtons) do
             chip.SetLabel(A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", g = "socialGold", w = "socialWeb"})[key]))
@@ -846,13 +840,15 @@ function A.BuildSocialPage(host, k)
         page.rosterTitle:SetText(A.L("socialRoster")); page.formTitle:SetText(A.L("socialAsk")); page.viewsTitle:SetText(A.L("socialViewsTitle"))
         page.meetLabel:SetShown(mode == "meets"); page.meetStatus:SetShown(mode == "meets")
         page.meetHint:SetShown(mode == "meets"); page.meetHint:SetText(A.L("socialMeetLabelHint"))
-        page.meetHelp:SetShown(mode == "meets"); page.meetHelp:SetText(A.L("socialMeetHelp"))
+        page.meetHelp:SetShown(mode == "meets"); page.meetTitle:SetShown(mode == "meets"); page.meetTitle:SetText(A.L("socialMeetTitle")); page.meetHelp:SetText(A.L("socialMeetHelp"))
         for _, b in ipairs(page.meetButtons) do b:SetShown(mode == "meets"); b.text:SetText(A.L(b.localeKey)) end
         page.privacy:SetShown(mode == "privacy"); page.privacy:SetText(A.L("socialPrivacyInfo"))
-        for _, w in ipairs({page.ping, page.stopNav, page.liveNote}) do w:SetShown(mode == "live") end
+        for _, w in ipairs({page.ping, page.stopNav, page.liveNote, page.liveState}) do w:SetShown(mode == "live") end
+        page.liveState:SetText(A.LiveActive() and A.L("socialLiveOn") or A.L("socialLiveOff"))
         page.list:SetShown(mode ~= "ask")
         page.ping.text:SetText(A.L("socialPing")); page.stopNav.text:SetText(A.L("socialStopNav"))
         page.liveNote:SetText(A.LiveActive() and A.L("liveHint") or (A.L("liveOffNote") .. "  " .. A.L("liveHint")))
+        page.liveState:SetTextColor(unpack(A.LiveActive() and C.green or muted))
         page.target.text:SetText(A.L("socialTarget")); page.sendRequest.text:SetText(A.L("socialSend"))
         if mode == "ask" then
             local newest
@@ -913,7 +909,7 @@ local text = {
         socialErr_no_target = "Type a name, or target a player and press the button.", socialErr_no_kinds = "Tick at least one thing to ask for.", socialErr_queue_full = "Too many messages are waiting. Try again in a moment.", socialErr_size_limit = "That is too much to send.",
         socialNoViews = "Nothing received yet. Ask a player; they decide what to show.", socialNoProposals = "No trade proposals yet.", socialNoMeets = "No meets received yet.", socialNoShown = "You have not shown anything this session.",
         socialIn = "from", socialOut = "to", socialStatus_open = "open", socialStatus_sent = "sent", socialStatus_accepted = "accepted", socialStatus_declined = "declined",
-        socialMeetLabelHint = "<- name of the place (optional)", socialMeetHelp = "A meet shows the others a waypoint to where you are (or to the spot under the map cursor). Pick who gets it: your group, your guild or your target. They accept it with one click.", socialMeetParty = "To party / raid", socialMeetGuild = "To guild", socialMeetWhisper = "To my target", socialMeetSent = "Sent. Others can set a waypoint. Tip: with the world map open, the place under your cursor is sent.", socialMeetErr_no_position = "No map position here (instance or loading screen).",
+        socialMeetTitle = "Send a meet", socialLiveOn = "Live position: ON", socialLiveOff = "Live position: OFF", socialMeetLabelHint = "Name of the place (optional)", socialMeetHelp = "A meet shows the others a waypoint to where you are (or to the spot under the map cursor). Pick who gets it: your group, your guild or your target. They accept it with one click.", socialMeetParty = "To party / raid", socialMeetGuild = "To guild", socialMeetWhisper = "To my target", socialMeetSent = "Sent. Others can set a waypoint. Tip: with the world map open, the place under your cursor is sent.", socialMeetErr_no_position = "No map position here (instance or loading screen).",
         socialMeetErr_no_target = "Target a player first.", socialMeetErr_queue_full = "Too many messages are waiting.", socialMeetIn = "in %d min", socialMeetNow = "now",
         socialPrivacyInfo = "What another player shows you is kept only while the addon runs: it is never saved and never uploaded. You are asked before anyone sees anything of yours, and you choose what to show each time. Evertally does not keep what you showed, only a short list below.",
         socialShownTitle = "You showed:", socialBlockedHint = "Blocked. Click to unblock.", socialBlock = "Block",
@@ -946,7 +942,7 @@ local text = {
         socialErr_no_target = "Napiš jméno, nebo označ hráče a stiskni tlačítko.", socialErr_no_kinds = "Zaškrtni aspoň jednu věc.", socialErr_queue_full = "Čeká příliš mnoho zpráv. Zkus to za chvíli.", socialErr_size_limit = "To je příliš mnoho k odeslání.",
         socialNoViews = "Zatím nic nepřišlo. Požádej hráče; on rozhodne, co ukáže.", socialNoProposals = "Zatím žádné návrhy výměn.", socialNoMeets = "Zatím žádné srazy.", socialNoShown = "V této relaci jsi nic neukázal.",
         socialIn = "od", socialOut = "pro", socialStatus_open = "otevřeno", socialStatus_sent = "odesláno", socialStatus_accepted = "přijato", socialStatus_declined = "odmítnuto",
-        socialMeetLabelHint = "<- název místa (nepovinné)", socialMeetHelp = "Sraz ukáže ostatním waypoint tam, kde stojíš (nebo na místo pod kurzorem na mapě). Vyber, komu: partě, cechu nebo tvému cíli. Oni ho přijmou jedním klikem.", socialMeetParty = "Partě / raidu", socialMeetGuild = "Cechu", socialMeetWhisper = "Mému cíli", socialMeetSent = "Odesláno. Ostatní si mohou nastavit waypoint. Tip: s otevřenou mapou se pošle místo pod kurzorem.", socialMeetErr_no_position = "Tady není poloha na mapě (instance nebo načítání).",
+        socialMeetTitle = "Poslat sraz", socialLiveOn = "Živá poloha: ZAPNUTO", socialLiveOff = "Živá poloha: VYPNUTO", socialMeetLabelHint = "Název místa (nepovinné)", socialMeetHelp = "Sraz ukáže ostatním waypoint tam, kde stojíš (nebo na místo pod kurzorem na mapě). Vyber, komu: partě, cechu nebo tvému cíli. Oni ho přijmou jedním klikem.", socialMeetParty = "Partě / raidu", socialMeetGuild = "Cechu", socialMeetWhisper = "Mému cíli", socialMeetSent = "Odesláno. Ostatní si mohou nastavit waypoint. Tip: s otevřenou mapou se pošle místo pod kurzorem.", socialMeetErr_no_position = "Tady není poloha na mapě (instance nebo načítání).",
         socialMeetErr_no_target = "Nejdřív někoho označ.", socialMeetErr_queue_full = "Čeká příliš mnoho zpráv.", socialMeetIn = "za %d min", socialMeetNow = "hned",
         socialPrivacyInfo = "Co ti jiný hráč ukáže, drží se jen dokud běží addon: nikdy se neukládá ani neodesílá. Než kdokoli uvidí něco z tvého, zeptá se tě a pokaždé volíš, co ukážeš. Evertally si neuchovává, co jsi ukázal, jen krátký seznam níže.",
         socialShownTitle = "Ukázal jsi:", socialBlockedHint = "Zablokován. Kliknutím odblokuješ.", socialBlock = "Blokovat",
