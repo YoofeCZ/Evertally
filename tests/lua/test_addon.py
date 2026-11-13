@@ -792,6 +792,21 @@ class SocialTests(unittest.TestCase):
         self.assertEqual(view.gold, 123456)
         self.assertEqual(len(view.bags), 0)
 
+    def test_pointing_at_an_item_works_only_for_somebody_this_player_showed_things_to(self):
+        # a stranger who was never shown anything cannot light up an item
+        self.assertTrue(self.a.SendPointer("Other-Fixture Realm", 2589))
+        self.deliver(self.A, self.B, "Fixture Hero-Fixture Realm")
+        self.assertIsNone(self.b.SocialPointers()[2589])
+        # after B allowed A to see the bags, A can point at an item
+        ident = self.ask("ip")
+        self.b.AnswerRequest(ident, "ip")
+        self.deliver(self.B, self.A, "Other-Fixture Realm")
+        self.assertTrue(self.a.SendPointer("Other-Fixture Realm", 2589))
+        self.deliver(self.A, self.B, "Fixture Hero-Fixture Realm")
+        self.assertIsNotNone(self.b.SocialPointers()[2589])
+        # invalid ids never get queued
+        self.assertFalse(self.a.SendPointer("Other-Fixture Realm", 0)[0] if isinstance(self.a.SendPointer("Other-Fixture Realm", 0), tuple) else self.a.SendPointer("Other-Fixture Realm", 0))
+
     def test_denied_request_gets_a_denial_then_a_cooldown_and_nothing_leaks(self):
         ident = self.ask("ip")
         self.b.DenyRequest(ident, False)

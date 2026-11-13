@@ -145,6 +145,57 @@ function A.SocialShowPopup(spec)
     if not ok then A.errors.social_popup = (A.errors.social_popup or 0) + 1 end
 end
 
+-- ---------------------------------------------------------------- green highlight of a pointed-at item in the open bags
+-- The overlays are frames of our own laid over the bag buttons (nothing is written to Blizzard's frames), so a
+-- pointer from another player can never taint the bags. They follow the buttons while the bags are open.
+local overlays = {}
+local function overlay(i)
+    local o = overlays[i]
+    if o then return o end
+    o = CreateFrame("Frame", nil, UIParent)
+    o.fill = o:CreateTexture(nil, "OVERLAY"); o.fill:SetAllPoints(o); o.fill:SetColorTexture(0.1, 1, 0.2, 0.28)
+    o.edges = {}
+    for n = 1, 4 do local e = o:CreateTexture(nil, "OVERLAY"); e:SetColorTexture(0.2, 1, 0.3, 1); o.edges[n] = e end
+    o.edges[1]:SetPoint("TOPLEFT"); o.edges[1]:SetPoint("TOPRIGHT"); o.edges[1]:SetHeight(3)
+    o.edges[2]:SetPoint("BOTTOMLEFT"); o.edges[2]:SetPoint("BOTTOMRIGHT"); o.edges[2]:SetHeight(3)
+    o.edges[3]:SetPoint("TOPLEFT"); o.edges[3]:SetPoint("BOTTOMLEFT"); o.edges[3]:SetWidth(3)
+    o.edges[4]:SetPoint("TOPRIGHT"); o.edges[4]:SetPoint("BOTTOMRIGHT"); o.edges[4]:SetWidth(3)
+    o:SetScript("OnUpdate", function(self) self:SetAlpha(0.65 + 0.35 * math.abs(math.sin((GetTime and GetTime() or 0) * 3))) end)
+    o:EnableMouse(false); overlays[i] = o
+    return o
+end
+local function bagButtons(visit)
+    local frames = {}
+    if _G.ContainerFrameCombinedBags then frames[#frames + 1] = _G.ContainerFrameCombinedBags end
+    for i = 1, 13 do local fr = _G["ContainerFrame" .. i]; if fr then frames[#frames + 1] = fr end end
+    for _, fr in ipairs(frames) do
+        if A.Call(fr.IsShown, fr) == true then
+            if type(fr.EnumerateValidItems) == "function" then
+                pcall(function() for _, b in fr:EnumerateValidItems() do visit(b, b.GetBagID and b:GetBagID() or fr:GetID(), b:GetID()) end end)
+            else
+                pcall(function() for _, b in ipairs({fr:GetChildren()}) do if b.GetID and b:GetObjectType() == "Button" and b:IsShown() then visit(b, fr:GetID(), b:GetID()) end end end)
+            end
+        end
+    end
+end
+function A.SocialHighlightRefresh()
+    local points, now, used = A.SocialPointers and A.SocialPointers() or {}, A.Now(), 0
+    local any = false
+    for id, p in pairs(points) do if now - p.at > 120 then points[id] = nil else any = true end end
+    if any then
+        bagButtons(function(button, bag, slot)
+            local id = A.ContainerItemId and A.ContainerItemId(bag, slot)
+            if id and points[id] and used < 40 then
+                used = used + 1
+                local o = overlay(used)
+                o:SetParent(UIParent); o:SetFrameStrata("TOOLTIP"); o:ClearAllPoints(); o:SetAllPoints(button); o:Show()
+            end
+        end)
+    end
+    for i = used + 1, #overlays do overlays[i]:Hide() end
+end
+if C_Timer and type(C_Timer.NewTicker) == "function" then C_Timer.NewTicker(0.5, function() pcall(A.SocialHighlightRefresh) end) end
+
 -- ---------------------------------------------------------------- reactions to what happens
 local function kindsText(kinds)
     local out = {}
@@ -177,6 +228,7 @@ local function proposalPopup(entry)
         items = {{head = A.L("propWants"), list = entry.want or {}}, {head = A.L("propOffers"), list = entry.offer or {}}}, buttons = {
         {label = A.L("propAccept"), fn = function()
             A.AnswerProposal(entry.id, true, "")
+            if A.PrepareTrade then A.PrepareTrade(entry.peer, entry.want) end
             -- Close enough to trade: open the trade window straight away; otherwise just tell them to meet.
             if A.TradeWithPlayer and A.TradeWithPlayer(entry.peer) then A.Print(A.L("propTradeOpened")) else A.Print(A.L("propAcceptedHint")) end
         end},
@@ -263,6 +315,8 @@ function openViewer(view)
             f.title = k.label(f, 18, C.gold); f.title:SetPoint("TOPLEFT", 20, -10); f.title:SetWidth(560)
             f.sub = k.label(f, 10, C.mist); f.sub:SetPoint("TOPLEFT", 20, -34); f.sub:SetWidth(740)
             f.close = k.Button(f, nil, 30, "ghost", function() f:Hide() end); f.close:SetPoint("TOPRIGHT", -14, -12); f.close.text:SetText("x")
+            f.pointChip = k.Chip(f, function() f.pointMode = not f.pointMode; A.SocialRefreshViewer() end)
+            f.pointChip:SetPoint("TOPRIGHT", -54, -14)
             f.tabs = {}
             local previous
             for _, mode in ipairs({"equipped", "stats", "talents", "bags", "professions", "gold"}) do
@@ -314,7 +368,8 @@ function A.SocialRefreshViewer()
     f.sub:SetText(string.format(A.L("viewReceived"), (A.Call(date, "%H:%M", v.at) or "")) .. "   " .. kindsText(v.kinds or ""))
     for mode, chip in pairs(f.tabs) do chip.SetLabel(A.L("viewTab_" .. mode)); chip.SetOn(f.mode == mode) end
     f.offerTitle:SetText(A.L("viewMyOffer")); f.goldLabel:SetText(A.L("viewGoldOffer")); f.noteLabel:SetText(A.L("viewNote"))
-    f.send.text:SetText(A.L("viewSend")); f.hint:SetText(A.L("viewHint"))
+    f.send.text:SetText(A.L("viewSend")); f.hint:SetText(f.pointMode and A.L("viewPointHint") or A.L("viewHint"))
+    f.pointChip.SetLabel(A.L("viewPoint")); f.pointChip.SetOn(f.pointMode == true)
     local icons = f.mode == "equipped" or f.mode == "bags"
     f.grid:SetShown(icons); f.list:SetShown(not icons)
     f.search:SetShown(icons); f.sortBtn:SetShown(icons); f.summary:SetShown(icons)
@@ -336,7 +391,12 @@ function A.SocialRefreshViewer()
             local id, n = e[1], e[2]
             pieces = pieces + n
             entries[#entries + 1] = {id = id, cell = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and (f.wanted[id] >= n and n > 1 and "x" .. n or A.L("viewWant")) or nil,
-                onClick = function() cycle(f.wanted, id, n); A.SocialRefreshViewer() end}}
+                onClick = function()
+                    if f.pointMode then
+                        local sent = A.SendPointer and A.SendPointer(v.sender, id)
+                        f.status:SetText(sent and string.format(A.L("viewPointed"), itemName(id), plain(base(v.sender))) or "")
+                    else cycle(f.wanted, id, n); A.SocialRefreshViewer() end
+                end}}
         end
         local cells, shown = arrange(entries, f.query, SORTS[f.sort or 1], false)
         f.grid.SetCells(cells, (f.query or "") ~= "" and A.L("viewNoMatch") or A.L("noData"))
@@ -696,6 +756,7 @@ local text = {
         socialPermissionNote = "They choose what to show. Gold is separate.",
         viewTab_stats = "Stats", viewTab_talents = "Talents", viewNoStats = "No stats shown.", viewNoTalents = "No talents shown.", viewTalentPoints = "%d talents with points",
         viewTitle = "%s", viewReceived = "received %s", viewTab_equipped = "Equipped", viewTab_bags = "Bags", viewTab_professions = "Professions", viewTab_gold = "Gold",
+        viewPoint = "Show mode", viewPointed = "Showing %s to %s", viewPointHint = "Show mode: click an item and it lights up green in their bags. This works only for what they allowed you to see.",
         viewWant = "WANT", viewOffer = "OFFER", viewMyOffer = "My offer (my bags)", viewGoldOffer = "Gold I offer", viewNote = "Note", viewSend = "Send proposal", viewSent = "Proposal sent to %s.",
         viewHint = "Click an item to mark it as wanted (click again for the whole stack, again to remove). Pick what you offer on the right, then send.", viewNoGold = "They did not show their gold.",
         viewNoProf = "No professions shown, or none recorded yet.", viewRecipes = "%d known recipes",
@@ -724,6 +785,7 @@ local text = {
         socialPermissionNote = "Hráč rozhodne, co ukáže. Zlato se žádá zvlášť.",
         viewTab_stats = "Statistiky", viewTab_talents = "Talenty", viewNoStats = "Statistiky neukázal.", viewNoTalents = "Talenty neukázal.", viewTalentPoints = "Talentů s body: %d",
         viewTitle = "%s", viewReceived = "přijato %s", viewTab_equipped = "Nasazené", viewTab_bags = "Tašky", viewTab_professions = "Profese", viewTab_gold = "Zlato",
+        viewPoint = "Ukazovat", viewPointed = "Ukazuji %s hráči %s", viewPointHint = "Režim ukazování: klikni na předmět a v jeho taškách se rozsvítí zeleně. Funguje jen na to, co ti dovolil vidět.",
         viewWant = "CHCI", viewOffer = "NABÍZÍM", viewMyOffer = "Moje nabídka (moje tašky)", viewGoldOffer = "Zlato, které nabízím", viewNote = "Poznámka", viewSend = "Poslat návrh", viewSent = "Návrh odeslán hráči %s.",
         viewHint = "Kliknutím na věc ji označíš jako chtěnou (znovu = celý stack, znovu = zrušit). Vpravo vyber, co nabízíš, a pošli.", viewNoGold = "Své zlato neukázal.",
         viewNoProf = "Žádné profese neukázal, nebo ještě žádné nejsou zaznamenané.", viewRecipes = "Známých receptů: %d",

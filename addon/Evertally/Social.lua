@@ -441,6 +441,95 @@ function A.SendProposal(target,proposal)
     table.insert(S.proposals,1,entry);while #S.proposals>MAX_PROPOSALS do table.remove(S.proposals) end
     emit("proposalSent",entry);return true,id
 end
+function A.ContainerItemId(bag,slot) return (containerItem(bag,slot)) end
+
+-- ---------------------------------------------------------------- trade window autofill
+-- After a proposal is accepted the items that belong to this player's side go into the trade window by themselves
+-- when it opens with that player. The other side still has to look and confirm: nothing is ever traded without a click.
+local pendingTrade
+local TRADE_SLOTS=6
+function A.PrepareTrade(peer,give)
+    if type(give)~="table" or #give==0 then pendingTrade=nil;return end
+    pendingTrade={peer=peer,give=give,expires=A.Now()+300}
+end
+local function pickupStack(bag,slot) local fn=C_Container and C_Container.PickupContainerItem or PickupContainerItem;return pcall(fn,bag,slot) end
+local function splitStack(bag,slot,n) local fn=C_Container and C_Container.SplitContainerItem or SplitContainerItem;return pcall(fn,bag,slot,n) end
+--- The bag slots to move, one trade slot each: {{bag,slot,take,stack}...}. Several stacks of one item use several trade slots.
+local function tradePlan(give)
+    local steps,used={},{}
+    for _,want in ipairs(give) do
+        local remaining=want[2]
+        for bag=0,bagMax() do
+            for slot=1,containerSlots(bag) do
+                if remaining<=0 or #steps>=TRADE_SLOTS then break end
+                local id,stack=containerItem(bag,slot)
+                if id==want[1] and not used[bag..":"..slot] then
+                    local take=math.min(stack,remaining)
+                    steps[#steps+1]={bag,slot,take,stack};used[bag..":"..slot]=true;remaining=remaining-take
+                end
+            end
+        end
+    end
+    return steps
+end
+local function fillTrade(give)
+    local steps=tradePlan(give)
+    if #steps==0 then A.Print(A.L("tradeNothingFound"));return end
+    local function run(i)
+        if i>#steps then A.Print(string.format(A.L("tradeFilled"),#steps));return end
+        local st=steps[i]
+        if A.Call(CursorHasItem)==true then A.Call(ClearCursor) end
+        local ok
+        if st[3]<st[4] then ok=splitStack(st[1],st[2],st[3]) else ok=pickupStack(st[1],st[2]) end
+        if ok and A.Call(CursorHasItem)==true then pcall(ClickTradeButton,i) else A.errors.trade_fill=(A.errors.trade_fill or 0)+1 end
+        if A.Call(CursorHasItem)==true then A.Call(ClearCursor) end
+        if C_Timer and type(C_Timer.After)=="function" then C_Timer.After(0.25,function() run(i+1) end) else run(i+1) end
+    end
+    run(1)
+end
+A.On("TRADE_SHOW",function()
+    local p=pendingTrade
+    if not p or A.Now()>p.expires then pendingTrade=nil;return end
+    local partner=A.Text(A.Call(UnitName,"NPC"),80);partner=partner and partner:lower()
+    local want=baseName(p.peer):lower()
+    if not partner or not (partner==want or want:sub(1,#partner+1)==partner.." ") then return end
+    pendingTrade=nil
+    if C_Timer and type(C_Timer.After)=="function" then C_Timer.After(0.3,function() fillTrade(p.give) end) else fillTrade(p.give) end
+end)
+
+-- ---------------------------------------------------------------- pointing at an item in somebody's bags
+-- Somebody who looked at your bags (you allowed it) can point at an item: it lights up green in your open bags.
+-- Only a player this one showed things to can do it, it is rate limited, and it changes nothing but a highlight.
+local POINT_TTL,POINT_WINDOW,MAX_POINTS=120,10800,8
+S.pointers={}
+function A.SocialPointers() return S.pointers end
+function A.SendPointer(target,itemId)
+    target=clean(target,80);itemId=A.Number(tonumber(itemId),1,10000000)
+    if target=="" or not itemId then return false,"no_target" end
+    if not A.QueueSocial("S|H|"..string.format("%d",itemId),"WHISPER",target) then return false,"queue_full" end
+    return true
+end
+local function onPointer(sender,fields)
+    local itemId=A.Number(tonumber(fields[3]),1,10000000);local who=baseName(sender):lower()
+    if not itemId or blocked(sender) or not A.SocialEnabled() then return end
+    local allowedPlayer=false
+    for _,shown in ipairs(S.shown) do if baseName(shown.sender):lower()==who and A.Now()-shown.at<=POINT_WINDOW and shown.kinds:find("i",1,true) then allowedPlayer=true end end
+    if not allowedPlayer then return end
+    local now=A.Now()
+    if now-(S.lastSeen["H:"..who] or 0)<1 then return end
+    S.lastSeen["H:"..who]=now
+    local list=S.pointers;list[itemId]={sender=sender,at=now}
+    local count=0;for id,p in pairs(list) do if now-p.at>POINT_TTL then list[id]=nil else count=count+1 end end
+    if count>MAX_POINTS then local oldest;for id,p in pairs(list) do if not oldest or p.at<list[oldest].at then oldest=id end end;list[oldest]=nil end
+    local name=A.Call(GetItemInfo,itemId);A.Print(string.format(A.L("socialPointChat"),baseName(sender),A.Text(name,80) or ("#"..itemId)))
+    emit("pointer",{itemId=itemId,sender=sender})
+end
+A.socialHandlers.H=function(channel,sender,message)
+    if channel~="WHISPER" then return end
+    local fields={};for part in message:gmatch("[^|]+") do fields[#fields+1]=part end
+    onPointer(sender,fields)
+end
+
 --- Opens the trade window with a player standing close by (nameplate, target, group or raid unit within trade range).
 --- The sender may arrive as "Name Realm", so a unit also matches when its name is the start of that.
 function A.TradeWithPlayer(name)
@@ -475,6 +564,7 @@ local function onReply(sender,fields)
     for _,entry in ipairs(S.proposals) do
         if entry.id==id and entry.dir=="out" and same(entry.peer,sender) and entry.status=="sent" then
             entry.status=answer=="ok" and "accepted" or "declined";entry.reply=message
+            if answer=="ok" then A.PrepareTrade(sender,entry.offer) end
             A.Print(string.format(A.L(answer=="ok" and "socialAcceptedChat" or "socialDeclinedChat"),baseName(sender)))
             emit("proposalAnswered",entry);return
         end
@@ -573,6 +663,7 @@ local text={
         social="Social",sub_social="Look at another player's gear, bags and professions after they allow it, propose trades, and share meeting points.",
         socialEnabled="Let other players ask to see my gear and professions (I decide every time)",
         socialAskChat="%s asks to look at you. Answer in the window, or type /etally allow %s  or  /etally deny %s",
+        tradeNothingFound="None of the agreed items were found in your bags.",tradeFilled="Placed %d item stack(s) in the trade window. Check it and confirm.",socialPointChat="%s is pointing at %s in your bags (lit green).",
         socialProposalChat="%s sent you a trade proposal (Evertally > Social).",socialAcceptedChat="%s accepted your trade proposal. Meet and use the trade window.",
         socialDeclinedChat="%s declined your trade proposal.",socialMeetChat="%s suggests a meet: %s (Evertally > Social).",
         socialRevokedChat="Permission taken back from %s.",
@@ -583,6 +674,7 @@ local text={
         social="Lidé",sub_social="Podívej se hráči do výbavy, tašek a profesí, až to povolí; navrhni výměnu a pošli místo srazu.",
         socialEnabled="Povolit ostatním požádat o pohled do výbavy a profesí (pokaždé rozhoduju já)",
         socialAskChat="%s se chce na tebe podívat. Odpověz v okně, nebo napiš /etally allow %s  či  /etally deny %s",
+        tradeNothingFound="V taškách se nenašel žádný z domluvených předmětů.",tradeFilled="Do okna výměny jsem vložil %d stack(y). Zkontroluj ho a potvrď.",socialPointChat="%s ti ukazuje %s ve tvých taškách (svítí zeleně).",
         socialProposalChat="%s ti poslal návrh výměny (Evertally > Lidé).",socialAcceptedChat="%s přijal tvůj návrh výměny. Sejděte se a použijte okno výměny.",
         socialDeclinedChat="%s odmítl tvůj návrh výměny.",socialMeetChat="%s navrhuje sraz: %s (Evertally > Lidé).",
         socialRevokedChat="Povolení odvoláno hráči %s.",
