@@ -227,7 +227,7 @@ function A.BuildRankingsPage(page,kit)
  page.kind=kit.Button(page,"rankAll",150,"ghost",function()change("kind",KINDS)end);page.class=kit.Button(page,"rankClass",150,"ghost",function()change("classId",CLASSES)end);page.race=kit.Button(page,"rankRace",150,"ghost",function()change("raceId",RACES)end)
  page.summary=kit.label(page,10,C.mist);page.summary:SetJustifyH("LEFT");page.summary:SetWordWrap(false)
  page.book=kit.Book(page,150);page.catalog=page.book.index;page.board=page.book.paper
- page.dungeonList=kit.ListView(page.book.index,0);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6);page.document=kit.Document(page.book.paper)
+ page.dungeonList=kit.ListView(page.book.index,0,true);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6);page.document=kit.Document(page.book.paper)
  local function showSelection()
   local selected=page.selection;if not selected then return false end;local spec
   if selected.run then spec=A.RankingRunDetail(kit,selected.run,selected.character)

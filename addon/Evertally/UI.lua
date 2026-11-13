@@ -243,7 +243,8 @@ end
 
 local function NewRow(parent)
     local r = CreateFrame("Button", nil, parent); r:SetHeight(ROW - 4)
-    r.bg = fill(r, C.card, 0.55)
+    r.bg = fill(r, {0.17, 0.165, 0.16}, 1)
+    r.divider = r:CreateTexture(nil, "BORDER"); r.divider:SetHeight(1); r.divider:SetPoint("BOTTOMLEFT"); r.divider:SetPoint("BOTTOMRIGHT"); paint(r.divider, {0, 0, 0}, 1)
     -- the highlight is a texture of its own: changing the alpha of the card colour would multiply with the alpha it already has
     r.hover = r:CreateTexture(nil, "HIGHLIGHT"); r.hover:SetAllPoints(r); paint(r.hover, {1, 1, 1}, 0.07)
     r:SetScript("OnEnter", function(self)
@@ -266,22 +267,26 @@ local function NewRow(parent)
     return r
 end
 
-local function ListView(parent, top)
+local function ListView(parent, top, striped)
     local scroll = ScrollArea(parent, top)
+    scroll.striped = striped == true
     local rows, empty = {}, label(scroll, 12, C.mist)
     empty:SetPoint("TOPLEFT", 14, -40); empty:SetPoint("TOPRIGHT", -14, -40); empty:SetJustifyH("CENTER")
     function scroll.SetItems(items, emptyText)
         scroll.items, scroll.emptyText = items, emptyText
         local compact = (tonumber(scroll.child:GetWidth()) or 640) < 470
         scroll.compact = compact
-        local y = 0
+        local y, stripe = 0, 0
         for i, item in ipairs(items) do
             local r = rows[i] or NewRow(scroll.child); rows[i] = r
             local heading = item.heading ~= nil
             r.heading = heading
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -y); r:SetPoint("TOPRIGHT", 0, -y)
             r:SetHeight((heading and HEAD_ROW or ROW) - 4)
-            r.bg:SetShown(not heading); r.hover:SetShown(not heading)
+            r.bg:SetShown(not heading); r.hover:SetShown(not heading); r.divider:SetShown(not heading)
+            if not heading and scroll.striped then stripe = stripe + 1; paint(r.bg, stripe % 2 == 1 and {0.17, 0.165, 0.16} or {0.137, 0.133, 0.129}, 1)
+            elseif not heading then paint(r.bg, C.card, 0.55) end
+            r.divider:SetShown(not heading and scroll.striped)
             r.head:SetShown(heading); r.headRight:SetShown(heading); r.headLine:SetShown(heading)
             if heading then
                 r.head:SetText(item.heading); r.headRight:SetText(item.right or "")
@@ -297,7 +302,8 @@ local function ListView(parent, top)
                 r.right:SetWidth(compact and 60 or 100); r.right:ClearAllPoints(); r.right:SetPoint("RIGHT", item.onClick and -26 or -12, 0)
                 r.action = item.onClick; r.itemId = item.itemId; r.chevron:SetText(item.onClick and ">" or "")
                 r.title:SetText(item.title or ""); r.sub:SetText(item.sub or ""); r.right:SetText(item.right or "")
-                local tc = item.titleColor or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
+                local tc = item.titleColor or (scroll.striped and {1, 0.54, 0.24}) or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
+                if scroll.striped then r.right:SetTextColor(1, 0.72, 0.11) else r.right:SetTextColor(C.text[1], C.text[2], C.text[3]) end
                 -- the right side keeps room for what is really there: the chevron, the value and the tag (a narrow list shows no tag)
                 local reserve = (item.onClick and 26 or 12) + ((item.right and item.right ~= "") and (compact and 66 or 110) or 0)
                 if item.tag and not compact then

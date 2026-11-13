@@ -188,6 +188,21 @@ class ArrowTests(unittest.TestCase):
         self.assertNotEqual(step.fu, moved.fu, "the route origin moves without a transport replan")
         self.assertEqual(self.m.nav.plan.steps[1].fu, original_start, "the planner's source is not mutated")
 
+    def test_the_line_stays_on_the_map_while_a_new_search_is_running(self):
+        self.go()
+        self.lua.execute('''
+          local M=Evertally.map
+          local u,v=M.PlayerPosition();local c,x,y=M.ToYards(u,v)
+          M.nav.plan={seconds=30,steps={{mode="walk",fu=u-.01,fv=v-.01,tu=u+.01,tv=v+.01,seconds=30}}}
+          M.nav.ground={map=c,index=2,job={state="ready",result={points={{x-20,y-20},{x+5,y+7},{x+10,y+9},{x+30,y+30}}}}}
+        ''')
+        before = len(self.m.RoutePlan().steps[1].routePath)
+        self.assertGreater(before, 2)
+        # the player left the line: the old search is dropped and a new one is pending
+        self.lua.execute('local M=Evertally.map;M.nav.ground={map=M.nav.ground.map,index=2,job={state="pending"}}')
+        after = self.m.RoutePlan().steps[1].routePath
+        self.assertGreater(len(after), 2, "the line must not vanish while the replacement is searched")
+
     def test_without_shortest_path_forever_the_menu_says_so(self):
         tracker = self.go()
         tracker.scripts.OnMouseUp(tracker, "RightButton")

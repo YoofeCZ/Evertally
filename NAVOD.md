@@ -1,4 +1,8 @@
-# Evertally — addon 0.9.1, web a Windows Bridge 0.9.0
+# Evertally — addon 0.9.2, web a Windows Bridge 0.9.0
+
+**Navigace 0.9.2:** pravé kliknutí přímo na vykreslenou čáru v OpenMap nebo běžné světové mapě otevře nabídku **Zrušit navigaci**, **Přepočítat trasu**, **Změnit cíl nebo trasu**, **Podrobnosti cíle** a schování či zobrazení šipky. U pouhého náhledu je místo přepočtu **Spustit navigaci**. Kliknutí mimo čáru zachová původní oddalování mapy, levé kliknutí a přetahování se nemění. Změna cíle otevře plánovač uvnitř Evertally.
+
+Při náhradním výpočtu zůstává poslední platná cesta vidět do dokončení nové. Nezměněný pohled již znovu nenastavuje všechny čáry a renderer nezařizuje kopii celé cesty každý vykreslený snímek. Vlastní značku hráče Evertally nepřidává; značky party a raidu vynechá tam, kde je už přesně kreslí hra nebo OpenMap. Při nedostupné nativní poloze zůstává sdílený bod na světové mapě dostupný. Automatické testy ověřují vstupy, zachování cesty, omezení překreslování a vlastnictví značek; skutečnou plynulost a vzhled ve WoW musí potvrdit kontrola ve hře po `/reload`.
 
 Oprava addonu 0.9.1: při načtení na Forever se vůbec neregistruje omezený starý combat log (`COMBAT_LOG_EVENT_UNFILTERED`). Statistiky používají nativní `C_DamageMeter`; není-li dostupný, měření zůstane nedostupné. Oprava míří na hlášku „blocked from an action only available to the Blizzard UI“ po přihlášení. Automatické testy ověřují vynechání registrace, její zmizení v běžící hře musí potvrdit skutečné přihlášení po `/reload`. Tato aktualizace nevyžaduje reinstalaci Windows mostu.
 

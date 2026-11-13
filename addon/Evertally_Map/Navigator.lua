@@ -43,7 +43,7 @@ local function groundPointer(pc,px,py,qc,qx,qy,now)
         local deviation=g.job.provider=="roads" and 24 or 96
         local off=result and segmentDistance(px,py,result.points[math.max(1,g.index-1)],result.points[g.index])>deviation
         local moved=dist(px,py,g.startX,g.startY)>64
-        if (off or (g.job.state~="ready" and moved)) and now-g.at>=1 then changed=true end
+        if (off and now-g.at>=1) or (g.job.state~="ready" and moved and now-g.at>=6) then changed=true end
         -- A lift/stair/fall can change the current floor without changing XY.
         local expectedZ=g.startZ
         local a=result and result.points[math.max(1,g.index-1)]
@@ -296,7 +296,9 @@ end
 -- ---------------------------------------------------------------- one update
 local function replan(meU, meV, tu, tv, label)
     if N.journey and M.Journey then M.Journey.Cancel(N.journey) end
-    N.journey,N.plan=nil,nil
+    -- A replacement search is not a new destination. Keep the last verified
+    -- itinerary (and its walking path) until its replacement is ready.
+    N.journey=nil
     local options=M.JourneyOptions()
     local from,to={u=meU,v=meV,label=A.L("navYou")},{u=tu,v=tv,label=label}
     if M.Journey and M.Journey.Available() then
@@ -339,9 +341,9 @@ function N.Update()
     if N.journey then
         M.Journey.Step(N.journey)
         if N.journey.state=="ready" and N.plan~=N.journey.plan then
-            N.plan=N.journey.plan;N.planAt=now;clearGround()
+            N.plan=N.journey.plan;N.planAt=now
         end
-        if N.journey.state~="ready" then
+        if N.journey.state~="ready" and not N.plan then
             clearGround()
             show(title,A.L(N.journey.state=="pending" and "navJourneyPending" or "navNoRoute"),"",A.L("navKnownFlights"))
             setArrow(nil);N.shown={{id="goal",u=tu,v=tv,title=title}};return
@@ -447,11 +449,21 @@ function M.Stop()
     local spf = terrainApi()
     if spf and terrainActive(spf) and type(spf.Cancel) == "function" then pcall(spf.Cancel, "Evertally") end
     if A.db then A.db.settings.navSpfAuto = nil end
-    N.target, N.plan, N.planned, N.shown, N.aim = nil, nil, false, {}, nil
+    N.target, N.plan, N.planned, N.shown, N.aim, N.routeCache = nil, nil, false, {}, nil, nil
+    N.lastRoute = nil
     if ticker then ticker:Cancel(); ticker = nil end
     if frame then frame:Hide(); frame.resizing = false; if frame.grip then frame.grip:Hide() end end
     if M.ArrowMenuClose then M.ArrowMenuClose() end
     if M.ClearRoute then M.ClearRoute() end
+end
+
+--- Explicit refresh from the route/arrow menu. Preserve the current verified
+--- line while comparing alternatives to this same destination.
+function M.RecalculateRoute()
+    if not N.target then return false end
+    N.force = true
+    N.Update()
+    return true
 end
 
 -- Explicit handoff to the optional Shortest Path Forever addon. Its terrain
@@ -494,7 +506,7 @@ function M.NavFrame() return frame end
 --- eight seconds ago. Reuse the arrow's terrain search and discard passed bends.
 function M.RoutePlan()
     if not N.target then return nil end
-    if N.journey and N.journey.state~="ready" then return nil end
+    if N.journey and N.journey.state~="ready" and not N.plan then return nil end
     local plan = N.plan
     local first = plan and plan.steps and plan.steps[1]
     -- The transport planner omits very short walks. A wall can still require a
@@ -515,18 +527,40 @@ function M.RoutePlan()
     local c = M.ToYards(u, v)
     local goalC = M.ToYards(first.tu, first.tv)
     if c ~= goalC then return plan end
+    local ground = N.ground
+    local result = ground and ground.job and ground.job.state == "ready" and ground.job.result
+    local yardsFrame = result and ground.map == c and M.data.yards[c]
+    local index = ground and ground.index
+    local cached = N.routeCache
+    local sameTail = result and cached and cached.result == result and cached.index == index and cached.map == c
+        and cached.tu == first.tu and cached.tv == first.tv
+    if sameTail and cached.plan == plan and cached.u == u and cached.v == v then return cached.remaining end
     local step = {}
     for key, value in pairs(first) do step[key] = value end
     step.fu, step.fv = u, v
     step.routePath = {{u, v}}
-    local ground = N.ground
-    local result = ground and ground.job and ground.job.state == "ready" and ground.job.result
-    local yardsFrame = result and ground.map == c and M.data.yards[c]
-    if yardsFrame then
+    step.routeGeometry = sameTail and cached.geometry or {}
+    local last = N.lastRoute
+    if sameTail then
+        local previous = cached.remaining.steps[1].routePath
+        for i = 2, #previous do step.routePath[i] = previous[i] end
+    elseif yardsFrame then
+        local tail = {}
         for i = ground.index, #result.points do
             local p = result.points[i]
-            step.routePath[#step.routePath + 1] = {yardsFrame[1] + p[2] * yardsFrame[2], yardsFrame[3] + p[1] * yardsFrame[4]}
+            tail[#tail + 1] = {yardsFrame[1] + p[2] * yardsFrame[2], yardsFrame[3] + p[1] * yardsFrame[4]}
+            step.routePath[#step.routePath + 1] = tail[#tail]
         end
+        N.lastRoute = {map = c, tu = first.tu, tv = first.tv, tail = tail, geometry = step.routeGeometry}
+    elseif last and last.map == c and last.tu == first.tu and last.tv == first.tv and #last.tail > 0 then
+        -- A new search is running (the player left the line or the old one expired): the line stays on the map, trimmed to the player.
+        local best, bestD = 1, math.huge
+        for i, p in ipairs(last.tail) do
+            local d = (p[1] - u) ^ 2 + (p[2] - v) ^ 2
+            if d < bestD then best, bestD = i, d end
+        end
+        for i = best, #last.tail do step.routePath[#step.routePath + 1] = last.tail[i] end
+        step.routeGeometry = last.geometry
     elseif not (M.Terrain and M.Terrain.RoadBacked and M.Terrain.RoadBacked(c)) then
         step.routePath[2] = {first.tu, first.tv}
     end
@@ -534,6 +568,8 @@ function M.RoutePlan()
     for key, value in pairs(plan) do remaining[key] = value end
     remaining.steps = {step}
     for i = 2, #plan.steps do remaining.steps[i] = plan.steps[i] end
+    N.routeCache = {plan = plan, result = result, index = index, map = c, u = u, v = v, tu = first.tu, tv = first.tv,
+        geometry = step.routeGeometry, remaining = remaining}
     return remaining
 end
 

@@ -88,9 +88,75 @@ local function remove(id)
 end
 
 local function classColor(classId) return classId and A.ClassColor and A.ClassColor(classId) or {0.85, 0.87, 0.92} end
-local function inMyGroup(name)
-    for _, fn in ipairs({UnitInParty, UnitInRaid}) do
-        if type(fn) == "function" then local ok, yes = pcall(fn, name); if ok and yes == true then return true end end
+local function nameParts(name)
+    name = A.Text(name, 150)
+    if not name then return end
+    local character, realm = name:match("^([^%-]+)%-?(.*)$")
+    return character and character:lower(), realm and realm:lower():gsub("[%s%-]", "")
+end
+local function unitIdentity(unit)
+    local guid = A.Text(A.Call(UnitGUID, unit), 100)
+    local name, realm = A.Call(UnitFullName, unit)
+    name = A.Text(name, 100) or A.Text(A.Call(UnitName, unit), 100)
+    local mine, mineRealm = nameParts(name)
+    realm = A.Text(realm, 100)
+    if not realm or realm == "" then realm = mineRealm and mineRealm ~= "" and mineRealm or A.Text(A.Call(GetRealmName), 100) end
+    return {guid = guid, name = mine, realm = (realm or ""):lower():gsub("[%s%-]", "")}
+end
+local function samePlayer(peer, identity)
+    local peerGuid = A.Text(peer.guid, 100)
+    if identity.guid and peerGuid then return identity.guid == peerGuid end
+    local other, otherRealm = nameParts(peer.full or peer.name)
+    if not identity.name or other ~= identity.name then return false end
+    return not otherRealm or otherRealm == "" or identity.realm == otherRealm
+end
+local function groupUnits()
+    local units = {}
+    local raid = A.Call(IsInRaid) == true
+    local count = A.Number(A.Call(GetNumGroupMembers), 0, 40) or 0
+    for i = 1, raid and count or math.max(0, count - 1) do units[#units + 1] = (raid and "raid" or "party") .. i end
+    return units
+end
+local function inMyGroup(peer, units, identities)
+    for _, unit in ipairs(units) do if samePlayer(peer, identities[unit]) then return true, unit end end
+    -- These APIs return a party/raid index on real clients, not just boolean true.
+    for _, spec in ipairs({{UnitInParty, "party"}, {UnitInRaid, "raid"}}) do
+        local yes = A.Call(spec[1], peer.full or peer.name)
+        local _, realm = nameParts(peer.full or peer.name)
+        if (yes == nil or yes == false) and (not realm or realm == "" or realm == identities.player.realm) then yes = A.Call(spec[1], peer.name) end
+        if yes == true then return true end
+        local index = A.Number(yes, 1, 40)
+        if index then return true, spec[2] .. math.floor(index) end
+    end
+    return false
+end
+local function nativeWorldGroup(unit)
+    if not unit or not C_Map then return false end
+    local map = A.Number(A.Call(C_Map.GetBestMapForUnit, unit), 1)
+    local position = map and A.Call(C_Map.GetPlayerMapPosition, map, unit)
+    local x, y
+    local xy = A.Field(position, "GetXY")
+    if type(xy) == "function" then x, y = A.Call(xy, position)
+    else x, y = A.Field(position, "x"), A.Field(position, "y") end
+    x, y = A.Number(x, 0, 1), A.Number(y, 0, 1)
+    if not x or not y or x == 0 and y == 0 then return false end
+    local api, openMap = rawget(_G, "OpenMapAPI"), rawget(_G, "OpenMap")
+    if api and A.Call(api.IsStitched) == true then
+        -- OpenMap places every known group member on its stitched map, when its
+        -- group layer is enabled. Keep our beacon if it only knows a rough zone.
+        local mod = openMap and A.Call(openMap.GetModule, openMap, "worldmap")
+        if A.Field(A.Field(mod, "db"), "group") ~= true then return false end
+        local u, v = A.Call(A.Field(mod, "ToWorld"), map, x, y)
+        return A.Number(u) ~= nil and A.Number(v) ~= nil
+    end
+    local host = WorldMapFrame and A.Number(A.Call(WorldMapFrame.GetMapID, WorldMapFrame), 1)
+    -- Blizzard places group units on the zone/city and its parent maps, but not
+    -- on the whole-world view. Do not suppress a beacon on an unrelated map.
+    if not host or host == 947 or host == 946 then return false end
+    for _ = 1, 10 do
+        if map == host then return true end
+        map = A.Number(A.Field(A.Call(C_Map.GetMapInfo, map), "parentMapID"), 1)
+        if not map then break end
     end
     return false
 end
@@ -98,14 +164,21 @@ end
 --- Everything that should be on the maps right now: {id = spec}.
 local function wanted()
     local out = {}
+    local units = groupUnits()
+    local identities = {player = unitIdentity("player")}
+    for _, unit in ipairs(units) do identities[unit] = unitIdentity(unit) end
     for _, peer in ipairs(A.LivePeers()) do
+        if not samePlayer(peer, identities.player) then
+        local grouped, unit = inMyGroup(peer, units, identities)
         local distance = M.DistanceTo(peer.map, peer.x, peer.y)
         out["p:" .. peer.name:lower()] = {
             icon = "dot", color = classColor(peer.class), map = peer.map, x = peer.x, y = peer.y, title = peer.name, edge = false,
             -- the game itself already draws the people of your group on the minimap
-            skipMini = inMyGroup(peer.name),
+            skipMini = grouped,
+            skipWorld = grouped and nativeWorldGroup(unit),
             lines = {zoneName(peer.map) .. " · " .. age(peer.at), distance and (string.format("%d yd", math.floor(distance + 0.5))) or nil},
         }
+        end
     end
     for _, meet in ipairs(A.social and A.social.meets or {}) do
         if A.Now() <= (meet.at or 0) + (meet.minutes or 0) * 60 + 7200 then
@@ -139,8 +212,9 @@ function M.Refresh()
         end
         paint(entry.world, spec); paint(entry.mini, spec)
         -- re-adding a frame moves it: HereBeDragons keeps one record per frame
-        pcall(Pins.AddWorldMapIconMap, Pins, REF, entry.world, spec.map, spec.x, spec.y, WORLD_FLAG)
-        if spec.skipMini then pcall(Pins.RemoveMinimapIcon, Pins, REF, entry.mini)
+        if spec.skipWorld then pcall(Pins.RemoveWorldMapIcon, Pins, REF, entry.world); entry.world:Hide()
+        else pcall(Pins.AddWorldMapIconMap, Pins, REF, entry.world, spec.map, spec.x, spec.y, WORLD_FLAG) end
+        if spec.skipMini then pcall(Pins.RemoveMinimapIcon, Pins, REF, entry.mini); entry.mini:Hide()
         else pcall(Pins.AddMinimapIconMap, Pins, REF, entry.mini, spec.map, spec.x, spec.y, false, spec.edge) end
     end
 end

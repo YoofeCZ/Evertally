@@ -1,7 +1,7 @@
 local _, M = ...
 local ns = M._roadEngine
 local Path = ns.Path
-local P = {version = "SPF v1.35.0", source = "collision-8yd", budget = 2}
+local P = {version = "SPF v1.35.0", source = "collision-8yd", budget = 2, waitingBudget = 4}
 M.RoadPath = P
 
 -- Route selection and smoothing use the same road flags/costs. A stable profile
@@ -23,6 +23,9 @@ end
 local function metric(a, b)
     local x, y = a[1] - b[1], a[2] - b[2]
     return math.sqrt(x * x + y * y)
+end
+function P.SetBudget(ms)
+    if finite(ms) and ms >= 1 and ms <= 5 then Path.budget = ms end
 end
 function P.HasData(map)
     return finite(map) and Path.HasData(map) or false
@@ -91,6 +94,8 @@ if type(CreateFrame) == "function" then
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function()
         driverActive, frame = true, frame + 1
+        -- Someone is waiting for a route: spend more of the frame on it (4 ms) instead of crawling at 2 ms a frame. Idle frames keep 2 ms.
+        Path.budget = #scheduled > 0 and P.waitingBudget or P.budget
         if #scheduled > 0 then
             local callback = table.remove(scheduled, 1)
             lastFrame = frame

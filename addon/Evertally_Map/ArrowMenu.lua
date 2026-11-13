@@ -10,11 +10,15 @@ local text = {
     en = {arrowMenuResize = "Change size", arrowMenuHide = "Hide the arrow", arrowMenuReset = "Reset size and position", arrowMenuStop = "Stop navigation",
         arrowMenuSpfOff = "Additional guidance with SPF", arrowMenuSpfOn = "Stop additional SPF guidance", arrowNoSpf = "Shortest Path Forever is not installed.",
         arrowResizeHint = "Drag the corner of the arrow to change its size.", arrowHiddenNote = "The navigation arrow is hidden. /etally arrow shows it again.",
-        arrowShown = "The navigation arrow is shown.", arrowHidden = "The navigation arrow is hidden."},
+        arrowShown = "The navigation arrow is shown.", arrowHidden = "The navigation arrow is hidden.",
+        routeMenuTitle = "Navigation", routeMenuRecalculate = "Recalculate route", routeMenuStart = "Start navigation",
+        routeMenuChange = "Change destination or route", routeMenuDetails = "Destination details", routeMenuShowArrow = "Show the arrow"},
     cs = {arrowMenuResize = "Změnit velikost", arrowMenuHide = "Schovat šipku", arrowMenuReset = "Vrátit velikost a polohu", arrowMenuStop = "Zrušit navigaci",
         arrowMenuSpfOff = "Doplňková navigace přes SPF", arrowMenuSpfOn = "Vypnout doplňkovou navigaci SPF", arrowNoSpf = "Shortest Path Forever není nainstalovaný.",
         arrowResizeHint = "Táhni za roh šipky a změníš její velikost.", arrowHiddenNote = "Šipka navigace je schovaná. /etally arrow ji ukáže znovu.",
-        arrowShown = "Šipka navigace je vidět.", arrowHidden = "Šipka navigace je schovaná."},
+        arrowShown = "Šipka navigace je vidět.", arrowHidden = "Šipka navigace je schovaná.",
+        routeMenuTitle = "Navigace", routeMenuRecalculate = "Přepočítat trasu", routeMenuStart = "Spustit navigaci",
+        routeMenuChange = "Změnit cíl nebo trasu", routeMenuDetails = "Podrobnosti cíle", routeMenuShowArrow = "Zobrazit šipku"},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
@@ -107,6 +111,7 @@ local menu, catcher
 function M.ArrowMenuClose()
     if menu then menu:Hide() end
     if catcher then catcher:Hide() end
+    if M.RouteMenuClose then M.RouteMenuClose() end
 end
 
 local function build()
@@ -131,6 +136,7 @@ end
 
 --- Opens the menu at the cursor.
 function M.ArrowMenuOpen()
+    if M.RouteMenuClose then M.RouteMenuClose() end
     if not menu then build() end
     for i, entry in ipairs(ENTRIES) do menu.items[i].text:SetText(entry.label and entry.label() or A.L(entry.key)) end
     if type(GetCursorPosition) == "function" then
@@ -139,6 +145,81 @@ function M.ArrowMenuOpen()
         if x and y then menu:ClearAllPoints(); menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / k - 6, y / k + 6) end
     end
     catcher:Show(); menu:Show()
+    return true
+end
+
+-- A route uses its own menu: clicking a line should offer route actions rather
+-- than arrow resizing. Route.lua consumes only a right-click that hits a stroke.
+local routeMenu, routeCatcher
+local function activeNavigation() return M.nav and M.nav.target ~= nil end
+local function routeGoal()
+    local target=M.nav and M.nav.target
+    if target then return target.label or target.name end
+    local steps=M.route and M.route.steps
+    local last=steps and steps[#steps]
+    return last and last.to
+end
+local function recalculateOrStart()
+    if activeNavigation() then return M.RecalculateRoute and M.RecalculateRoute() end
+    local steps=M.route and M.route.steps
+    local last=steps and steps[#steps]
+    if not (last and M.RoutePlace and A.NavigateToPoint) then return false end
+    local map,x,y=M.RoutePlace(last.tu,last.tv)
+    if not map then return false end
+    local title=last.to or A.L("routeMenuTitle")
+    return A.NavigateToPoint(title,map,x,y,{tab="plan",name=title})
+end
+local ROUTE_ENTRIES={
+    {key="arrowMenuStop",run=function() M.Stop() end},
+    {key="routeMenuRecalculate",label=function() return A.L(activeNavigation() and "routeMenuRecalculate" or "routeMenuStart") end,
+        run=function() if not recalculateOrStart() then A.Print(A.L("navNoRoute")) end end},
+    {key="routeMenuChange",run=function() if M.OpenWorldTab then M.OpenWorldTab("plan") end end},
+    {key="routeMenuDetails",run=function()
+        if activeNavigation() then M.OpenGoalInfo()
+        elseif M.OpenWorldTab then M.OpenWorldTab("plan") end
+    end},
+    {key="arrowMenuHide",label=function() return A.L(M.ArrowShown() and "arrowMenuHide" or "routeMenuShowArrow") end,
+        run=function() M.SetArrowShown(not M.ArrowShown()) end},
+}
+
+function M.RouteMenuClose()
+    if routeMenu then routeMenu:Hide() end
+    if routeCatcher then routeCatcher:Hide() end
+end
+
+local function buildRouteMenu()
+    local kit=A.UIKit()
+    routeCatcher=CreateFrame("Button",nil,UIParent)
+    routeCatcher:SetAllPoints(UIParent);routeCatcher:SetFrameStrata("DIALOG");routeCatcher:SetFrameLevel(1)
+    routeCatcher:RegisterForClicks("AnyUp");routeCatcher:SetScript("OnClick",M.RouteMenuClose);routeCatcher:Hide()
+    routeMenu=CreateFrame("Frame","EvertallyRouteMenu",UIParent)
+    routeMenu:SetFrameStrata("DIALOG");routeMenu:SetFrameLevel(10);routeMenu:SetSize(250,40+#ROUTE_ENTRIES*30)
+    routeMenu:EnableMouse(true);routeMenu:SetClampedToScreen(true)
+    kit.fill(routeMenu,kit.C.canvas,0.98);kit.outline(routeMenu,{0.65,0.5,0.22,0.9})
+    routeMenu.title=kit.label(routeMenu,12,{1,0.82,0.2})
+    routeMenu.title:SetPoint("TOPLEFT",12,-10);routeMenu.title:SetPoint("TOPRIGHT",-12,-10);routeMenu.title:SetHeight(16);routeMenu.title:SetWordWrap(false)
+    routeMenu.items={}
+    for i,entry in ipairs(ROUTE_ENTRIES) do
+        local button=kit.Button(routeMenu,entry.key,236,"ghost",function() M.RouteMenuClose();entry.run() end)
+        button:SetPoint("TOPLEFT",7,-31-(i-1)*30);routeMenu.items[i]=button
+    end
+    -- Escape calls Hide via UISpecialFrames; the click catcher must close too.
+    routeMenu:SetScript("OnHide",function() routeCatcher:Hide() end)
+    routeMenu:Hide()
+    if type(UISpecialFrames)=="table" then UISpecialFrames[#UISpecialFrames+1]="EvertallyRouteMenu" end
+end
+
+function M.ShowRouteMenu()
+    if not activeNavigation() and not M.route then return false end
+    M.ArrowMenuClose()
+    if not routeMenu then buildRouteMenu() end
+    routeMenu.title:SetText(routeGoal() or A.L("routeMenuTitle"))
+    for i,entry in ipairs(ROUTE_ENTRIES) do routeMenu.items[i].text:SetText(entry.label and entry.label() or A.L(entry.key)) end
+    if type(GetCursorPosition)=="function" then
+        local x,y=GetCursorPosition();local k=uiScale()
+        if x and y then routeMenu:ClearAllPoints();routeMenu:SetPoint("TOPLEFT",UIParent,"BOTTOMLEFT",x/k-6,y/k+6) end
+    end
+    routeCatcher:Show();routeMenu:Show()
     return true
 end
 

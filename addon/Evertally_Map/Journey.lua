@@ -4,6 +4,8 @@ local _, M = ...
 -- again until no cheaper untested alternative beats the fully searched journey.
 local J = {cache = {}, order = {}, limit = 192}
 M.Journey = J
+local driverRunning, inDriver, plansLeft = false, false, 0
+local externalPlanned = false
 
 local function complete(job)
     if job.onDone then local callback=job.onDone;job.onDone=nil;callback(job) end
@@ -71,9 +73,18 @@ function J.Step(job)
         end
     end
     if waiting then return job.state end
-    -- Limit purely arithmetic replans in one frame; collision jobs share the
-    -- provider's existing 2ms budget with the arrow and map previews.
-    for _=1,4 do
+    -- Once the real render driver has run, only it may plan, using one shared
+    -- slot for all jobs. Nav/UI Step calls can collect collision results but
+    -- cannot add another synchronous Dijkstra to that frame. Before the first
+    -- OnUpdate, one plan per Step keeps offline replay and initial startup
+    -- working; the first driver skips its slot if startup already used one.
+    -- The collision provider has its own shared 2ms budget. A single transport
+    -- Dijkstra is not sliced, so this is a call-count limit, not a 2ms promise.
+    if driverRunning then
+        if not inDriver or plansLeft<=0 then return job.state end
+        plansLeft=plansLeft-1
+    else externalPlanned=true end
+    do
         job.options.validateWalks,job.options.walkCosts=true,job.costs
         local plan=M.PlanJourney(job.from,job.to,job.options)
         job.rounds=job.rounds+1
@@ -102,12 +113,26 @@ end
 
 local driver=CreateFrame("Frame")
 J.active=setmetatable({},{__mode="k"})
+local activeOrder={}
 local begin=J.Begin
 function J.Begin(...)
-    local job=begin(...);J.active[job]=true;return job
+    local job=begin(...);J.active[job]=true;activeOrder[#activeOrder+1]=job;return job
 end
 driver:SetScript("OnUpdate",function()
-    for job in pairs(J.active) do
-        if job.state=="pending" then J.Step(job) else J.active[job]=nil end
+    driverRunning,inDriver=true,true
+    plansLeft=externalPlanned and 0 or 1
+    externalPlanned=false
+    -- Move each visited job to the tail, stopping after a planning slot or a
+    -- completion. Waiting searches do not block another ready job; Nav's own
+    -- Step calls cannot take the next preview's turn before this round robin.
+    for _=1,#activeOrder do
+        local job=table.remove(activeOrder,1)
+        if job.state=="pending" then
+            local before=plansLeft
+            J.Step(job)
+            if job.state=="pending" then activeOrder[#activeOrder+1]=job else J.active[job]=nil end
+            if plansLeft<before or job.state~="pending" then break end
+        else J.active[job]=nil end
     end
+    inDriver=false
 end)

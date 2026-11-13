@@ -10,6 +10,8 @@ local CONTINENTS = {kalimdor = 1414, kingdoms = 1415}
 
 M.route = nil          -- the plan the player asked to see (the journey tab); a navigation in progress takes precedence
 local shownKey, segments = nil, {}
+local geometryRevision = 0
+local edgeCache = setmetatable({}, {__mode = "k"})
 local legs = {}        -- the walking legs searched: key -> {job, c, uv = [{u, v}] when found, failed}
 M.routeReady = 0       -- counts the legs that were found (the line is drawn again when it changes)
 
@@ -131,22 +133,33 @@ end
 
 --- Actual polyline edges, with Azeroth fractions and world yards. No resampling loses a terrain bend.
 --- Separate legs and invalid/cross-continent points are never joined.
-function M.RouteSegments(plan)
+function M.RouteSegments(plan, reuse)
     local out = {}
     if type(plan) ~= "table" or type(plan.steps) ~= "table" then return out end
     for index, step in ipairs(plan.steps) do
         if validStep(step) then
             local poly = polyOf(step)
+            local cacheKey = step.routeGeometry or poly
+            local cached = reuse and edgeCache[cacheKey]
+            if reuse and not cached then cached = {}; edgeCache[cacheKey] = cached end
             for i = 2, #poly do
                 local a, b = poly[i - 1], poly[i]
                 if a and b and number(a[1]) and number(a[2]) and number(b[1]) and number(b[2]) then
-                    local c1, x1, y1, continent, north1, west1 = worldPoint(a[1], a[2])
-                    local c2, x2, y2, other, north2, west2 = worldPoint(b[1], b[2])
-                    if c1 ~= nil and c1 == c2 and continent == other and (x1 ~= x2 or y1 ~= y2) then
-                        out[#out + 1] = {fu = a[1], fv = a[2], tu = b[1], tv = b[2],
-                            x1 = x1, y1 = y1, x2 = x2, y2 = y2, instance = c1,
-                            continent = continent, north1 = north1, west1 = west1, north2 = north2, west2 = west2,
-                            mode = step.mode, color = colorOf(step.mode), leg = index}
+                    local previous = cached and cached[i]
+                    if previous and previous.fu == a[1] and previous.fv == a[2] and previous.tu == b[1] and previous.tv == b[2] then
+                        previous.mode, previous.color, previous.leg = step.mode, colorOf(step.mode), index
+                        out[#out + 1] = previous
+                    else
+                        local c1, x1, y1, continent, north1, west1 = worldPoint(a[1], a[2])
+                        local c2, x2, y2, other, north2, west2 = worldPoint(b[1], b[2])
+                        if c1 ~= nil and c1 == c2 and continent == other and (x1 ~= x2 or y1 ~= y2) then
+                            local edge = {fu = a[1], fv = a[2], tu = b[1], tv = b[2],
+                                x1 = x1, y1 = y1, x2 = x2, y2 = y2, instance = c1,
+                                continent = continent, north1 = north1, west1 = west1, north2 = north2, west2 = west2,
+                                mode = step.mode, color = colorOf(step.mode), leg = index}
+                            out[#out + 1] = edge
+                            if cached then cached[i] = edge end
+                        elseif cached then cached[i] = nil end
                     end
                 end
             end
@@ -156,17 +169,30 @@ function M.RouteSegments(plan)
 end
 
 local function signature(plan)
-    if type(plan) ~= "table" or type(plan.steps) ~= "table" then return "none" end
-    local parts = {tostring(M.routeReady)}
-    for _, step in ipairs(plan.steps) do
-        if validStep(step) then
-            parts[#parts + 1] = string.format("%s:%.7f:%.7f:%.7f:%.7f", tostring(step.mode), step.fu, step.fv, step.tu, step.tv)
-            for _, p in ipairs(step.routePath or {}) do
-                parts[#parts + 1] = string.format("%.7f:%.7f", p[1], p[2])
-            end
-        end
+    -- Route paths are immutable apart from the navigator's first (player) point.
+    -- Inspect a small fixed record per leg, never stringify thousands of bends.
+    if type(plan) ~= "table" or type(plan.steps) ~= "table" then return nil end
+    local key = {ready = M.routeReady}
+    for i, step in ipairs(plan.steps) do
+        key[i] = {step.mode, step.fu, step.fv, step.tu, step.tv, step.routePath, step.routePath and #step.routePath, step.routeRevision}
     end
-    return table.concat(parts, "|")
+    return key
+end
+local function sameKey(a, b)
+    if not a or not b or a.ready ~= b.ready or #a ~= #b then return false end
+    for i = 1, #a do for j = 1, 8 do if a[i][j] ~= b[i][j] then return false end end end
+    return true
+end
+local function sameView(owner, ...)
+    local values = {...}
+    local old = owner.view
+    if old and #old == #values then
+        local same = true
+        for i = 1, #values do if old[i] ~= values[i] then same = false; break end end
+        if same then return true end
+    end
+    owner.view = values
+    return false
 end
 
 -- ---------------------------------------------------------------- clipping and painting
@@ -203,8 +229,10 @@ local world, mini, loading
 local LIMIT, THICKNESS = 4096, 2.5
 local function hide(owner)
     if not owner then return end
-    for _, pair in ipairs(owner.lines) do pair[1]:Hide(); pair[2]:Hide() end
+    if not owner.used and not owner.view then return end
+    for i = 1, owner.used do local pair = owner.lines[i]; pair[1]:Hide(); pair[2]:Hide(); pair.visible = false end
     owner.used = 0
+    owner.view, owner.geometry = nil, nil
     owner.frame:Hide()
 end
 local function layer(parent)
@@ -228,7 +256,7 @@ local function lineRegion(owner, sublevel)
         return region, false
     end
 end
-local function stroke(owner, x1, y1, x2, y2, color, scale)
+local function stroke(owner, x1, y1, x2, y2, color, scale, leg)
     if owner.used >= LIMIT or (x1 == x2 and y1 == y2) then return end
     local i = owner.used + 1
     local pair = owner.lines[i]
@@ -239,6 +267,10 @@ local function stroke(owner, x1, y1, x2, y2, color, scale)
         pair = {under, core, native = native}; owner.lines[i] = pair
     end
     owner.used = i
+    pair.leg = leg
+    if pair.x1 == x1 and pair.y1 == y1 and pair.x2 == x2 and pair.y2 == y2 and pair.color == color and pair.scale == scale
+        and pair.visible then return end
+    pair.x1, pair.y1, pair.x2, pair.y2, pair.color, pair.scale, pair.visible = x1, y1, x2, y2, color, scale, true
     for n = 1, 2 do
         local region, width = pair[n], (n == 1 and THICKNESS + 2 or THICKNESS) / scale
         if pair.native then
@@ -254,11 +286,15 @@ local function stroke(owner, x1, y1, x2, y2, color, scale)
     end
 end
 local function begin(owner, level)
-    owner.used = 0; owner.frame:Show()
+    owner.previousUsed, owner.used = owner.used, 0
+    if not read(owner.frame, "IsShown") then owner.frame:Show() end
     if number(level) then owner.frame:SetFrameLevel(level) end
 end
 local function finish(owner)
-    for i = owner.used + 1, #owner.lines do owner.lines[i][1]:Hide(); owner.lines[i][2]:Hide() end
+    for i = owner.used + 1, owner.previousUsed or 0 do
+        owner.lines[i][1]:Hide(); owner.lines[i][2]:Hide(); owner.lines[i].visible = false
+    end
+    owner.geometry = geometryRevision
 end
 local function scaleOf(frame)
     local scale = read(frame, "GetEffectiveScale")
@@ -280,7 +316,12 @@ local function drawWorld()
     local api = _G.OpenMapAPI
     local stitched = type(api) == "table" and api.major == 1 and (api.version or 0) >= 2 and apiRead(api, "IsStitched") == true
     local art = stitched and apiRead(api, "ArtTopLevel") or nil
+    local viewU, viewV, viewZoom
+    if stitched then viewU, viewV, viewZoom = apiRead(api, "GetView") end
     local baseLevel = read(canvas, "GetFrameLevel")
+    if sameView(world, id, w, h, cw, ch, cl, ct, vl, vt, scale, cs, stitched, art or 0, baseLevel or 0,
+        number(viewU) and viewU or false, number(viewV) and viewV or false, number(viewZoom) and viewZoom or false)
+        and world.geometry == geometryRevision then return world.used end
     begin(world, (number(art) and art or (number(baseLevel) and baseLevel or 5)) + 3)
     local function point(segment, last)
         local u, v
@@ -301,7 +342,7 @@ local function drawWorld()
         local x2, y2 = point(segment, true)
         if x1 and x2 then
             x1, y1, x2, y2 = clipRect(x1, y1, x2, y2, inset, inset, w - inset, h - inset)
-            if x1 then stroke(world, x1, y1, x2, y2, segment.color, scale) end
+            if x1 then stroke(world, x1, y1, x2, y2, segment.color, scale, segment.leg) end
         end
     end
     finish(world)
@@ -328,9 +369,12 @@ local function drawMini()
     if not mini or mini.parent ~= map then hide(mini); mini = layer(map) end
     local scale = scaleOf(map)
     local baseLevel = read(map, "GetFrameLevel")
+    local shape = A.Call(GetMinimapShape)
+    if sameView(mini, px, py, instance, w, h, radius, facing, scale, baseLevel or 0, shape or "ROUND")
+        and mini.geometry == geometryRevision then return mini.used end
     begin(mini, (number(baseLevel) and baseLevel or 5) + 6)
     local cosine, sine = math.cos(facing), math.sin(facing)
-    local square = A.Call(GetMinimapShape) == "SQUARE"
+    local square = shape == "SQUARE"
     local inset = 1 - (THICKNESS + 2) / scale / math.min(w, h)
     local function point(x, y)
         local dx, dy = px - x, py - y
@@ -343,7 +387,7 @@ local function drawMini()
             if square then x1, y1, x2, y2 = clipRect(x1, y1, x2, y2, -inset, -inset, inset, inset)
             else x1, y1, x2, y2 = clipCircle(x1, y1, x2, y2, inset) end
             if x1 then stroke(mini, (x1 + 1) * w / 2, (y1 + 1) * h / 2,
-                (x2 + 1) * w / 2, (y2 + 1) * h / 2, segment.color, scale) end
+                (x2 + 1) * w / 2, (y2 + 1) * h / 2, segment.color, scale, segment.leg) end
         end
     end
     finish(mini)
@@ -358,25 +402,65 @@ function M.ClearRouteLines()
 end
 M.ClearRouteDots = M.ClearRouteLines
 
+--- Hit-test only the actually visible clipped strokes. Coordinates are local
+--- viewport pixels from its top-left, not canvas fractions or screen pixels.
+function M.RouteHitTest(surface, x, y, tolerance)
+    local owner = surface == "world" and world or surface == "minimap" and mini
+    if not owner then
+        if world and world.parent == surface then owner = world elseif mini and mini.parent == surface then owner = mini end
+    end
+    if not owner or not read(owner.frame, "IsShown") or not number(x) or not number(y) then return false end
+    tolerance = number(tolerance) and math.max(0, tolerance) or 6
+    local closest, leg
+    for i = 1, owner.used do
+        local p = owner.lines[i]
+        local dx, dy = p.x2 - p.x1, p.y2 - p.y1
+        local length = dx * dx + dy * dy
+        local t = length > 0 and math.max(0, math.min(1, ((x - p.x1) * dx + (y - p.y1) * dy) / length)) or 0
+        local distance = (x - p.x1 - t * dx)^2 + (y - p.y1 - t * dy)^2
+        if not closest or distance < closest then closest, leg = distance, p.leg end
+    end
+    if closest and closest <= tolerance * tolerance then return true, leg, math.sqrt(closest) end
+    return false
+end
+
+local clickMap
+local function registerRouteClicks()
+    local map = _G.WorldMapFrame
+    if not map or map == clickMap or type(map.AddCanvasClickHandler) ~= "function" then return end
+    local ok = pcall(map.AddCanvasClickHandler, map, function(host, button)
+        if button ~= "RightButton" or type(M.ShowRouteMenu) ~= "function" then return false end
+        local view = host.ScrollContainer or host
+        local x, y = A.Call(GetCursorPosition)
+        local left, top, scale = read(view, "GetLeft"), read(view, "GetTop"), scaleOf(view)
+        if not (number(x) and number(y) and number(left) and number(top)) then return false end
+        if M.RouteHitTest("world", x / scale - left, top - y / scale, 6 / scale) then
+            return M.ShowRouteMenu() == true
+        end
+        return false
+    end, 1100) -- Before OpenMap's priority-1000 right-click zoom; misses pass through.
+    if ok then clickMap = map end
+end
+
 --- Geometry is cached separately from projection: movement/zoom/pan never leaves stale strokes.
 function M.RefreshRoute(force)
+    registerRouteClicks()
     local plan = (M.RoutePlan and M.RoutePlan()) or M.route
+    if not plan and not shownKey and next(legs) == nil then return end
     forgetOtherLegs(plan)
     if loading or not plan then M.ClearRouteLines(); return end
     local key = signature(plan)
-    if force or key ~= shownKey then segments, shownKey = M.RouteSegments(plan), key end
+    if force then edgeCache = setmetatable({}, {__mode = "k"}) end
+    if force or not sameKey(key, shownKey) then
+        segments, shownKey = M.RouteSegments(plan, true), key
+        geometryRevision = geometryRevision + 1
+    end
     M.routeLines, M.routeMiniLines, M.routeDots = drawWorld(), drawMini(), 0
 end
 
 -- Searches yield every frame; both surfaces follow player, map zoom and OpenMap pans at 10 Hz.
 local driver, elapsed = CreateFrame("Frame"), 0
 driver:SetScript("OnUpdate", function(_, dt)
-    if not M.route and not (M.RoutePlan and M.RoutePlan()) then
-        -- Stop may only clear the navigator's target. Do not wait for an unrelated pin ticker
-        -- to remove its last frame, or keep an abandoned terrain search alive indefinitely.
-        if shownKey or next(legs) ~= nil then forgetOtherLegs(nil); M.ClearRouteLines() end
-        return
-    end
     if next(legs) ~= nil then pcall(M.RouteStep) end
     elapsed = elapsed + (dt or 0)
     if elapsed >= 0.1 then elapsed = 0; M.RefreshRoute() end
