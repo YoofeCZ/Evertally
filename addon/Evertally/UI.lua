@@ -308,6 +308,8 @@ local function ListView(parent, top, striped)
                 local reserve = (item.onClick and 26 or 12) + ((item.right and item.right ~= "") and (compact and 66 or 110) or 0)
                 if item.tag and not compact then
                     r.tag.Set(item.tag, item.tagColor or C.mist); r.tag:Show()
+                    -- without a value the pill sits at the edge, not left of an empty value column
+                    r.tag:ClearAllPoints(); r.tag:SetPoint("RIGHT", r, "RIGHT", -((item.onClick and 26 or 12) + ((item.right and item.right ~= "") and 110 or 0)), 0)
                     reserve = reserve + (tonumber(r.tag:GetWidth()) or 80) + 10
                 else r.tag:Hide() end
                 r.title:ClearAllPoints(); r.title:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 10, 1); r.title:SetPoint("TOPRIGHT", r, "TOPRIGHT", -reserve, -5)

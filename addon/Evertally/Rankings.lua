@@ -19,6 +19,8 @@ A.locale.en.rankEndManual="End this record as a manual run";A.locale.cs.rankEndM
 A.locale.en.rankAbsorbs="Absorbs";A.locale.cs.rankAbsorbs="Absorpce"
 A.locale.en.rankInterrupts="Interrupts";A.locale.cs.rankInterrupts="Přerušení"
 A.locale.en.rankDispels="Dispels";A.locale.cs.rankDispels="Dispel"
+local CS_UPPER={["á"]="Á",["č"]="Č",["ď"]="Ď",["é"]="É",["ě"]="Ě",["í"]="Í",["ň"]="Ň",["ó"]="Ó",["ř"]="Ř",["š"]="Š",["ť"]="Ť",["ú"]="Ú",["ů"]="Ů",["ý"]="Ý",["ž"]="Ž"}
+local function upperText(s) s=tostring(s or ""):upper();return (s:gsub("[\195-\197][\128-\191]",function(c) return CS_UPPER[c] end)) end
 local MODES={"runs","level","fastest","dungeons","dps","heals","history"}
 local CLASSES={false,1,2,3,4,5,7,8,9,11,0}
 local RACES={false,1,2,3,4,5,6,7,8,0}
@@ -278,7 +280,7 @@ function A.BuildRankingsPage(page,kit)
    boardRows[#boardRows+1]={class=classId,title=kit.plain(row.name),sub=row.sub or "",right=row.valueText,titleColor=type(color)=="table" and color[1] and {color[1],color[2],color[3]} or nil,
     onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};A.RefreshUI()end}
   end
-  page.boardTitle:SetText((page.dungeon and kit.plain(page.dungeon) or modeLabel(page.mode)):upper())
+  page.boardTitle:SetText(upperText(page.dungeon and kit.plain(page.dungeon) or modeLabel(page.mode)))
   page.boardSub:SetText((page.mode=="dps" or page.mode=="heals") and A.L("rankRateNote") or A.L("rankPersonal"))
   page.boardList.SetItems(boardRows,A.L("rankNoData"))
   local entries={};if page.mode=="dps" or page.mode=="heals" then entries[#entries+1]={text=A.L("rankRateNote")} end
