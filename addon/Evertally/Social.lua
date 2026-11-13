@@ -338,6 +338,11 @@ local function forwardArmory(view,data)
     local name=baseName(view.sender)
     local senderRealm=A.Text(view.sender,150):match("^[^-]+%-(.+)$")
     local header=data.header or {}
+    -- The sender may arrive as "Name Realm" (no hyphen): the realm belongs to the realm field, not to the name.
+    if not senderRealm and header.realm and header.realm~="" then
+        local suffix=" "..header.realm
+        if #name>#suffix and name:sub(-#suffix):lower()==suffix:lower() then name=name:sub(1,#name-#suffix);senderRealm=header.realm end
+    end
     local realm=senderRealm
     if header.realm and header.realm~="" and (not senderRealm or realmKey(header.realm)==realmKey(senderRealm)) then realm=header.realm end
     realm=realm or A.Text(A.Call(GetRealmName),80) or ""
