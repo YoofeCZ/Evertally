@@ -164,18 +164,34 @@ local function overlay(i)
     o:EnableMouse(false); overlays[i] = o
     return o
 end
+-- Works with the default bags and with bag addons (Baganator, Bagnon, ElvUI, ...): any shown item button is recognised
+-- by what it exposes (an item id, or a bag and slot). Only read, never written.
+local function buttonItem(b)
+    local id
+    local bgr = rawget(b, "BGR")
+    if type(bgr) == "table" then id = tonumber(bgr.itemID) end
+    if not id and type(b.info) == "table" then id = tonumber(b.info.itemID) end
+    if not id and type(b.GetItemID) == "function" then id = tonumber(A.Call(b.GetItemID, b)) end
+    if not id then
+        local bag, slot = rawget(b, "bagID") or rawget(b, "bagId"), rawget(b, "slotID") or rawget(b, "slotId")
+        if not bag and type(b.GetBagID) == "function" then bag = A.Call(b.GetBagID, b) end
+        if not bag then local par = b.GetParent and b:GetParent(); bag = par and par.GetID and par:GetID() end
+        slot = slot or (b.GetID and b:GetID())
+        if tonumber(bag) and tonumber(slot) and slot > 0 and A.ContainerItemId then id = A.ContainerItemId(bag, slot) end
+    end
+    return id
+end
 local function bagButtons(visit)
-    local frames = {}
-    if _G.ContainerFrameCombinedBags then frames[#frames + 1] = _G.ContainerFrameCombinedBags end
-    for i = 1, 13 do local fr = _G["ContainerFrame" .. i]; if fr then frames[#frames + 1] = fr end end
-    for _, fr in ipairs(frames) do
-        if A.Call(fr.IsShown, fr) == true then
-            if type(fr.EnumerateValidItems) == "function" then
-                pcall(function() for _, b in fr:EnumerateValidItems() do visit(b, b.GetBagID and b:GetBagID() or fr:GetID(), b:GetID()) end end)
-            else
-                pcall(function() for _, b in ipairs({fr:GetChildren()}) do if b.GetID and b:GetObjectType() == "Button" and b:IsShown() then visit(b, fr:GetID(), b:GetID()) end end end)
-            end
+    if type(EnumerateFrames) ~= "function" then return end
+    local f = EnumerateFrames()
+    local n = 0
+    while f and n < 20000 do
+        n = n + 1
+        if f.IsShown and f.GetObjectType and f:GetObjectType() == "Button" and f:IsShown() then
+            local ok, id = pcall(buttonItem, f)
+            if ok and id then visit(f, id) end
         end
+        f = EnumerateFrames(f)
     end
 end
 function A.SocialHighlightRefresh()
@@ -183,9 +199,8 @@ function A.SocialHighlightRefresh()
     local any = false
     for id, p in pairs(points) do if now - p.at > 120 then points[id] = nil else any = true end end
     if any then
-        bagButtons(function(button, bag, slot)
-            local id = A.ContainerItemId and A.ContainerItemId(bag, slot)
-            if id and points[id] and used < 40 then
+        bagButtons(function(button, id)
+            if points[id] and used < 40 then
                 used = used + 1
                 local o = overlay(used)
                 o:SetParent(UIParent); o:SetFrameStrata("TOOLTIP"); o:ClearAllPoints(); o:SetAllPoints(button); o:Show()
@@ -368,7 +383,7 @@ function A.SocialRefreshViewer()
     f.sub:SetText(string.format(A.L("viewReceived"), (A.Call(date, "%H:%M", v.at) or "")) .. "   " .. kindsText(v.kinds or ""))
     for mode, chip in pairs(f.tabs) do chip.SetLabel(A.L("viewTab_" .. mode)); chip.SetOn(f.mode == mode) end
     f.offerTitle:SetText(A.L("viewMyOffer")); f.goldLabel:SetText(A.L("viewGoldOffer")); f.noteLabel:SetText(A.L("viewNote"))
-    f.send.text:SetText(A.L("viewSend")); f.hint:SetText(f.pointMode and A.L("viewPointHint") or A.L("viewHint"))
+    f.send.text:SetText(A.L("viewSend")); f.hint:SetText(f.pointMode and A.L("viewPointHint") or A.L("viewHint")); f.hint:SetTextColor(unpack(f.pointMode and k.C.green or k.C.faint))
     f.pointChip.SetLabel(A.L("viewPoint")); f.pointChip.SetOn(f.pointMode == true)
     local icons = f.mode == "equipped" or f.mode == "bags"
     f.grid:SetShown(icons); f.list:SetShown(not icons)
@@ -734,7 +749,7 @@ function A.BuildSocialPage(host, k)
     end
 
     -- A contact ledger on the left; the selected player's permission request is a full parchment leaf.
-    local ink, muted, heading = {0.20,0.12,0.055}, {0.36,0.26,0.14}, {0.42,0.23,0.055}
+    local ink, muted, heading = {0.90,0.88,0.82}, {0.66,0.63,0.56}, C.gold
     page.cols=k.Columns(page,{2,3},12)
     page.cols:SetPoint("TOPLEFT",0,-90);page.cols:SetPoint("BOTTOMRIGHT")
     local rosterCard=k.Card(page.cols.cells[1]);rosterCard:SetAllPoints(page.cols.cells[1]);page.rosterCard=rosterCard
@@ -744,7 +759,7 @@ function A.BuildSocialPage(host, k)
     page.viewsTitle=k.label(rosterCard,12,C.gold);page.viewsTitle:SetPoint("BOTTOMLEFT",12,94)
     local viewsInner=CreateFrame("Frame",nil,rosterCard);viewsInner:SetPoint("BOTTOMLEFT",6,6);viewsInner:SetPoint("BOTTOMRIGHT",-6,6);viewsInner:SetHeight(80)
     page.viewList=k.ListView(viewsInner,0)
-    local form=CreateFrame("Frame",nil,page.cols.cells[2]);form:SetAllPoints(page.cols.cells[2]);A.NativeParchment(form,C);page.requestLeaf=form
+    local form=CreateFrame("Frame",nil,page.cols.cells[2]);form:SetAllPoints(page.cols.cells[2]);A.NativePanel(form,C);page.requestLeaf=form
     page.formTitle=k.label(form,15,heading);page.formTitle:SetPoint("TOPLEFT",14,-12);page.formTitle:SetPoint("TOPRIGHT",-14,-12)
     page.contactPortrait=form:CreateTexture(nil,"ARTWORK");page.contactPortrait:SetSize(50,50);page.contactPortrait:SetPoint("TOPLEFT",14,-42);k.setIcon(page.contactPortrait,k.ICON.npc)
     page.name=CreateFrame("EditBox",nil,form,"InputBoxTemplate");page.name:SetHeight(26);page.name:SetPoint("TOPLEFT",80,-42);page.name:SetPoint("TOPRIGHT",-14,-42)
@@ -793,6 +808,8 @@ function A.BuildSocialPage(host, k)
             page.meetStatus:SetText(ok and A.L("socialMeetSent") or A.L("socialMeetErr_" .. tostring(err)))
         end); b:SetPoint("TOPLEFT", (n - 1) * 146, -136); page.meetButtons[#page.meetButtons + 1] = b
     end
+    page.meetHint = k.label(page, 11, C.faint); page.meetHint:SetPoint("TOPLEFT", 330, -20)
+    page.meetHelp = k.label(page, 11, C.faint)
     page.meetStatus = k.label(page, 11, C.green); page.meetStatus:SetPoint("TOPLEFT", 0, -172); page.meetStatus:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -172)
     -- live
     page.ping = k.Button(page, "socialPing", 150, "primary", function()
@@ -804,12 +821,14 @@ function A.BuildSocialPage(host, k)
     -- privacy
     page.privacy = k.label(page, 11, C.mist); page.privacy:SetPoint("TOPLEFT", 0, -96); page.privacy:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -96)
     page.list = k.ListView(page, 204)
-    page.secondaryLeaf=CreateFrame("Frame",nil,page);page.secondaryLeaf:SetPoint("TOPLEFT",0,-90);page.secondaryLeaf:SetPoint("BOTTOMRIGHT");A.NativeParchment(page.secondaryLeaf,C)
-    for _,widget in ipairs({page.meetLabel,page.meetStatus,page.ping,page.stopNav,page.liveNote,page.privacy,page.list})do widget:SetParent(page.secondaryLeaf)end
+    page.secondaryLeaf=CreateFrame("Frame",nil,page);page.secondaryLeaf:SetPoint("TOPLEFT",0,-90);page.secondaryLeaf:SetPoint("BOTTOMRIGHT");A.NativePanel(page.secondaryLeaf,C)
+    for _,widget in ipairs({page.meetHint,page.meetHelp,page.meetLabel,page.meetStatus,page.ping,page.stopNav,page.liveNote,page.privacy,page.list})do widget:SetParent(page.secondaryLeaf)end
     for _,widget in ipairs(page.meetButtons)do widget:SetParent(page.secondaryLeaf)end
     page.meetLabel:ClearAllPoints();page.meetLabel:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",20,-14)
     for i,button in ipairs(page.meetButtons)do button:ClearAllPoints();button:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14+(i-1)*146,-52)end
     page.meetStatus:ClearAllPoints();page.meetStatus:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-92);page.meetStatus:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-92)
+    page.meetHint:ClearAllPoints();page.meetHint:SetPoint("LEFT",page.meetLabel,"RIGHT",10,0);page.meetHint:SetTextColor(unpack(muted))
+    page.meetHelp:ClearAllPoints();page.meetHelp:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-118);page.meetHelp:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-118);page.meetHelp:SetTextColor(unpack(muted))
     page.ping:ClearAllPoints();page.ping:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-14)
     page.liveNote:ClearAllPoints();page.liveNote:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-60);page.liveNote:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-60);page.liveNote:SetTextColor(unpack(ink))
     page.privacy:ClearAllPoints();page.privacy:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",14,-14);page.privacy:SetPoint("TOPRIGHT",page.secondaryLeaf,"TOPRIGHT",-14,-14);page.privacy:SetTextColor(unpack(ink))
@@ -826,6 +845,8 @@ function A.BuildSocialPage(host, k)
         end
         page.rosterTitle:SetText(A.L("socialRoster")); page.formTitle:SetText(A.L("socialAsk")); page.viewsTitle:SetText(A.L("socialViewsTitle"))
         page.meetLabel:SetShown(mode == "meets"); page.meetStatus:SetShown(mode == "meets")
+        page.meetHint:SetShown(mode == "meets"); page.meetHint:SetText(A.L("socialMeetLabelHint"))
+        page.meetHelp:SetShown(mode == "meets"); page.meetHelp:SetText(A.L("socialMeetHelp"))
         for _, b in ipairs(page.meetButtons) do b:SetShown(mode == "meets"); b.text:SetText(A.L(b.localeKey)) end
         page.privacy:SetShown(mode == "privacy"); page.privacy:SetText(A.L("socialPrivacyInfo"))
         for _, w in ipairs({page.ping, page.stopNav, page.liveNote}) do w:SetShown(mode == "live") end
@@ -892,7 +913,7 @@ local text = {
         socialErr_no_target = "Type a name, or target a player and press the button.", socialErr_no_kinds = "Tick at least one thing to ask for.", socialErr_queue_full = "Too many messages are waiting. Try again in a moment.", socialErr_size_limit = "That is too much to send.",
         socialNoViews = "Nothing received yet. Ask a player; they decide what to show.", socialNoProposals = "No trade proposals yet.", socialNoMeets = "No meets received yet.", socialNoShown = "You have not shown anything this session.",
         socialIn = "from", socialOut = "to", socialStatus_open = "open", socialStatus_sent = "sent", socialStatus_accepted = "accepted", socialStatus_declined = "declined",
-        socialMeetParty = "To party / raid", socialMeetGuild = "To guild", socialMeetWhisper = "To my target", socialMeetSent = "Sent. Others can set a waypoint. Tip: with the world map open, the place under your cursor is sent.", socialMeetErr_no_position = "No map position here (instance or loading screen).",
+        socialMeetLabelHint = "<- name of the place (optional)", socialMeetHelp = "A meet shows the others a waypoint to where you are (or to the spot under the map cursor). Pick who gets it: your group, your guild or your target. They accept it with one click.", socialMeetParty = "To party / raid", socialMeetGuild = "To guild", socialMeetWhisper = "To my target", socialMeetSent = "Sent. Others can set a waypoint. Tip: with the world map open, the place under your cursor is sent.", socialMeetErr_no_position = "No map position here (instance or loading screen).",
         socialMeetErr_no_target = "Target a player first.", socialMeetErr_queue_full = "Too many messages are waiting.", socialMeetIn = "in %d min", socialMeetNow = "now",
         socialPrivacyInfo = "What another player shows you is kept only while the addon runs: it is never saved and never uploaded. You are asked before anyone sees anything of yours, and you choose what to show each time. Evertally does not keep what you showed, only a short list below.",
         socialShownTitle = "You showed:", socialBlockedHint = "Blocked. Click to unblock.", socialBlock = "Block",
@@ -902,7 +923,7 @@ local text = {
         socialPermissionNote = "They choose what to show. Gold is separate.",
         viewTab_stats = "Stats", viewTab_talents = "Talents", viewNoStats = "No stats shown.", viewNoTalents = "No talents shown.", viewTalentPoints = "%d talents with points",
         viewTitle = "%s", viewReceived = "received %s", viewTab_equipped = "Equipped", viewTab_bags = "Bags", viewTab_professions = "Professions", viewTab_gold = "Gold",
-        viewPoint = "Show mode", viewPointed = "Showing %s to %s", viewPointHint = "Show mode: click an item and it lights up green in their bags. This works only for what they allowed you to see.",
+        viewPoint = "Show mode", viewPointed = "Showing %s to %s", viewPointHint = "SHOW MODE is on: click an item and it blinks green in THEIR open bags (any bag addon) and they get a chat message. Click \"Show mode\" again to go back to choosing wanted items.",
         viewWant = "WANT", viewOffer = "OFFER", viewMyOffer = "My offer (my bags)", viewGoldOffer = "Gold I offer", viewNote = "Note", viewSend = "Send proposal", viewSent = "Proposal sent to %s.",
         viewHint = "Click an item to mark it as wanted (click again for the whole stack, again to remove). Pick what you offer on the right, then send.", viewNoGold = "They did not show their gold.",
         viewNoProf = "No professions shown, or none recorded yet.", viewRecipes = "%d known recipes",
@@ -925,7 +946,7 @@ local text = {
         socialErr_no_target = "Napiš jméno, nebo označ hráče a stiskni tlačítko.", socialErr_no_kinds = "Zaškrtni aspoň jednu věc.", socialErr_queue_full = "Čeká příliš mnoho zpráv. Zkus to za chvíli.", socialErr_size_limit = "To je příliš mnoho k odeslání.",
         socialNoViews = "Zatím nic nepřišlo. Požádej hráče; on rozhodne, co ukáže.", socialNoProposals = "Zatím žádné návrhy výměn.", socialNoMeets = "Zatím žádné srazy.", socialNoShown = "V této relaci jsi nic neukázal.",
         socialIn = "od", socialOut = "pro", socialStatus_open = "otevřeno", socialStatus_sent = "odesláno", socialStatus_accepted = "přijato", socialStatus_declined = "odmítnuto",
-        socialMeetParty = "Partě / raidu", socialMeetGuild = "Cechu", socialMeetWhisper = "Mému cíli", socialMeetSent = "Odesláno. Ostatní si mohou nastavit waypoint. Tip: s otevřenou mapou se pošle místo pod kurzorem.", socialMeetErr_no_position = "Tady není poloha na mapě (instance nebo načítání).",
+        socialMeetLabelHint = "<- název místa (nepovinné)", socialMeetHelp = "Sraz ukáže ostatním waypoint tam, kde stojíš (nebo na místo pod kurzorem na mapě). Vyber, komu: partě, cechu nebo tvému cíli. Oni ho přijmou jedním klikem.", socialMeetParty = "Partě / raidu", socialMeetGuild = "Cechu", socialMeetWhisper = "Mému cíli", socialMeetSent = "Odesláno. Ostatní si mohou nastavit waypoint. Tip: s otevřenou mapou se pošle místo pod kurzorem.", socialMeetErr_no_position = "Tady není poloha na mapě (instance nebo načítání).",
         socialMeetErr_no_target = "Nejdřív někoho označ.", socialMeetErr_queue_full = "Čeká příliš mnoho zpráv.", socialMeetIn = "za %d min", socialMeetNow = "hned",
         socialPrivacyInfo = "Co ti jiný hráč ukáže, drží se jen dokud běží addon: nikdy se neukládá ani neodesílá. Než kdokoli uvidí něco z tvého, zeptá se tě a pokaždé volíš, co ukážeš. Evertally si neuchovává, co jsi ukázal, jen krátký seznam níže.",
         socialShownTitle = "Ukázal jsi:", socialBlockedHint = "Zablokován. Kliknutím odblokuješ.", socialBlock = "Blokovat",
@@ -935,7 +956,7 @@ local text = {
         socialPermissionNote = "Hráč rozhodne, co ukáže. Zlato se žádá zvlášť.",
         viewTab_stats = "Statistiky", viewTab_talents = "Talenty", viewNoStats = "Statistiky neukázal.", viewNoTalents = "Talenty neukázal.", viewTalentPoints = "Talentů s body: %d",
         viewTitle = "%s", viewReceived = "přijato %s", viewTab_equipped = "Nasazené", viewTab_bags = "Tašky", viewTab_professions = "Profese", viewTab_gold = "Zlato",
-        viewPoint = "Ukazovat", viewPointed = "Ukazuji %s hráči %s", viewPointHint = "Režim ukazování: klikni na předmět a v jeho taškách se rozsvítí zeleně. Funguje jen na to, co ti dovolil vidět.",
+        viewPoint = "Ukazovat", viewPointed = "Ukazuji %s hráči %s", viewPointHint = "REŽIM UKAZOVÁNÍ je zapnutý: klikni na předmět a v JEHO otevřených taškách (i v addonech na tašky) zableská zeleně a přijde mu zpráva do chatu. Dalším klikem na \"Ukazovat\" se vrátíš k výběru chtěných předmětů.",
         viewWant = "CHCI", viewOffer = "NABÍZÍM", viewMyOffer = "Moje nabídka (moje tašky)", viewGoldOffer = "Zlato, které nabízím", viewNote = "Poznámka", viewSend = "Poslat návrh", viewSent = "Návrh odeslán hráči %s.",
         viewHint = "Kliknutím na věc ji označíš jako chtěnou (znovu = celý stack, znovu = zrušit). Vpravo vyber, co nabízíš, a pošli.", viewNoGold = "Své zlato neukázal.",
         viewNoProf = "Žádné profese neukázal, nebo ještě žádné nejsou zaznamenané.", viewRecipes = "Známých receptů: %d",
