@@ -606,3 +606,51 @@ function M.NavDebug()
         end
     end
 end
+
+-- ---------------------------------------------------------------- loose "Stop navigation" button
+-- A small button that is on screen only while navigating. It can be dragged anywhere (the place is kept) and a click
+-- ends the navigation. It does not depend on the arrow, which can be hidden or resized.
+A.locale.en.stopNavButton = "Stop navigation"
+A.locale.cs.stopNavButton = "Ukončit navigaci"
+local stopButton
+local function applyStopPosition(b)
+    local s = A.db and A.db.settings
+    local pos = s and s.stopNavPos
+    b:ClearAllPoints()
+    if type(pos) == "table" and type(pos[1]) == "string" then b:SetPoint(pos[1], UIParent, pos[1], tonumber(pos[2]) or 0, tonumber(pos[3]) or 0)
+    else b:SetPoint("TOP", UIParent, "TOP", 0, -170) end
+end
+local function ensureStopButton()
+    if stopButton then return stopButton end
+    local b = CreateFrame("Button", "EvertallyStopNavigation", UIParent)
+    b:SetSize(150, 26); b:SetFrameStrata("HIGH"); b:SetMovable(true); b:SetClampedToScreen(true)
+    b:RegisterForDrag("LeftButton")
+    b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetAllPoints(b); b.bg:SetColorTexture(0.12, 0.05, 0.05, 0.88)
+    b.hover = b:CreateTexture(nil, "HIGHLIGHT"); b.hover:SetAllPoints(b); b.hover:SetColorTexture(1, 1, 1, 0.12)
+    for i, e in ipairs({{"TOPLEFT", "TOPRIGHT", true}, {"BOTTOMLEFT", "BOTTOMRIGHT", true}}) do
+        local t = b:CreateTexture(nil, "BORDER"); t:SetColorTexture(0.75, 0.25, 0.2, 1); t:SetHeight(1); t:SetPoint(e[1]); t:SetPoint(e[2])
+    end
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); b.text:SetPoint("CENTER"); b.text:SetTextColor(1, 0.85, 0.8)
+    b:SetScript("OnDragStart", function(self) self.moved = true; self:StartMoving() end)
+    b:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, _, x, y = self:GetPoint(1)
+        if A.db and point then A.db.settings.stopNavPos = {point, math.floor((x or 0) + 0.5), math.floor((y or 0) + 0.5)} end
+    end)
+    b:SetScript("OnMouseDown", function(self) self.moved = false end)
+    b:SetScript("OnClick", function(self) if not self.moved then A.StopNavigation() end; self.moved = false end)
+    applyStopPosition(b)
+    b:Hide()
+    stopButton = b
+    return b
+end
+local function refreshStopButton()
+    if not A.db then return end
+    local active = N.target ~= nil
+    if active then
+        local b = ensureStopButton()
+        b.text:SetText(A.L("stopNavButton"))
+        b:Show()
+    elseif stopButton then stopButton:Hide() end
+end
+if C_Timer and type(C_Timer.NewTicker) == "function" then C_Timer.NewTicker(0.5, function() pcall(refreshStopButton) end) end

@@ -525,7 +525,7 @@ local function showCommunityImport()
         f.submit = Button(f, "communityImport", 160, "primary", function()
             local ok, result = A.ImportCommunity(edit:GetText())
             if ok then edit:SetText(""); f.status:SetText(A.L("communityImported") .. " " .. result)
-            else f.status:SetText(A.L(result or "communityInvalid")) end
+            else f.status:SetText(A.L(result or "communityInvalid") .. "  (" .. string.format(A.L("communityChars"), #(edit:GetText() or "")) .. ")") end
         end)
         f.submit:SetPoint("BOTTOMLEFT", 18, 16)
         f.close = Button(f, "close", 110, "ghost", function() f:Hide() end); f.close:SetPoint("BOTTOMRIGHT", -18, 16)

@@ -279,7 +279,8 @@ class WindowTests(unittest.TestCase):
         self.open_view("social")
         self.assert_clean()
         page = self.a.social.page
-        self.assertTrue(page.cols.shown, "the request form and the people list are the first mode")
+        self.assertEqual(page.mode, "live")
+        self.assertFalse(page.cols.shown, "People (one list in categories) is the first mode; the request form is the second")
         for mode in ("live", "proposals", "meets", "privacy", "ask"):
             page.tabs[mode].scripts.OnClick(page.tabs[mode])
             self.assertEqual(page.mode, mode)
@@ -287,6 +288,21 @@ class WindowTests(unittest.TestCase):
         page.tabs.privacy.scripts.OnClick(page.tabs.privacy)
         self.assertFalse(page.cols.shown, "the form belongs to the first mode only")
         self.assert_clean()
+
+    def test_people_are_listed_in_categories_and_a_click_navigates_or_opens_the_form(self):
+        self.receive_view()
+        self.a.NoteEvertallyUser("Nobody-Fixture Realm")
+        self.open_view("social")
+        rows = self.a.SocialPeople()
+        items = [rows[i] for i in range(1, len(rows) + 1)]
+        headings = [str(r.heading) for r in items if r.heading is not None]
+        self.assertIn(str(self.a.L("peopleCatLinked")), headings)   # somebody showed you something
+        self.assertIn(str(self.a.L("peopleCatUsers")), headings)    # a player known to run Evertally
+        linked = next(r for r in items if r.heading is None and r.onClick is not None)
+        page = self.a.social.page
+        linked.onClick()                                            # no live position: the request form opens with the name
+        self.assertEqual(page.mode, "ask")
+        self.assertNotEqual(str(page.name.GetText(page.name)), "")
 
     # ---- captions, people nearby ----
     def test_every_button_that_has_a_locale_key_has_a_caption_on_every_page(self):

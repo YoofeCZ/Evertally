@@ -427,7 +427,7 @@ local text = {
         navHint = "Right-click to stop.", navEstimate = "Estimate.", terrainButton = "Terrain", terrainOn = "Terrain: on",
         navErr_no_target = "Type a name, \"meet\" or \"ping\".", navErr_map_off = "Turn on \"Map and minimap\" in Settings first.", navErr_map_fail = "The map add-on did not load.", navErr_unknown_player = "No live position from that player. They must share it with you.",
         navErr_no_meet = "No meet received yet.", navErr_no_ping = "No ping yet.", navErr_unknown_map = "That place is not on a map I know.", navStarted = "Navigating to %s. Right-click the arrow to stop.", navStopped = "Navigation stopped.",
-        socialTab_live = "Live", liveNone = "Nobody shares a position with you right now.", liveRowSub = "%s  ·  %s", socialPing = "Ping here", socialStopNav = "Stop navigation", liveOffNote = "Your live position is off (Settings).",
+        socialTab_live = "People", liveNone = "Nobody shares a position with you right now.", liveRowSub = "%s  ·  %s", socialPing = "Ping here", socialStopNav = "Stop navigation", liveOffNote = "Your live position is off (Settings).",
         meetNavigate = "Navigate", pingNavigate = "Navigate",
     },
     cs = {
@@ -448,7 +448,7 @@ local text = {
         navHint = "Pravým tlačítkem zrušíš.", navEstimate = "Odhad.", terrainButton = "Terén", terrainOn = "Terén: zap.",
         navErr_no_target = "Napiš jméno, \"meet\" nebo \"ping\".", navErr_map_off = "Nejdřív zapni \"Mapa a minimapa\" v Nastavení.", navErr_map_fail = "Addon mapy se nenačetl.", navErr_unknown_player = "Ten hráč neposílá živou polohu. Musí ji s tebou sdílet.",
         navErr_no_meet = "Zatím žádný sraz.", navErr_no_ping = "Zatím žádný ping.", navErr_unknown_map = "To místo není na mapě, kterou znám.", navStarted = "Naviguji k: %s. Pravým tlačítkem na šipku zrušíš.", navStopped = "Navigace zrušena.",
-        socialTab_live = "Živě", liveNone = "Nikdo s tebou teď nesdílí polohu.", liveRowSub = "%s  ·  %s", socialPing = "Ping sem", socialStopNav = "Zrušit navigaci", liveOffNote = "Tvoje živá poloha je vypnutá (Nastavení).",
+        socialTab_live = "Lidé", liveNone = "Nikdo s tebou teď nesdílí polohu.", liveRowSub = "%s  ·  %s", socialPing = "Ping sem", socialStopNav = "Zrušit navigaci", liveOffNote = "Tvoje živá poloha je vypnutá (Nastavení).",
         meetNavigate = "Navigovat", pingNavigate = "Navigovat",
     },
 }

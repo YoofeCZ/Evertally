@@ -42,11 +42,21 @@ local function text(value)
     return true
 end
 
+A.locale.en.communityEmpty = "Nothing was pasted. On the website open Atlas > Copy for addon, then click into the big box here and press Ctrl+V."
+A.locale.cs.communityEmpty = "Nic není vložené. Na webu otevři Atlas > Copy for addon, klikni sem do velkého pole a stiskni Ctrl+V."
+A.locale.en.communityNotJson = "The pasted text is not a complete package (it may have been cut off). Copy it again from the website."
+A.locale.cs.communityNotJson = "Vložený text není celý balíček (možná se useknul). Zkopíruj ho na webu znovu."
+A.locale.en.communityClockSkew = "The package is newer than this computer's game clock. Check the date and time of your PC and the game, then copy the package again."
+A.locale.cs.communityClockSkew = "Balíček je novější než herní hodiny tohoto počítače. Zkontroluj datum a čas v PC a ve hře a zkopíruj balíček znovu."
+A.locale.en.communityChars = "%d characters pasted"
+A.locale.cs.communityChars = "vloženo %d znaků"
 local function validate(snapshot, allowExpired)
     if not strict(snapshot, rootKeys) or snapshot.schemaVersion ~= 1 or snapshot.kind ~= "evertally-community" or snapshot.scope ~= "world_facts" then return nil, "communityInvalid" end
     if not strict(snapshot.game, {product=true}) or snapshot.game.product ~= "forever" then return nil, "communityInvalid" end
     local now = A.Now()
     if now <= 0 then return nil, "communityClock" end
+    -- A package from the future is still refused, but a clock that is merely a bit behind gets its own explanation.
+    if type(snapshot.generatedAt) == "number" and snapshot.generatedAt > now + 300 and snapshot.generatedAt <= now + 604800 then return nil, "communityClockSkew" end
     if not integer(snapshot.generatedAt, 0, now + 300) or not integer(snapshot.expiresAt, 0, 253402300799)
         or snapshot.expiresAt <= snapshot.generatedAt or snapshot.expiresAt > snapshot.generatedAt + WEEK then return nil, "communityInvalid" end
     if not allowExpired and snapshot.expiresAt <= now then return nil, "communityExpiredImport" end
@@ -90,8 +100,9 @@ function A.ValidateCommunity(snapshot, allowExpired)
 end
 
 function A.ImportCommunity(encoded)
+    if type(encoded) ~= "string" or not encoded:find("%S") then return nil, "communityEmpty" end
     local snapshot = A.Decode(encoded, MAX_BYTES)
-    if not snapshot then return nil, "communityInvalid" end
+    if not snapshot then return nil, "communityNotJson" end
     local clean, err = A.ValidateCommunity(snapshot)
     if not clean then return nil, err end
     if type(A.peerDB) ~= "table" then return nil, "communityInvalid" end
