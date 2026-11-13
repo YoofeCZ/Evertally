@@ -159,6 +159,7 @@ impl Worker {
         let addon_lock=Arc::clone(&self.addon_forum_lock);
         std::thread::spawn(move || {
             let mut updater=crate::addon_update::Updater::new(config_path.parent().unwrap_or_else(||std::path::Path::new(".")));let mut last=String::new();
+            let mut community_at:Option<Instant>=None;
             loop {
                 let mut wait=Duration::from_secs(300);
                 let config=if config_path.is_file(){crate::config::load_config(&config_path)}else{Err(anyhow::anyhow!("no config"))};
@@ -167,6 +168,17 @@ impl Worker {
                 let manual=crate::app_update::take_manual();if manual {last.clear();}
                 let app=match &config {Ok(config)=>crate::app_update::check(config_path.parent().unwrap_or_else(||std::path::Path::new(".")),config,manual),Err(_)=>Ok(crate::app_update::Outcome::Nothing)};
                 let cs=crate::platform::prefers_czech();
+                // The website's public facts for the in-game Website facts page: once an hour, and on a manual check.
+                let community_note=match &config {
+                    Ok(config) if manual || community_at.is_none_or(|at|at.elapsed()>=Duration::from_secs(3600)) => {
+                        community_at=Some(Instant::now());
+                        match config.server_origin().and_then(|origin|crate::community::sync(&origin,&crate::addon_update::roots(config))) {
+                            Ok(_)=>None,
+                            Err(error)=>Some(format!("{}: {error}",if cs {"Webová fakta se nenačetla"}else{"Website facts failed"})),
+                        }
+                    }
+                    _=>None,
+                };
                 let message=match result {
                     Ok(Some(true))=>if cs {"Addon je aktuální"}else{"Addon is up to date"}.to_owned(),
                     Ok(Some(false))=>{wait=Duration::from_secs(30);if cs {"Aktualizace addonu čeká na zavření WoW"}else{"Addon update waits for WoW to close"}.to_owned()},
@@ -179,6 +191,7 @@ impl Worker {
                     Ok(crate::app_update::Outcome::Nothing|crate::app_update::Outcome::UpToDate)=>message,
                     Err(error)=>{wait=Duration::from_secs(60);format!("{}: {error}",if cs {"Aktualizace aplikace selhala"}else{"App update failed"})},
                 };
+                let message=match community_note {Some(note) if message.is_empty()=>note,_=>message};
                 if !message.is_empty() {crate::app_update::set_status(message.clone());}
                 if !message.is_empty() && message!=last {let _=update_tx.send(Command::AddonStatus(message.clone()));last=message;}
                 match update_rx.recv_timeout(wait) {Err(RecvTimeoutError::Disconnected)=>break,Ok(())|Err(RecvTimeoutError::Timeout)=>{}}

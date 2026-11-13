@@ -168,7 +168,7 @@ begin
             CopyTree(AddBackslash(Source) + Find.Name, AddBackslash(Dest) + Find.Name, PreserveForumData)
           else begin
             { This file is maintained by the running bridge and contains the forum snapshot. }
-            if not (PreserveForumData and (CompareText(Find.Name, 'ForumData.lua') = 0) and FileExists(AddBackslash(Dest) + Find.Name)) then begin
+            if not (PreserveForumData and ((CompareText(Find.Name, 'ForumData.lua') = 0) or (CompareText(Find.Name, 'CommunityData.lua') = 0)) and FileExists(AddBackslash(Dest) + Find.Name)) then begin
               if not FileCopy(AddBackslash(Source) + Find.Name, AddBackslash(Dest) + Find.Name, False) then
                 RaiseException('Cannot copy addon file ' + Find.Name);
               if GetSHA256OfFile(AddBackslash(Source) + Find.Name) <> GetSHA256OfFile(AddBackslash(Dest) + Find.Name) then

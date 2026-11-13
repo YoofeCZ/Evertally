@@ -141,7 +141,7 @@ pub fn addon_folder(saved_variables: &Path) -> Option<PathBuf> {
     folder.is_dir().then_some(folder)
 }
 
-fn lua_string(out: &mut String, value: &str) {
+pub(crate) fn lua_string(out: &mut String, value: &str) {
     out.push('"');
     for ch in value.chars() {
         match ch {

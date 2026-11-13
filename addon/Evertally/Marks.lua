@@ -82,33 +82,40 @@ local function plates()
     local list = C_NamePlate and type(C_NamePlate.GetNamePlates) == "function" and A.Call(C_NamePlate.GetNamePlates)
     return type(list) == "table" and list or {}
 end
+-- The frames of the target and of the group get the icons too (above the frame, outside it).
+local UNIT_FRAMES = {{"target", "TargetFrame"}, {"party1", "PartyMemberFrame1"}, {"party2", "PartyMemberFrame2"}, {"party3", "PartyMemberFrame3"}, {"party4", "PartyMemberFrame4"}}
 function A.MarksRefresh()
     local s = settings()
     local used = 0
     if s then
         local showLogo = s.markUsers ~= false
         local px = size()
+        local function draw(anchor, token, offset)
+            if used >= 48 or A.Call(UnitIsPlayer, token) ~= true or A.Call(UnitIsUnit, token, "player") == true then return end
+            local name = A.Text(A.Call(UnitName, token), 80)
+            local mark = name and A.GetMark(name)
+            local logo = showLogo and name and isUser(name)
+            if not (mark or logo) then return end
+            used = used + 1
+            local h = holder(used)
+            h:ClearAllPoints(); h:SetPoint("BOTTOM", anchor, "TOP", 0, offset)
+            h:SetSize(px * 2 + 2, px)
+            h.mark:ClearAllPoints(); h.logo:ClearAllPoints()
+            h.mark:SetSize(px, px); h.logo:SetSize(px, px)
+            if mark and logo then h.mark:SetPoint("RIGHT", h, "CENTER", -1, 0); h.logo:SetPoint("LEFT", h, "CENTER", 1, 0)
+            elseif mark then h.mark:SetPoint("CENTER", h, "CENTER")
+            else h.logo:SetPoint("CENTER", h, "CENTER") end
+            if mark then h.mark:SetTexture(TEXTURE .. mark); h.mark:Show() else h.mark:Hide() end
+            if logo then h.logo:Show() else h.logo:Hide() end
+            h:Show()
+        end
         for _, plate in ipairs(plates()) do
             local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
-            if token and used < 40 and A.Call(UnitIsPlayer, token) == true and A.Call(UnitIsUnit, token, "player") ~= true then
-                local name = A.Text(A.Call(UnitName, token), 80)
-                local mark = name and A.GetMark(name)
-                local logo = showLogo and name and isUser(name)
-                if mark or logo then
-                    used = used + 1
-                    local h = holder(used)
-                    h:ClearAllPoints(); h:SetPoint("BOTTOM", plate, "TOP", 0, 6)
-                    h:SetSize(px * 2 + 2, px)
-                    h.mark:ClearAllPoints(); h.logo:ClearAllPoints()
-                    h.mark:SetSize(px, px); h.logo:SetSize(px, px)
-                    if mark and logo then h.mark:SetPoint("RIGHT", h, "CENTER", -1, 0); h.logo:SetPoint("LEFT", h, "CENTER", 1, 0)
-                    elseif mark then h.mark:SetPoint("CENTER", h, "CENTER")
-                    else h.logo:SetPoint("CENTER", h, "CENTER") end
-                    if mark then h.mark:SetTexture(TEXTURE .. mark); h.mark:Show() else h.mark:Hide() end
-                    if logo then h.logo:Show() else h.logo:Hide() end
-                    h:Show()
-                end
-            end
+            if token then draw(plate, token, 6) end
+        end
+        for _, entry in ipairs(UNIT_FRAMES) do
+            local frame = rawget(_G, entry[2])
+            if frame and A.Call(frame.IsShown, frame) == true and A.Call(UnitExists, entry[1]) == true then draw(frame, entry[1], 2) end
         end
     end
     for i = used + 1, #holders do holders[i]:Hide() end

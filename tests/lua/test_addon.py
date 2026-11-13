@@ -275,6 +275,32 @@ class ReplayTests(unittest.TestCase):
             self.assertIsNone(self.a.ImportCommunity(json.dumps(bad))[0])
             self.assertEqual(self.a.GetCommunity()[0].entities[1].id,706)
 
+    def test_the_package_written_by_the_desktop_app_is_adopted_when_newer_and_checked(self):
+        sample = self.community()
+        self.lua.execute("EvertallyCommunityData = " + self.lua_table(sample))
+        snapshot, stale = self.a.GetCommunity()
+        self.assertEqual(snapshot.entities[1].id, 706)
+        # an older package never replaces a newer stored one
+        older = json.loads(json.dumps(sample)); older["generatedAt"] = sample["generatedAt"] - 100; older["expiresAt"] = sample["expiresAt"] - 100
+        older["entities"][0]["name"] = "Older"
+        self.lua.execute("EvertallyCommunityData = " + self.lua_table(older))
+        self.assertEqual(self.a.GetCommunity()[0].entities[1].name, "Trollí jeskyně")
+        # a damaged package is refused and the stored one stays
+        bad = json.loads(json.dumps(sample)); bad["generatedAt"] = sample["generatedAt"] + 5; bad["entities"][0]["name"] = "|Hplayer:x|h"
+        self.lua.execute("EvertallyCommunityData = " + self.lua_table(bad))
+        self.assertEqual(self.a.GetCommunity()[0].entities[1].name, "Trollí jeskyně")
+
+    def lua_table(self, value):
+        if isinstance(value, dict):
+            return "{" + ",".join("[%s]=%s" % (json.dumps(k), self.lua_table(v)) for k, v in value.items()) + "}"
+        if isinstance(value, list):
+            return "{" + ",".join(self.lua_table(v) for v in value) + "}"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, str):
+            return json.dumps(value, ensure_ascii=False)
+        return repr(value)
+
     def test_community_expiry_and_limits(self):
         sample=self.community();self.a.ImportCommunity(json.dumps(sample))
         self.lua.globals().NOW=sample["expiresAt"]+1

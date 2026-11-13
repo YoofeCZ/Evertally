@@ -63,7 +63,7 @@ fn unpack(bytes: &[u8]) -> Result<Vec<FileEntry>> {
         let mut data=Vec::new();file.by_ref().take(MAX_FILE+1).read_to_end(&mut data)?;
         ensure!(data.len() as u64 == file.size(), "invalid archive file size");
         // Bridge-owned dynamic forum snapshot must never be replaced by the bundle.
-        if key=="evertally/forumdata.lua" { continue; }
+        if key=="evertally/forumdata.lua" || key=="evertally/communitydata.lua" { continue; }
         entries.push(FileEntry{relative:path,data});
     }
     for root in ROOTS { ensure!(names.contains(&format!("{0}/{0}.toc",root.to_ascii_lowercase())), "missing addon manifest"); }
@@ -118,7 +118,7 @@ fn game_running() -> Result<bool> {
 }
 #[cfg(not(windows))] fn game_running()->Result<bool>{bail!("automatic installation supported on Windows only")}
 
-fn roots(config: &crate::config::Config)->Vec<PathBuf>{
+pub(crate) fn roots(config: &crate::config::Config)->Vec<PathBuf>{
     let mut out=Vec::new();
     for root in crate::wow::candidate_roots(config.wow_path.as_deref()) {
         for flavor in [root.clone(),root.join("_forever_")] {

@@ -577,7 +577,9 @@ local MEET_CHANNELS={WHISPER=true,PARTY=true,RAID=true,GUILD=true,INSTANCE_CHAT=
 function A.SendMeet(channel,target,label,minutes)
     if not MEET_CHANNELS[channel] then return false,"channel" end
     if channel=="WHISPER" and clean(target,80)=="" then return false,"no_target" end
-    local map,x,y=A.PlayerPosition()
+    -- with the world map open the meet is the place under the cursor, otherwise where this player stands
+    local map,x,y=A.MapCursorPosition and A.MapCursorPosition()
+    if not map then map,x,y=A.PlayerPosition() end
     if not map or not x or not y then return false,"no_position" end
     local text=string.format("S|M|%s|%d|%d|%d|%d|%s",shortId(),map,math.floor(x*1000+0.5),math.floor(y*1000+0.5),A.Number(minutes,0,1440) or 0,clean(label,60))
     if not A.QueueSocial(text,channel,channel=="WHISPER" and clean(target,80) or nil) then return false,"queue_full" end

@@ -111,7 +111,24 @@ function A.ImportCommunity(encoded)
     return true, #clean.entities
 end
 
+-- The desktop app writes the website's public facts to CommunityData.lua (global EvertallyCommunityData). It is checked with
+-- the same rules as a pasted package and replaces the stored one only when it is newer.
+local adopted
+local function adoptBridgeData()
+    local raw = rawget(_G, "EvertallyCommunityData")
+    if type(raw) ~= "table" or raw == adopted or type(A.peerDB) ~= "table" then return end
+    adopted = raw
+    local clean = validate(raw)
+    if not clean then return end
+    local current = A.peerDB.community
+    if type(current) ~= "table" or (tonumber(current.generatedAt) or 0) < clean.generatedAt then
+        A.peerDB.community = clean
+        A.Changed()
+    end
+end
+
 function A.GetCommunity()
+    adoptBridgeData()
     local snapshot = A.peerDB and A.peerDB.community
     if snapshot == nil then return nil end
     local clean, err = A.ValidateCommunity(snapshot, true)

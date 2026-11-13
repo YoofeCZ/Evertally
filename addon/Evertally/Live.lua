@@ -378,6 +378,14 @@ BINDING_HEADER_EVERTALLY = "Evertally"
 BINDING_NAME_EVERTALLY_PING = "Ping at the map cursor / my position"
 BINDING_NAME_EVERTALLY_STOPNAV = "Stop navigation"
 --- With the world map open and the cursor on it the ping lands there, otherwise where you stand.
+--- The place under the cursor while the world map is open: map id, x, y (0..1), or nil.
+function A.MapCursorPosition()
+    if not WorldMapFrame or A.Call(WorldMapFrame.IsShown, WorldMapFrame) ~= true then return nil end
+    local cx, cy = A.Call(WorldMapFrame.GetNormalizedCursorPosition, WorldMapFrame)
+    local id = A.Call(WorldMapFrame.GetMapID, WorldMapFrame)
+    if cx and cy and id and cx >= 0 and cx <= 1 and cy >= 0 and cy <= 1 then return id, cx, cy end
+    return nil
+end
 function Evertally_Ping()
     if not A.db then return end
     local map, x, y
