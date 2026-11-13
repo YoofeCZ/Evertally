@@ -25,7 +25,12 @@ export function fullName(character?: Partial<Character> | null): string {
   const name = character?.name?.trim();
   if (!name) return "";
   const realm = character?.realm?.trim();
-  return realm ? `${name}-${realm}` : name;
+  if (!realm) return name;
+  // Forever writes a whisper sender as "Name Realm"; do not append the realm a second time.
+  const lower = name.toLowerCase(), tail = realm.toLowerCase();
+  if (lower.endsWith(`-${tail}`)) return name;
+  if (lower.endsWith(` ${tail}`) && name.length > realm.length + 1) return `${name.slice(0, -realm.length - 1).trim()}-${name.slice(-realm.length)}`;
+  return `${name}-${realm}`;
 }
 
 export function CharacterBadge({ character, unnamed }: { character?: Character | null; unnamed: string }) {
