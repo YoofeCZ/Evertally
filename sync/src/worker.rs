@@ -204,8 +204,13 @@ impl Worker {
                 Err(RecvTimeoutError::Timeout) => {
                     if settle_at.is_some_and(|at| at <= Instant::now()) {
                         settle_at = None;
-                        let paths: Vec<PathBuf> = dirty.drain().collect();
-                        self.sync_paths(&paths, true);
+                        let paths: Vec<PathBuf> = dirty
+                            .drain()
+                            .filter(|path| wow::is_export_file(path))
+                            .collect();
+                        if !paths.is_empty() {
+                            self.sync_paths(&paths, true);
+                        }
                         // the game saved its files: what was written in game is now in them
                         self.forum_poll = Instant::now() - FORUM_EVERY;
                     } else if last_rescan.elapsed() >= TICK {
@@ -355,7 +360,11 @@ impl Worker {
             let watcher =
                 notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
                     if let Ok(event) = result {
-                        for path in event.paths.into_iter().filter(|p| wow::is_export_file(p)) {
+                        for path in event
+                            .paths
+                            .into_iter()
+                            .filter(|p| wow::is_export_file(p) || wow::is_forum_file(p))
+                        {
                             let _ = tx.send(Command::FileChanged(path));
                         }
                     }

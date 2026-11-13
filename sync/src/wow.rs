@@ -100,6 +100,13 @@ pub fn is_export_file(path: &Path) -> bool {
         .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case(EXPORT_FILE))
 }
 
+/// The main SavedVariables file contains the forum outbox.
+#[must_use]
+pub fn is_forum_file(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Evertally.lua"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,6 +151,15 @@ mod tests {
         )));
         assert!(!is_export_file(Path::new(
             r"C:\x\SavedVariables\Evertally_Export.lua.bak"
+        )));
+        assert!(is_forum_file(Path::new(
+            r"C:\x\SavedVariables\evertally.LUA"
+        )));
+        assert!(!is_forum_file(Path::new(
+            r"C:\x\SavedVariables\Evertally.lua.bak"
+        )));
+        assert!(!is_forum_file(Path::new(
+            r"C:\x\SavedVariables\Evertally_Export.lua"
         )));
     }
 }
