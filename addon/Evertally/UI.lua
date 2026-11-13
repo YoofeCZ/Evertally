@@ -269,7 +269,7 @@ end
 
 local function ListView(parent, top, striped)
     local scroll = ScrollArea(parent, top)
-    scroll.striped = striped == true
+    scroll.striped = striped ~= false
     local rows, empty = {}, label(scroll, 12, C.mist)
     empty:SetPoint("TOPLEFT", 14, -40); empty:SetPoint("TOPRIGHT", -14, -40); empty:SetJustifyH("CENTER")
     function scroll.SetItems(items, emptyText)
