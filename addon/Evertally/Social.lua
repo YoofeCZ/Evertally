@@ -518,7 +518,9 @@ local function onPointer(sender,fields)
     local now=A.Now()
     if now-(S.lastSeen["H:"..who] or 0)<1 then return end
     S.lastSeen["H:"..who]=now
-    local list=S.pointers;list[itemId]={sender=sender,at=now}
+    local list=S.pointers
+    for id,p in pairs(list) do if baseName(p.sender):lower()==who then list[id]=nil end end   -- a new pointer replaces the previous one of the same player
+    list[itemId]={sender=sender,at=now}
     local count=0;for id,p in pairs(list) do if now-p.at>POINT_TTL then list[id]=nil else count=count+1 end end
     if count>MAX_POINTS then local oldest;for id,p in pairs(list) do if not oldest or p.at<list[oldest].at then oldest=id end end;list[oldest]=nil end
     local name=A.Call(GetItemInfo,itemId);A.Print(string.format(A.L("socialPointChat"),baseName(sender),A.Text(name,80) or ("#"..itemId)))

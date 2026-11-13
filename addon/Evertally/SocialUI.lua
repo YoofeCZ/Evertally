@@ -181,15 +181,34 @@ local function buttonItem(b)
     end
     return id
 end
+-- Only buttons that sit inside a bag window count (never action bars, vendors, the trade window...): one of the frames
+-- above the button is named like a bag window (ContainerFrame, Baganator, Bagnon, ElvUI containers, ...).
+local BAG_WORDS = {"containerframe", "baganator", "bagnon", "bagbrother", "inventorian", "adibags", "arkinventory", "combuctor", "elvui_container", "backpack", "bagview", "bagsframe", "cargbags"}
+local function insideBag(b)
+    local node = b
+    for _ = 1, 12 do
+        node = node and node.GetParent and node:GetParent()
+        if not node or node == UIParent then return false end
+        local name = node.GetName and node:GetName()
+        if type(name) == "string" and name ~= "" then
+            name = name:lower()
+            for _, word in ipairs(BAG_WORDS) do if name:find(word, 1, true) then return true end end
+        end
+    end
+    return false
+end
 local function bagButtons(visit)
     if type(EnumerateFrames) ~= "function" then return end
     local f = EnumerateFrames()
     local n = 0
     while f and n < 20000 do
         n = n + 1
-        if f.IsShown and f.GetObjectType and f:GetObjectType() == "Button" and f:IsShown() then
-            local ok, id = pcall(buttonItem, f)
-            if ok and id then visit(f, id) end
+        if f.IsVisible and f.GetObjectType and f:GetObjectType() == "Button" and f:IsVisible() then
+            local w = f.GetWidth and f:GetWidth() or 0
+            if w >= 20 and w <= 90 and insideBag(f) then
+                local ok, id = pcall(buttonItem, f)
+                if ok and id then visit(f, id) end
+            end
         end
         f = EnumerateFrames(f)
     end
