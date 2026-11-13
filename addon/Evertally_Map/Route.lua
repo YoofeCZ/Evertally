@@ -63,8 +63,8 @@ end
 function M.RouteStep()
     for key, entry in pairs(legs) do
         local job = entry.job
-        if job and job.state == "pending" then
-            M.Terrain.Step(job)
+        if job and not entry.uv and not entry.failed then
+            if job.state == "pending" then M.Terrain.Step(job) end
             if job.state == "ready" and job.result then
                 local frame = M.data and M.data.yards and M.data.yards[entry.c]
                 if frame then
@@ -95,7 +95,14 @@ end
 
 --- The way of one step as {u, v}: every terrain bend, otherwise a straight approach.
 local function polyOf(step)
-    return step.routePath or M.RouteLegPath(step) or {{step.fu, step.fv}, {step.tu, step.tv}}
+    if step.routePath then return step.routePath end
+    local path = M.RouteLegPath(step)
+    if path then return path end
+    if step.mode == "walk" and M.Terrain and M.Terrain.RoadBacked then
+        local c = M.ToYards(step.fu, step.fv)
+        if M.Terrain.RoadBacked(c) then return {} end
+    end
+    return {{step.fu, step.fv}, {step.tu, step.tv}}
 end
 M.RoutePoly = polyOf
 

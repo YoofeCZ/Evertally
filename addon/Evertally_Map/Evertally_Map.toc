@@ -3,7 +3,7 @@
 ## Notes: Evertally inside OpenMap: gathering places, live players, meets, pings and navigation on the map and the minimap. Needs OpenMap; loads only when you turn it on in Evertally settings.
 ## Notes-csCZ: Evertally uvnitř OpenMap: místa sbírání, živí hráči, srazy, pingy a navigace na mapě a minimapě. Potřebuje OpenMap; načte se jen po zapnutí v nastavení Evertally.
 ## Author: Evertally contributors
-## Version: 0.8.2
+## Version: 0.8.3
 ## Dependencies: Evertally
 ## OptionalDeps: OpenMap, QuestieDB, ForeverDungeonJournal
 ## LoadOnDemand: 1
@@ -17,6 +17,31 @@ LayerData.lua
 GatherIcons.lua
 Planner.lua
 TerrainData.lua
+Roads/Namespace.lua
+Roads/Data/RoadCells.lua
+Roads/Data/RoadEdges.lua
+Roads/Nav/Nav0.lua
+Roads/Nav/Nav0_1.lua
+Roads/Nav/Nav0_2.lua
+Roads/Nav/Nav0_3.lua
+Roads/Nav/Nav0_4.lua
+Roads/Nav/Nav0_5.lua
+Roads/Nav/Nav0_6.lua
+Roads/Nav/Nav1.lua
+Roads/Nav/Nav1_1.lua
+Roads/Nav/Nav1_2.lua
+Roads/Nav/Nav1_3.lua
+Roads/Nav/Nav1_4.lua
+Roads/Nav/Nav1_5.lua
+Roads/Nav/Nav1_6.lua
+Roads/Nav/Nav1_7.lua
+Roads/Nav/Nav1_8.lua
+Roads/Nav/Nav2991.lua
+Roads/Nav/Nav2991_1.lua
+Roads/Routing/PathGrid.lua
+Roads/Routing/Path.lua
+Roads/Routing/PathJobs.lua
+Roads/Adapter.lua
 Terrain.lua
 Navigator.lua
 ArrowMenu.lua

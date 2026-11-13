@@ -1,8 +1,21 @@
 local _, M = ...
--- In-place 2-bit terrain cells and bounded, cooperative A*. The mask describes standable
--- ground/water, not cliffs or floors. No player movement, files or network are touched.
+-- Facade over the collision/roads provider. The old 2-bit search remains for legacy
+-- data and isolated grids; its standable cells do not prove a wall or cliff is passable.
 local T={maps=M.terrainMaps or {},BATCH=192,MAX_NODES=32000,MAX_HEAP=64000}
 M.Terrain=T
+-- Keep identities, not a second alias of the mutable map table: callers and tests
+-- can install a different grid without accidentally searching the real world map.
+local bundledMaps={}
+for id,map in pairs(T.maps) do bundledMaps[id]=map end
+local function roadProvider(mapId)
+    local R=M.RoadPath
+    if type(R)~="table" or type(R.HasData)~="function" then return nil end
+    if bundledMaps[mapId]~=nil then
+        if T.maps[mapId]~=bundledMaps[mapId] then return nil end
+    elseif T.maps[mapId]~=nil then return nil end
+    if R.HasData(mapId)==true then return R end
+end
+function T.RoadBacked(mapId) return roadProvider(mapId)~=nil end
 local floor,sqrt,abs,min,max=math.floor,math.sqrt,math.abs,math.min,math.max
 local ALPHABET="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 local lookup={};for i=1,#ALPHABET do lookup[ALPHABET:byte(i)]=i-1 end
@@ -32,6 +45,13 @@ local function clear(map,ax,ay,bx,by,dry,check)
     end
 end
 function T.Clear(map,x,y,tx,ty,dry)
+    if not map then return false end
+    local R=roadProvider(map.id)
+    if R then
+        -- Arrival must not accept the coarse mask's apparent shortcut through a
+        -- collision wall. Without a full-provider chord query, stay conservative.
+        return type(R.Clear)=="function" and R.Clear(map.id,x,y,tx,ty,dry)==true or false
+    end
     local ax,ay=cell(map,x,y);local bx,by=cell(map,tx,ty)
     return clear(map,ax,ay,bx,by,dry)
 end
@@ -129,6 +149,15 @@ local function solve(job)
 end
 function T.Begin(mapId,x,y,tx,ty,options)
     options=options or {}
+    local R=roadProvider(mapId)
+    if R then
+        local roadOptions={}
+        for key,value in pairs(options) do roadOptions[key]=value end
+        if roadOptions.roads==nil then roadOptions.roads=true end
+        local job=R.Begin(mapId,x,y,tx,ty,roadOptions)
+        job.provider,job._roadProvider="roads",R
+        return job
+    end
     local job={state="pending",map=T.maps[mapId],from={x,y},to={tx,ty},expanded=0,discovered=0,work=0,budget=T.BATCH,limit=min(T.MAX_NODES,max(1,tonumber(options.maxNodes) or T.MAX_NODES)),steps=0}
     if not job.map then job.state,job.reason="failed","uncovered_map"
     elseif not (finite(x) and finite(y) and finite(tx) and finite(ty)) then job.state,job.reason="failed","invalid_position"
@@ -136,6 +165,7 @@ function T.Begin(mapId,x,y,tx,ty,options)
     return job
 end
 function T.Step(job,budget)
+    if job and job.provider=="roads" then return job._roadProvider.Step(job,budget) end
     if not job or job.state~="pending" then return job and job.state or "failed" end
     job.budget=min(512,max(1,floor(tonumber(budget) or T.BATCH)));job.work=0;job.steps=job.steps+1
     job.deadline=type(debugprofilestop)=="function" and debugprofilestop()+2 or nil
@@ -147,5 +177,6 @@ function T.Step(job,budget)
     return job.state,job.result,job.reason
 end
 function T.Cancel(job)
+    if job and job.provider=="roads" then return job._roadProvider.Cancel(job) end
     if job then job.state,job.reason,job.co,job.result="cancelled","cancelled",nil,nil end
 end

@@ -106,6 +106,9 @@ class OpenMapTests(unittest.TestCase):
                 if isinstance(chunk, tuple):
                     self.fail(str(chunk))
                 chunk("Evertally_Map", self.m)
+        # Synthetic HBD/map geometry below is independent of real collision data.
+        # The actual collision provider has separate real-data regression tests.
+        self.m.RoadPath = None
         self.a.db.settings.mapLayers = self.lua.table(travel=True, trainer=True, vendor=True, inn=True, gather=True, instances=True)
 
     def pin_maps(self):

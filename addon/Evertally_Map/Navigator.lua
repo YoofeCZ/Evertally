@@ -12,8 +12,8 @@ local N = {target = nil, plan = nil, planAt = 0, planTo = nil, shown = {}}
 M.nav = N
 local frame, ticker
 local terrainText={
-    en={navGround="Terrain path",navGroundSnapped="Terrain · approximate endpoints",navGroundPending="Finding terrain · direct for now",navGroundDirect="Direct · no terrain path available"},
-    cs={navGround="Cesta po terénu",navGroundSnapped="Terén · přiblížené konce",navGroundPending="Hledám terén · zatím přímý směr",navGroundDirect="Přímý směr · bez terénní cesty"},
+    en={navGround="Terrain path",navGroundRoads="Roads and passable terrain",navGroundFloor="Different floor · continue via stairs or lift",navGroundSnapped="Path · approximate endpoints",navGroundPending="Finding a passable path…",navGroundFailed="No passable path found here",navGroundDirect="Direction only · no terrain path available"},
+    cs={navGround="Cesta po terénu",navGroundRoads="Silnice a průchozí terén",navGroundFloor="Jiné patro · pokračuj po schodech nebo výtahem",navGroundSnapped="Cesta · přiblížené konce",navGroundPending="Hledám průchozí cestu…",navGroundFailed="Tady se nepodařilo najít průchozí cestu",navGroundDirect="Pouze směr · bez známé průchozí cesty"},
 }
 for lang,entries in pairs(terrainText) do if A.locale and A.locale[lang] then for key,value in pairs(entries) do A.locale[lang][key]=value end end end
 local function clearGround()
@@ -32,19 +32,33 @@ local function groundPointer(pc,px,py,qc,qx,qy,now)
     local T=M.Terrain
     if not T or pc~=qc then clearGround();N.groundStatus="direct";return qx,qy end
     -- No mask is a normal fallback, not a repeatedly retried search each frame.
-    if not T.maps[pc] then clearGround();N.groundStatus="direct";return qx,qy end
+    if not T.maps[pc] and not (T.RoadBacked and T.RoadBacked(pc)) then clearGround();N.groundStatus="direct";return qx,qy end
+    local _,_,currentZ=A.Call(UnitPosition,"player")
+    currentZ=A.Number(currentZ)
     local g=N.ground
-    local changed=not g or g.map~=pc or dist(qx,qy,g.x,g.y)>T.maps[pc].cell*2
+    local cellSize=T.maps[pc] and T.maps[pc].cell or 8
+    local changed=not g or g.map~=pc or dist(qx,qy,g.x,g.y)>cellSize*2
     if g and not changed then
         local result=g.job.result
-        local off=result and segmentDistance(px,py,result.points[math.max(1,g.index-1)],result.points[g.index])>96
+        local deviation=g.job.provider=="roads" and 24 or 96
+        local off=result and segmentDistance(px,py,result.points[math.max(1,g.index-1)],result.points[g.index])>deviation
         local moved=dist(px,py,g.startX,g.startY)>64
         if (off or (g.job.state~="ready" and moved)) and now-g.at>=1 then changed=true end
+        -- A lift/stair/fall can change the current floor without changing XY.
+        local expectedZ=g.startZ
+        local a=result and result.points[math.max(1,g.index-1)]
+        local b=result and result.points[g.index]
+        if a and b and a[3] and b[3] then
+            local dx,dy=b[1]-a[1],b[2]-a[2];local length=dx*dx+dy*dy
+            local t=length>0 and math.max(0,math.min(1,((px-a[1])*dx+(py-a[2])*dy)/length)) or 0
+            expectedZ=a[3]+t*(b[3]-a[3])
+        end
+        if g.job.provider=="roads" and currentZ and expectedZ and math.abs(currentZ-expectedZ)>10 and now-g.at>=1 then changed=true end
         if g.job.state=="failed" and now-g.at>=8 then changed=true end
     end
     if changed then
         clearGround()
-        g={map=pc,x=qx,y=qy,startX=px,startY=py,at=now,index=2,job=T.Begin(pc,px,py,qx,qy)};N.ground=g
+        g={map=pc,x=qx,y=qy,startX=px,startY=py,startZ=currentZ,at=now,index=2,job=T.Begin(pc,px,py,qx,qy,{fromZ=currentZ,roads=true})};N.ground=g
     end
     T.Step(g.job)
     local result=g.job.result
@@ -52,17 +66,26 @@ local function groundPointer(pc,px,py,qc,qx,qy,now)
         local points=result.points
         g.index=math.min(g.index,#points)
         local point=points[g.index]
-        while g.index<#points and dist(px,py,point[1],point[2])<=math.max(5,g.job.map.cell*0.6) do
+        local reach=g.job.provider=="roads" and 2.5 or math.max(5,g.job.map.cell*0.6)
+        local function sameFloor(p) return g.job.provider~="roads" or not currentZ or not p[3] or math.abs(currentZ-p[3])<=4 end
+        while g.index<#points and dist(px,py,point[1],point[2])<=reach and sameFloor(point) do
             g.index=g.index+1;point=points[g.index]
         end
-        N.groundStatus=result.snapped and "snapped" or "terrain"
+        N.groundStatus=result.snapped and "snapped" or g.job.provider=="roads" and "roads" or "terrain"
+        if dist(px,py,point[1],point[2])<=reach and not sameFloor(point) then
+            N.groundStatus="floor";return nil,nil,result.tails[g.index]
+        end
         return point[1],point[2],dist(px,py,point[1],point[2])+(result.tails[g.index] or 0)
     end
     N.groundStatus=g.job.state=="pending" and "pending" or "direct"
+    if g.job.provider=="roads" then
+        if g.job.state~="pending" then N.groundStatus="failed" end
+        return nil,nil -- a pending/failed collision search is never a straight walking route
+    end
     return qx,qy
 end
 local function groundHint()
-    return A.L(N.groundStatus=="terrain" and "navGround" or N.groundStatus=="snapped" and "navGroundSnapped" or N.groundStatus=="pending" and "navGroundPending" or N.groundStatus=="direct" and "navGroundDirect" or "navHint")
+    return A.L(N.groundStatus=="floor" and "navGroundFloor" or N.groundStatus=="roads" and "navGroundRoads" or N.groundStatus=="terrain" and "navGround" or N.groundStatus=="snapped" and "navGroundSnapped" or N.groundStatus=="pending" and "navGroundPending" or N.groundStatus=="failed" and "navGroundFailed" or N.groundStatus=="direct" and "navGroundDirect" or "navHint")
 end
 local function groundPin()
     local g=N.ground
@@ -84,7 +107,7 @@ M.Normalize = normalize
 --- Angle (radians, counter-clockwise from north, like GetPlayerFacing) and distance in yards between two points in the
 --- game's own yard frame (x north, y west); nil for points on different continents.
 function M.Bearing(c1, x1, y1, c2, x2, y2)
-    if c1 ~= c2 then return nil end
+    if c1 ~= c2 or not (A.Number(x1) and A.Number(y1) and A.Number(x2) and A.Number(y2)) then return nil end
     local dx, dy = x2 - x1, y2 - y1
     return atan2(dy, dx), sqrt(dx * dx + dy * dy)
 end
@@ -436,8 +459,21 @@ function M.NavFrame() return frame end
 --- The remaining route starts at the player now, not at the last transport replan
 --- eight seconds ago. Reuse the arrow's terrain search and discard passed bends.
 function M.RoutePlan()
-    local plan = N.target and N.plan
+    if not N.target then return nil end
+    local plan = N.plan
     local first = plan and plan.steps and plan.steps[1]
+    -- The transport planner omits very short walks. A wall can still require a
+    -- real detour there, and the arrow's searched walk must reach the renderer.
+    if not first then
+        local map,x,y,label=resolve(N.target)
+        local tu,tv
+        if map then tu,tv=M.ToUV(map,x,y) end
+        local u,v=M.PlayerPosition()
+        if not (u and tu) then return plan end
+        local seconds=N.ground and N.ground.job.result and N.ground.job.result.yards/speed() or 0
+        first={mode="walk",fu=u,fv=v,tu=tu,tv=tv,to=label or "?",seconds=seconds}
+        plan={steps={first},seconds=seconds}
+    end
     if not first or first.mode ~= "walk" then return plan end
     local u, v = M.PlayerPosition()
     if not u then return plan end
@@ -456,7 +492,7 @@ function M.RoutePlan()
             local p = result.points[i]
             step.routePath[#step.routePath + 1] = {yardsFrame[1] + p[2] * yardsFrame[2], yardsFrame[3] + p[1] * yardsFrame[4]}
         end
-    else
+    elseif not (M.Terrain and M.Terrain.RoadBacked and M.Terrain.RoadBacked(c)) then
         step.routePath[2] = {first.tu, first.tv}
     end
     local remaining = {}

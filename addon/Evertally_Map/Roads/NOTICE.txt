@@ -1,0 +1,10 @@
+Shortest Path Forever v1.35.0
+Copyright: cjber and contributors (see original source headers).
+Source: https://github.com/cjber/shortest-path-forever
+License: GPL-3.0-or-later; complete license in LICENSE.txt.
+
+Files under Data/, Nav/ and Routing/ are copied with only namespace substitutions.
+Nav data retains the original generator/source hashes and credits in each header.
+Reproduce with tools/vendor_roadpath.py against the source version listed in SOURCE-MANIFEST.txt.
+Evertally's Namespace.lua and Adapter.lua provide independent lifecycle and scheduling.
+No source addon files or player data are changed.

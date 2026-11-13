@@ -253,6 +253,22 @@ class RouteLineTests(unittest.TestCase):
         self.assertEqual(len(self.strokes("Minimap")), 0)
         self.assertEqual(len(self.strokes("VIEW")), 1)
 
+    def test_pending_collision_path_is_hidden_and_async_completion_retains_its_bends(self):
+        self.lua.execute('''
+          M.Terrain={maps={[0]={}},RoadBacked=function() return true end,
+            Begin=function() JOB={state="pending"};return JOB end,
+            Step=function() error("already completed asynchronously") end}
+        ''')
+        plan = self.plan(("walk", .6, .5, .65, .5))
+        self.show(plan)
+        self.assertEqual(len(self.strokes("VIEW")), 0)
+        self.assertEqual(len(self.strokes("Minimap")), 0)
+        self.lua.execute('JOB.state="ready";JOB.result={points={{0,0},{-40,-20},{0,-50}}}')
+        self.assertTrue(self.m.RouteStep())
+        self.m.RefreshRoute()
+        self.assertEqual(len(self.strokes("VIEW")), 2)
+        self.assertEqual(len(self.strokes("Minimap")), 2)
+
     def test_navigation_stopping_without_explicit_refresh_clears_both_painters(self):
         self.m.RoutePlan = self.lua.eval("function() return NAVPLAN end")
         self.g.NAVPLAN = self.plan(("flight", .6, .5, .65, .5))

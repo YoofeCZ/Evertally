@@ -1,0 +1,2 @@
+# Vendored source hashes must remain stable on Windows and other checkouts.
+/addon/Evertally_Map/Roads/** text eol=lf

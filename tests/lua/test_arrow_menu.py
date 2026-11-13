@@ -43,6 +43,9 @@ class ArrowTests(unittest.TestCase):
                 if isinstance(chunk, tuple):
                     self.fail(str(chunk))
                 chunk("Evertally_Map", self.m)
+        # These tests isolate arrow input/rotation. Real collision searches and
+        # waiting states are exercised by test_roadpath/test_road_navigation.
+        self.m.RoadPath = None
         self.a.ShowView = self.lua.eval("function(view) SHOWN=view end")
 
     def go(self, **extra):

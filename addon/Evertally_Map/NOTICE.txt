@@ -16,3 +16,5 @@ The libraries in Libs/ retain their own licenses; see Libs/NOTICE.txt.
 Game artwork belongs to Blizzard Entertainment. The software licenses above do
 not grant additional rights to Blizzard artwork or third-party source databases.
 See the project's THIRD_PARTY.md for source provenance and unresolved permissions.
+
+Roads/ contains an isolated copy of Shortest Path Forever v1.35.0 collision and road routing, including complete packed navigation data, road cells and road-edge weights. See Roads/NOTICE.txt, Roads/LICENSE.txt and Roads/SOURCE-MANIFEST.txt for provenance and exact source hashes. The installed third-party addon and its active journey are not modified.

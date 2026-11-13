@@ -1,0 +1,145 @@
+{
+  "source": "https://github.com/cjber/shortest-path-forever",
+  "version": "v1.35.0",
+  "license": "GPL-3.0-or-later",
+  "files": [
+    {
+      "source": "Data/RoadCells.lua",
+      "sha256": "6bb20a5b4d4c163f905a176d4dbc898b835034d077d5bd3b8a1d85c1db813f7a",
+      "bundled": "Roads/Data/RoadCells.lua",
+      "bundledSha256": "64f067d3f59538f5ca74d8725483bd7b750ede9fcb306f2db2acc8b34685fd9f"
+    },
+    {
+      "source": "Data/RoadEdges.lua",
+      "sha256": "21d0fafcf97fcf6d5db0f0f24746631292cf6ca1d94cbe430a7aae587083beaf",
+      "bundled": "Roads/Data/RoadEdges.lua",
+      "bundledSha256": "0479ecdeab3dce2fc19e3d304524060438b755570946124fa73645f7b85dbd39"
+    },
+    {
+      "source": "Nav/Nav0.lua",
+      "sha256": "b36254e88604d4fca72870dce04116e4081f15b6812c68681ad9831b03cfad3d",
+      "bundled": "Roads/Nav/Nav0.lua",
+      "bundledSha256": "813b2416085cf28f5ae2dcf16354530b6f3aaab80c304a0e840de44c50505174"
+    },
+    {
+      "source": "Nav/Nav0_1.lua",
+      "sha256": "e5e3e996ba0f3c04e979460cb7d67ed580bdb394e794a263b55a37a30e72b96a",
+      "bundled": "Roads/Nav/Nav0_1.lua",
+      "bundledSha256": "ad38352a2dd9fb28e59ee82b27b9c71f7eb1788c5ef29c85552669a3a746fd64"
+    },
+    {
+      "source": "Nav/Nav0_2.lua",
+      "sha256": "866e2bc8bf830ae990f3c2cecc7751d3525dde6e1f524cf920bef0b172ab4837",
+      "bundled": "Roads/Nav/Nav0_2.lua",
+      "bundledSha256": "18af6da9f862600363e0b2837ff6bc94335984d4a5d748392f7c43f66ad1d4a5"
+    },
+    {
+      "source": "Nav/Nav0_3.lua",
+      "sha256": "9870ddbad4956f4386cdd6a332af8a8978af1544ac55842e1d4d24102c39d0f8",
+      "bundled": "Roads/Nav/Nav0_3.lua",
+      "bundledSha256": "ff23a3d771de0ae439ce7f57b559f5889cb76bb0f8047d774c8230d660f88a21"
+    },
+    {
+      "source": "Nav/Nav0_4.lua",
+      "sha256": "fded0d6539976d54dc6721b36ba70e54217a905e4ad1a0366aa8f3e0a2850010",
+      "bundled": "Roads/Nav/Nav0_4.lua",
+      "bundledSha256": "674cd72e06345221c1c8c496fc40d8931999d480d3e895a860744e6a2f5c78d0"
+    },
+    {
+      "source": "Nav/Nav0_5.lua",
+      "sha256": "48c01fa6ebd342877819ff5957084f079a3a74dccb205838b80f84463b362bb7",
+      "bundled": "Roads/Nav/Nav0_5.lua",
+      "bundledSha256": "0c4ece9a15f8e64d94f0900a614e67717f3a2fb25a2ea0d4916c427381d78f23"
+    },
+    {
+      "source": "Nav/Nav0_6.lua",
+      "sha256": "28c762a828cad674ca4aa1cfaef886234ea4a71bb8556990ae87f6556cc74f14",
+      "bundled": "Roads/Nav/Nav0_6.lua",
+      "bundledSha256": "a9d0fcb5cdb61a5f9bca19aa7ccf34fca82c6f2b9b327fa2a246ad2c4a06fdf1"
+    },
+    {
+      "source": "Nav/Nav1.lua",
+      "sha256": "7f1c0f478f55880049688aff98e1d58eeb9857c3938b00ff7e949fe25b2cf60a",
+      "bundled": "Roads/Nav/Nav1.lua",
+      "bundledSha256": "8caf2d25b5f0932e8c0d95f845af67b2918f4933ab515cfdd5a485a25095b990"
+    },
+    {
+      "source": "Nav/Nav1_1.lua",
+      "sha256": "72f2299a8688a5f9e98cbd154b3deec02e6c336706d12779ff1f319663370f1f",
+      "bundled": "Roads/Nav/Nav1_1.lua",
+      "bundledSha256": "755309a123301f7b21226a2c214f9183043c271580ba68647d679e5dc9d60ac5"
+    },
+    {
+      "source": "Nav/Nav1_2.lua",
+      "sha256": "06b299a593b9bda1766b99996b45b27f57830c52be1e1c3d0482ed8078b5c913",
+      "bundled": "Roads/Nav/Nav1_2.lua",
+      "bundledSha256": "870e3c6ca749e9718e3fe885f688c219827bc2ad29c4b1b4c6ed00507597e29e"
+    },
+    {
+      "source": "Nav/Nav1_3.lua",
+      "sha256": "e72abe0e6c18840f8b694458a7d3974371c74a84b6ca1ff65e3d5a184de86248",
+      "bundled": "Roads/Nav/Nav1_3.lua",
+      "bundledSha256": "ac84f9c8be561a82406a0db3973bd2372b25a35b57ecad27453e7abe94c55809"
+    },
+    {
+      "source": "Nav/Nav1_4.lua",
+      "sha256": "87a0dcc7768d3d7d00c09d3da3e1a3399b102bf45ce79bd2604fe9ba6a4041f9",
+      "bundled": "Roads/Nav/Nav1_4.lua",
+      "bundledSha256": "78d6549a969a3b5f540200fb331391df7267c25b530c858c5c5018cd579084cd"
+    },
+    {
+      "source": "Nav/Nav1_5.lua",
+      "sha256": "1e23e4bed1492e1fe15fbb12d9b798e29e61ecca4dcecb92b2bea5aa591a6107",
+      "bundled": "Roads/Nav/Nav1_5.lua",
+      "bundledSha256": "b49da86ca322e0ba299ba267255f80940054ed855b030a4413b3d95f60af9aa7"
+    },
+    {
+      "source": "Nav/Nav1_6.lua",
+      "sha256": "476f67889d0655e162eb31011e2d375d4ce086188b28a3d59f49818fd99ce72e",
+      "bundled": "Roads/Nav/Nav1_6.lua",
+      "bundledSha256": "7ab93d272dc6356b871c626036f85d743b39daf840c62cddc15824f3ffd47082"
+    },
+    {
+      "source": "Nav/Nav1_7.lua",
+      "sha256": "d1645f9f72c50410077910f091eaec3d97dd3572c9d452cef41c8d9b2ba39c79",
+      "bundled": "Roads/Nav/Nav1_7.lua",
+      "bundledSha256": "4bf02b99ff49827694830a6d2162ada44ff81727063ae8ce2a2718b2d14f55e3"
+    },
+    {
+      "source": "Nav/Nav1_8.lua",
+      "sha256": "5dcc12b78f7b78ed5ad555ff681057b7b1334ff6ccb5b526f75a89f088552498",
+      "bundled": "Roads/Nav/Nav1_8.lua",
+      "bundledSha256": "dc351e9b74fdc08e0979fa5932df34069190459e11a4057ed3f4d6ee3f62d68c"
+    },
+    {
+      "source": "Nav/Nav2991.lua",
+      "sha256": "12e2f08ae422e17fc3fd0d99dd087d1cb34d1c807c7c541e29ee48d511a67c60",
+      "bundled": "Roads/Nav/Nav2991.lua",
+      "bundledSha256": "123ab6f00d5d993824847ee98872de6a933789408a07e643533eb175759cef37"
+    },
+    {
+      "source": "Nav/Nav2991_1.lua",
+      "sha256": "96920d444bb0d195a2c0b020a4fcf17a5a807f119c7966847fab440d98c5c95b",
+      "bundled": "Roads/Nav/Nav2991_1.lua",
+      "bundledSha256": "fea49a09267ef8fc3b7c29a4688856f3c7c4239f054b4a1bf544492c0a60ebd7"
+    },
+    {
+      "source": "Routing/PathGrid.lua",
+      "sha256": "4707fba6d6f3a80ae2364955162f333a8b7dc75e8642959ccfb1b9c7f864bae0",
+      "bundled": "Roads/Routing/PathGrid.lua",
+      "bundledSha256": "b7eec3e111fab47afb7fd092ffaa59fa2ad03f5d7abd4efcda4a04be90f5ee8a"
+    },
+    {
+      "source": "Routing/Path.lua",
+      "sha256": "711be99e564370482ce4b9a2aea773fdf583c08ed52ac8bcf47c4d2de60aeb39",
+      "bundled": "Roads/Routing/Path.lua",
+      "bundledSha256": "5a39a9882e08bc9f3a87a1172f2a24409ac025347dc3fa56de7c804cbec20587"
+    },
+    {
+      "source": "Routing/PathJobs.lua",
+      "sha256": "42d4f4674bff0e0e73c9ee4352cd42ccec2343aef1911a0d4888d140d18da0ca",
+      "bundled": "Roads/Routing/PathJobs.lua",
+      "bundledSha256": "711674685e0f8524f709f4f9ae34e15d1e258e3318d5452df0a50d4585e52e8d"
+    }
+  ]
+}
