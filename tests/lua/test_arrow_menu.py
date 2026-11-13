@@ -137,7 +137,7 @@ class ArrowTests(unittest.TestCase):
         Cancel = function(owner) SPFLOG[#SPFLOG + 1] = "cancel:" .. owner; SPFON = nil; return true end}}
     """
 
-    def test_the_menu_can_hand_the_route_line_to_shortest_path_forever_like_questmaster_does(self):
+    def test_spf_guidance_is_explicit_for_one_destination_and_keeps_our_solid_renderer(self):
         self.lua.execute(self.FAKE_SPF)
         tracker = self.go()
         self.assertFalse(self.m.SpfAuto())
@@ -145,7 +145,7 @@ class ArrowTests(unittest.TestCase):
         self.choose(4)
         self.assertTrue(self.m.SpfAuto())
         self.assertEqual(str(self.lua.globals().SPFLOG[1]), "navigate:Evertally:1429", "the goal goes to it at once")
-        self.assertTrue(self.m.SpfDrawsRoute(), "and its line is the line: ours is left off")
+        self.assertTrue(self.m.SpfDrawsRoute(), "the explicitly requested supplemental journey is running")
         self.m.route = None
         self.m.RefreshRoute(True)
         self.assertEqual(int(self.m.routeDots or 0), 0)
@@ -154,7 +154,36 @@ class ArrowTests(unittest.TestCase):
         self.assertEqual(str(self.lua.globals().SPFLOG[2]), "cancel:Evertally", "stopping ends its journey too")
         self.lua.execute("SPFLOG = {}")
         self.go()
-        self.assertEqual(str(self.lua.globals().SPFLOG[1]), "navigate:Evertally:1429", "a new navigation is handed over as well")
+        self.assertEqual(len(self.lua.globals().SPFLOG), 0, "a new destination must not automatically revive breadcrumb guidance")
+        self.assertFalse(self.m.SpfAuto())
+
+    def test_old_saved_spf_handoff_is_not_revived_by_normal_navigation(self):
+        self.lua.execute(self.FAKE_SPF)
+        self.a.db.settings.navSpfAuto = True
+        self.go()
+        self.assertEqual(len(self.lua.globals().SPFLOG), 0)
+        self.assertFalse(self.m.SpfAuto())
+        self.assertIsNone(self.a.db.settings.navSpfAuto)
+
+    def test_solid_route_reuses_arrow_terrain_and_drops_already_passed_bends(self):
+        self.go()
+        self.lua.execute('''
+          local M=Evertally.map
+          local u,v=M.PlayerPosition();local c,x,y=M.ToYards(u,v)
+          M.nav.plan={seconds=30,steps={{mode="walk",fu=u-.01,fv=v-.01,tu=u+.01,tv=v+.01,seconds=30}}}
+          M.nav.ground={map=c,index=3,job={state="ready",result={points={{x-20,y-20},{x-10,y-10},{x+5,y+7},{x+10,y+9}}}}}
+        ''')
+        remaining = self.m.RoutePlan()
+        step = remaining.steps[1]
+        u, v, *_ = self.m.PlayerPosition()
+        self.assertEqual((step.fu, step.fv), (u, v))
+        self.assertEqual(len(step.routePath), 3, "player and only the two remaining bends")
+        self.assertEqual((step.routePath[1][1], step.routePath[1][2]), (u, v))
+        original_start = self.m.nav.plan.steps[1].fu
+        self.lua.execute("C_Map.GetPlayerMapPosition=function() return {GetXY=function() return .55,.35 end} end")
+        moved = self.m.RoutePlan().steps[1]
+        self.assertNotEqual(step.fu, moved.fu, "the route origin moves without a transport replan")
+        self.assertEqual(self.m.nav.plan.steps[1].fu, original_start, "the planner's source is not mutated")
 
     def test_without_shortest_path_forever_the_menu_says_so(self):
         tracker = self.go()

@@ -379,7 +379,7 @@ WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
-def capture(lua, a, view, tab=None, quest_id=None):
+def capture(lua, a, view, tab=None, quest_id=None, destination=None):
     """Opens one page (one tab of the World page), lets the client's size events settle and exports what is drawn."""
     if view == "setup":   # the first-start setup, one step at a time
         a.OpenOnboarding(int(tab or 1))
@@ -403,6 +403,16 @@ def capture(lua, a, view, tab=None, quest_id=None):
     if view == "world" and a.worldBody is not None:
         a.worldBody.mode = tab or "map"
         a.map.RefreshWorld(a.worldBody)
+        if tab == "plan" and destination:
+            frame = a.worldBody.tabFrames.plan
+            box = frame.plan.box
+            box.SetText(box, destination)
+            box.GetScript(box, "OnTextChanged")(box)
+            row = frame.plan.rows[1]
+            if row.place is None:
+                raise ValueError(f"No destination matches {destination!r}.")
+            row.GetScript(row, "OnClick")()
+            lua.execute("PREVIEW_SETTLE()")
     if view == "database" and a.databaseBody is not None:
         frame = a.databaseBody.tabFrames.db
         kind = "quest" if quest_id else tab or "npc"
@@ -472,6 +482,7 @@ def main():
     ap.add_argument("--tab", default="")
     ap.add_argument("--language", choices=("en", "cs"), default="en")
     ap.add_argument("--quest-id", type=int, help="show an actual local quest card in the database reader")
+    ap.add_argument("--destination", help="select a real travel destination in the journey tab")
     ap.add_argument("--openmap", action="store_true", help="draw it as if OpenMap were installed")
     args = ap.parse_args()
     out = Path(args.out)
@@ -487,7 +498,7 @@ def main():
         else:
             scenes.append((view, None))
     for view, tab in scenes:
-        nodes = capture(lua, a, view, tab, args.quest_id if view == "database" else None)
+        nodes = capture(lua, a, view, tab, args.quest_id if view == "database" else None, args.destination)
         name = f"{view}{'-' + tab if tab else ''}-{ww}x{wh}{'-openmap' if args.openmap else ''}"
         if args.language != "en": name += "-" + args.language
         if args.quest_id and view == "database": name += "-" + str(args.quest_id)

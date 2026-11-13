@@ -8,11 +8,11 @@ local MIN_SCALE, MAX_SCALE = 0.5, 3
 
 local text = {
     en = {arrowMenuResize = "Change size", arrowMenuHide = "Hide the arrow", arrowMenuReset = "Reset size and position", arrowMenuStop = "Stop navigation",
-        arrowMenuSpfOff = "Route line from Shortest Path Forever", arrowMenuSpfOn = "Route line from Evertally again", arrowNoSpf = "Shortest Path Forever is not installed.",
+        arrowMenuSpfOff = "Additional guidance with SPF", arrowMenuSpfOn = "Stop additional SPF guidance", arrowNoSpf = "Shortest Path Forever is not installed.",
         arrowResizeHint = "Drag the corner of the arrow to change its size.", arrowHiddenNote = "The navigation arrow is hidden. /etally arrow shows it again.",
         arrowShown = "The navigation arrow is shown.", arrowHidden = "The navigation arrow is hidden."},
     cs = {arrowMenuResize = "Změnit velikost", arrowMenuHide = "Schovat šipku", arrowMenuReset = "Vrátit velikost a polohu", arrowMenuStop = "Zrušit navigaci",
-        arrowMenuSpfOff = "Čára cesty ze Shortest Path Forever", arrowMenuSpfOn = "Čára cesty zase od Evertally", arrowNoSpf = "Shortest Path Forever není nainstalovaný.",
+        arrowMenuSpfOff = "Doplňková navigace přes SPF", arrowMenuSpfOn = "Vypnout doplňkovou navigaci SPF", arrowNoSpf = "Shortest Path Forever není nainstalovaný.",
         arrowResizeHint = "Táhni za roh šipky a změníš její velikost.", arrowHiddenNote = "Šipka navigace je schovaná. /etally arrow ji ukáže znovu.",
         arrowShown = "Šipka navigace je vidět.", arrowHidden = "Šipka navigace je schovaná."},
 }

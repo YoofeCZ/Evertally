@@ -377,18 +377,24 @@ function M.Navigate(target)
     if M.ArrowShown and not M.ArrowShown() then f:Hide(); A.Print(A.L("arrowHiddenNote")) else f:Show() end
     if not ticker and C_Timer and C_Timer.NewTicker then ticker = C_Timer.NewTicker(TICK, N.Update) end
     N.Update()
-    if A.db and A.db.settings.navSpfAuto == true and terrainApi() then pcall(M.NavigateTerrain) end   -- (the route line from Shortest Path Forever)
+    -- A new Evertally destination always uses our solid route on both maps. Do not
+    -- revive the old persisted SPF handoff: SPF draws its own breadcrumb overlay.
+    local api = terrainApi()
+    if api and terrainActive(api) and type(api.Cancel) == "function" then pcall(api.Cancel, "Evertally") end
+    if A.db then A.db.settings.navSpfAuto = nil end
     return true
 end
 
 function M.Stop()
     clearGround()
     local spf = terrainApi()
-    if spf and A.db and A.db.settings.navSpfAuto == true and type(spf.Cancel) == "function" then pcall(spf.Cancel, "Evertally") end
+    if spf and terrainActive(spf) and type(spf.Cancel) == "function" then pcall(spf.Cancel, "Evertally") end
+    if A.db then A.db.settings.navSpfAuto = nil end
     N.target, N.plan, N.planned, N.shown, N.aim = nil, nil, false, {}, nil
     if ticker then ticker:Cancel(); ticker = nil end
     if frame then frame:Hide(); frame.resizing = false; if frame.grip then frame.grip:Hide() end end
     if M.ArrowMenuClose then M.ArrowMenuClose() end
+    if M.ClearRoute then M.ClearRoute() end
 end
 
 -- Explicit handoff to the optional Shortest Path Forever addon. Its terrain
@@ -404,22 +410,22 @@ function M.NavigateTerrain()
     return true
 end
 
---- Whether Shortest Path Forever is installed, and the choice to let it draw the route line (as QuestMaster does): it finds the way on
---- roads and round obstacles with its own data, and the journey is handed to it when the navigation starts.
+--- Optional, explicit SPF guidance for the current destination. Evertally's solid
+--- route stays visible; another destination does not automatically start SPF.
 function M.SpfInstalled() return terrainApi() ~= nil end
-function M.SpfAuto() return A.db ~= nil and A.db.settings.navSpfAuto == true end
+function M.SpfAuto() return terrainActive(terrainApi()) end
 function M.SetSpfAuto(on)
-    if not A.db then return false end
-    A.db.settings.navSpfAuto = on and true or nil
+    if A.db then A.db.settings.navSpfAuto = nil end
     local api = terrainApi()
-    if on and api and N.target then pcall(M.NavigateTerrain) end
+    if on then return M.NavigateTerrain() end
     if not on and api and type(api.Cancel) == "function" then pcall(api.Cancel, "Evertally") end
     if M.RefreshRoute then M.RefreshRoute(true) end
     return true
 end
---- True while the journey is Shortest Path Forever's and it draws the line: Evertally's own dotted line is left off then.
+--- Compatibility query for the supplementary SPF journey; it never suppresses
+--- the solid Evertally renderer.
 function M.SpfDrawsRoute()
-    if not (A.db and A.db.settings.navSpfAuto == true and N.target) then return false end
+    if not N.target then return false end
     local api = terrainApi()
     return api ~= nil and terrainActive(api) == true
 end
@@ -427,8 +433,38 @@ end
 --- The arrow's frame (nil before the first navigation).
 function M.NavFrame() return frame end
 
---- The plan of the navigation in progress (the steps the line on the map follows), or nil.
-function M.RoutePlan() return N.target and N.plan or nil end
+--- The remaining route starts at the player now, not at the last transport replan
+--- eight seconds ago. Reuse the arrow's terrain search and discard passed bends.
+function M.RoutePlan()
+    local plan = N.target and N.plan
+    local first = plan and plan.steps and plan.steps[1]
+    if not first or first.mode ~= "walk" then return plan end
+    local u, v = M.PlayerPosition()
+    if not u then return plan end
+    local c = M.ToYards(u, v)
+    local goalC = M.ToYards(first.tu, first.tv)
+    if c ~= goalC then return plan end
+    local step = {}
+    for key, value in pairs(first) do step[key] = value end
+    step.fu, step.fv = u, v
+    step.routePath = {{u, v}}
+    local ground = N.ground
+    local result = ground and ground.job and ground.job.state == "ready" and ground.job.result
+    local yardsFrame = result and ground.map == c and M.data.yards[c]
+    if yardsFrame then
+        for i = ground.index, #result.points do
+            local p = result.points[i]
+            step.routePath[#step.routePath + 1] = {yardsFrame[1] + p[2] * yardsFrame[2], yardsFrame[3] + p[1] * yardsFrame[4]}
+        end
+    else
+        step.routePath[2] = {first.tu, first.tv}
+    end
+    local remaining = {}
+    for key, value in pairs(plan) do remaining[key] = value end
+    remaining.steps = {step}
+    for i = 2, #plan.steps do remaining.steps[i] = plan.steps[i] end
+    return remaining
+end
 
 --- Pins for what navigation points at: the goal and, on a journey, the next stop. {id, map, x, y, title}
 function M.NavPins()

@@ -16,9 +16,60 @@ OpenMapAPI={major=1,version=4,
   RegisterMenuToggle=function(owner,spec) TOGGLES[#TOGGLES+1]={owner=owner,spec=spec} end,
   IsStitched=function() return STITCHED end,
   GetView=function() if STITCHED then return OPEN_U,OPEN_V,OPEN_ZOOM end end,
+  CanvasFromWorldPos=function(c,north,west)
+    local f=MAPMOD.data.yards[c];if f then return f[1]+west*f[2],f[3]+north*f[4] end
+  end,
   MapAt=function(u,v) if u<0.45 then return 1436 elseif v>0.55 then return 1453 else return 1429 end end,
   WorldFromMap=function(map,x,y) return 0.31,0.62 end,
   ShowWorld=function(u,v,zoom) GLIDES[#GLIDES+1]={u=u,v=v,zoom=zoom} return true end}
+"""
+
+# Keep the general UI mock, but supply real line endpoints and HBD's coordinate
+# conversion rather than counting waypoint pins. Projection/clipping details are
+# exercised independently by test_route_lines.py's stricter two-surface scene.
+ROUTE_SURFACE = """
+ROUTE_REGIONS={}
+local baseObject=object
+function object(parent)
+  local t=baseObject(parent)
+  function t:GetLeft() return self.left or 0 end
+  function t:GetTop() return self.top or 600 end
+  function t:GetEffectiveScale() return 1 end
+  function t:GetFrameLevel() return self.level or 1 end
+  function t:SetFrameLevel(level) self.level=level end
+  function t:SetAllPoints(owner) owner=owner or self.parent;if type(owner)=='table' then self.w,self.h=owner.w,owner.h end end
+  function t:CreateLine(_,_,_,sublevel)
+    local r=object(self);r.sublevel=sublevel
+    function r:SetStartPoint(_,_,x,y) self.x1,self.y1=x,-y end
+    function r:SetEndPoint(_,_,x,y) self.x2,self.y2=x,-y end
+    ROUTE_REGIONS[#ROUTE_REGIONS+1]=r;return r
+  end
+  return t
+end
+local baseStub=LibStub
+ROUTE_HBD={}
+function ROUTE_HBD:GetWorldCoordinatesFromZone(x,y,map)
+  local u,v=MAPMOD.ToUV(map,x,y)
+  if not u then return end
+  local c,north,west=MAPMOD.ToYards(u,v)
+  return west,north,c
+end
+function ROUTE_HBD:GetZoneCoordinatesFromWorldInstance(west,north,c,map)
+  if ROUTE_FOCUS then return (west-ROUTE_FOCUS[1])/ROUTE_FOCUS[3],(north-ROUTE_FOCUS[2])/ROUTE_FOCUS[4] end
+  local f=MAPMOD.data.yards[c]
+  if f then return f[1]+west*f[2],f[3]+north*f[4] end
+end
+LibStub=function(name,silent)
+  if name=='HereBeDragons-2.0' then return ROUTE_HBD end
+  return baseStub(name,silent)
+end
+function ROUTE_STROKES()
+  local out={}
+  for _,r in ipairs(ROUTE_REGIONS) do
+    if r.sublevel==0 and r.shown and r.parent.shown then out[#out+1]=r end
+  end
+  return out
+end
 """
 
 
@@ -31,6 +82,7 @@ class OpenMapTests(unittest.TestCase):
         self.lua, self.a = runtime()
         self.lua.execute(MOCK_UI_LUA)
         self.lua.execute(FAKE_LIBS)
+        self.lua.execute(ROUTE_SURFACE)
         self.lua.execute("""
           MAPID=1429;WORLDMAP=1429
           C_Map={GetBestMapForUnit=function() return MAPID end,
@@ -40,10 +92,14 @@ class OpenMapTests(unittest.TestCase):
           GetPlayerFacing=function() return 0 end
           IsMounted=function() return false end
           WorldMapFrame=CreateFrame("Frame","WorldMapFrame")
+          WorldMapFrame:SetSize(1000,600)
+          WorldMapFrame.ScrollContainer=WorldMapFrame
+          WorldMapFrame.GetCanvas=function(self) return self end
           WorldMapFrame.GetMapID=function() return WORLDMAP end
           OpenWorldMap=function(id) OPENED=id end
         """)
         self.m = self.lua.table()
+        self.lua.globals().MAPMOD = self.m
         for line in (MAP_DIR / "Evertally_Map.toc").read_text(encoding="utf8").splitlines():
             if line.endswith(".lua") and not line.startswith("Libs"):
                 chunk = self.lua.eval("loadstring")((MAP_DIR / line).read_text(encoding="utf8"), line)
@@ -87,8 +143,11 @@ class OpenMapTests(unittest.TestCase):
         self.assertFalse(self.a.OpenMapMissing(), "when the game cannot tell, OpenMap is taken to be there")
 
     # ---- the way of a journey on the map ----
-    def route_dots_on_map(self):
+    def route_dot_pins(self):
         return int(self.lua.eval("(function() local n=0 for f,e in pairs(PINLOG.world) do if e.ref=='EvertallyRoute' then n=n+1 end end return n end)()"))
+
+    def route_strokes(self):
+        return lst(self.lua.globals().ROUTE_STROKES())
 
     def journey(self):
         place = self.m.Plan.Search("shadowprey", 5)[1]
@@ -96,31 +155,39 @@ class OpenMapTests(unittest.TestCase):
         self.assertIsNotNone(plan, "a way from Elwynn to Desolace is known")
         return place, plan
 
-    def test_a_journey_becomes_a_dotted_line_along_all_its_legs_in_the_colours_of_their_kinds(self):
+    def test_a_journey_becomes_connected_segments_in_the_colours_of_its_leg_kinds(self):
         place, plan = self.journey()
-        dots = lst(self.m.RouteDots(plan))
-        self.assertGreater(len(dots), 30, "a trip across the sea is a long line")
-        self.assertLessEqual(len(dots), 420, "never more dots than the budget")
-        colours = {tuple(round(float(d.color[i]), 2) for i in (1, 2, 3)) for d in dots}
+        edges = lst(self.m.RouteSegments(plan))
+        self.assertGreaterEqual(len(edges), 2)
+        colours = {tuple(round(float(d.color[i]), 2) for i in (1, 2, 3)) for d in edges}
         self.assertGreaterEqual(len(colours), 2, "walking and travelling by boat or air look different")
-        self.assertTrue(all(0 <= d.x <= 1 and 0 <= d.y <= 1 for d in dots), "every dot lies on its map")
-        self.assertTrue(any(d.size > 6 for d in dots), "a bigger dot where one leg ends and the next begins")
+        for edge in edges:
+            step = plan.steps[edge.leg]
+            self.assertEqual(edge.mode, step.mode)
+            self.assertNotEqual((edge.x1, edge.y1), (edge.x2, edge.y2))
+        for first, second in zip(edges, edges[1:]):
+            if first.leg == second.leg:
+                self.assertEqual((first.tu, first.tv), (second.fu, second.fv), "terrain edges connect without gaps")
 
-    def test_the_dots_reach_the_map_and_go_when_the_route_is_cleared(self):
+    def test_solid_strokes_reach_the_map_and_are_removed_when_the_route_is_cleared(self):
         place, plan = self.journey()
-        self.assertEqual(self.route_dots_on_map(), 0)
+        self.assertEqual(self.route_strokes(), [])
         self.m.route = plan
         self.m.RefreshRoute(True)
-        self.assertEqual(self.route_dots_on_map(), len(lst(self.m.RouteDots(plan))))
-        before = self.route_dots_on_map()
+        before = self.route_strokes()
+        self.assertGreater(len(before), 0)
+        self.assertEqual(self.route_dot_pins(), 0, "a stroke does not create breadcrumb pins")
+        created = len(self.lua.globals().ROUTE_REGIONS)
         self.m.RefreshRoute()
-        self.assertEqual(self.route_dots_on_map(), before, "nothing changed: nothing redrawn")
+        self.assertEqual(len(self.route_strokes()), len(before))
+        self.assertEqual(len(self.lua.globals().ROUTE_REGIONS), created, "unchanged geometry reuses line regions")
         self.m.ClearRoute()
-        self.assertEqual(self.route_dots_on_map(), 0)
+        self.assertEqual(self.route_strokes(), [])
         self.m.route = plan
         self.m.RefreshRoute(True)
+        self.assertGreater(len(self.route_strokes()), 0)
         self.m.ClearExtra()
-        self.assertEqual(self.route_dots_on_map(), 0, "clearing the marked places clears the route too")
+        self.assertEqual(self.route_strokes(), [], "clearing the marked places clears the route too")
 
     def walking_step(self, wall=True):
         """A walk across a small map of continent 1 (Kalimdor) with a wall in the way, as a step of a plan."""
@@ -149,29 +216,34 @@ class OpenMapTests(unittest.TestCase):
         step, plan = self.walking_step()
         self.assertIsNone(self.m.RouteLegPath(step), "while it is searched for the line is straight")
         self.assertEqual(len(lst(self.m.RoutePoly(step))), 2, "from where it starts to where it ends")
-        straight = len(lst(self.m.RouteDots(plan)))
-        self.assertGreater(straight, 0)
+        self.assertEqual(len(lst(self.m.RouteSegments(plan))), 1, "one solid edge before the search finishes")
         self.search()
         path = lst(self.m.RouteLegPath(step))
         self.assertGreater(len(path), 2, "it bends")
         ys = [float(self.m.ToYards(p[1], p[2])[2]) for p in path]
         self.assertTrue(any(y >= 90 for y in ys), "round the end of the wall, at the far side")
         self.assertEqual(int(self.m.routeReady), 1)
-        self.assertGreater(len(lst(self.m.RouteDots(plan))), 0)
+        edges = lst(self.m.RouteSegments(plan))
+        self.assertEqual(len(edges), len(path) - 1, "every bend is retained in the solid polyline")
+        for first, second in zip(edges, edges[1:]):
+            self.assertEqual((first.tu, first.tv), (second.fu, second.fv))
         self.assertGreater(len(lst(self.m.RoutePoly(step))), 2, "the line that is drawn is the bent one")
 
     def test_the_line_is_drawn_again_when_the_search_has_found_the_way(self):
         step, plan = self.walking_step()
+        self.lua.execute("ROUTE_FOCUS={-10,-10,140,140}")
         self.m.route = plan
         self.m.RefreshRoute(True)
-        before = self.route_dots_on_map()
-        self.assertGreater(before, 0, "straight at first")
+        self.assertEqual(len(self.route_strokes()), 1, "straight at first")
         self.search()
         self.m.RefreshRoute()                       # (not forced: the found way alone changes what is drawn)
-        positions = sorted((round(float(f.x), 4), round(float(f.y), 4)) for f in lst(self.lua.eval(
-            "(function() local o={} for f,e in pairs(PINLOG.world) do if e.ref=='EvertallyRoute' then o[#o+1]=e end end return o end)()")))
-        self.assertTrue(positions)
-        self.assertNotEqual(self.route_dots_on_map(), 0)
+        strokes = self.route_strokes()
+        self.assertGreater(len(strokes), 1)
+        self.assertEqual(len(strokes), len(lst(self.m.RoutePoly(step))) - 1)
+        self.assertTrue(any(s.y1 > 400 or s.y2 > 400 for s in strokes), "the rendered route goes round the wall")
+        for first, second in zip(strokes, strokes[1:]):
+            self.assertAlmostEqual(first.x2, second.x1)
+            self.assertAlmostEqual(first.y2, second.y1)
 
     def test_a_leg_on_a_map_without_terrain_stays_straight(self):
         step, plan = self.walking_step()
@@ -179,16 +251,15 @@ class OpenMapTests(unittest.TestCase):
         self.assertIsNone(self.m.RouteLegPath(step))
         self.search()
         self.assertIsNone(self.m.RouteLegPath(step))
-        self.assertGreater(len(lst(self.m.RouteDots(plan))), 0, "the straight line is still drawn")
+        self.assertEqual(len(lst(self.m.RouteSegments(plan))), 1, "a single solid edge remains without terrain data")
 
     def test_a_search_that_is_no_longer_wanted_is_cancelled(self):
         step, plan = self.walking_step()
         self.m.route = plan
         self.m.RefreshRoute(True)                   # starts the search
-        job_state = lambda: str(self.m.Terrain.maps[1] is not None)
         self.m.route = None
         self.m.RefreshRoute(True)
-        self.assertEqual(int(self.m.routeDots or 0), 0)
+        self.assertEqual(self.route_strokes(), [])
         self.assertFalse(self.m.RouteStep(), "nothing left to search for")
 
     def test_show_on_map_in_the_journey_tab_draws_the_way_and_moves_the_view_to_hold_both_ends(self):
@@ -207,7 +278,8 @@ class OpenMapTests(unittest.TestCase):
         self.m.WorldPlanShow(frame)
         frame.plan.show.scripts.OnClick()
         self.assertIsNotNone(self.m.route, "the route is kept")
-        self.assertGreater(self.route_dots_on_map(), 30)
+        self.assertGreater(len(self.route_strokes()), 0, "the actual UI callback renders solid route strokes")
+        self.assertEqual(self.route_dot_pins(), 0)
         glides = lst(self.lua.globals().GLIDES)
         self.assertTrue(glides, "the view moved")
         self.assertLess(glides[-1].zoom, 6, "wide enough for a whole journey, not close in on the goal")

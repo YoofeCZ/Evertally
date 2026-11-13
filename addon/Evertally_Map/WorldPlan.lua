@@ -10,11 +10,17 @@ local text = {
         worldPlanTo = "Where to?", worldPlanHint = "Type the name of a zone, a city or a flight master.", worldPlanNone = "Nothing found.",
         worldPlanNoPosition = "Your position is not known here, so there is nothing to start from.", worldPlanNoRoute = "No route is known to that place.",
         worldPlanGo = "Navigate", worldPlanShow = "Show on map", worldPlanTotal = "Total about %s", worldPlanFromYou = "From where you stand",
+        worldPlanStop = "Stop", worldPlanDetails = "All steps", worldPlanLess = "Hide steps", worldPlanNext = "Next step",
+        worldPlanReady = "Start navigation to follow this route on the map and minimap.", worldPlanActive = "Navigation is running · map and minimap",
+        worldPlanFailed = "Navigation could not start: %s", worldPlanMapFailed = "The map could not be opened.", worldPlanStopped = "Navigation stopped.",
     },
     cs = {
         worldPlanTo = "Kam?", worldPlanHint = "Napiš název zóny, města nebo létajícího mistra.", worldPlanNone = "Nic nenalezeno.",
         worldPlanNoPosition = "Tvoje poloha tady není známá, takže není odkud vyjít.", worldPlanNoRoute = "Na to místo není známá žádná cesta.",
         worldPlanGo = "Navigovat", worldPlanShow = "Ukázat na mapě", worldPlanTotal = "Celkem asi %s", worldPlanFromYou = "Odtud, kde stojíš",
+        worldPlanStop = "Zastavit", worldPlanDetails = "Všechny kroky", worldPlanLess = "Skrýt kroky", worldPlanNext = "Další krok",
+        worldPlanReady = "Spusť navigaci a sleduj trasu na mapě i minimapě.", worldPlanActive = "Navigace běží · mapa a minimapa",
+        worldPlanFailed = "Navigaci se nepodařilo spustit: %s", worldPlanMapFailed = "Mapu se nepodařilo otevřít.", worldPlanStopped = "Navigace zastavena.",
     },
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
@@ -83,7 +89,10 @@ local function build(frame, kit)
     s.box:SetScript("OnTextChanged", function(self) s.query = self:GetText() or ""; s.offset = 0; M.WorldPlanRefresh(frame) end)
     s.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     s.label = kit.label(frame, 11, C.mist); s.label:SetPoint("TOPLEFT", 6, -40); s.label:SetWidth(620)
-    s.list = CreateFrame("Frame", nil, frame)
+    s.book = kit.Book(frame, 60)
+    s.document = kit.Document(s.book.paper)
+    s.document.scroll:SetPoint("BOTTOMRIGHT", -22, 94)
+    s.list = CreateFrame("Frame", nil, s.book.index)
     s.list:SetPoint("TOPLEFT", 0, -58); s.list:SetSize(290, ROWS * ROW_H)
     s.list:EnableMouse(true)
     if s.list.EnableMouseWheel then s.list:EnableMouseWheel(true) end
@@ -99,7 +108,7 @@ local function build(frame, kit)
         row.name = kit.label(row, 12, C.text); row.name:SetPoint("LEFT", 8, 0); row.name:SetWidth(270); row.name:SetJustifyH("LEFT")
         row:SetScript("OnEnter", function() row.bg:SetAlpha(0.14) end)
         row:SetScript("OnLeave", function() row.bg:SetAlpha(0.05) end)
-        row:SetScript("OnClick", function() if row.place then s.chosen = row.place; M.WorldPlanShow(frame) end end)
+        row:SetScript("OnClick", function() if row.place then s.chosen, s.message, s.details = row.place, nil, false; M.WorldPlanShow(frame) end end)
         s.rows[i] = row
     end
     s.title = kit.label(frame, 15, C.text); s.title:SetPoint("TOPLEFT", 306, -60); s.title:SetWidth(350); s.title:SetJustifyH("LEFT")
@@ -111,33 +120,61 @@ local function build(frame, kit)
         local detail = math.max(180, w - 312)
         s.title:SetWidth(detail); s.sub:SetWidth(detail); s.body:SetWidth(detail); s.label:SetWidth(math.max(100, w - 12))
     end)
-    s.go = kit.Button(frame, "worldPlanGo", 150, "primary", function()
+    -- Controls are children of the paper's footer. Siblings of the book sit behind its opaque parchment in the game.
+    s.footer = CreateFrame("Frame", nil, s.book.paper)
+    s.footer:SetPoint("BOTTOMLEFT", 12, 12); s.footer:SetPoint("BOTTOMRIGHT", -12, 12); s.footer:SetHeight(72)
+    s.footer:SetFrameLevel((s.book.paper:GetFrameLevel() or 1) + 20)
+    local function report(message)
+        s.message = message
+        if A.Print then A.Print(message) end
+        M.WorldPlanShow(frame)
+    end
+    s.go = kit.Button(s.footer, "worldPlanGo", 150, "primary", function()
         local place = s.chosen
         if not place then return end
         local map, x, y = Plan.Point(place)
-        if map and A.NavigateToPoint then A.NavigateToPoint(place.name, map, x, y, {tab = "plan", name = place.name}) end
+        local ok, why
+        if map and x and y and A.NavigateToPoint then ok, why = A.NavigateToPoint(place.name, map, x, y, {tab = "plan", name = place.name}) end
+        if not ok then
+            local reason = why == "map_off" and A.L("worldEnable") or why == "no_position" and A.L("worldPlanNoPosition") or A.L("navNoMap")
+            report(string.format(A.L("worldPlanFailed"), reason)); return
+        end
+        s.message = nil
+        if M.RefreshRoute then M.RefreshRoute(true) end
+        M.WorldPlanShow(frame)
     end)
-    s.go:SetPoint("BOTTOMLEFT", 306, 36)
-    s.show = kit.Button(frame, "worldPlanShow", 150, "ghost", function()
+    s.show = kit.Button(s.footer, "worldPlanShow", 150, "ghost", function()
         local place = s.chosen
-        local map, x, y = place and Plan.Point(place)
-        if not (map and M.ShowOnWorldMap) then return end
+        if not place then return end
+        local map, x, y = Plan.Point(place)
+        if not (map and x and y and M.ShowOnWorldMap) then report(A.L("worldPlanMapFailed")); return end
         local goal = {{map = map, x = x, y = y, title = place.name}}
         local plan = Plan.Journey(place)
-        if plan and M.ShowRoute then M.ShowRoute(plan, goal)   -- the line from where you stand, and the view that holds it
-        else M.ShowOnWorldMap(goal, map) end
+        local shown
+        if plan and M.ShowRoute then shown = M.ShowRoute(plan, goal)
+        else shown = M.ShowOnWorldMap(goal, map) end
+        if shown == false then report(A.L("worldPlanMapFailed")) end
+        M.WorldPlanShow(frame)
     end)
-    s.show:SetPoint("BOTTOMLEFT", 306, 0)
-    -- The itinerary is a readable travel page, not an unbounded block of text beside a list.
-    s.book=kit.Book(frame,60);s.document=kit.Document(s.book.paper)
-    s.document.scroll:SetPoint("BOTTOMRIGHT",-22,54)
-    s.list:SetParent(s.book.index);s.list:ClearAllPoints();s.list:SetPoint("TOPLEFT",6,-6);s.list:SetPoint("BOTTOMRIGHT",-6,6)
+    s.stop = kit.Button(s.footer, "worldPlanStop", 150, "ghost", function()
+        if A.StopNavigation then A.StopNavigation() elseif M.Stop then M.Stop() end
+        if M.ClearRoute then M.ClearRoute() end
+        s.message = A.L("worldPlanStopped")
+        M.WorldPlanShow(frame)
+    end)
+    s.more = kit.Button(s.footer, "worldPlanDetails", 150, "ghost", function()
+        s.details = not s.details; M.WorldPlanShow(frame)
+    end)
+    for _, button in ipairs({s.go, s.show, s.stop, s.more}) do button:SetFrameLevel((s.footer:GetFrameLevel() or 21) + 1) end
+    s.list:ClearAllPoints();s.list:SetPoint("TOPLEFT",6,-6);s.list:SetPoint("BOTTOMRIGHT",-6,6)
     for _,row in ipairs(s.rows) do row.name:ClearAllPoints();row.name:SetPoint("LEFT",8,0);row.name:SetPoint("RIGHT",-8,0);row.name:SetWordWrap(false) end
     s.title:Hide();s.sub:Hide();s.body:Hide()
-    s.go:ClearAllPoints();s.go:SetPoint("BOTTOMLEFT",s.book.paper,"BOTTOMLEFT",12,12);s.go:SetWidth(138)
-    s.show:ClearAllPoints();s.show:SetPoint("BOTTOMRIGHT",s.book.paper,"BOTTOMRIGHT",-12,12);s.show:SetWidth(138)
     s.book.onLayout=function()
         for i,row in ipairs(s.rows) do row:ClearAllPoints();row:SetPoint("TOPLEFT",0,-(i-1)*ROW_H);row:SetPoint("TOPRIGHT",0,-(i-1)*ROW_H) end
+        local width = math.max(80, ((s.book.paper:GetWidth() or 300) - 32) / 2)
+        for _, button in ipairs({s.go, s.show, s.stop, s.more}) do button:ClearAllPoints(); button:SetWidth(width); button:SetHeight(32) end
+        s.go:SetPoint("TOPLEFT"); s.show:SetPoint("TOPRIGHT")
+        s.stop:SetPoint("BOTTOMLEFT"); s.more:SetPoint("BOTTOMRIGHT")
     end
     s.book.Layout()
 end
@@ -158,25 +195,30 @@ function M.WorldPlanShow(frame)
     local s = frame.plan
     local place = s.chosen
     s.title:SetText(place and A.Plain(place.name) or "")
+    local target = M.nav and M.nav.target
+    local active = target ~= nil
+    local selectedActive = active and target.source and target.source.tab == "plan" and place and target.source.name == place.name
     s.go:SetShown(place ~= nil); s.show:SetShown(place ~= nil)
+    s.stop:SetShown(active or M.route ~= nil); s.more:SetShown(place ~= nil)
+    s.more.text:SetText(A.L(s.details and "worldPlanLess" or "worldPlanDetails"))
     if not place then s.sub:SetText(""); s.body:SetText("");s.document.Set({key="empty",title=A.L("worldPlanTo"),entries={{text=A.L("worldPlanHint")}}}); return end
-    local plan, why = Plan.Journey(place)
+    local plan, why
+    if selectedActive and M.RoutePlan then plan = M.RoutePlan() end
+    if not plan then plan, why = Plan.Journey(place) end
     s.sub:SetText(A.L("worldPlanFromYou"))
     if not plan then
         s.body:SetText(A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute"))
-        s.document.Set({key=place.name,title=place.name,subtitle=A.L("worldPlanFromYou"),entries={{text=A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute")}}})
+        s.document.Set({key=place.name,title=place.name,entries={{text=s.message or A.L(why == "no_position" and "worldPlanNoPosition" or "worldPlanNoRoute")}}})
         return
     end
-    local lines = {}
-    for _, step in ipairs(plan.steps) do lines[#lines + 1] = M.StepText(step) end
-    lines[#lines + 1] = "|cffa78bfa" .. string.format(A.L("worldPlanTotal"), M.Clock(plan.seconds)) .. "|r"
-    local plain = {}
-    for _, line in ipairs(lines) do plain[#plain + 1] = line:find("|c", 1, true) and line or A.Plain(line) end
-    s.body:SetText(table.concat(plain, "\n"))
-    local entries={}
-    for i,step in ipairs(plan.steps) do entries[#entries+1]={text=i..". "..M.StepText(step):gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r",""),head=true} end
-    entries[#entries+1]={text=string.format(A.L("worldPlanTotal"),M.Clock(plan.seconds)),head=true}
-    s.document.Set({key=place.name,title=place.name,subtitle=A.L("worldPlanFromYou"),entries=entries})
+    local function plain(step) return M.StepText(step):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
+    local entries = {}
+    if s.message or selectedActive then entries[#entries + 1] = {text = s.message or A.L("worldPlanActive")} end
+    entries[#entries + 1] = {text = A.L("worldPlanNext") .. ": " .. plain(plan.steps[1])}
+    if s.details then
+        for i, step in ipairs(plan.steps) do entries[#entries + 1] = {text = i .. ". " .. plain(step)} end
+    end
+    s.document.Set({key=place.name,title=place.name,subtitle=string.format(A.L("worldPlanTotal"), M.Clock(plan.seconds)),entries=entries})
 end
 
 function M.WorldPlanRefresh(frame)
