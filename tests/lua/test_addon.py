@@ -49,7 +49,7 @@ def runtime(record_globals=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Live.lua", "Community.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Live.lua", "Community.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -959,7 +959,7 @@ class SocialTests(unittest.TestCase):
         self.open_social()
         self.a.ReceiveMessage("Evtly1", "S|Q|abcdef|ip", "WHISPER", "Other-Fixture Realm")
         popup = self.lua_a.globals().EvertallySocialPopup
-        popup.buttons[3].scripts.OnClick(popup.buttons[3])
+        popup.buttons[4].scripts.OnClick(popup.buttons[4])  # allow once, always, deny, block
         self.assertTrue(self.a.db.settings.socialBlock["other"])
         self.assertEqual(len(list(self.a.SocialRequests().items())), 0)
 
@@ -969,7 +969,7 @@ class SocialTests(unittest.TestCase):
         self.a.ReceiveMessage("Evtly1", "S|Q|abcde0|ip", "WHISPER", "Two-Fixture Realm")
         popup = self.lua_a.globals().EvertallySocialPopup
         self.assertIn("One", popup.title.text)
-        popup.buttons[2].scripts.OnClick(popup.buttons[2])  # deny the first
+        popup.buttons[3].scripts.OnClick(popup.buttons[3])  # deny the first
         self.assertTrue(popup.IsShown(popup))
         self.assertIn("Two", popup.title.text)
 

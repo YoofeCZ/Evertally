@@ -5,7 +5,7 @@ A.MAX_EVENTS, A.MAX_RUNS, A.MAX_EXPORT = 5000, 1000, 4000
 -- Soft limits stop only repeated low-priority sampling; results keep recording up to the hard cap.
 A.HARD_EVENTS, A.HARD_EXPORT = 6000, 4800
 local sampling={["npc.observed"]=true,["vendor.snapshot"]=true,["profession.snapshot"]=true,
-    ["cooldown.snapshot"]=true,["character.snapshot"]=true,["track.path"]=true}
+    ["cooldown.snapshot"]=true,["character.snapshot"]=true,["track.path"]=true,["armory.snapshot"]=true,["armory.view"]=true}
 local function overLimit(count,soft,hard,kind) return count>=hard or (count>=soft and sampling[kind]==true) end
 
 function A.Plain(v)
@@ -106,6 +106,8 @@ local scopeFor={
     ["quest.accepted"]="world_facts",["quest.turned_in"]="world_facts",["quest.abandoned"]="world_facts",
     ["npc.observed"]="world_facts",["vendor.snapshot"]="world_facts",["loot.received"]="world_facts",["zone.visited"]="world_facts",
     ["track.path"]="own_track",["guild.snapshot"]="guild_share",
+    -- the own armory, and what other players allowed this player to keep (see Social.lua); both need the character scope
+    ["armory.snapshot"]="own_character",["armory.view"]="own_character",["armory.revoked"]="own_character",
 }
 A.ScopeFor=scopeFor
 function A.SafeWorldPayload(kind,payload)

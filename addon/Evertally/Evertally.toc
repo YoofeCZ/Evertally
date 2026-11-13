@@ -20,6 +20,7 @@ Connections.lua
 Optical.lua
 Sync.lua
 Social.lua
+Armory.lua
 Live.lua
 Community.lua
 UI.lua
