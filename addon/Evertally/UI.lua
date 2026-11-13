@@ -1478,9 +1478,20 @@ local function slash(text)
         else A.Print(A.L("mapUnavailable")) end
     elseif text:match("^allow%s+%x+") then
         local id, kinds = text:match("^allow%s+(%x+)%s*(%a*)")
-        local ok, state = A.AnswerRequest(id, kinds ~= "" and kinds or "ip"); A.Print(ok and state or tostring(state))
+        local ok, state = A.AnswerRequest(id, kinds ~= "" and kinds or "istp"); A.Print(ok and state or tostring(state))
+    elseif text:match("^always%s+%x+") then
+        -- /etally always <id> [kinds]: like allow, and remembered for this player (never covers gold) until /etally revoke
+        local id, kinds = text:match("^always%s+(%x+)%s*(%a*)")
+        local ok, state = A.AnswerRequest(id, kinds ~= "" and kinds or "istp", true); A.Print(ok and state or tostring(state))
     elseif text:match("^deny%s+%x+") then
         A.DenyRequest(text:match("^deny%s+(%x+)"), false)
+    elseif text:match("^revoke%s+%S") then
+        local name = text:match("^revoke%s+(%S+)")
+        local ok, err = A.RevokeAccess(name); A.Print(ok and string.format(A.L("socialRevokedChat"), name) or tostring(err))
+    elseif text:match("^look%s+%S") then
+        -- /etally look <name> [kinds]: ask a player to show gear, stats, talents and professions (i s t p, g for gold, w for your website)
+        local name, kinds = text:match("^look%s+(%S+)%s*(%a*)")
+        local ok, err = A.RequestInspect(name, kinds ~= "" and kinds or nil); A.Print(ok and string.format(A.L("socialWaiting"), name) or A.L("socialErr_" .. tostring(err)))
     elseif text == "minimap" then A.db.settings.hideMinimap = not A.db.settings.hideMinimap; if minimapButton then minimapButton:SetShown(not A.db.settings.hideMinimap) end
     else A.ToggleUI() end
 end
