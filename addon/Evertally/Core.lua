@@ -182,6 +182,15 @@ function A.ExportEvent(event)
     store.events[#store.events+1]=projection
 end
 -- exportOnly events (routes, guild snapshots) go to the web outbox but never into the local history list.
+--- Short trail of the social whispers (requests, answers, data) kept in the saved settings, newest last, so a lost
+--- answer can be traced after /reload. Holds only message types, player names, ids and outcomes, never item data.
+function A.DiagLog(text)
+    if not A.db or not A.db.settings then return end
+    local log=A.db.settings.diagLog
+    if type(log)~="table" then log={};A.db.settings.diagLog=log end
+    log[#log+1]=string.format("%s %s",A.Now(),tostring(text):sub(1,160))
+    while #log>120 do table.remove(log,1) end
+end
 function A.Record(kind,payload,evidence,ownCharacter,exportOnly)
     if not A.db or not scopeFor[kind] then return nil end
     if not exportOnly and overLimit(#A.db.events,A.MAX_EVENTS,A.HARD_EVENTS,kind) then A.storageFull=true;return nil end

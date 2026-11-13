@@ -155,6 +155,11 @@ function A.PumpSync()
     if not revoke and not item.social and (not A.db.settings.ingame or not allowed(item.channel)) then return end
     if C_ChatInfo and type(C_ChatInfo.SendAddonMessage)=="function" then
         local ok,result=pcall(C_ChatInfo.SendAddonMessage,PREFIX,item.text,item.channel,item.target)
+        if item.social and item.text:match("^S|[QAND]|") then
+            local k,rest=item.text:match("^S|(%a)|(%x*)|?(%d*)")
+            local part=item.text:match("^S|D|%x+|(%d+)|(%d+)|")
+            if k~="D" or part=="1" or item.tries then A.DiagLog(string.format("send %s id=%s to=%s ok=%s result=%s tries=%s",k or "?",rest or "?",tostring(item.target),tostring(ok),tostring(ok and A.Plain(result) or result),tostring(item.tries or 0))) end
+        end
         if not ok then A.errors.sync_send=(A.errors.sync_send or 0)+1
         elseif throttled(A.Plain(result)) then
             -- Retry the same chunk later; a lost chunk would invalidate the whole transfer.

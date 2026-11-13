@@ -246,6 +246,7 @@ function A.RequestInspect(target,kinds)
     for _,entry in pairs(S.outgoing) do if same(entry.target,target) and (entry.status=="waiting" or entry.status=="receiving") then return false,"pending" end end
     local id=shortId()
     if not A.QueueSocial("S|Q|"..id.."|"..kinds,"WHISPER",target) then return false,"queue_full" end
+    A.DiagLog("request "..id.." kinds="..kinds.." target="..target)
     S.outgoing[id]={id=id,target=target,kinds=kinds,at=A.Now(),status="waiting"}
     emit("outgoing",S.outgoing[id]);return true,id
 end
@@ -332,7 +333,8 @@ local function realmKey(realm) return ((realm or ""):gsub("%s+",""):lower()) end
 --- Keeps what a player allowed on this player's own website account (event armory.view). The identity comes from the whisper:
 --- a sender cannot claim to be somebody else. Gold and the "w" flag itself are not part of the copy.
 local function forwardArmory(view,data)
-    if not view.kinds:find("w",1,true) or not A.Record then return end
+    if not view.kinds:find("w",1,true) or not A.Record then A.DiagLog("web copy skipped kinds="..tostring(view.kinds));return end
+    A.DiagLog("web copy recorded from="..tostring(view.sender))
     local name=baseName(view.sender)
     local senderRealm=A.Text(view.sender,150):match("^[^-]+%-(.+)$")
     local header=data.header or {}
@@ -380,7 +382,8 @@ end
 local function finishTransfer(sender,id,text)
     if text:sub(1,2)=="I1" then
         local entry=S.outgoing[id]
-        if entry and same(entry.target,sender) and (entry.status=="receiving" or entry.status=="waiting") then storeView(entry,text) end
+        if entry and same(entry.target,sender) and (entry.status=="receiving" or entry.status=="waiting") then A.DiagLog("data complete id="..tostring(id).." bytes="..#text.." from="..tostring(sender));storeView(entry,text)
+        else A.DiagLog(string.format("data DROPPED id=%s from=%s entry=%s status=%s",tostring(id),tostring(sender),tostring(entry~=nil),tostring(entry and entry.status))) end
     elseif text:sub(1,2)=="T1" then storeProposal(sender,id,text) end
 end
 local function onChunk(sender,fields)
@@ -405,7 +408,11 @@ local function onChunk(sender,fields)
 end
 local function onAccept(sender,fields)
     local entry=S.outgoing[fields[3] or ""]
-    if not entry or not same(entry.target,sender) or entry.status~="waiting" then return end
+    if not entry or not same(entry.target,sender) or entry.status~="waiting" then
+        A.DiagLog(string.format("accept DROPPED id=%s from=%s entry=%s target=%s status=%s",tostring(fields[3]),tostring(sender),tostring(entry~=nil),tostring(entry and entry.target),tostring(entry and entry.status)))
+        return
+    end
+    A.DiagLog(string.format("accept id=%s from=%s kinds=%s parts=%s",tostring(fields[3]),tostring(sender),tostring(fields[4]),tostring(fields[5])))
     entry.status="receiving";entry.kinds=kindsOnly(fields[4] or "",entry.kinds);entry.total=A.Number(tonumber(fields[5]),1,MAX_PARTS);entry.done=0
     entry.mode=fields[6]=="a" and "always" or "once"
     emit("progress",entry)
@@ -492,6 +499,11 @@ end
 function A.ReceiveSocial(channel,sender,message)
     if not A.db then return end
     local kind=message:sub(3,3)
+    if channel=="WHISPER" and (kind=="Q" or kind=="N" or kind=="A" or kind=="X") then A.DiagLog(string.format("recv %s from=%s %s",kind,tostring(sender),message:sub(1,60))) end
+    if channel=="WHISPER" and kind=="D" then
+        local i,n=message:match("^S|D|%x+|(%d+)|(%d+)|")
+        if i=="1" or i==n then A.DiagLog(string.format("recv D %s/%s from=%s id=%s",tostring(i),tostring(n),tostring(sender),message:sub(5,10))) end
+    end
     local handler=A.socialHandlers[kind]
     if handler then handler(channel,sender,message);return end
     local function split(n)
