@@ -130,7 +130,50 @@ local function meetPopup(meet)
 end
 
 -- ---------------------------------------------------------------- viewer: what somebody showed you
-local function openViewer(view)
+local SORTS = {"default", "quality", "name", "type"}
+local TYPE_KEYS = {Weapon = "viewType_weapon", Armor = "viewType_armor", Consumable = "viewType_consumable", Container = "viewType_container", Projectile = "viewType_ammo", Quiver = "viewType_ammo",
+    Trade = "viewType_trade", ["Trade Goods"] = "viewType_trade", Recipe = "viewType_recipe", Reagent = "viewType_trade", Quest = "viewType_quest", Miscellaneous = "viewType_misc", Key = "viewType_misc", Gem = "viewType_trade"}
+local function itemMeta(id)
+    local name, _, quality, _, _, kind = A.Call(GetItemInfo, id)
+    return {name = name and plain(name) or nil, quality = A.Number(quality, 0, 8) or -1, kind = type(kind) == "string" and kind or nil}
+end
+local function typeGroup(meta)
+    local key = meta.kind and TYPE_KEYS[meta.kind]
+    return key and A.L(key) or (meta.kind and plain(meta.kind)) or A.L("viewType_unknown")
+end
+--- Filters (case-insensitive substring on the item name; an unknown name matches by id) and orders cells; with "type" sort inserts group headers.
+--- entries[i] = {id, count, cell}. Returns the final list for IconGrid and how many items matched.
+local function arrange(entries, query, sortKey, slotOrder)
+    local q = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    local rows = {}
+    for _, e in ipairs(entries) do
+        local meta = itemMeta(e.id)
+        e.meta = meta
+        local hay = (meta.name or ("item " .. e.id)):lower()
+        if q == "" or hay:find(q, 1, true) or tostring(e.id) == q then rows[#rows + 1] = e end
+    end
+    local function byName(a, b) return (a.meta.name or "~") < (b.meta.name or "~") end
+    if sortKey == "quality" then
+        table.sort(rows, function(a, b) if a.meta.quality ~= b.meta.quality then return a.meta.quality > b.meta.quality end; if byName(a, b) ~= byName(b, a) then return byName(a, b) end; return a.id < b.id end)
+    elseif sortKey == "name" then
+        table.sort(rows, function(a, b) if byName(a, b) ~= byName(b, a) then return byName(a, b) end; return a.id < b.id end)
+    elseif sortKey == "type" then
+        for _, e in ipairs(rows) do e.group = typeGroup(e.meta) end
+        table.sort(rows, function(a, b) if a.group ~= b.group then return a.group < b.group end; if a.meta.quality ~= b.meta.quality then return a.meta.quality > b.meta.quality end; return a.id < b.id end)
+    elseif slotOrder then
+        table.sort(rows, function(a, b) return (a.order or 0) < (b.order or 0) end)
+    else
+        table.sort(rows, function(a, b) return a.id < b.id end)
+    end
+    local out, lastGroup = {}, nil
+    for _, e in ipairs(rows) do
+        if sortKey == "type" and e.group ~= lastGroup then out[#out + 1] = {header = e.group}; lastGroup = e.group end
+        out[#out + 1] = e.cell
+    end
+    return out, #rows
+end
+local openViewer
+function openViewer(view)
     local ok, err = pcall(function()
         local k = K()
         local C = k.C
@@ -150,7 +193,10 @@ local function openViewer(view)
                 f.tabs[mode] = chip; previous = chip
             end
             -- what they showed: icons for gear and bags, rows for professions and gold
-            f.grid = k.IconGrid(f, 40, 6); f.grid:ClearAllPoints(); f.grid:SetPoint("TOPLEFT", 18, -102); f.grid:SetPoint("BOTTOMLEFT", 18, 36); f.grid:SetWidth(444)
+            f.search = k.SearchBox(f, 230, function(value) if value ~= f.query then f.query = value; A.SocialRefreshViewer() end end); f.search:SetPoint("TOPLEFT", 22, -98)
+            f.sortBtn = k.Button(f, nil, 150, "ghost", function() f.sort = (f.sort or 1) % #SORTS + 1; A.SocialRefreshViewer() end); f.sortBtn:SetPoint("LEFT", f.search, "RIGHT", 10, 0)
+            f.summary = k.label(f, 10, C.faint); f.summary:SetPoint("LEFT", f.sortBtn, "RIGHT", 10, 0); f.summary:SetWidth(40)
+            f.grid = k.IconGrid(f, 40, 6); f.grid:ClearAllPoints(); f.grid:SetPoint("TOPLEFT", 18, -130); f.grid:SetPoint("BOTTOMLEFT", 18, 36); f.grid:SetWidth(444)
             f.list = k.ListView(f, 102); f.list:ClearAllPoints(); f.list:SetPoint("TOPLEFT", 18, -102); f.list:SetPoint("BOTTOMLEFT", 18, 36); f.list:SetWidth(444); f.list.child:SetWidth(436)
             -- what I offer back
             f.offerTitle = k.label(f, 13, C.lilac); f.offerTitle:SetPoint("TOPLEFT", 492, -68); f.offerTitle:SetWidth(310)
@@ -193,22 +239,30 @@ function A.SocialRefreshViewer()
     f.send.text:SetText(A.L("viewSend")); f.hint:SetText(A.L("viewHint"))
     local icons = f.mode == "equipped" or f.mode == "bags"
     f.grid:SetShown(icons); f.list:SetShown(not icons)
+    f.search:SetShown(icons); f.sortBtn:SetShown(icons); f.summary:SetShown(icons)
+    f.search.hint:SetText(A.L("viewSearch")); f.sortBtn.text:SetText(A.L("viewSortBy") .. " " .. A.L("viewSort_" .. SORTS[f.sort or 1]))
     if f.mode == "equipped" then
-        local cells = {}
-        for _, e in ipairs(v.equipped) do
+        local entries = {}
+        for i, e in ipairs(v.equipped) do
             local id = e[2]
-            cells[#cells + 1] = {itemId = id, icon = k.itemIcon(id), slot = A.L("viewSlot" .. e[1]), mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and A.L("viewWant") or nil,
-                onClick = function() cycle(f.wanted, id, 1); A.SocialRefreshViewer() end}
+            local slotName = A.L("viewSlot" .. e[1])
+            entries[#entries + 1] = {id = id, order = e[1] * 100 + i, cell = {itemId = id, icon = k.itemIcon(id), slot = slotName, caption = plain(slotName), mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and A.L("viewWant") or nil,
+                onClick = function() cycle(f.wanted, id, 1); A.SocialRefreshViewer() end}}
         end
-        f.grid.SetCells(cells, A.L("noData"))
+        local cells, shown = arrange(entries, f.query, SORTS[f.sort or 1], true)
+        f.grid.SetCells(cells, (f.query or "") ~= "" and A.L("viewNoMatch") or A.L("noData"))
+        f.summary:SetText(string.format(A.L("viewCount"), shown, #entries))
     elseif f.mode == "bags" then
-        local cells = {}
+        local entries, pieces = {}, 0
         for _, e in ipairs(v.bags) do
             local id, n = e[1], e[2]
-            cells[#cells + 1] = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and (f.wanted[id] >= n and n > 1 and "x" .. n or A.L("viewWant")) or nil,
-                onClick = function() cycle(f.wanted, id, n); A.SocialRefreshViewer() end}
+            pieces = pieces + n
+            entries[#entries + 1] = {id = id, cell = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.wanted[id] and "want" or nil, markText = f.wanted[id] and (f.wanted[id] >= n and n > 1 and "x" .. n or A.L("viewWant")) or nil,
+                onClick = function() cycle(f.wanted, id, n); A.SocialRefreshViewer() end}}
         end
-        f.grid.SetCells(cells, A.L("noData"))
+        local cells, shown = arrange(entries, f.query, SORTS[f.sort or 1], false)
+        f.grid.SetCells(cells, (f.query or "") ~= "" and A.L("viewNoMatch") or A.L("noData"))
+        f.summary:SetText(string.format(A.L("viewCount"), shown, #entries))
     elseif f.mode == "professions" then
         local rows = {}
         for _, p in ipairs(v.professions) do
@@ -219,13 +273,14 @@ function A.SocialRefreshViewer()
         f.list.SetItems({{title = v.gold and money(v.gold) or A.L("viewNoGold"), sub = A.L("socialGold"), icon = k.ICON.vendor}}, A.L("noData"))
     end
     -- what I could offer: my own bags
-    local cells = {}
+    local mine = {}
     for _, e in ipairs(A.OwnInventory().bags) do
         local id, n = e[1], e[2]
-        cells[#cells + 1] = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.offered[id] and "offer" or nil, markText = f.offered[id] and (f.offered[id] >= n and n > 1 and "x" .. n or A.L("viewOffer")) or nil,
-            onClick = function() cycle(f.offered, id, n); A.SocialRefreshViewer() end}
+        mine[#mine + 1] = {id = id, cell = {itemId = id, icon = k.itemIcon(id), count = n, mark = f.offered[id] and "offer" or nil, markText = f.offered[id] and (f.offered[id] >= n and n > 1 and "x" .. n or A.L("viewOffer")) or nil,
+            onClick = function() cycle(f.offered, id, n); A.SocialRefreshViewer() end}}
     end
-    f.offers.SetCells(cells, A.L("viewNoOffer"))
+    local cells = arrange(mine, f.query, SORTS[f.sort or 1], false)
+    f.offers.SetCells(cells, (f.query or "") ~= "" and #mine > 0 and A.L("viewNoMatch") or A.L("viewNoOffer"))
 end
 
 function A.SocialSendFromViewer()
@@ -535,6 +590,8 @@ local text = {
         viewWant = "WANT", viewOffer = "OFFER", viewMyOffer = "My offer (my bags)", viewGoldOffer = "Gold I offer", viewNote = "Note", viewSend = "Send proposal", viewSent = "Proposal sent to %s.",
         viewHint = "Click an item to mark it as wanted (click again for the whole stack, again to remove). Pick what you offer on the right, then send.", viewNoGold = "They did not show their gold.",
         viewNoProf = "No professions shown, or none recorded yet.", viewRecipes = "%d known recipes",
+        viewSearch = "Search items...", viewSortBy = "Sort:", viewSort_default = "default", viewSort_quality = "quality", viewSort_name = "name", viewSort_type = "type (groups)", viewCount = "%d/%d", viewNoMatch = "Nothing matches.",
+        viewType_weapon = "Weapons", viewType_armor = "Armor", viewType_consumable = "Consumables", viewType_container = "Bags", viewType_ammo = "Ammunition", viewType_trade = "Trade goods", viewType_recipe = "Recipes", viewType_quest = "Quest items", viewType_misc = "Other", viewType_unknown = "Not loaded yet",
         propTitle = "%s proposes a trade", propWants = "Wants from you:", propOffers = "Offers:", propGold = "Gold: %s", propNote = "Note: %s", propAccept = "Accept", propDecline = "Decline",
         propAcceptedHint = "Accepted. Meet and use the normal trade window.", meetTitle = "%s suggests a meet", meetWaypoint = "Set waypoint", meetDismiss = "Dismiss",
         viewSlot1 = "Head", viewSlot2 = "Neck", viewSlot3 = "Shoulder", viewSlot4 = "Shirt", viewSlot5 = "Chest", viewSlot6 = "Waist", viewSlot7 = "Legs", viewSlot8 = "Feet", viewSlot9 = "Wrist", viewSlot10 = "Hands",
@@ -557,6 +614,8 @@ local text = {
         viewWant = "CHCI", viewOffer = "NABÍZÍM", viewMyOffer = "Moje nabídka (moje tašky)", viewGoldOffer = "Zlato, které nabízím", viewNote = "Poznámka", viewSend = "Poslat návrh", viewSent = "Návrh odeslán hráči %s.",
         viewHint = "Kliknutím na věc ji označíš jako chtěnou (znovu = celý stack, znovu = zrušit). Vpravo vyber, co nabízíš, a pošli.", viewNoGold = "Své zlato neukázal.",
         viewNoProf = "Žádné profese neukázal, nebo ještě žádné nejsou zaznamenané.", viewRecipes = "Známých receptů: %d",
+        viewSearch = "Hledat věci...", viewSortBy = "Řazení:", viewSort_default = "výchozí", viewSort_quality = "kvalita", viewSort_name = "název", viewSort_type = "typ (skupiny)", viewCount = "%d/%d", viewNoMatch = "Nic neodpovídá.",
+        viewType_weapon = "Zbraně", viewType_armor = "Zbroj", viewType_consumable = "Spotřebky", viewType_container = "Tašky", viewType_ammo = "Střelivo", viewType_trade = "Řemeslné zboží", viewType_recipe = "Recepty", viewType_quest = "Úkolové věci", viewType_misc = "Ostatní", viewType_unknown = "Ještě nenačteno",
         propTitle = "%s navrhuje výměnu", propWants = "Chce od tebe:", propOffers = "Nabízí:", propGold = "Zlato: %s", propNote = "Poznámka: %s", propAccept = "Přijmout", propDecline = "Odmítnout",
         propAcceptedHint = "Přijato. Sejděte se a použijte běžné okno výměny.", meetTitle = "%s navrhuje sraz", meetWaypoint = "Nastavit waypoint", meetDismiss = "Zavřít",
         viewSlot1 = "Hlava", viewSlot2 = "Krk", viewSlot3 = "Ramena", viewSlot4 = "Košile", viewSlot5 = "Hruď", viewSlot6 = "Opasek", viewSlot7 = "Nohy", viewSlot8 = "Boty", viewSlot9 = "Zápěstí", viewSlot10 = "Ruce",
