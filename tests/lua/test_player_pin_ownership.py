@@ -123,6 +123,23 @@ class PlayerPinOwnershipTests(unittest.TestCase):
         self.m.Refresh()
         self.assertEqual(self.titles("world"), {"Bran"})
 
+    def test_navigation_bend_and_nearby_waypoint_do_not_mimic_an_extra_player(self):
+        self.lua.execute('''
+          Evertally.map=Evertally.map or {}
+          NEAR=4
+        ''')
+        self.m.NavPins = self.lua.eval('function() return {{id="terrain",map=1429,x=.3,y=.4,title="Bend"},{id="next",map=1429,x=.3,y=.4,title="Next"},{id="goal",map=1429,x=.3,y=.4,title="Goal"}} end')
+        self.m.DistanceTo = self.lua.eval('function() return NEAR end')
+        self.m.Refresh()
+        self.assertEqual(self.titles("world"), {"Goal"})
+        self.assertEqual(self.titles("mini"), {"Goal"})
+        self.lua.globals().NEAR = 9
+        self.m.Refresh()
+        self.assertEqual(self.titles("world"), {"Next", "Goal"})
+        self.lua.globals().NEAR = None
+        self.m.Refresh()
+        self.assertEqual(self.titles("mini"), {"Next", "Goal"})
+
     def test_blizzard_map_owns_only_group_positions_on_its_current_zone_or_parent(self):
         self.lua.execute('''
           UnitInParty=function() return 1 end

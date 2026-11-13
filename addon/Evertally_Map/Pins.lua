@@ -192,8 +192,13 @@ local function wanted()
     end
     for _, pin in ipairs(M.NavPins()) do
         local goal = pin.id == "goal"
+        -- The terrain bend is already represented by the continuous line;
+        -- beside the player it otherwise looks like a second player marker.
+        local distance = pin.id == "next" and M.DistanceTo(pin.map, pin.x, pin.y)
+        if pin.id ~= "terrain" and not (pin.id == "next" and type(distance) == "number" and distance <= 8) then
         out["n:" .. pin.id] = {icon = goal and "goal" or "next", color = goal and {1, 0.84, 0.1} or {0.655, 0.545, 0.98}, map = pin.map, x = pin.x, y = pin.y, title = pin.title, edge = true,
             pulse = goal, caption = goal, lines = {zoneName(pin.map)}}
+        end
     end
     return out
 end
