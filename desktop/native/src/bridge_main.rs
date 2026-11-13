@@ -460,6 +460,7 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     if !args.iter().any(|a| a == "--connection-settings") {
+        evertally_sync::app_update::set_current_version(env!("CARGO_PKG_VERSION"));
         return evertally_sync::run().map_err(|e| e.to_string());
     }
     let Some(_instance) = platform::single_instance_named("Local\\EvertallyConnectionSettings")

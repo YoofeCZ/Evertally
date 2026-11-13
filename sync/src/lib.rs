@@ -5,6 +5,7 @@
 
 pub mod api;
 pub mod addon_update;
+pub mod app_update;
 pub mod bridge;
 pub mod config;
 pub mod forum;

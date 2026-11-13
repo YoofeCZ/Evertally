@@ -22,7 +22,7 @@ struct Journal { staging: String, backup: String, existed: Vec<bool> }
 
 struct FileEntry { relative: PathBuf, data: Vec<u8> }
 
-fn read_url(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
+pub(crate) fn read_url(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
     let mut response=agent.get(url).header("Cache-Control", "no-cache").call()?;
     ensure!(response.status().is_success(), "HTTP {}", response.status());
     let mut bytes=Vec::new();

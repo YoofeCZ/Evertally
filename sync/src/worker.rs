@@ -159,13 +159,21 @@ impl Worker {
             let mut updater=crate::addon_update::Updater::new(config_path.parent().unwrap_or_else(||std::path::Path::new(".")));let mut last=String::new();
             loop {
                 let mut wait=Duration::from_secs(300);
-                let result=if config_path.is_file(){crate::config::load_config(&config_path).and_then(|config|updater.check(&config,&addon_lock))}else{Ok(None)};
+                let config=if config_path.is_file(){crate::config::load_config(&config_path)}else{Err(anyhow::anyhow!("no config"))};
+                let result=match &config {Ok(config)=>updater.check(config,&addon_lock),Err(_)=>Ok(None)};
+                // A newer published installer replaces this app; setup closes the bridge and starts the new one.
+                let app=match &config {Ok(config)=>crate::app_update::check(config_path.parent().unwrap_or_else(||std::path::Path::new(".")),config),Err(_)=>Ok(crate::app_update::Outcome::Nothing)};
                 let cs=crate::platform::prefers_czech();
                 let message=match result {
                     Ok(Some(true))=>if cs {"Addon je aktuální"}else{"Addon is up to date"}.to_owned(),
                     Ok(Some(false))=>{wait=Duration::from_secs(30);if cs {"Aktualizace addonu čeká na zavření WoW"}else{"Addon update waits for WoW to close"}.to_owned()},
                     Ok(None)=>String::new(),
                     Err(error)=>{wait=Duration::from_secs(60);format!("{}: {error}",if cs {"Aktualizace addonu selhala"}else{"Addon update failed"})},
+                };
+                let message=match app {
+                    Ok(crate::app_update::Outcome::Started(version))=>format!("{} {version}",if cs {"Instaluji novou verzi aplikace"}else{"Installing new app version"}),
+                    Ok(crate::app_update::Outcome::Nothing)=>message,
+                    Err(error)=>{wait=Duration::from_secs(60);format!("{}: {error}",if cs {"Aktualizace aplikace selhala"}else{"App update failed"})},
                 };
                 if !message.is_empty() && message!=last {let _=update_tx.send(Command::AddonStatus(message.clone()));last=message;}
                 match update_rx.recv_timeout(wait) {Ok(())|Err(RecvTimeoutError::Disconnected)=>break,Err(RecvTimeoutError::Timeout)=>{}}
