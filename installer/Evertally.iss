@@ -77,6 +77,9 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 Filename: "{app}\EvertallyBackground.exe"; Tasks: startwow; Flags: nowait runhidden
 Filename: "{app}\Evertally.exe"; Description: "{cm:StartBackground}"; Flags: postinstall nowait skipifsilent
+; A silent update (the bridge updating itself) must leave the bridge running again: Setup closed it, and nobody clicks "Start" on the last page.
+Filename: "{app}\Evertally.exe"; Check: WizardSilent; Flags: nowait
+Filename: "{app}\EvertallyBackground.exe"; Check: SilentWithAutostart; Flags: nowait runhidden
 
 [Code]
 var GamePage: TInputDirWizardPage;
@@ -114,6 +117,11 @@ begin
   { Gracefully stop only this application's processes before Restart Manager checks locks. }
   StopBridge;
   Result := '';
+end;
+
+function SilentWithAutostart: Boolean;
+begin
+  Result := WizardSilent and RegValueExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'EvertallySync');
 end;
 
 function GameRoot: String;
