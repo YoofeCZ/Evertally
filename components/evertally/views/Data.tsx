@@ -89,8 +89,9 @@ export function RunsView({ user }: { user: User | null }) {
 }
 
 export function RankingsView() {
-  const { t, num } = useI18n();
-  const [metric, setMetric] = useState<"count" | "time">("count");
+  const { t, num, lang } = useI18n();
+  const [metric, setMetric] = useState<"count" | "time" | "dps" | "hps">("count");
+  const metricTitle=metric==="count"?t("rankings.count"):metric==="time"?t("rankings.time"):metric.toUpperCase();
   const [filters, setFilters] = useState<Record<string, string>>({});
   const query = new URLSearchParams({ metric, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) });
   const board = useApi<{ entries: Entry[]; sampleSize: number; rulesLabel: string }>(`/api/leaderboards?${query}`);
@@ -100,25 +101,29 @@ export function RankingsView() {
     <>
       <PageHead title={t("rankings.title")} lead={t("rankings.lead")} />
       <div className="page-column">
-        <ConsoleWindow title={<>{t("nav.rankings").toLowerCase()} <span>/</span> {metric === "count" ? t("rankings.count").toLowerCase() : t("rankings.time").toLowerCase()}</>}
+        <ConsoleWindow title={<>{t("nav.rankings").toLowerCase()} <span>/</span> {metricTitle}</>}
           actions={<span className="muted mono">{t("rankings.sample")}: {num(board.data?.sampleSize)}</span>}>
           <div className="toolbar">
             <div className="segmented">
               <button className={metric === "count" ? "on" : ""} onClick={() => setMetric("count")}>{t("rankings.count")}</button>
               <button className={metric === "time" ? "on" : ""} onClick={() => setMetric("time")}>{t("rankings.time")}</button>
+              <button className={metric === "dps" ? "on" : ""} onClick={() => setMetric("dps")}>DPS</button>
+              <button className={metric === "hps" ? "on" : ""} onClick={() => setMetric("hps")}>HPS</button>
             </div>
+            <label className="field"><span>{lang==="cs"?"Kategorie":"Category"}</span><select value={filters.instanceType??""} onChange={e=>setFilters(f=>({...f,instanceType:e.target.value}))}><option value="">{lang==="cs"?"Vše":"All"}</option><option value="party">{lang==="cs"?"Dungeony":"Dungeons"}</option><option value="raid">{lang==="cs"?"Raidy":"Raids"}</option></select></label>
           </div>
+          <p className="fine-print">{lang==="cs"?"Pozorované průchody a bojová měření. Nejde o ověřené soutěžní skóre; chybějící a částečná DPS/HPS se neřadí. Pro časy a DPS/HPS vyber konkrétní instanci.":"Observed participations and combat measurements, not verified competitive scores. Missing/partial DPS/HPS is excluded. Select one instance for times and combat rates."}</p>
           <Filters runs={runs.data?.runs ?? []} value={filters} onChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))} />
           {board.error ? <p className="notice error" role="alert">{t("error.service_unavailable")}</p> : entries.length ? (
             <div className="table-wrap">
               <table className="data-table">
-                <thead><tr><th>{t("rankings.rank")}</th><th>{t("runs.character")}</th><th>{t("runs.class")} / {t("runs.race")}</th><th className="num">{metric === "time" ? t("runs.time") : t("rankings.count")}</th></tr></thead>
+                <thead><tr><th>{t("rankings.rank")}</th><th>{t("runs.character")}</th><th>{t("runs.class")} / {t("runs.race")}</th><th className="num">{metricTitle}</th></tr></thead>
                 <tbody>{entries.map((e) => (
                   <tr key={e.character.id}>
                     <td className="mono rank">{String(e.rank).padStart(2, "0")}</td>
                     <td><CharacterBadge character={e.character} unnamed={t("common.private")} /><small>{e.character.realm ?? ""}</small></td>
                     <td><span className="character-badge"><GameIcon group="classes" id={e.character.classId} label={CLASSES[e.character.classId ?? 0] ?? "—"} size={22} />{CLASSES[e.character.classId ?? 0] ?? "—"}</span><small><GameIcon group="races" id={e.character.raceId} label={RACES[e.character.raceId ?? 0] ?? "—"} size={18} /> {RACES[e.character.raceId ?? 0] ?? ""}</small></td>
-                    <td className="num mono">{metric === "time" ? duration(e.bestMs) : num(e.count)}</td>
+                    <td className="num mono">{metric === "time" ? duration(e.value??e.bestMs) : metric==="count"?num(e.count):e.value==null?"—":new Intl.NumberFormat(lang==="cs"?"cs-CZ":"en-GB",{maximumFractionDigits:1}).format(e.value)}</td>
                   </tr>))}
                 </tbody>
               </table>

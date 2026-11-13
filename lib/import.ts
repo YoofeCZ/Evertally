@@ -97,6 +97,14 @@ export function projectExport(value:ExportEnvelope,scopes:Scope[]):ExportEnvelop
     const rest={...source,payload:scopeFor(event.kind)==="world_facts"?worldPayload(event.kind,event.payload):event.payload};
     if(includeCharacter)return {...rest,...(character?{character:{...character}}:{})};
     if((scopeFor(event.kind)==="own_runs"||scopeFor(event.kind)==="own_track")&&character){
+      if(scopeFor(event.kind)==="own_runs"){
+        rest.payload={...rest.payload};delete rest.payload.roster;
+        const combat=rest.payload.combat as Record<string,unknown>|undefined;
+        if(combat&&typeof combat==="object"){
+          const players=Array.isArray(combat.players)?combat.players as Record<string,unknown>[]:[];
+          rest.payload.combat={...combat,players:players.filter(p=>p.guid===character.id).map(p=>{const clean:Record<string,unknown>={...p,guid:value.producerId+":own"};delete clean.name;return clean;})};
+        }
+      }
       return {...rest,character:{id:value.producerId+":own",...(character.classId!==undefined?{classId:character.classId}:{}),...(character.raceId!==undefined?{raceId:character.raceId}:{}),...(character.level!==undefined?{level:character.level}:{})}};
     }
     return rest;

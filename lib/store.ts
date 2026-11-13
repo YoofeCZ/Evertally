@@ -7,6 +7,9 @@ import { COMMUNITY_OBSERVATIONS_SQL } from "./community";
 import { atlasEntities } from "./atlas";
 import { PUBLIC_PROFILE_ACCESS_SQL } from "./profiles";
 import { applyGuildSnapshots, pruneTracks, releaseStatements, type Db as PeopleDb, type GuildSnapshot } from "./people";
+import { rankObservedRuns } from "./run-rankings";
+import { projectRunActors } from "./run-combat";
+import type { Run, RunCombat, RunMember } from "../components/evertally/types";
 
 type Row=Record<string,unknown>;
 const now=()=>Math.floor(Date.now()/1000);
@@ -131,7 +134,8 @@ export async function getRuns(userId?:string){
   const runs=new Map<string,Record<string,unknown>>();
   for(const row of rows){const p=decode<Record<string,unknown>>(row.payload,{});const key=String(row.user_id)+":"+String(row.producer_id)+":"+String(p.runId);if(runs.has(key))continue;
     const snapshot=decode<Record<string,unknown>|null>(row.character_data,null);
-    runs.set(key,{id:String(row.id),name:p.name??"Unknown instance",instanceId:p.instanceId??null,instanceType:p.instanceType??"party",startedAt:p.startedAt,endedAt:p.endedAt??null,durationMs:p.durationMs??null,difficultyId:p.difficultyId??null,deaths:p.deaths??null,game:decode<Record<string,unknown>|null>(row.game,null),status:p.status,completion:p.completion??"unknown",rankEligible:false,rulesetId:p.rulesetId??null,bossCount:p.bossCount??null,bosses:p.bosses??[],groupSize:p.groupSize??null,maxLevel:p.maxLevel??null,minLevel:p.minLevel??null,evidence:row.evidence,character:row.p_id?{id:row.p_id,name:snapshot?.name??row.p_name,realm:snapshot?.realm??row.p_realm,classId:snapshot?.classId??row.p_class_id,raceId:snapshot?.raceId??row.p_race_id,level:snapshot?.level??row.p_level}:userId?snapshot:null});}
+    const participants=projectRunActors(p.combat as RunCombat|undefined,p.roster as RunMember[]|undefined,typeof snapshot?.id==="string"?snapshot.id:undefined,typeof row.p_id==="string"?row.p_id:typeof snapshot?.id==="string"?snapshot.id:undefined,!!userId);
+    runs.set(key,{id:String(row.id),name:p.name??"Unknown instance",instanceId:p.instanceId??null,instanceType:p.instanceType??"party",startedAt:p.startedAt,endedAt:p.endedAt??null,durationMs:p.durationMs??null,difficultyId:p.difficultyId??null,deaths:p.deaths??null,game:decode<Record<string,unknown>|null>(row.game,null),status:p.status,completion:p.completion??"unknown",rankEligible:false,rulesetId:p.rulesetId??null,bossCount:p.bossCount??null,bosses:p.bosses??[],roster:participants.roster,combat:participants.combat,groupSize:p.groupSize??null,maxLevel:p.maxLevel??null,minLevel:p.minLevel??null,evidence:row.evidence,character:row.p_id?{id:row.p_id,name:snapshot?.name??row.p_name,realm:snapshot?.realm??row.p_realm,classId:snapshot?.classId??row.p_class_id,raceId:snapshot?.raceId??row.p_race_id,level:snapshot?.level??row.p_level}:userId?snapshot:null});}
   return [...runs.values()];
 }
 
@@ -170,11 +174,5 @@ export async function statusData(){
 }
 
 export async function getLeaderboards(params:URLSearchParams){
-  const metric=params.get("metric")==="time"?"time":"count";const runs=await getRuns();
-  const filtered=runs.filter(run=>{const c=run.character as Record<string,unknown>|null;return c&&(!params.get("classId")||String(c.classId)===params.get("classId"))&&(!params.get("raceId")||String(c.raceId)===params.get("raceId"))&&(!params.get("instanceId")||String(run.instanceId)===params.get("instanceId"))&&run.status==="completed"&&run.completion!=="unknown"&&run.evidence!=="manual";});
-  // No runtime-validated ruleset exists yet: never promote client eligibility to speed records.
-  if(metric==="time")return {entries:[],sampleSize:0,countingUnit:"participation",rulesLabel:"Speed rankings wait for a ruleset verified in the game. Personal times stay in your history."};
-  const grouped=new Map<string,{character:Record<string,unknown>;count:number;bestMs:number|null;instanceId:unknown;name:string}>();
-  for(const run of filtered){const c=run.character as Record<string,unknown>;const key=String(c.id);let entry=grouped.get(key);if(!entry){entry={character:c,count:0,bestMs:null,instanceId:params.get("instanceId")??null,name:String(c.name??"Postava")};grouped.set(key,entry);}entry.count++;if(typeof run.durationMs==="number")entry.bestMs=entry.bestMs===null?run.durationMs:Math.min(entry.bestMs,run.durationMs);}
-  return {entries:[...grouped.values()].sort((a,b)=>b.count-a.count||String(a.character.id).localeCompare(String(b.character.id))).map((entry,index)=>({rank:index+1,...entry})),sampleSize:filtered.length,countingUnit:"participation",rulesLabel:"Recorded completed participations of public characters; several members of one group can each report their own. This is not a count of unique group runs."};
+  return rankObservedRuns(await getRuns() as Run[],params);
 }

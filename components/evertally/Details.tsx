@@ -1,12 +1,58 @@
 "use client";
 import type { ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
-import type { Entity, Run } from "./types";
+import type { CombatMetrics, Entity, Run, RunCombat, RunMember } from "./types";
 import { CLASSES, RACES, duration, elapsedBossTime } from "./data";
 import { GameIcon } from "./Identity";
 
 const known = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
 const label = (value: unknown): ReactNode => typeof value === "string" || typeof value === "number" ? value : "—";
+
+/** Unknown/partial coverage is never turned into a zero or a comparable rate. */
+export function observedCombatRate(combat: RunCombat | null | undefined, amount: number | undefined, activeMs = combat?.activeMs): number | null {
+  if (combat?.coverage !== "observed" || combat.source === "unavailable" || amount == null || !Number.isFinite(amount) || amount < 0 || activeMs == null || !Number.isFinite(activeMs) || activeMs <= 0) return null;
+  return amount / (activeMs / 1000);
+}
+
+export function combatDisplayRows(run: Run): (RunMember & CombatMetrics & { activeMs?: number })[] {
+  const rows = new Map<string, RunMember & CombatMetrics & { activeMs?: number }>();
+  for (const member of run.roster ?? []) rows.set(member.guid, { ...member });
+  for (const member of run.combat?.players ?? []) rows.set(member.guid, { ...rows.get(member.guid), ...member });
+  return [...rows.values()];
+}
+
+function CombatDetails({ run, lang }: { run: Run; lang: string }) {
+  const cs = lang === "cs", combat = run.combat;
+  const rows = combatDisplayRows(run);
+  const words = cs ? {
+    title: "Bojové statistiky", group: "Součty zaznamenané skupiny", player: "Hráč", role: "Role", damage: "Poškození", healing: "Léčení", overhealing: "Přeléčení", absorbs: "Absorpce", damageTaken: "Přijaté poškození", interrupts: "Přerušení", dispels: "Dispel", deaths: "Smrti", active: "Zaznamenaný čas v boji", covered: "Doba sledování", source: "Zdroj", observed: "Zaznamenané bojové intervaly", partial: "Částečný záznam: součty mohou být neúplné; DPS/HPS se nepočítají.", unavailable: "Bojová data nejsou dostupná. Starší běhy se zpětně nedopočítávají.", note: "DPS a HPS používají zaznamenaný čas v boji, nikoli délku celého průchodu. Pomlčka znamená chybějící údaj; nula je skutečně zaznamenaná nula.", meter: "Herní damage meter", log: "Bojový log", unknown: "Neznámá postava", none: "Bez zaznamenané sestavy",
+  } : {
+    title: "Combat statistics", group: "Observed group totals", player: "Player", role: "Role", damage: "Damage", healing: "Healing", overhealing: "Overhealing", absorbs: "Absorbs", damageTaken: "Damage taken", interrupts: "Interrupts", dispels: "Dispels", deaths: "Deaths", active: "Recorded combat time", covered: "Observation period", source: "Source", observed: "Observed combat intervals", partial: "Partial coverage: totals may be incomplete; DPS/HPS are not calculated.", unavailable: "Combat data is unavailable. Older runs are not reconstructed retrospectively.", note: "DPS and HPS use recorded combat time, not the whole instance visit. A dash means missing data; zero is an observed zero.", meter: "Game damage meter", log: "Combat log", unknown: "Unknown player", none: "No recorded roster",
+  };
+  const format = new Intl.NumberFormat(cs ? "cs-CZ" : "en-GB", { maximumFractionDigits: 1 });
+  const number = (value: number | null | undefined) => value != null && Number.isFinite(value) && value >= 0 ? format.format(value) : "—";
+  const coverage = !combat || combat.coverage === "unavailable" || combat.source === "unavailable" ? words.unavailable : combat.coverage === "partial" ? words.partial : words.observed;
+  const source = combat?.source === "damage_meter" ? words.meter : combat?.source === "combat_log" ? words.log : "—";
+  const metrics: [string, keyof CombatMetrics][] = [[words.damage, "damage"], [words.healing, "healing"], [words.overhealing, "overhealing"], [words.absorbs, "absorbs"], [words.damageTaken, "damageTaken"], [words.interrupts, "interrupts"], [words.dispels, "dispels"], [words.deaths, "deaths"]];
+  return <>
+    <h4>{words.title}</h4><p className="detail-note">{coverage}</p>
+    {combat && <><h5>{words.group}</h5><Facts entries={[
+      [words.source, source], [words.active, duration(combat.activeMs)], [words.covered, duration(combat.coveredMs)],
+      ...metrics.map(([name, key]): [string, ReactNode] => [name, number(combat[key])]),
+      ["DPS", number(observedCombatRate(combat, combat.damage))], ["HPS", number(observedCombatRate(combat, combat.healing))],
+    ]} /></>}
+    <p className="fine-print">{words.note}</p>
+    {rows.length ? <div className="table-wrap"><table className="data-table nested-table">
+      <thead><tr><th>{words.player}</th><th>{words.role}</th><th className="num">{words.damage}</th><th className="num">DPS</th><th className="num">{words.healing}</th><th className="num">HPS</th><th className="num">{words.absorbs}</th><th className="num">{words.damageTaken}</th><th className="num">{words.interrupts}</th><th className="num">{words.dispels}</th><th className="num">{words.deaths}</th><th className="num">{words.overhealing}</th></tr></thead>
+      <tbody>{rows.map(player => <tr key={player.guid}>
+        <td><span className="character-badge"><GameIcon group="classes" id={player.classId} label={CLASSES[player.classId ?? 0] ?? "—"} size={20} /><GameIcon group="races" id={player.raceId} label={RACES[player.raceId ?? 0] ?? "—"} size={20} /><span>{player.name ?? words.unknown}<small>{[CLASSES[player.classId ?? 0], RACES[player.raceId ?? 0], player.level].filter(Boolean).join(" · ")}</small></span></span></td>
+        <td>{player.role ?? "—"}</td><td className="num mono">{number(player.damage)}</td><td className="num mono">{number(observedCombatRate(combat, player.damage, player.activeMs ?? combat?.activeMs))}</td>
+        <td className="num mono">{number(player.healing)}</td><td className="num mono">{number(observedCombatRate(combat, player.healing, player.activeMs ?? combat?.activeMs))}</td>
+        <td className="num mono">{number(player.absorbs)}</td><td className="num mono">{number(player.damageTaken)}</td><td className="num mono">{number(player.interrupts)}</td><td className="num mono">{number(player.dispels)}</td><td className="num mono">{number(player.deaths)}</td><td className="num mono">{number(player.overhealing)}</td>
+      </tr>)}</tbody>
+    </table></div> : <p className="muted">{words.none}</p>}
+  </>;
+}
 
 function Facts({ entries }: { entries: [string, ReactNode][] }) {
   return <dl className="detail-facts">{entries.map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value ?? "—"}</dd></div>)}</dl>;
@@ -43,8 +89,9 @@ export function RunDetails({ run }: { run: Run }) {
         <li key={`${boss.encounterId ?? boss.name ?? "boss"}:${boss.killedAt ?? index}`}>
           <span className="timeline-node mono">{String(index + 1).padStart(2, "0")}</span>
           <span><strong>{boss.name ?? (boss.encounterId ? `#${boss.encounterId}` : t("detail.unnamedBoss"))}</strong><small>{utc(boss.killedAt, lang)}</small></span>
-          <span className="mono split-time">{duration(elapsedBossTime(run, boss.killedAt))}<small>{t("detail.sinceStart")}</small></span>
+          <span className="mono split-time">{duration(boss.splitMs ?? elapsedBossTime(run, boss.killedAt))}<small>{t("detail.sinceStart")}</small>{boss.durationMs != null && <small>{lang === "cs" ? "Boj" : "Fight"}: {duration(boss.durationMs)}</small>}</span>
         </li>))}</ol> : <p className="muted">{t("detail.noBosses")}</p>}
+      <CombatDetails run={run} lang={lang} />
     </section>
   );
 }
