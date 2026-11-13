@@ -7,7 +7,7 @@
 use anyhow::{Result, ensure};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path, sync::OnceLock, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{fs, path::Path, sync::{Mutex, OnceLock, atomic::{AtomicBool, Ordering}}, time::{Duration, SystemTime, UNIX_EPOCH}};
 
 const MAX_INSTALLER: u64 = 96 * 1024 * 1024;
 /// After a failed or interrupted attempt the same version is retried at most this often.
@@ -16,6 +16,17 @@ const ATTEMPT_FILE: &str = "app-update-attempt.txt";
 const SETUP_FILE: &str = "EvertallySetup-update.exe";
 
 static CURRENT: OnceLock<&'static str> = OnceLock::new();
+static MANUAL: AtomicBool = AtomicBool::new(false);
+static STATUS: Mutex<String> = Mutex::new(String::new());
+
+/// Version of the running app, when the desktop registered it.
+#[must_use] pub fn current_version() -> Option<&'static str> { CURRENT.get().copied() }
+/// The user asked for an update check now; the next check ignores the retry pause.
+pub fn request_check() { MANUAL.store(true, Ordering::SeqCst); }
+#[must_use] pub fn take_manual() -> bool { MANUAL.swap(false, Ordering::SeqCst) }
+/// One-line update status for the tray menu.
+pub fn set_status(text: String) { if let Ok(mut status) = STATUS.lock() { *status = text; } }
+#[must_use] pub fn status() -> String { STATUS.lock().map(|s| s.clone()).unwrap_or_default() }
 
 /// The desktop app registers its own version here; without it self-update stays off.
 pub fn set_current_version(version: &'static str) {
@@ -56,13 +67,13 @@ fn verify(data: &[u8], installer: &Installer) -> Result<()> {
 
 /// What one check did.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Outcome { Nothing, Started(String) }
+pub enum Outcome { Nothing, UpToDate, Started(String) }
 
 /// Checks the published installer and, when it is newer than this app, starts it.
 ///
 /// # Errors
 /// Network, verification or process-start failures; the caller shows and retries them.
-pub fn check(dir: &Path, config: &crate::config::Config) -> Result<Outcome> {
+pub fn check(dir: &Path, config: &crate::config::Config, force: bool) -> Result<Outcome> {
     let Some(current) = CURRENT.get().copied() else { return Ok(Outcome::Nothing) };
     let origin = config.server_origin()?;
     ensure!(origin.starts_with("https://"), "automatic updates require HTTPS");
@@ -72,10 +83,10 @@ pub fn check(dir: &Path, config: &crate::config::Config) -> Result<Outcome> {
     let Some(installer) = manifest.installer else { return Ok(Outcome::Nothing) };
     ensure!(installer.file == "EvertallySetup.exe" && installer.bytes > 0 && installer.bytes <= MAX_INSTALLER
         && installer.sha256.len() == 64 && installer.sha256.bytes().all(|b| b.is_ascii_hexdigit()), "invalid installer manifest");
-    if !is_newer(&installer.version, current) { return Ok(Outcome::Nothing); }
+    if !is_newer(&installer.version, current) { return Ok(Outcome::UpToDate); }
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let attempt = dir.join(ATTEMPT_FILE);
-    if !attempt_allowed(fs::read_to_string(&attempt).ok().as_deref(), &installer.version, now) { return Ok(Outcome::Nothing); }
+    if !force && !attempt_allowed(fs::read_to_string(&attempt).ok().as_deref(), &installer.version, now) { return Ok(Outcome::Nothing); }
 
     let data = crate::addon_update::read_url(&agent, &format!("{origin}/downloads/EvertallySetup.exe"), MAX_INSTALLER)?;
     verify(&data, &installer)?;

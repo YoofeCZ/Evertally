@@ -37,6 +37,14 @@ pub fn run(
 
     let status = MenuItem::new(texts.starting, false, None);
     let sync = MenuItem::new(texts.sync_now, true, None);
+    let version = MenuItem::new(
+        format!("Evertally {}", crate::app_update::current_version().unwrap_or("?")),
+        false,
+        None,
+    );
+    let update_line = MenuItem::new(texts.update_idle, false, None);
+    let check_update = MenuItem::new(texts.check_updates, true, None);
+    let mut shown_update = String::new();
     let open_site = MenuItem::new(texts.open_site, true, None);
     let pair = MenuItem::new(texts.pair, true, None);
     let settings = MenuItem::new(texts.settings, true, None);
@@ -48,10 +56,14 @@ pub fn run(
     let quit = MenuItem::new(texts.quit, true, None);
     let menu = Menu::new();
     let _ = menu.append_items(&[
+        &version,
+        &update_line,
+        &PredefinedMenuItem::separator(),
         &status,
         &folders,
         &PredefinedMenuItem::separator(),
         &sync,
+        &check_update,
         &open_site,
         &pair,
         &pairing_code,
@@ -102,6 +114,11 @@ pub fn run(
                 signal.reset();
                 let _ = tx.send(action.command());
             }
+        }
+        let update_text = crate::app_update::status();
+        if !update_text.is_empty() && update_text != shown_update {
+            update_line.set_text(&update_text);
+            shown_update = update_text;
         }
         if last_status_write.elapsed() >= Duration::from_secs(5) {
             if let Some(state) = &latest_state {
@@ -162,7 +179,9 @@ pub fn run(
             }
             Event::UserEvent(UserEvent::Menu(event)) => {
                 let id = &event.id;
-                if id == sync.id() {
+                if id == check_update.id() {
+                    let _ = tx.send(Command::CheckUpdate);
+                } else if id == sync.id() {
                     let _ = tx.send(Command::SyncNow);
                 } else if id == open_site.id() {
                     let _ = open::that(&site);
