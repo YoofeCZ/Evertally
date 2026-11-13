@@ -1,6 +1,6 @@
 """Run-scoped meter snapshots, actor attribution, missing data and final combat."""
 import unittest
-from test_addon import runtime
+from test_addon import ADDON, runtime
 
 
 class CombatRunTests(unittest.TestCase):
@@ -80,7 +80,7 @@ class CombatRunTests(unittest.TestCase):
 
     def test_legacy_log_uses_effective_healing_and_does_not_include_overkill(self):
         self.a.FinishRun("interrupted")
-        self.lua.execute("C_DamageMeter=nil;CombatLogGetCurrentEventInfo=function() end;INCOMBAT=true")
+        self.lua.execute('C_DamageMeter=nil;GetBuildInfo=function() return "1.15.7","60000","",11507 end;CombatLogGetCurrentEventInfo=function() end;INCOMBAT=true')
         self.a.RefreshInstance()
         self.lua.execute('''
           Evertally.Combat.ObserveLog(100,"SPELL_DAMAGE",false,"Player-TEST-own","Me",0,0,"Creature-enemy","Mob",0,0,133,"Fireball",4,1200,200)
@@ -125,6 +125,7 @@ class CombatRunTests(unittest.TestCase):
         self.a.FinishRun("interrupted")
         self.lua.execute('''
           C_DamageMeter=nil;CombatLogGetCurrentEventInfo=function() end;INCOMBAT=false
+          GetBuildInfo=function() return "1.15.7","60000","",11507 end
           Evertally.RefreshInstance()
           Evertally.Combat.ObserveLog(100,"SPELL_HEAL",false,"Player-TEST-own","Me",0,0,"Player-TEST-own","Me",0,0,2061,"Heal",2,900,0)
           CLOCK=CLOCK+10
@@ -132,6 +133,55 @@ class CombatRunTests(unittest.TestCase):
         self.a.Combat.Snapshot(self.a.ActiveRun())
         self.assertIsNone(self.a.ActiveRun().combat.healing)
         self.assertEqual(self.a.ActiveRun().combat.activeMs,0)
+
+
+class CombatRegistrationTests(unittest.TestCase):
+    def load_combat(self, interface=16001, native_meter=False):
+        lua, a = runtime()
+        lua.globals().TEST_INTERFACE = interface
+        lua.execute('''
+          GetBuildInfo=function() return "fixture","70862","",TEST_INTERFACE end
+          CombatLogGetCurrentEventInfo=function() return 100,"UNIT_DIED",false,nil,nil,0,0,"Player-TEST-own" end
+          ATTEMPTS={};FORBIDDEN_ATTEMPTS=0
+          Evertally.frame={RegisterEvent=function(_,event)
+            ATTEMPTS[#ATTEMPTS+1]=event
+            if event=="COMBAT_LOG_EVENT_UNFILTERED" and (not TEST_INTERFACE or TEST_INTERFACE>=16000) then
+              FORBIDDEN_ATTEMPTS=FORBIDDEN_ATTEMPTS+1
+              error("restricted registration: pcall cannot prevent the game popup")
+            end
+            return true
+          end}
+        ''')
+        if native_meter:
+            lua.execute('''C_DamageMeter={IsDamageMeterAvailable=function() return true end,
+              GetAvailableCombatSessions=function() return {} end,GetCombatSessionFromID=function() end}''')
+        fn = lua.eval("loadstring")((ADDON / "Combat.lua").read_text(encoding="utf-8"), "Combat.lua")
+        fn("Evertally", a)
+        run = lua.table_from({"runId": "registration-test", "character": a.Character()})
+        a.Combat.Start(run)
+        return lua, a, run
+
+    def test_forever_never_attempts_restricted_registration_even_with_legacy_api_stub(self):
+        for interface in (16001, 16002, 120000, None):
+            with self.subTest(interface=interface):
+                lua, a, run = self.load_combat(interface)
+                self.assertNotIn("COMBAT_LOG_EVENT_UNFILTERED", list(lua.globals().ATTEMPTS.values()))
+                self.assertEqual(lua.globals().FORBIDDEN_ATTEMPTS, 0)
+                self.assertIsNone(a.handlers.COMBAT_LOG_EVENT_UNFILTERED)
+                self.assertEqual(run.combat.source, "unavailable")
+
+    def test_forever_keeps_native_meter_without_a_legacy_registration(self):
+        lua, _, run = self.load_combat(native_meter=True)
+        self.assertNotIn("COMBAT_LOG_EVENT_UNFILTERED", list(lua.globals().ATTEMPTS.values()))
+        self.assertEqual(run.combat.source, "damage_meter")
+
+    def test_recognized_legacy_classic_still_registers_and_receives_public_log(self):
+        lua, a, run = self.load_combat(interface=11507)
+        self.assertIn("COMBAT_LOG_EVENT_UNFILTERED", list(lua.globals().ATTEMPTS.values()))
+        self.assertEqual(run.combat.source, "combat_log")
+        a.Dispatch("COMBAT_LOG_EVENT_UNFILTERED")
+        a.Combat.Snapshot(run)
+        self.assertEqual(run.combat.players[1].deaths, 1)
 
 
 if __name__ == "__main__":

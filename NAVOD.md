@@ -1,4 +1,6 @@
-# Evertally 0.9.0 — addon, web a Windows Bridge
+# Evertally — addon 0.9.1, web a Windows Bridge 0.9.0
+
+Oprava addonu 0.9.1: při načtení na Forever se vůbec neregistruje omezený starý combat log (`COMBAT_LOG_EVENT_UNFILTERED`). Statistiky používají nativní `C_DamageMeter`; není-li dostupný, měření zůstane nedostupné. Oprava míří na hlášku „blocked from an action only available to the Blizzard UI“ po přihlášení. Automatické testy ověřují vynechání registrace, její zmizení v běžící hře musí potvrdit skutečné přihlášení po `/reload`. Tato aktualizace nevyžaduje reinstalaci Windows mostu.
 
 Verze 0.9.0, 13. 11. 2026. Addon sbírá vlastní herní události, nainstalovaný Windows most je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části. Změny addonu a ověření shrnuje VYDANI-0.9.0.md; předchozí opravy VYDANI-0.8.1.md.
 

@@ -53,6 +53,16 @@ local function native()
     return C_DamageMeter and type(C_DamageMeter.GetAvailableCombatSessions)=="function" and type(C_DamageMeter.GetCombatSessionFromID)=="function"
         and (type(C_DamageMeter.IsDamageMeterAvailable)~="function" or A.Call(C_DamageMeter.IsDamageMeterAvailable)==true)
 end
+local function legacyLogAllowed()
+    -- Forever exposes legacy API stubs, but registering CLEU is restricted and
+    -- can show ADDON_ACTION_FORBIDDEN even when RegisterEvent is inside pcall.
+    -- Only positively identified pre-Forever Classic clients may use it.
+    if C_DamageMeter then return false end
+    local _,_,_,interface=A.Call(GetBuildInfo)
+    interface=A.Number(interface,10000,59999)
+    return interface and (interface<16000 or interface>=20000)
+        and type(CombatLogGetCurrentEventInfo)=="function" or false
+end
 local function sessions()
     local list=native() and A.Call(C_DamageMeter.GetAvailableCombatSessions)
     return type(list)=="table" and list or {}
@@ -60,7 +70,7 @@ end
 function C.Start(run)
     state={run=run,at=A.Monotonic(),members={},pets={},baseline={},tracked={},sessions={},epoch=0,partial=false,deaths={},dead={}}
     C.Roster(run)
-    state.source=native() and "damage_meter" or type(CombatLogGetCurrentEventInfo)=="function" and "combat_log" or "unavailable"
+    state.source=native() and "damage_meter" or legacyLogAllowed() and "combat_log" or "unavailable"
     for _,s in pairs(sessions()) do local id=A.Number(A.Field(s,"sessionID"),1);if id then state.baseline[id]=true end end
     if A.Call(UnitAffectingCombat,"player")==true then state.partial=true end
     run.combat={source=state.source,coverage="unavailable",coveredMs=0,activeMs=0,players={}}
@@ -219,11 +229,13 @@ function C.ObserveLog(...)
     if field=="damage" then add(dst,"damageTaken",amount) end
 end
 
-A.On("COMBAT_LOG_EVENT_UNFILTERED",function()
-    if not state or state.source~="combat_log" then return end
-    local ok=pcall(function() C.ObserveLog(CombatLogGetCurrentEventInfo()) end)
-    if not ok then state.partial=true end
-end)
+if legacyLogAllowed() then
+    A.On("COMBAT_LOG_EVENT_UNFILTERED",function()
+        if not state or state.source~="combat_log" then return end
+        local ok=pcall(function() C.ObserveLog(CombatLogGetCurrentEventInfo()) end)
+        if not ok then state.partial=true end
+    end)
+end
 A.On("PLAYER_REGEN_ENABLED",function() if state then closeLegacy();C.Snapshot(state.run) end;C.FinalizePending() end)
 A.On("PLAYER_REGEN_DISABLED",function() if state and state.source=="combat_log" then state.fightStart=state.fightStart or A.Monotonic();state.enemyActive=true end end)
 A.On("GROUP_ROSTER_UPDATE",function() if state then C.Roster(state.run) end end)
