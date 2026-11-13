@@ -1,6 +1,27 @@
-# Evertally — addon 0.8.4, web a Windows Bridge 0.8.1
+# Evertally 0.9.0 — addon, web a Windows Bridge
 
-Addon 0.8.4, web a Windows most 0.8.1, 13. 11. 2026. Addon sbírá vlastní herní události, nainstalovaný Windows most je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části. Změny addonu a ověření shrnuje VYDANI-0.8.4.md; předchozí opravy VYDANI-0.8.1.md.
+Verze 0.9.0, 13. 11. 2026. Addon sbírá vlastní herní události, nainstalovaný Windows most je čte a volitelně synchronizuje; web zobrazuje povolené záznamy a referenční databázi. Jazyk EN/CS se vybírá samostatně v každé části. Změny addonu a ověření shrnuje VYDANI-0.9.0.md; předchozí opravy VYDANI-0.8.1.md.
+
+## Talenty, profily a doporučení (0.9.0)
+
+Na stránce **Talenty** je **Export plánu** (zkopíruj kód ETB1), **Import profilu** (vlož kód; kontroluje třídu, schéma, ranky a podmínky) a **Doporučené buildy**. Import uloží nový profil a nepřepíše existující. Vlastní plán můžeš pojmenovat a uložit; výběr uloženého profilu jej otevře k úpravám. Kód je datový, ne Lua skript. Plánování ani import nerozdělují skutečné body ve hře. Stromy začínají na 75 %, tlačítky zoomu je nastavíš mezi 50 a 150 %. Úroveň plánu je samostatná volba.
+
+Katalog má 13 plánů z aktuálních Forever stránek WoW Handbook: všech devět tříd, pět variant pro druida. Plány jsou rozdělení 51 bodů na úrovni 60, nikoli automatické pořadí bodů od úrovně 10. Zdroj a datum jsou přímo v dialogu. Každý talent se ověří proti datům klienta; při nekompatibilitě se šablona nenačte.
+
+## Podrobné instance a bojové statistiky (0.9.0)
+
+**Žebříček** obsahuje Dokončení, Úroveň, Nejlepší čas, Instance, DPS, HPS a Běhy. Filtry rozlišují dungeony/raidy, třídu, rasu a konkrétní instanci. Klikni na hráče nebo běh: detail ukáže dobu, stav, doklad dokončení, bossy a jejich časy, sestavu, bojové časy a dostupná měření. Aktuální instance je v historii také, ale nerozpracovaný ani ručně ukončený průchod nezískává dokončení či soutěžní rychlost. Ruční ukončení je explicitní tlačítko v detailu aktivního záznamu. Katalog 45 referenčních instancí neznamená, že je hráči již prošli.
+
+Nové běhy sbírají poškození, účinné léčení, absorbce, přijaté poškození, přerušení, dispely a úmrtí, pokud je klient poskytne. Upřednostňuje se veřejný snímek jednotlivých bojových sessions z C_DamageMeter po skončení boje; předchozí boje zvenčí se nezapočítají. Starší klient s přístupným combat logem má náhradní parser. Utajené či nepřístupné hodnoty se nečtou. DPS/HPS používá zaznamenané bojové sekundy a konkrétního hráče, nikoli skupinový součet připsaný majiteli. Chybějící a částečná data se neřadí jako nuly. Starší běhy nelze zpětně doplnit.
+
+Skupinové údaje vidí pozorovatel v místním běhu; omezené addonové souhrny přenášejí vlastníka a jeho připsaná měření, aby se vešly i po raidu. Web přijímá rozšířená data, detail běhu ukazuje statistiky a veřejný žebříček umí DPS/HPS i pozorované časy pro jednu instanci. Veřejné detaily zobrazují identitu publikujícího profilu; plná sestava je v přihlášené vlastní historii. Když export vlastní identity vypneš, sestava a jména se do webové projekce nepřenesou. Pozorované záznamy nejsou Raider.IO skóre ani ověřený žebříček celého serveru.
+
+## Cozy Sleeping Bag pro obě frakce
+
+V **Návody → Levelování** najdeš **Cozy Sleeping Bag · Aliance** a **Cozy Sleeping Bag · Horda**. Obě kapitoly obsahují celý postup od úrovně 14: vlastní start, cestu k druhým ostatkům, Stonetalon, Loch Modan a závěrečnou zeď s vakem. Tlačítka **Navigovat** vedou k zastávkám; poslední lezení a skoky musí hráč provést sám. Texty jsou přímo v addonu, zdroje a ověřené datum jsou na konci kapitoly.
+
+Tato verze přidává nové Lua soubory: WoW po instalaci úplně ukonči a znovu spusť.
+
 
 Windows Bridge běží vedle hodin. Z ikony otevřeš malé okno s kartami Web sync a Nastavení spojení: párování, kód, stav spojení, synchronizace, odpojení a oprávnění exportu. Mapa a databáze jsou na webu. Verze 0.6.0 přidává živou vlastní polohu přes barevný datový proužek addonu; historie dál používá uložení hry.
 

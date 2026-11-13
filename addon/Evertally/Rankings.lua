@@ -1,203 +1,276 @@
 local _, A = ...
--- The Leaderboard page: every player whose addon shared with you, ranked by completed dungeons, by level or by best time, plus the best time in each dungeon.
--- It is a ranking of the players you know, not of the realm, and the page says so.
+-- Personal/shared observations. Unknown measurements never become zero damage or a realm score.
 local text = {
-    en = {
-        rankings = "Leaderboard", sub_rankings = "Players whose addon shared with you, and you. Not a leaderboard of the whole realm.",
-        rankModeRuns = "Dungeons completed", rankModeLevel = "Level", rankModeFastest = "Fastest run", rankModeDungeons = "Best time per dungeon",
-        rankYou = "You are #%d of %d", rankYouAlone = "Nobody has shared with you yet. Turn on in-game sharing and play in a group.", rankNoRuns = "You have no completed run with a time yet.",
-        rankRuns = "%d completed", rankLevel = "Level %s", rankPlayers = "%d players", rankNoData = "Nothing to rank yet.", rankSelf = "you", rankReceived = "received",
-    },
-    cs = {
-        rankings = "Žebříček", sub_rankings = "Hráči, jejichž addon s tebou sdílel, a ty. Není to žebříček celého serveru.",
-        rankModeRuns = "Dokončené dungeony", rankModeLevel = "Úroveň", rankModeFastest = "Nejrychlejší běh", rankModeDungeons = "Nejlepší čas v dungeonu",
-        rankYou = "Jsi #%d z %d", rankYouAlone = "Zatím s tebou nikdo nesdílel. Zapni sdílení ve hře a hraj ve skupině.", rankNoRuns = "Zatím nemáš žádný dokončený běh s časem.",
-        rankRuns = "dokončeno: %d", rankLevel = "Úroveň %s", rankPlayers = "Hráčů: %d", rankNoData = "Zatím není co řadit.", rankSelf = "ty", rankReceived = "přijato",
-    },
+ en={rankings="Leaderboard",sub_rankings="Your retained runs and players who shared with you. Personal observations, not a realm-wide competitive ranking.",rankModeRuns="Completions",rankModeLevel="Level",rankModeFastest="Best time",rankModeDungeons="Instances",rankModeDps="DPS",rankModeHeals="HPS",rankModeHistory="Run history",rankYou="You are #%d of %d",rankYouAlone="Local records only. Other players appear after sharing.",rankNoRuns="No completed timed run recorded.",rankRuns="%d completed",rankLevel="Level %s",rankPlayers="%d players",rankNoData="No matching records.",rankSelf="you",rankReceived="received",rankAll="All",rankParty="Dungeons",rankRaid="Raids",rankClass="Class",rankRace="Race",rankBack="< Leaderboard",rankUnrecorded="Not recorded",rankCombat="Combat measurements",rankActive="Combat time",rankCovered="Observation time",rankDamage="Damage",rankHealing="Effective healing",rankOverheal="Overhealing",rankTaken="Damage taken",rankDeaths="Deaths",rankBosses="Bosses",rankGroup="Group size",rankDuration="Run duration",rankStatus="Status",rankFinished="Completion evidence",rankRoster="Players in this run",rankPartial="Partial coverage · excluded from DPS/HPS rankings",rankObserved="Observed coverage · local measurements",rankUnavailable="Combat data unavailable · excluded from DPS/HPS rankings",rankScope="Group totals; rates below belong to individual players.",rankRateNote="DPS/HPS use recorded combat seconds. Different instances and incomplete observations are not directly comparable.",rankNoHistory="No retained runs for this player and filter.",rankReference="Reference entry · no observed run",rankCompleted="completed",rankInterrupted="interrupted",rankManual="manually ended",rankVisiting="visiting",rankUnknown="Unknown",rankNoBosses="No individual boss events recorded.",rankPersonal="Personal/shared record · no verified competitive score",rankFilterHint="Choose category, class, race and instance; click a player or run for details."},
+ cs={rankings="Žebříček",sub_rankings="Tvoje uložené běhy a hráči, kteří s tebou sdíleli. Osobní záznamy, ne soutěžní žebříček celého serveru.",rankModeRuns="Dokončení",rankModeLevel="Úroveň",rankModeFastest="Nejlepší čas",rankModeDungeons="Instance",rankModeDps="DPS",rankModeHeals="HPS",rankModeHistory="Běhy",rankYou="Jsi #%d z %d",rankYouAlone="Jen místní záznamy. Další hráči se objeví po sdílení.",rankNoRuns="Žádný dokončený běh se zaznamenaným časem.",rankRuns="dokončeno: %d",rankLevel="Úroveň %s",rankPlayers="Hráčů: %d",rankNoData="Žádné odpovídající záznamy.",rankSelf="ty",rankReceived="přijato",rankAll="Vše",rankParty="Dungeony",rankRaid="Raidy",rankClass="Třída",rankRace="Rasa",rankBack="< Žebříček",rankUnrecorded="Nezaznamenáno",rankCombat="Bojové statistiky",rankActive="Čas v boji",rankCovered="Doba pozorování",rankDamage="Poškození",rankHealing="Účinné léčení",rankOverheal="Přeléčení",rankTaken="Přijaté poškození",rankDeaths="Úmrtí",rankBosses="Bossové",rankGroup="Velikost skupiny",rankDuration="Doba běhu",rankStatus="Stav",rankFinished="Doklad dokončení",rankRoster="Hráči v tomto běhu",rankPartial="Částečné pokrytí · neřadí se podle DPS/HPS",rankObserved="Pozorované pokrytí · místní měření",rankUnavailable="Bojová data nejsou dostupná · neřadí se podle DPS/HPS",rankScope="Součty patří celé skupině; hodnoty níže jednotlivým hráčům.",rankRateNote="DPS/HPS používají zaznamenaný čas v boji. Různé instance a neúplná měření nelze přímo porovnávat.",rankNoHistory="Pro hráče a zvolený filtr nejsou uložené běhy.",rankReference="Referenční položka · bez zaznamenaného běhu",rankCompleted="dokončeno",rankInterrupted="přerušeno",rankManual="ručně ukončeno",rankVisiting="návštěva",rankUnknown="Neznámé",rankNoBosses="Jednotliví bossové nebyli zaznamenáni.",rankPersonal="Osobní/sdílený záznam · bez ověřeného soutěžního skóre",rankFilterHint="Vyber kategorii, třídu, rasu a instanci; kliknutím otevřeš hráče nebo běh."},
 }
-for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
-
-local MODES = {"runs", "level", "fastest", "dungeons"}
-local ROW_H = 58
-
--- every player we know: yourself and each summary somebody sent (one entry per character)
-local function players()
-    local db, me = A.db, A.Character()
-    local list, seen = {}, {}
-    local own = {name = me and me.name or "?", character = me, own = true, runs = {}, completed = 0, level = me and me.level}
-    for _, run in ipairs(db.runs) do
-        if run.character and me and run.character.id == me.id then
-            own.runs[#own.runs + 1] = run
-            if run.status == "completed" then own.completed = own.completed + 1 end
-        end
-    end
-    list[1] = own
-    seen[tostring(db.producerId) .. ":" .. (me and me.id or "unknown")] = true
-    for sender, peer in pairs(A.peerDB.peers) do
-        local key = tostring(peer.producerId) .. ":" .. (peer.character and peer.character.id or sender)
-        if not seen[key] then
-            seen[key] = true
-            local entry = {name = peer.character and peer.character.name or sender, character = peer.character, runs = peer.runs or {}, receivedAt = peer.receivedAt,
-                level = peer.character and peer.character.level, completed = peer.completedRuns}
-            if entry.completed == nil then
-                entry.completed = 0
-                for _, run in ipairs(entry.runs) do if run.status == "completed" then entry.completed = entry.completed + 1 end end
-            end
-            list[#list + 1] = entry
-        end
-    end
-    return list
+for lang,entries in pairs(text) do for key,value in pairs(entries) do A.locale[lang][key]=value end end
+A.locale.en.rankObservedGroup="observed in your group"
+A.locale.cs.rankObservedGroup="pozorováno ve tvé skupině"
+A.locale.en.rankWithoutRuns="No recorded runs";A.locale.cs.rankWithoutRuns="Bez běhů"
+A.locale.en.rankSource="Source";A.locale.cs.rankSource="Zdroj"
+A.locale.en.rankMeter="Game damage meter";A.locale.cs.rankMeter="Herní měřič"
+A.locale.en.rankLog="Combat log";A.locale.cs.rankLog="Bojový deník"
+A.locale.en.rankLastBoss="Last boss observed";A.locale.cs.rankLastBoss="Pozorován poslední boss"
+A.locale.en.rankFullClear="Full clear reported";A.locale.cs.rankFullClear="Nahlášen úplný průchod"
+A.locale.en.rankBossFight="fight";A.locale.cs.rankBossFight="boj"
+A.locale.en.rankBossElapsed="since run start";A.locale.cs.rankBossElapsed="od začátku běhu"
+A.locale.en.rankEndManual="End this record as a manual run";A.locale.cs.rankEndManual="Ukončit tento záznam jako ruční běh"
+A.locale.en.rankAbsorbs="Absorbs";A.locale.cs.rankAbsorbs="Absorpce"
+A.locale.en.rankInterrupts="Interrupts";A.locale.cs.rankInterrupts="Přerušení"
+A.locale.en.rankDispels="Dispels";A.locale.cs.rankDispels="Dispel"
+local MODES={"runs","level","fastest","dungeons","dps","heals","history"}
+local CLASSES={false,1,2,3,4,5,7,8,9,11,0}
+local RACES={false,1,2,3,4,5,6,7,8,0}
+local KINDS={false,"party","raid"}
+local function num(v) return A.Number(v,0) end
+local function countText(v) local n=num(v);return n and string.format("%.0f",n) or A.L("rankUnrecorded") end
+local function modeLabel(mode) return A.L("rankMode"..mode:sub(1,1):upper()..mode:sub(2)) end
+local function kindLabel(kind) return A.L(kind=="party" and "rankParty" or kind=="raid" and "rankRaid" or "rankAll") end
+local function byName(a,b) return tostring(A.Plain(a.name))<tostring(A.Plain(b.name)) end
+local function matchesId(actual,wanted) return wanted==nil or wanted==false or (wanted==0 and not num(actual)) or actual==wanted end
+local function characterMatches(c,f) c=c or {};f=f or {};return matchesId(c.classId,f.classId) and matchesId(c.raceId,f.raceId) end
+local function referenceKinds()
+ local kinds={}
+ for _,item in ipairs(A.InstanceCatalog or {}) do kinds[item.name]=item.kind=="raid" and "raid" or "party" end
+ for _,row in ipairs(A.finalBosses or {}) do kinds[row[3]]="party" end
+ for _,item in ipairs(A.map and A.map.layerData and A.map.layerData.instances or {}) do
+  if item.kind=="raid" or item.kind=="dungeon" then kinds[item.name]=item.kind=="raid" and "raid" or "party" end
+ end
+ for _,rule in pairs(A.rulesets or {}) do if rule.name or rule.dungeon then kinds[rule.name or rule.dungeon]=rule.instanceType end end
+ return kinds
 end
-
-local function bestRun(entry)
-    local best
-    for _, run in ipairs(entry.runs) do
-        local ms = A.Number(run.durationMs, 1)
-        if run.status == "completed" and ms and (not best or ms < best.durationMs) then best = {durationMs = ms, name = run.name, completion = run.completion} end
-    end
-    return best
+local function runMatches(run,dungeon,filters,kinds)
+ return (not dungeon or run.name==dungeon) and (not filters.kind or filters.kind==(run.instanceType or kinds[run.name]))
 end
-
-local function byName(a, b) return tostring(A.Plain(a.name)) < tostring(A.Plain(b.name)) end
-
---- The ranking for one mode as rows ready to show: {name, character, own, valueText, fraction, sub, rank}.
-function A.RankingRows(kit, mode, dungeon)
-    local list = players()
-    if dungeon and mode ~= "level" and mode ~= "dungeons" then
-        for _, entry in ipairs(list) do
-            local runs = {}
-            for _, run in ipairs(entry.runs) do if run.name == dungeon then runs[#runs+1] = run end end
-            entry.runs, entry.completed = runs, 0
-            for _, run in ipairs(runs) do if run.status == "completed" then entry.completed = entry.completed + 1 end end
-        end
+local function players(dungeon,filters)
+ filters=filters or {};local db,me=A.db,A.Character();local list,seen={},{}
+ local own={key="own:"..(me and me.id or "?"),name=me and me.name or "?",character=me,own=true,runs={},completed=0,level=me and me.level}
+ for _,run in ipairs(db.runs or {}) do if run.character and me and run.character.id==me.id then own.runs[#own.runs+1]=run end end
+ local active=A.ActiveRun and A.ActiveRun()
+ if active and active.character and me and active.character.id==me.id then
+  local duplicate=false;for _,run in ipairs(own.runs) do if run.runId and run.runId==active.runId then duplicate=true;break end end
+  if not duplicate then own.runs[#own.runs+1]=active end
+ end
+ list[1]=own;seen[tostring(db.producerId)..":"..(me and me.id or "unknown")]=true
+ for sender,peer in pairs(A.peerDB.peers or {}) do
+  local key=tostring(peer.producerId)..":"..(peer.character and peer.character.id or sender)
+  if not seen[key] then seen[key]=true;list[#list+1]={key=key,name=peer.character and peer.character.name or sender,character=peer.character,runs=peer.runs or {},receivedAt=peer.receivedAt,level=peer.character and peer.character.level,summaryCompleted=num(peer.completedRuns)} end
+ end
+ -- Native meter/combat-log actors are useful even if they do not run this addon.
+ -- Keep them distinct from shared profiles and never create an actor from group totals.
+ local knownGuids,observed={},{ }
+ for _,entry in ipairs(list) do local id=entry.character and entry.character.id;if id then knownGuids[id]=true end end
+ for _,run in ipairs(own.runs) do
+  for _,p in ipairs(type(run.combat)=="table" and run.combat.players or {}) do
+   local guid=A.Text(p.guid,100)
+   if guid and guid:match("^Player%-") and not knownGuids[guid] and (num(p.damage)~=nil or num(p.healing)~=nil) then
+    local entry=observed[guid]
+    if not entry then
+     local c={id=guid,name=p.name or "?",classId=p.classId,raceId=p.raceId,level=p.level}
+     entry={key="observed:"..guid,name=c.name,character=c,observed=true,runs={},runKeys={},level=c.level};observed[guid]=entry;list[#list+1]=entry
     end
-    local rows = {}
-    local function source(entry) return entry.own and A.L("rankSelf") or (A.L("rankReceived") .. " " .. kit.stamp(entry.receivedAt)) end
-    if mode == "runs" then
-        table.sort(list, function(a, b) if a.completed == b.completed then return byName(a, b) end return a.completed > b.completed end)
-        local top = math.max(1, list[1].completed)
-        for i, e in ipairs(list) do
-            rows[i] = {name = e.name, character = e.character, own = e.own, valueText = tostring(e.completed), fraction = e.completed / top, rank = i,
-                sub = kit.identityText(e.character) .. "  ·  " .. source(e)}
-        end
-    elseif mode == "level" then
-        table.sort(list, function(a, b) local x, y = a.level or 0, b.level or 0; if x == y then return byName(a, b) end return x > y end)
-        local top = math.max(1, list[1].level or 1)
-        for i, e in ipairs(list) do
-            rows[i] = {name = e.name, character = e.character, own = e.own, valueText = e.level and string.format(A.L("rankLevel"), e.level) or "?", fraction = (e.level or 0) / top, rank = i,
-                sub = kit.identityText(e.character) .. "  ·  " .. source(e)}
-        end
-    elseif mode == "fastest" then
-        local timed = {}
-        for _, e in ipairs(list) do
-            local best = bestRun(e)
-            if best then e.best = best; timed[#timed + 1] = e end
-        end
-        table.sort(timed, function(a, b) if a.best.durationMs == b.best.durationMs then return byName(a, b) end return a.best.durationMs < b.best.durationMs end)
-        for i, e in ipairs(timed) do
-            rows[i] = {name = e.name, character = e.character, own = e.own, valueText = kit.duration(e.best.durationMs), fraction = timed[1].best.durationMs / e.best.durationMs, rank = i,
-                sub = kit.plain(e.best.name) .. "  ·  " .. kit.identityText(e.character)}
-        end
-    else
-        local dungeons, order = {}, {}
-        for _, e in ipairs(list) do
-            for _, run in ipairs(e.runs) do
-                local ms = A.Number(run.durationMs, 1)
-                if run.status == "completed" and ms and run.name then
-                    local d = dungeons[run.name]
-                    if not d then d = {name = run.name, players = {}, count = 0}; dungeons[run.name] = d; order[#order + 1] = d end
-                    if not d.players[e] then d.players[e] = true; d.count = d.count + 1 end
-                    if not d.best or ms < d.best then d.best, d.who = ms, e end
-                end
-            end
-        end
-        table.sort(order, function(a, b) return tostring(A.Plain(a.name)) < tostring(A.Plain(b.name)) end)
-        for _, d in ipairs(order) do
-            rows[#rows + 1] = {name = d.name, character = d.who.character, own = d.who.own, valueText = kit.duration(d.best), fraction = 1, plainName = true,
-                sub = kit.plain(d.who.name) .. "  ·  " .. string.format(A.L("rankPlayers"), d.count)}
-        end
-    end
-    return rows
+    local key=run.runId or tostring(run)
+    if not entry.runKeys[key] then entry.runKeys[key]=true;entry.runs[#entry.runs+1]=run end
+   end
+  end
+ end
+ local filtered,kinds={},referenceKinds()
+ for _,e in ipairs(list) do if characterMatches(e.character,filters) then
+  local runs,completed={},0
+  for _,run in ipairs(e.runs) do if runMatches(run,dungeon,filters,kinds) then runs[#runs+1]=run;if run.status=="completed" then completed=completed+1 end end end
+  e.runs=runs;e.completed=not dungeon and not filters.kind and e.summaryCompleted or completed;filtered[#filtered+1]=e
+ end end
+ return filtered
 end
-
---- Names with an observed completed run, for the dungeon selector. Never implies a complete realm catalogue.
-function A.RankingDungeons()
-    local names, seen = {}, {}
-    for _, player in ipairs(players()) do
-        for _, run in ipairs(player.runs) do
-            if run.status == "completed" and type(run.name) == "string" and not seen[run.name] then seen[run.name]=true;names[#names+1]=run.name end
-        end
-    end
-    table.sort(names);return names
+local function matchingCombatPlayer(run,character)
+ local combat=run and run.combat;if type(combat)~="table" then return end
+ local id=character and (character.id or character.guid);local name=character and character.name
+ local full=name and character.realm and (name.."-"..character.realm)
+ for _,p in ipairs(combat.players or {}) do
+  local guid=p.guid or p.id
+  if id and guid then if id==guid then return p end
+  elseif name and (p.name==name or p.name==full) then return p end
+ end
 end
-
-function A.BuildRankingsPage(page, kit)
-    local C, ink, muted, heading = kit.C, {0.20,0.12,0.055}, {0.36,0.26,0.14}, {0.42,0.23,0.055}
-    A.rankingsPage=page;kit.PageHeader(page,"rankings")
-    page.mode,page.chips="runs",{}
-    local previous
-    for _,mode in ipairs(MODES) do
-        local chip=kit.Chip(page,function()page.mode=mode;A.RefreshUI()end)
-        if previous then chip:SetPoint("LEFT",previous,"RIGHT",5,0)else chip:SetPoint("TOPLEFT",0,-54)end
-        page.chips[mode]=chip;previous=chip
-    end
-    page.summary=kit.label(page,11,C.mist);page.summary:SetPoint("TOPLEFT",0,-88);page.summary:SetPoint("TOPRIGHT",0,-88)
-    page.columns=kit.Columns(page,{2,5},12);page.columns:SetPoint("TOPLEFT",0,-115);page.columns:SetPoint("BOTTOMRIGHT")
-    local catalog=kit.Card(page.columns.cells[1]);catalog:SetAllPoints(page.columns.cells[1]);page.catalog=catalog
-    page.catalogTitle=kit.label(catalog,13,C.gold);page.catalogTitle:SetPoint("TOPLEFT",12,-12);page.catalogTitle:SetPoint("TOPRIGHT",-12,-12)
-    local catalogBody=CreateFrame("Frame",nil,catalog);catalogBody:SetPoint("TOPLEFT",6,-40);catalogBody:SetPoint("BOTTOMRIGHT",-6,6)
-    page.dungeonList=kit.ListView(catalogBody,0)
-    local board=CreateFrame("Frame",nil,page.columns.cells[2]);board:SetAllPoints(page.columns.cells[2]);A.NativeParchment(board,C);page.board=board
-    page.boardTitle=kit.label(board,15,heading);page.boardTitle:SetPoint("TOPLEFT",14,-13);page.boardTitle:SetPoint("TOPRIGHT",-14,-13);page.boardTitle:SetWordWrap(false)
-    page.winnerIcon=board:CreateTexture(nil,"ARTWORK");page.winnerIcon:SetSize(36,36);page.winnerIcon:SetPoint("TOPLEFT",14,-42)
-    page.winnerName=kit.label(board,14,ink);page.winnerName:SetPoint("TOPLEFT",60,-43);page.winnerName:SetPoint("TOPRIGHT",-100,-43);page.winnerName:SetWordWrap(false)
-    page.winnerSub=kit.label(board,10,muted);page.winnerSub:SetPoint("TOPLEFT",60,-63);page.winnerSub:SetPoint("TOPRIGHT",-100,-63);page.winnerSub:SetWordWrap(false)
-    page.winnerValue=kit.label(board,20,heading);page.winnerValue:SetPoint("TOPRIGHT",-14,-48);page.winnerValue:SetWidth(90);page.winnerValue:SetJustifyH("RIGHT")
-    local rule=board:CreateTexture(nil,"BORDER");rule:SetPoint("TOPLEFT",12,-88);rule:SetPoint("TOPRIGHT",-12,-88);rule:SetHeight(1);kit.paint(rule,heading,0.4)
-    local inner=CreateFrame("Frame",nil,board);inner:SetPoint("TOPLEFT",8,-96);inner:SetPoint("BOTTOMRIGHT",-8,8)
-    page.scroll=kit.ScrollArea(inner,0);page.rows={}
-    page.empty=kit.label(inner,12,muted);page.empty:SetPoint("TOPLEFT",12,-15);page.empty:SetPoint("TOPRIGHT",-12,-15)
-    local function newRow()
-        local r=CreateFrame("Frame",nil,page.scroll.child);r:SetHeight(48)
-        r.bg=kit.fill(r,heading,0.05)
-        r.rank=kit.label(r,14,heading);r.rank:SetPoint("LEFT",8,0);r.rank:SetWidth(26)
-        r.icon=r:CreateTexture(nil,"ARTWORK");r.icon:SetSize(26,26);r.icon:SetPoint("LEFT",36,0)
-        r.name=kit.label(r,12,ink);r.name:SetPoint("TOPLEFT",72,-7);r.name:SetPoint("TOPRIGHT",-90,-7);r.name:SetWordWrap(false)
-        r.sub=kit.label(r,10,muted);r.sub:SetPoint("TOPLEFT",72,-25);r.sub:SetPoint("TOPRIGHT",-90,-25);r.sub:SetWordWrap(false)
-        r.value=kit.label(r,15,heading);r.value:SetPoint("RIGHT",-10,0);r.value:SetWidth(78);r.value:SetJustifyH("RIGHT")
-        return r
-    end
-    function page.Refresh()
-        page.columns.Layout()
-        for _,mode in ipairs(MODES)do page.chips[mode].SetLabel(A.L("rankMode"..mode:sub(1,1):upper()..mode:sub(2)));page.chips[mode].SetOn(page.mode==mode)end
-        local cs=A.db.settings.language=="cs"
-        page.catalogTitle:SetText(cs and "Záznamy dungeonů" or "Dungeon records")
-        local choices={{title=cs and "Všechny dungeony" or "All dungeons",icon=kit.ICON.raid,onClick=function()page.dungeon=nil;A.RefreshUI()end}}
-        for _,name in ipairs(A.RankingDungeons())do
-            local dungeon=name
-            choices[#choices+1]={title=kit.plain(name),icon=kit.ICON.run,tag=page.dungeon==name and "•" or nil,onClick=function()page.dungeon=dungeon;page.mode="fastest";A.RefreshUI()end}
-        end
-        page.dungeonList.SetItems(choices,A.L("rankNoData"))
-        local data=A.RankingRows(kit,page.mode,page.dungeon);page.data=data
-        local me
-        for _,entry in ipairs(data)do if entry.own then me=me or entry end end
-        local total=#players()
-        page.summary:SetText(total<=1 and A.L("rankYouAlone") or (me and page.mode~="dungeons" and string.format(A.L("rankYou"),me.rank,total) or A.L("sub_rankings")))
-        page.boardTitle:SetText(page.dungeon and kit.plain(page.dungeon) or A.L("rankMode"..page.mode:sub(1,1):upper()..page.mode:sub(2)))
-        local winner=data[1]
-        if winner then
-            if winner.character and winner.character.classId then kit.classIcon(page.winnerIcon,winner.character.classId)else kit.setIcon(page.winnerIcon,kit.ICON.run)end
-            page.winnerIcon:Show();page.winnerName:SetText(kit.plain(winner.name));page.winnerSub:SetText(winner.sub or "");page.winnerValue:SetText(winner.valueText)
-        else page.winnerIcon:Hide();page.winnerName:SetText(A.L("rankNoRuns"));page.winnerSub:SetText("");page.winnerValue:SetText("")end
-        for i,entry in ipairs(data)do
-            local r=page.rows[i] or newRow();page.rows[i]=r;r.data=entry
-            r:ClearAllPoints();r:SetPoint("TOPLEFT",0,-(i-1)*52);r:SetPoint("TOPRIGHT",0,-(i-1)*52)
-            r.rank:SetText(tostring(entry.rank or i));r.name:SetText(kit.plain(entry.name));r.sub:SetText(entry.sub or "");r.value:SetText(entry.valueText)
-            if entry.character and entry.character.classId then kit.classIcon(r.icon,entry.character.classId)else kit.setIcon(r.icon,kit.ICON.run)end
-            kit.paint(r.bg,heading,entry.own and 0.18 or (i%2==0 and 0.065 or 0.035));r:Show()
-        end
-        for i=#data+1,#page.rows do page.rows[i]:Hide()end
-        page.scroll.child:SetHeight(math.max(1,#data*52));page.scroll.UpdateThumb()
-        page.empty:SetText(#data==0 and A.L("rankNoData") or "")
-    end
+-- Rates require attributable individual measurements. Group totals are never treated as the owner's damage.
+function A.RankingRate(run,character,metric,allowPartial)
+ local c=run and run.combat
+ if type(c)~="table" or (c.source~="combat_log" and c.source~="damage_meter") or c.coverage=="unavailable" or not allowPartial and c.coverage~="observed" then return end
+ local p=matchingCombatPlayer(run,character);if not p then return end
+ local value=num(p[metric=="heals" and "healing" or "damage"]);local ms=A.Number(p.activeMs,1) or A.Number(c.activeMs,1)
+ if value==nil or not ms then return end
+ return value/(ms/1000),p,ms
+end
+local function bestRun(e)
+ local best;for _,r in ipairs(e.runs) do local ms=A.Number(r.durationMs,1);if r.status=="completed" and ms and (not best or ms<best.durationMs) then best=r end end;return best
+end
+function A.RankingRows(kit,mode,dungeon,filters)
+ local list,rows=players(dungeon,filters),{}
+ local function source(e) return e.own and A.L("rankSelf") or e.observed and A.L("rankObservedGroup") or (A.L("rankReceived").." "..kit.stamp(e.receivedAt)) end
+ local function row(e,value,fraction,run) return {key=e.key,name=e.name,character=e.character,own=e.own,valueText=value,fraction=fraction,entry=e,run=run,sub=kit.identityText(e.character).." · "..source(e)} end
+ if mode=="runs" or mode=="level" then
+  local field=mode=="runs" and "completed" or "level"
+  table.sort(list,function(a,b)local x,y=a[field] or 0,b[field] or 0;if x==y then return byName(a,b) end;return x>y end)
+  local top=math.max(1,list[1] and list[1][field] or 1)
+  for _,e in ipairs(list) do rows[#rows+1]=row(e,mode=="runs" and tostring(e.completed) or (e.level and string.format(A.L("rankLevel"),e.level) or "?"),(e[field] or 0)/top) end
+ elseif mode=="fastest" or mode=="dps" or mode=="heals" then
+  local chosen={}
+  for _,e in ipairs(list) do
+   if mode=="fastest" then e.best=bestRun(e);e.value=e.best and e.best.durationMs
+   else for _,run in ipairs(e.runs) do if run.status=="completed" then local rate=A.RankingRate(run,e.character,mode);if rate and (not e.value or rate>e.value) then e.value,e.best=rate,run end end end end
+   if e.best then chosen[#chosen+1]=e end
+  end
+  table.sort(chosen,function(a,b)if a.value==b.value then return byName(a,b) end;if mode=="fastest" then return a.value<b.value end;return a.value>b.value end)
+  for _,e in ipairs(chosen) do
+   local value=mode=="fastest" and kit.duration(e.value) or string.format("%.1f %s",e.value,mode=="dps" and "DPS" or "HPS")
+   local fraction=mode=="fastest" and chosen[1].value/e.value or (chosen[1].value>0 and e.value/chosen[1].value or 0)
+   local r=row(e,value,fraction,e.best);r.sub=kit.plain(e.best.name).." · "..kit.identityText(e.character);rows[#rows+1]=r
+  end
+ elseif mode=="history" then
+  for _,e in ipairs(list) do for _,run in ipairs(e.runs) do
+   local r=row(e,num(run.durationMs) and kit.duration(run.durationMs) or A.L("rankUnrecorded"),1,run)
+   r.sub=kit.plain(run.name).." · "..kit.stamp(run.startedAt).." · "..A.L(run.status=="completed" and "rankCompleted" or run.status=="interrupted" and "rankInterrupted" or run.status=="visiting" and "rankVisiting" or "rankManual");rows[#rows+1]=r
+  end end
+  table.sort(rows,function(a,b)return (num(a.run.startedAt) or 0)>(num(b.run.startedAt) or 0) end)
+ else
+  local instances,order={},{}
+  for _,e in ipairs(list) do for _,run in ipairs(e.runs) do local ms=A.Number(run.durationMs,1)
+   if run.status=="completed" and ms and run.name then
+    local d=instances[run.name];if not d then d={name=run.name,players={},count=0};instances[run.name]=d;order[#order+1]=d end
+    if not d.players[e.key] then d.players[e.key]=true;d.count=d.count+1 end
+    if not d.best or ms<d.best.durationMs then d.best,d.who=run,e end
+   end
+  end end
+  table.sort(order,byName)
+  for _,d in ipairs(order) do rows[#rows+1]={name=d.name,character=d.who.character,own=d.who.own,valueText=kit.duration(d.best.durationMs),fraction=1,plainName=true,run=d.best,entry=d.who,sub=kit.plain(d.who.name).." · "..string.format(A.L("rankPlayers"),d.count)} end
+ end
+ for i,r in ipairs(rows) do r.rank=i end
+ return rows
+end
+function A.RankingDungeons(filters)
+ local names,seen={},{}
+ for _,e in ipairs(players(nil,filters)) do for _,r in ipairs(e.runs) do if r.status=="completed" and type(r.name)=="string" and not seen[r.name] then seen[r.name]=true;names[#names+1]=r.name end end end
+ table.sort(names);return names
+end
+function A.RankingCatalog(filters)
+ filters=filters or {};local by,order={},{}
+ local function add(name,kind,observed)
+  if type(name)~="string" or name=="" or filters.kind and kind~=filters.kind then return end
+  local item=by[name];if not item then item={name=name,kind=kind,count=0};by[name]=item;order[#order+1]=item end
+  if observed then item.count=item.count+1 end
+ end
+ local kinds=referenceKinds();for name,kind in pairs(kinds) do add(name,kind) end
+ local fdj=_G.ForeverDungeonJournal_NS
+ if type(fdj)=="table" and type(fdj.DB)=="table" then for name,d in pairs(fdj.DB) do add(name,d.instanceType or (d.isRaid==true and "raid") or kinds[name]) end end
+ local seenRuns={}
+ for _,e in ipairs(players(nil,filters)) do for _,r in ipairs(e.runs) do
+  local key=r.runId or tostring(r)
+  if not seenRuns[key] then seenRuns[key]=true;add(r.name,r.instanceType or kinds[r.name],true) end
+ end end
+ table.sort(order,function(a,b)if (a.count>0)~=(b.count>0) then return a.count>0 end;return byName(a,b)end);return order
+end
+local function field(entries,label,value) entries[#entries+1]={text=A.L(label)..": "..value} end
+local function coverageText(c) return A.L(c and c.coverage=="observed" and "rankObserved" or c and c.coverage=="partial" and "rankPartial" or "rankUnavailable") end
+local function combatEntries(kit,run,entries)
+ local c=run.combat;entries[#entries+1]={text=A.L("rankCombat"),head=true};entries[#entries+1]={text=coverageText(c)}
+ if type(c)~="table" then return end
+ field(entries,"rankSource",A.L(c.source=="damage_meter" and "rankMeter" or c.source=="combat_log" and "rankLog" or "rankUnrecorded"))
+ entries[#entries+1]={text=A.L("rankScope")}
+ field(entries,"rankCovered",num(c.coveredMs) and kit.duration(c.coveredMs) or A.L("rankUnrecorded"));field(entries,"rankActive",num(c.activeMs) and kit.duration(c.activeMs) or A.L("rankUnrecorded"))
+ for _,key in ipairs({{"rankDamage","damage"},{"rankHealing","healing"},{"rankOverheal","overhealing"},{"rankTaken","damageTaken"},{"rankAbsorbs","absorbs"},{"rankInterrupts","interrupts"},{"rankDispels","dispels"}}) do field(entries,key[1],countText(c[key[2]])) end
+ entries[#entries+1]={text=A.L("rankRoster"),head=true}
+ local measured={};for _,p in ipairs(c.players or {}) do measured[#measured+1]=p end
+ table.sort(measured,function(a,b)return (num(a.damage) or -1)>(num(b.damage) or -1) end)
+ if #measured==0 then entries[#entries+1]={text=A.L("rankUnrecorded")} end
+ local observed={}
+ for _,p in ipairs(measured) do
+  local identity={id=p.guid,name=p.name,classId=p.classId,raceId=p.raceId}
+  entries[#entries+1]={text=kit.plain(p.name or "?").." · "..kit.identityText(identity)..(p.role and (" · "..kit.plain(p.role)) or ""),head=true,classId=p.classId,raceId=p.raceId}
+  local dps=A.RankingRate(run,identity,"dps",true);local hps=A.RankingRate(run,identity,"heals",true)
+  entries[#entries+1]={text="DPS: "..(dps and string.format("%.1f",dps) or A.L("rankUnrecorded")).." · HPS: "..(hps and string.format("%.1f",hps) or A.L("rankUnrecorded"))}
+  entries[#entries+1]={text=A.L("rankDamage")..": "..countText(p.damage).." · "..A.L("rankHealing")..": "..countText(p.healing).." · "..A.L("rankDeaths")..": "..countText(p.deaths)}
+  if p.guid then observed[p.guid]=true end;if p.name then observed[p.name]=true end
+ end
+ for _,p in ipairs(run.roster or {}) do if not observed[p.guid] and not observed[p.name] then entries[#entries+1]={text=kit.plain(p.name or "?").." · "..kit.identityText(p).." · "..A.L("rankUnrecorded")} end end
+ entries[#entries+1]={text=A.L("rankRateNote")}
+end
+function A.RankingRunDetail(kit,run,character)
+ local entries={};field(entries,"rankDuration",num(run.durationMs) and kit.duration(run.durationMs) or A.L("rankUnrecorded"))
+ field(entries,"rankStatus",A.L(run.status=="completed" and "rankCompleted" or run.status=="interrupted" and "rankInterrupted" or run.status=="visiting" and "rankVisiting" or "rankManual"))
+ field(entries,"rankFinished",A.L(run.completion=="last_boss" and "rankLastBoss" or run.completion=="full_clear" and "rankFullClear" or "rankUnknown"));field(entries,"rankGroup",countText(run.groupSize));field(entries,"rankDeaths",countText(run.deaths))
+ local active=A.ActiveRun and A.ActiveRun()
+ if active and run.runId and active.runId==run.runId then
+  entries[#entries+1]={text=A.L("rankEndManual"),onClick=function()A.FinishRun("manual","unknown");A.RefreshUI()end}
+ end
+ entries[#entries+1]={text=A.L("rankBosses"),head=true};if #(run.bosses or {})==0 then entries[#entries+1]={text=A.L("rankNoBosses")} end
+ for index,boss in ipairs(run.bosses or {}) do
+  local split=num(boss.durationMs);if not split and num(boss.killedAt) and num(run.startedAt) then split=math.max(0,(boss.killedAt-run.startedAt)*1000) end
+  local label=split and (kit.duration(split).." · "..A.L(num(boss.durationMs) and "rankBossFight" or "rankBossElapsed")) or A.L("rankUnrecorded")
+  entries[#entries+1]={text=index..". "..kit.plain(boss.name or boss.encounterId or "?").." · "..label}
+ end
+ combatEntries(kit,run,entries)
+ return {key="run:"..tostring(run.runId or run.startedAt or run)..":"..tostring(character and character.id),title=kit.plain(run.name or "?"),subtitle=kit.plain(character and character.name or "?").." · "..kit.stamp(run.startedAt).." · "..A.L("rankPersonal"),entries=entries}
+end
+local function cycle(values,value)
+ for i,item in ipairs(values) do if item==value or item==false and value==nil then return values[i%#values+1] or nil end end;return values[1] or nil
+end
+local function filterName(value,kind)
+ if value==nil or value==false then return A.L("rankAll") end
+ if value==0 then return A.L("rankUnknown") end
+ return kind=="class" and A.ClassName(value) or A.RaceName(value)
+end
+function A.BuildRankingsPage(page,kit)
+ local C=kit.C;A.rankingsPage=page;kit.PageHeader(page,"rankings");page.mode,page.chips,page.filters="runs",{},{}
+ for _,mode in ipairs(MODES) do page.chips[mode]=kit.Chip(page,function()page.mode=mode;page.selection=nil;A.RefreshUI()end) end
+ local function change(key,choices) page.filters[key]=cycle(choices,page.filters[key]);page.selection=nil;page.dungeon=nil;A.RefreshUI() end
+ page.kind=kit.Button(page,"rankAll",150,"ghost",function()change("kind",KINDS)end);page.class=kit.Button(page,"rankClass",150,"ghost",function()change("classId",CLASSES)end);page.race=kit.Button(page,"rankRace",150,"ghost",function()change("raceId",RACES)end)
+ page.summary=kit.label(page,10,C.mist);page.summary:SetJustifyH("LEFT");page.summary:SetWordWrap(false)
+ page.book=kit.Book(page,150);page.catalog=page.book.index;page.board=page.book.paper
+ page.dungeonList=kit.ListView(page.book.index,0);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6);page.document=kit.Document(page.book.paper)
+ local function showSelection()
+  local selected=page.selection;if not selected then return false end;local spec
+  if selected.run then spec=A.RankingRunDetail(kit,selected.run,selected.character)
+  else
+   local entry;for _,e in ipairs(players(page.dungeon,page.filters)) do if e.key==selected.key then entry=e;break end end
+   if not entry then page.selection=nil;return false end
+   local entries={{text=kit.identityText(entry.character)},{text=string.format(A.L("rankRuns"),entry.completed),head=true}}
+   local runs={};for _,run in ipairs(entry.runs) do runs[#runs+1]=run end
+   table.sort(runs,function(a,b)return (num(a.startedAt) or 0)>(num(b.startedAt) or 0) end)
+   for _,run in ipairs(runs) do local captured=run
+    entries[#entries+1]={text=kit.plain(run.name or "?").." · "..(num(run.durationMs) and kit.duration(run.durationMs) or A.L("rankUnrecorded")).." · "..kit.stamp(run.startedAt),icon=run.instanceType=="raid" and kit.ICON.raid or kit.ICON.run,onClick=function()page.selection={run=captured,character=entry.character};A.RefreshUI()end}
+   end
+   if #runs==0 then entries[#entries+1]={text=A.L("rankNoHistory")} end
+   spec={key="player:"..entry.key,title=kit.plain(entry.name),subtitle=A.L("rankPersonal"),entries=entries}
+  end
+  table.insert(spec.entries,1,{text=A.L("rankBack"),onClick=function()page.selection=nil;A.RefreshUI()end});page.document.Set(spec);return true
+ end
+ local function layout()
+  local width=math.max(240,tonumber(page:GetWidth()) or 640);local x,y=0,-54
+  for _,mode in ipairs(MODES) do local chip=page.chips[mode];chip.SetLabel(modeLabel(mode));chip.SetOn(page.mode==mode);local w=chip:GetWidth() or 70
+   if x>0 and x+w>width then x=0;y=y-29 end
+   chip:ClearAllPoints();chip:SetPoint("TOPLEFT",x,y);x=x+w+5
+  end
+  y=y-32;local w=(width-10)/3
+  for i,b in ipairs({page.kind,page.class,page.race}) do b:ClearAllPoints();b:SetPoint("TOPLEFT",(i-1)*(w+5),y);b:SetWidth(w) end
+  page.summary:ClearAllPoints();page.summary:SetPoint("TOPLEFT",0,y-38);page.summary:SetPoint("TOPRIGHT",0,y-38)
+  page.book:ClearAllPoints();page.book:SetPoint("TOPLEFT",0,y-57);page.book:SetPoint("BOTTOMRIGHT");page.book.Layout()
+ end
+ page:SetScript("OnSizeChanged",layout)
+ function page.Refresh()
+  layout();page.kind.text:SetText(kindLabel(page.filters.kind));page.class.text:SetText(A.L("rankClass")..": "..filterName(page.filters.classId,"class"));page.race.text:SetText(A.L("rankRace")..": "..filterName(page.filters.raceId,"race"))
+  local choices={{title=kindLabel(page.filters.kind),icon=kit.ICON.raid,onClick=function()page.dungeon=nil;page.selection=nil;A.RefreshUI()end}}
+  for _,item in ipairs(A.RankingCatalog(page.filters)) do local instance=item.name
+   choices[#choices+1]={title=kit.plain(item.name),icon=item.kind=="raid" and kit.ICON.raid or kit.ICON.run,sub=item.count>0 and tostring(item.count).." · "..A.L("rankModeHistory") or A.L("rankWithoutRuns"),tag=page.dungeon==instance and "•" or nil,onClick=function()page.dungeon=instance;page.selection=nil;if page.mode=="dungeons" then page.mode="history" end;A.RefreshUI()end}
+  end
+  page.dungeonList.SetItems(choices,A.L("rankNoData"));local data=A.RankingRows(kit,page.mode,page.dungeon,page.filters);page.data=data;page.summary:SetText(A.L("rankFilterHint"))
+  if showSelection() then return end
+  local entries={};if page.mode=="dps" or page.mode=="heals" then entries[#entries+1]={text=A.L("rankRateNote")} end
+  for _,row in ipairs(data) do local selected=row
+   entries[#entries+1]={text=tostring(row.rank)..". "..kit.plain(row.name).." · "..row.valueText,head=true,classId=row.character and row.character.classId,raceId=row.character and row.character.raceId,onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};A.RefreshUI()end}
+   entries[#entries+1]={text=row.sub or ""}
+  end
+  if #data==0 then entries[#entries+1]={text=A.L("rankNoData")} end
+  page.document.Set({key="board:"..page.mode..":"..tostring(page.dungeon),title=page.dungeon and kit.plain(page.dungeon) or modeLabel(page.mode),subtitle=A.L("sub_rankings"),entries=entries})
+ end
 end

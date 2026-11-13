@@ -19,6 +19,7 @@ local function roster()
 end
 local function checkpoint()
     if not active then return end
+    if A.Combat then A.Combat.Snapshot(active) end
     active.durationMs=math.max(0,math.floor((A.Monotonic()-(firstCombat or active.clockStart))*1000))
     A.db.activeRun=A.Copy(active)
     -- Ephemeral clock is not trusted across a reload.
@@ -27,12 +28,22 @@ end
 local function payload(run)
     local out={}
     for _,key in ipairs({"runId","instanceId","name","instanceType","difficultyId","startedAt","endedAt","durationMs",
-        "status","completion","rankEligible","rulesetId","groupSize","maxLevel","minLevel","deaths","bossCount","bosses"}) do
+        "status","completion","rankEligible","rulesetId","groupSize","maxLevel","minLevel","deaths","bossCount","bosses","roster","combat"}) do
         out[key]=A.Copy(run[key])
     end
     return out
 end
 function A.ActiveRun() return active end
+function A.RefreshRunCombat(runId,combat)
+    for _,run in ipairs(A.db and A.db.runs or {}) do
+        if run.runId==runId then
+            run.combat=A.Copy(combat)
+            A.Record(run.status=="interrupted" and "run.interrupted" or "run.finished",payload(run),"api_snapshot",run.character)
+            if A.ShareNow and A.db.settings.ingame then A.ShareNow() end
+            A.Changed();return
+        end
+    end
+end
 function A.CheckpointRun() checkpoint() end
 function A.RestoreRun()
     active=nil;firstCombat=nil;outsideAt=nil;encounter=nil
@@ -47,7 +58,9 @@ function A.RestoreRun()
 end
 function A.FinishRun(status,completion)
     if not active then return false end
-    checkpoint();local run=active;active=nil;firstCombat=nil;outsideAt=nil
+    checkpoint();local run=active
+    if A.Combat then A.Combat.Finish(run) end
+    active=nil;firstCombat=nil;outsideAt=nil
     run.status=status or "manual";run.completion=completion or "unknown";run.endedAt=A.Now();run.rankEligible=false
     local p=payload(run)
     local retained=A.Copy(p);retained.character=A.Copy(run.character)
@@ -74,7 +87,9 @@ function A.RefreshInstance()
         instanceType=kind,difficultyId=A.Number(difficultyId,0,1000),startedAt=A.Now(),clockStart=A.Monotonic(),
         durationMs=0,status="visiting",completion="unknown",rankEligible=false,groupSize=size,minLevel=low,maxLevel=high,
         deaths=0,bossCount=0,bosses={}}
-    firstCombat=nil;outsideAt=nil;checkpoint();A.Record("instance.entered",payload(active),"api_snapshot")
+    firstCombat=nil;outsideAt=nil
+    if A.Combat then A.Combat.Start(active) end
+    checkpoint();A.Record("instance.entered",payload(active),"api_snapshot")
 end
 function A.ObserveBoss(id,name,success)
     id=A.Number(id,1,1000000);name=A.Text(name,150);success=A.Plain(success)
@@ -83,7 +98,9 @@ function A.ObserveBoss(id,name,success)
         if boss.encounterId==id then return end
         if name and boss.name==name and math.abs(A.Now()-boss.killedAt)<15 then return end
     end
-    active.bosses[#active.bosses+1]={encounterId=id,name=name or tostring(id),killedAt=A.Now()}
+    local ms=encounter and encounter.id==id and math.max(0,math.floor((A.Monotonic()-encounter.clock)*1000)) or nil
+    active.bosses[#active.bosses+1]={encounterId=id,name=name or tostring(id),killedAt=A.Now(),durationMs=ms,
+        splitMs=math.max(0,math.floor((A.Monotonic()-(firstCombat or active.clockStart))*1000))}
     active.bossCount=#active.bosses
     local rule=A.rulesets[active.instanceId]
     local candidate=name and A.finalByName and A.finalByName[name:lower()]

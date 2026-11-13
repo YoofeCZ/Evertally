@@ -45,7 +45,17 @@ function A.MakeSummary()
     for i=#A.db.runs,1,-1 do
         local run=A.db.runs[i]
         if own and run.character and run.character.id==own.id then
-            local clean=A.Copy(run);clean.character=nil;summary.runs[#summary.runs+1]=clean
+            local clean=A.Copy(run);clean.character=nil
+            -- A bounded peer summary shares the owner's attributable figures.
+            -- Full group rosters and other people's combat rows stay in the
+            -- observer's local run; a raid must not exhaust the message budget.
+            clean.roster=nil
+            if clean.combat then
+                local players={}
+                for _,p in ipairs(clean.combat.players or {}) do if p.guid==own.id then players[#players+1]=p end end
+                clean.combat.players=players
+            end
+            summary.runs[#summary.runs+1]=clean
             if #summary.runs>=5 then break end
         end
     end
@@ -62,7 +72,7 @@ function A.ShareNow()
     if not A.db or not A.db.settings.ingame then return false,"sharing_disabled" end
     local data=A.MakeSummary();local text=A.Encode(data)
     -- Keep each response bounded even if the user has unusually long boss lists.
-    while text and #text>MAX_BYTES and #data.runs>0 do table.remove(data.runs,1);text=A.Encode(data) end
+    while text and #text>MAX_BYTES and #data.runs>0 do table.remove(data.runs);text=A.Encode(data) end
     if not text or #text>MAX_BYTES then return false,"size_limit" end
     local count=math.ceil(#text/CHUNK)
     if count>MAX_PARTS then return false,"size_limit" end

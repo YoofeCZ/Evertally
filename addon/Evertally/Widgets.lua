@@ -169,12 +169,16 @@ function A.ExtendKit(kit)
                 end
                 row:Show(); row.action = entry.onClick
                 row:ClearAllPoints(); row:SetPoint("TOPLEFT", 0, -y); row:SetWidth(width)
-                row.text:ClearAllPoints(); row.text:SetPoint("TOPLEFT", entry.icon and 36 or 0, 0); row.text:SetWidth(width - (entry.icon and 36 or 0))
+                local inset=entry.classId and entry.raceId and 64 or (entry.icon or entry.classId) and 36 or 0
+                row.text:ClearAllPoints(); row.text:SetPoint("TOPLEFT", inset, 0); row.text:SetWidth(width - inset)
                 row.text:SetFont(kit.fontPath(), entry.size or 12, "")
                 local tint = entry.color or (entry.head and PARCHMENT.heading) or PARCHMENT.ink
                 row.text:SetTextColor(tint[1], tint[2], tint[3]); row.text:SetText(entry.text or "")
-                row.icon:SetShown(entry.icon ~= nil); if entry.icon then kit.setIcon(row.icon, entry.icon) end
-                local h = math.max(entry.icon and 34 or 0, row.text:GetStringHeight() or 16, entry.size or 12) + (entry.head and 12 or 8)
+                row.icon:SetShown(entry.icon ~= nil or entry.classId~=nil)
+                if entry.classId and A.SetClassIcon then A.SetClassIcon(row.icon,entry.classId) elseif entry.icon then kit.setIcon(row.icon, entry.icon) end
+                if entry.raceId and not row.race then row.race=row:CreateTexture(nil,"ARTWORK");row.race:SetSize(24,24);row.race:SetPoint("TOPLEFT",32,-4) end
+                if row.race then row.race:SetShown(entry.classId~=nil and entry.raceId~=nil);if entry.raceId then A.SetRaceIcon(row.race,entry.raceId) end end
+                local h = math.max((entry.icon or entry.classId) and 34 or 0, row.text:GetStringHeight() or 16, entry.size or 12) + (entry.head and 12 or 8)
                 row:SetHeight(h); row.rule:SetShown(entry.head == true or entry.onClick ~= nil)
                 y = y + h
             end

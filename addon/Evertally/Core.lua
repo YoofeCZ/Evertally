@@ -165,6 +165,16 @@ function A.ExportEvent(event)
             A.db.characterKeys[original]=A.db.characterKeys[original] or A.RandomId()
             projection.character={id=A.db.characterKeys[original],classId=event.character and event.character.classId,
                 raceId=event.character and event.character.raceId,level=event.character and event.character.level}
+            if scope=="own_runs" then
+                projection.payload.roster=nil
+                if type(projection.payload.combat)=="table" then
+                    local players={}
+                    for _,p in ipairs(projection.payload.combat.players or {}) do
+                        if p.guid==original then p.guid=projection.character.id;p.name=nil;players[#players+1]=p end
+                    end
+                    projection.payload.combat.players=players
+                end
+            end
         else projection.character=nil end
     end
     store.events[#store.events+1]=projection

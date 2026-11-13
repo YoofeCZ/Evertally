@@ -8,6 +8,22 @@ local words = {
 for lang,entries in pairs(words) do for key,value in pairs(entries) do A.locale[lang][key]=value end end
 A.locale.en.talentLoading="Loading your character's talent data…"
 A.locale.cs.talentLoading="Načítám talentová data postavy…"
+local profiles={
+ en={talentExport="Export plan",talentImport="Import profile",talentImportSave="Import and save",talentClose="Close",talentExportTitle="Export the displayed build",talentExportHint="This exports the plan currently shown, including edits. Copy the entire code with Ctrl+C.",talentImportTitle="Import a build profile",talentImportHint="Paste an Evertally ETB1 code. The class, talent schema and all ranks are checked before saving.",talentImported="Profile imported and saved. Actual game talents are unchanged.",talentProfileInvalid="Invalid build profile or talent rank.",talentProfileChecksum="The code is incomplete, damaged, or not an Evertally ETB1 profile.",talentProfileClass="This profile belongs to a different class.",talentProfileSchema="This profile does not match the current class's talent data.",talentProfilePrerequisite="The profile breaks a talent prerequisite or tier requirement.",talentRecommended="Recommended builds",talentRecommendedEmpty="No verified build is included for this class yet.",talentRecommendation="Recommended build",talentTemplateMismatch="This client is missing a template talent: %s",talentTemplateInformational="This source has no complete compatible talent allocation to load.",talentTemplateLoad="Load into planner",talentTemplateLoaded="Recommendation loaded into your plan. Save it if you want to keep it.",talentRecommendationSource="Source: %s",talentRecommendationChecked="Checked: %s",talentPrevious="Previous",talentNext="Next",talentZoom="Tree zoom"},
+ cs={talentExport="Export plánu",talentImport="Import profilu",talentImportSave="Importovat a uložit",talentClose="Zavřít",talentExportTitle="Export zobrazeného buildu",talentExportHint="Exportuje právě zobrazený plán včetně úprav. Celý kód zkopíruj přes Ctrl+C.",talentImportTitle="Import profilu buildu",talentImportHint="Vlož kód Evertally ETB1. Před uložením se ověří třída, talentová data a všechny body.",talentImported="Profil byl importován a uložen. Skutečné talenty ve hře se nezměnily.",talentProfileInvalid="Neplatný profil buildu nebo počet bodů v talentu.",talentProfileChecksum="Kód je neúplný, poškozený nebo není profilem Evertally ETB1.",talentProfileClass="Tento profil patří jiné třídě.",talentProfileSchema="Profil neodpovídá talentovým datům současné třídy.",talentProfilePrerequisite="Profil porušuje podmínku řady nebo předchozího talentu.",talentRecommended="Doporučené buildy",talentRecommendedEmpty="Pro tuto třídu zatím není přibalený ověřený build.",talentRecommendation="Doporučený build",talentTemplateMismatch="V tomto klientu chybí talent ze šablony: %s",talentTemplateInformational="Zdroj neobsahuje kompletní kompatibilní rozdělení talentů k načtení.",talentTemplateLoad="Načíst do plánovače",talentTemplateLoaded="Doporučení je načtené v plánu. Pokud ho chceš ponechat, ulož build.",talentRecommendationSource="Zdroj: %s",talentRecommendationChecked="Ověřeno: %s",talentPrevious="Předchozí",talentNext="Další",talentZoom="Zoom stromů"},
+}
+for lang,entries in pairs(profiles) do for key,value in pairs(entries) do A.locale[lang][key]=value end end
+A.locale.en.talentProfileLimit="Eight profiles are already saved for this class. Delete one before importing another."
+A.locale.cs.talentProfileLimit="Pro tuto třídu už máš uložených osm profilů. Před importem dalšího jeden smaž."
+function A.TalentZoom()
+ return A.db and A.db.settings and A.Number(A.db.settings.talentZoom,.5,1.5) or .75
+end
+function A.SetTalentZoom(value)
+ value=A.Number(value,.01,10);if not value then return A.TalentZoom() end
+ value=math.max(.5,math.min(1.5,math.floor(value*100+.5)/100))
+ if A.db and A.db.settings then A.db.settings.talentZoom=value end
+ return value
+end
 local function n(v,d) return A.Number(v,0,10000) or d end
 local function classKey() local _,file=A.Call(UnitClass,"player");return A.Text(file,40) or "unknown" end
 local function classicTrees()
@@ -191,6 +207,7 @@ function A.LoadTalentBuild(saved,trees)
 end
 local function draw(page,kit)
  local t,C=page.talents,kit.C
+ if t.zoomText then t.zoomText:SetText(math.floor(A.TalentZoom()*100+.5).."%") end
  t.saved.text:SetText((A.SavedTalentBuilds()[t.savedIndex or 1] or {}).name or A.L("talentSavedEmpty"))
  for _,v in ipairs(t.columns) do v:Hide() end;for _,v in ipairs(t.buttons) do v:Hide() end;for _,v in ipairs(t.lines) do v:Hide() end
  local trees=A.TalentTrees();if not trees or #trees==0 then
@@ -202,9 +219,11 @@ local function draw(page,kit)
  local plan=t.plan;local total,budget=A.TalentPlanPoints(plan),A.TalentPlanBudget(plan)
  t.summary:SetText(string.format(A.L("talentBudget"),total,budget,math.max(0,budget-total)));t.level:SetText(string.format(A.L("talentLevel"),plan.level));t.note:SetText(t.notice or "")
  local width=math.max(430,(page:GetWidth() or 640)-24);local cw=math.floor((width-(#trees-1)*10)/#trees)
- local size=math.max(24,math.min(38,math.floor((cw-42)/4)));local sx,sy=(cw-38)/4,size+20
+ local baseSize=math.max(24,math.min(38,math.floor((cw-42)/4)))
+ local zoom=A.TalentZoom();local sx,sy=(cw-38)/4,(baseSize+20)*zoom
+ local size=math.max(16,math.min(math.floor(baseSize*zoom+.5),math.floor(sx-3)))
  local maxTier=1;for _,tree in ipairs(trees) do for _,talent in ipairs(tree.talents) do maxTier=math.max(maxTier,talent.tier) end end
- local height=math.max(330,78+maxTier*sy);t.content:SetSize(width,height)
+ local height=math.max(160,64+(maxTier-1)*sy+size+18);t.content:SetSize(width,height)
  local used,lines=0,0
  for i,tree in ipairs(trees) do
   local column=t.columns[i]
@@ -259,6 +278,77 @@ local function draw(page,kit)
  end
  t.saved.text:SetText((A.SavedTalentBuilds()[t.savedIndex or 1] or {}).name or A.L("talentSavedEmpty"))
 end
+local function localText(value)
+ local language=A.db and A.db.settings and A.db.settings.language or "en"
+ if type(value)=="table" then return value[language] or value.en or value.cs or "" end
+ return type(value)=="string" and value or ""
+end
+local function transferDialog(page,kit,mode)
+ local t,C=page.talents,kit.C
+ local dialog=t.transfer
+ if not dialog then
+  dialog=CreateFrame("Frame",nil,page);t.transfer=dialog;A.NativePanel(dialog,C)
+  dialog:SetPoint("CENTER");dialog:SetHeight(246);dialog:SetFrameLevel((page:GetFrameLevel() or 1)+60);dialog:SetFrameStrata("DIALOG");dialog:EnableMouse(true)
+  dialog.title=kit.label(dialog,15,C.gold);dialog.title:SetPoint("TOPLEFT",12,-12);dialog.title:SetPoint("TOPRIGHT",-12,-12)
+  dialog.hint=kit.label(dialog,11,C.text);dialog.hint:SetPoint("TOPLEFT",12,-38);dialog.hint:SetPoint("TOPRIGHT",-12,-38);dialog.hint:SetHeight(32)
+  dialog.scroll=CreateFrame("ScrollFrame",nil,dialog,"UIPanelScrollFrameTemplate");dialog.scroll:SetPoint("TOPLEFT",12,-78);dialog.scroll:SetPoint("BOTTOMRIGHT",-32,72)
+  dialog.box=CreateFrame("EditBox",nil,dialog.scroll);dialog.box:SetMultiLine(true);dialog.box:SetAutoFocus(false);dialog.box:SetMaxLetters(16384);dialog.box:SetFont(kit.fontPath(),11,"");dialog.box:SetTextColor(C.text[1],C.text[2],C.text[3]);dialog.box:SetTextInsets(5,5,4,4);dialog.box:SetHeight(100);dialog.scroll:SetScrollChild(dialog.box)
+  dialog.box:SetScript("OnEscapePressed",function(self)self:ClearFocus();dialog:Hide()end)
+  dialog.error=kit.label(dialog,10,C.peach);dialog.error:SetPoint("BOTTOMLEFT",12,42);dialog.error:SetPoint("BOTTOMRIGHT",-12,42);dialog.error:SetHeight(26)
+  dialog.close=kit.Button(dialog,"talentClose",100,"ghost",function()dialog.box:ClearFocus();dialog:Hide()end);dialog.close:SetPoint("BOTTOMLEFT",12,10)
+  dialog.apply=kit.Button(dialog,"talentImportSave",178,"primary",function()
+   if not A.ImportTalentProfile then return end
+   local plan,why,name=A.ImportTalentProfile(dialog.box:GetText(),A.TalentTrees())
+   if not plan then dialog.error:SetText(A.L(why or "talentProfileInvalid"));return end
+   if #A.SavedTalentBuilds()>=8 then dialog.error:SetText(A.L("talentProfileLimit"));return end
+   name=A.UniqueTalentProfileName(name);t.savedIndex=A.SaveTalentBuild(plan,name);t.plan=plan;t.name:SetText(name);t.notice=A.L("talentImported");dialog.box:ClearFocus();dialog:Hide();draw(page,kit)
+  end);dialog.apply:SetPoint("BOTTOMRIGHT",-12,10)
+ end
+ dialog:SetWidth(math.min(620,math.max(340,(page:GetWidth() or 640)-12)));dialog.box:SetWidth(math.max(260,dialog:GetWidth()-48));dialog.error:SetText("")
+ dialog.apply:SetShown(mode=="import")
+ dialog.title:SetText(A.L(mode=="export" and "talentExportTitle" or "talentImportTitle"));dialog.hint:SetText(A.L(mode=="export" and "talentExportHint" or "talentImportHint"))
+ if mode=="export" then
+  local code,why
+  if A.ExportTalentProfile then code,why=A.ExportTalentProfile(t.plan,t.trees,t.name:GetText()) end
+  if not code then t.notice=A.L(why or "talentProfileInvalid");draw(page,kit);return end
+  dialog.box:SetText(code)
+ else dialog.box:SetText("") end
+ dialog:Show();dialog.box:SetFocus();if mode=="export" then dialog.box:HighlightText() end
+end
+local function recommendationDialog(page,kit)
+ local t,C=page.talents,kit.C
+ local list=A.RecommendedForClass and A.RecommendedForClass() or {}
+ if #list==0 then t.notice=A.L("talentRecommendedEmpty");draw(page,kit);return end
+ local dialog=t.recommendation
+ if not dialog then
+  dialog=CreateFrame("Frame",nil,page);t.recommendation=dialog;A.NativePanel(dialog,C);dialog:SetPoint("CENTER");dialog:SetHeight(324);dialog:SetFrameLevel((page:GetFrameLevel() or 1)+60);dialog:SetFrameStrata("DIALOG");dialog:EnableMouse(true)
+  dialog.title=kit.label(dialog,15,C.gold);dialog.title:SetPoint("TOPLEFT",12,-12);dialog.title:SetPoint("TOPRIGHT",-12,-12);dialog.title:SetHeight(34)
+  dialog.scroll=CreateFrame("ScrollFrame",nil,dialog,"UIPanelScrollFrameTemplate");dialog.scroll:SetPoint("TOPLEFT",12,-52);dialog.scroll:SetPoint("BOTTOMRIGHT",-30,112)
+  dialog.content=CreateFrame("Frame",nil,dialog.scroll);dialog.content:SetSize(500,176);dialog.scroll:SetScrollChild(dialog.content)
+  dialog.body=kit.label(dialog.content,11,C.text);dialog.body:SetPoint("TOPLEFT");dialog.body:SetPoint("TOPRIGHT");dialog.body:SetJustifyH("LEFT")
+  dialog.error=kit.label(dialog,10,C.peach);dialog.error:SetPoint("BOTTOMLEFT",12,80);dialog.error:SetPoint("BOTTOMRIGHT",-12,80);dialog.error:SetHeight(32)
+  dialog.previous=kit.Button(dialog,"talentPrevious",110,"ghost",function()dialog.index=(dialog.index-2)%#dialog.list+1;dialog.Refresh()end);dialog.previous:SetPoint("BOTTOMLEFT",12,43)
+  dialog.next=kit.Button(dialog,"talentNext",110,"ghost",function()dialog.index=dialog.index%#dialog.list+1;dialog.Refresh()end);dialog.next:SetPoint("LEFT",dialog.previous,"RIGHT",6,0)
+  dialog.close=kit.Button(dialog,"talentClose",100,"ghost",function()dialog:Hide()end);dialog.close:SetPoint("BOTTOMLEFT",12,8)
+  dialog.apply=kit.Button(dialog,"talentTemplateLoad",178,"primary",function()
+   local build=dialog.list[dialog.index];local plan,why,detail=A.LoadRecommendedTalentBuild(build,A.TalentTrees())
+   if not plan then dialog.error:SetText(detail and string.format(A.L(why),detail) or A.L(why or "talentProfileInvalid"));return end
+   t.plan=plan;t.name:SetText(localText(build.name));t.notice=A.L("talentTemplateLoaded");dialog:Hide();draw(page,kit)
+  end);dialog.apply:SetPoint("BOTTOMRIGHT",-12,8)
+  function dialog.Refresh()
+   local build=dialog.list[dialog.index];local source=build.source or {}
+   dialog.title:SetText(localText(build.name).."  "..dialog.index.."/"..#dialog.list)
+   local points=0;for _,choice in ipairs(build.talents or build.ranks or {}) do points=points+(tonumber(choice.rank) or 0) end
+   dialog.body:SetText(table.concat({localText(build.note or build.description),A.L("talentPlan")..": "..points.." / "..math.max(0,(build.level or 60)-9),string.format(A.L("talentRecommendationSource"),source.title or ""),source.url or "",string.format(A.L("talentRecommendationChecked"),source.checked or source.checkedAt or "")},"\n\n"))
+   dialog.content:SetWidth(math.max(280,dialog:GetWidth()-48));local height=math.max(130,dialog.body:GetStringHeight() or 130);dialog.body:SetHeight(height);dialog.content:SetHeight(height+8);dialog.scroll:SetVerticalScroll(0)
+   local plan,why,detail=A.LoadRecommendedTalentBuild(build,A.TalentTrees())
+   if plan then dialog.apply:Enable() else dialog.apply:Disable() end
+   dialog.apply:SetAlpha(plan and 1 or .4)
+   dialog.error:SetText(plan and "" or (detail and string.format(A.L(why),detail) or A.L(why or "talentProfileInvalid")))
+  end
+ end
+ dialog:SetWidth(math.min(620,math.max(340,(page:GetWidth() or 640)-12)));dialog.list=list;dialog.index=math.max(1,math.min(dialog.index or 1,#list));dialog.Refresh();dialog:Show()
+end
 function A.BuildTalentsPage(page,kit)
  local C=kit.C;kit.PageHeader(page,"talents");local t={columns={},buttons={},lines={}};page.talents=t;A.talentPage=page
  t.summary=kit.label(page,12,C.gold);t.summary:SetPoint("TOPLEFT",0,-55)
@@ -273,15 +363,22 @@ function A.BuildTalentsPage(page,kit)
  t.clear=kit.Button(page,"talentClear",110,"ghost",function() t.plan=A.NewTalentPlan(A.TalentTrees(),t.plan and t.plan.level or 60,true);t.notice="";draw(page,kit) end);t.clear:SetPoint("LEFT",t.load,"RIGHT",6,0)
  t.name=CreateFrame("EditBox",nil,page,"InputBoxTemplate");t.name:SetAutoFocus(false);t.name:SetMaxLetters(48);t.name:SetFont(kit.fontPath(),11,"");t.name:SetSize(126,25);t.name:SetPoint("LEFT",t.clear,"RIGHT",12,0);t.name:SetText(A.L("talentNameDefault"));t.name:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
  t.save=kit.Button(page,"talentSave",104,"primary",function() if t.plan then t.savedIndex=A.SaveTalentBuild(t.plan,t.name:GetText());t.notice=A.L("talentSavedNote");draw(page,kit) end end);t.save:SetPoint("LEFT",t.name,"RIGHT",8,0)
- t.scroll=CreateFrame("ScrollFrame",nil,page,"UIPanelScrollFrameTemplate");t.scroll:SetPoint("TOPLEFT",0,-148);t.scroll:SetPoint("BOTTOMRIGHT",-24,70)
+ t.export=kit.Button(page,"talentExport",112,"ghost",function()transferDialog(page,kit,"export")end);t.export:SetPoint("TOPLEFT",0,-117)
+ t.import=kit.Button(page,"talentImport",112,"ghost",function()transferDialog(page,kit,"import")end);t.import:SetPoint("LEFT",t.export,"RIGHT",6,0)
+ t.recommended=kit.Button(page,"talentRecommended",180,"ghost",function()recommendationDialog(page,kit)end);t.recommended:SetPoint("LEFT",t.import,"RIGHT",6,0)
+ t.scroll=CreateFrame("ScrollFrame",nil,page,"UIPanelScrollFrameTemplate");t.scroll:SetPoint("TOPLEFT",0,-182);t.scroll:SetPoint("BOTTOMRIGHT",-24,70)
  t.content=CreateFrame("Frame",nil,t.scroll);t.content:SetSize(600,420);t.scroll:SetScrollChild(t.content)
- t.note=kit.label(page,10,C.peach);t.note:SetPoint("TOPLEFT",0,-115);t.note:SetPoint("TOPRIGHT",-5,-115);t.note:SetHeight(28)
+ t.note=kit.label(page,10,C.peach);t.note:SetPoint("TOPLEFT",0,-153);t.note:SetPoint("TOPRIGHT",-5,-153);t.note:SetHeight(25)
  t.savedLabel=kit.label(page,10,C.mist);t.savedLabel:SetPoint("BOTTOMLEFT",0,48);t.savedLabel:SetText(A.L("talentSaved"))
  t.saved=kit.Button(page,nil,200,"ghost",function()
   local list=A.SavedTalentBuilds();if #list==0 then return end;t.savedIndex=(t.savedIndex or 0)%#list+1
   local plan=A.LoadTalentBuild(list[t.savedIndex],A.TalentTrees());if plan then t.plan=plan;t.name:SetText(list[t.savedIndex].name);t.notice="";draw(page,kit) end
  end);t.saved:SetPoint("BOTTOMLEFT",0,13)
  t.delete=kit.Button(page,"talentDelete",130,"ghost",function() local list=A.SavedTalentBuilds();if #list>0 then table.remove(list,math.min(t.savedIndex or 1,#list));t.savedIndex=1;draw(page,kit) end end);t.delete:SetPoint("LEFT",t.saved,"RIGHT",8,0)
+ t.zoomLabel=kit.label(page,10,C.mist);t.zoomLabel:SetPoint("BOTTOMRIGHT",-4,48);t.zoomLabel:SetText(A.L("talentZoom"))
+ t.zoomText=kit.label(page,11,C.text);t.zoomText:SetWidth(40);t.zoomText:SetJustifyH("CENTER");t.zoomText:SetPoint("BOTTOMRIGHT",-31,21)
+ t.zoomMinus=kit.Button(page,nil,25,"ghost",function()A.SetTalentZoom(A.TalentZoom()-.1);draw(page,kit)end);t.zoomMinus.text:SetText("-");t.zoomMinus:SetPoint("RIGHT",t.zoomText,"LEFT",-4,0)
+ t.zoomPlus=kit.Button(page,nil,25,"ghost",function()A.SetTalentZoom(A.TalentZoom()+.1);draw(page,kit)end);t.zoomPlus.text:SetText("+");t.zoomPlus:SetPoint("LEFT",t.zoomText,"RIGHT",4,0)
  t.hint=kit.label(page,10,C.mist);t.hint:SetPoint("BOTTOMLEFT",0,-3);t.hint:SetPoint("BOTTOMRIGHT",0,-3);t.hint:SetWordWrap(false);t.hint:SetText(A.L("talentPlannerHint"))
  page:SetScript("OnSizeChanged",function() if page:IsShown() then draw(page,kit) end end);function page.Refresh() draw(page,kit) end
 end

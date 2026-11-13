@@ -5,11 +5,17 @@ local TEXT={
  cs={guides="Návody",sub_guides="Čti návody ke třídám, dungeonům, levelování a profesím přímo tady. Recepty, suroviny a talenty se otevřou uvnitř Evertally.",guideAll="Vše",guideProfessions="Profese",guideClasses="Třídy",guideLeveling="Levelování",guideDungeons="Dungeony",guideRead="Označit přečtené",guideReadDone="Přečteno",guideNext="Další kapitola",guideProgress="Přečteno %d / %d kapitol",guideRecipe="Otevřít recept",guideRecipes="Procházet recepty",guideTalents="Plán talentů",guideMap="Mapa sbírání",guideBatch="%d–%d · %d × %s",guideUnits="%d × %s",guideRecipeMissing="Pro dovednost %d není doložen použitelný recept. V Receptech vyber takový, který se můžeš naučit, a pak pokračuj.",guideBatchHint="Postup používá místní hranice dovednosti a počty přímých surovin, ne ceny aukce. Před nákupem materiálu se recept nauč: některé vzory mohou být od prodejce, dropu nebo vyžadovat specializaci.",guideChance="Žlutý nebo zelený recept: jde o minimální sérii pokusů, ne zaručený zisk dovednosti. Vyráběj do cílové hodnoty a počítej s dalšími surovinami.",guideOrange="Oranžový recept: vyrob sérii a před pokračováním zkontroluj skutečnou dovednost.",guideMaterials="Suroviny pro uvedené série",guideMaterialsHint="Přímé suroviny minimálních sérií níže. Mezivýrobky nejsou rozložené na základní materiál. Náhodný zisk dovednosti může spotřebu zvýšit.",guideNoData="Balíček receptů se nepodařilo načíst. Psané kapitoly zůstávají dostupné.",guidePreparation="Trénink a příprava",guidePreparationBody="Vezmi nástroje, nech místo v taškách a před dosažením stropu se nauč další stupeň. Požadavek pro naučení receptu a hranice jeho barev ukazuje stránka Recepty.",guideRoute="Postup podle receptů 1–300"},
 }
 for lang,entries in pairs(TEXT)do for key,value in pairs(entries)do A.locale[lang][key]=value end end
+A.locale.en.guideNavigate="Navigate"
+A.locale.cs.guideNavigate="Navigovat"
 local function cz()return A.db and A.db.settings.language=="cs"end
 local function tr(en,cs)return cz()and cs or en end
 local function s(en,cs,textEn,textCs,action)return{title=tr(en,cs),body=tr(textEn,textCs),action=action}end
 local BOOKS={}
 local function add(id,category,en,cs,sections,icon)BOOKS[#BOOKS+1]={id=id,category=category,en=en,cs=cs,sections=sections,icon=icon or"Interface\\Icons\\INV_Misc_Book_09"}end
+function A.RegisterGuide(id,category,en,cs,sections,icon)
+ for _,book in ipairs(BOOKS)do if book.id==id then return false end end
+ add(id,category,en,cs,sections,icon);return true
+end
 add("leveling","leveling","Leveling: plan a useful session","Levelování: plán pro tvoje hraní",function()return{
  s("1–10: prepare your character","1–10: připrav postavu","Finish a compact starting area. Train abilities you use and maintain your main weapon. Set the hearthstone near regular quest turn-ins. Keep food, free bag slots and a safe escape route.","Dokonči souvislou startovní oblast. Trénuj používané schopnosti a průběžně obnovuj hlavní zbraň. Hearthstone nastav poblíž pravidelného odevzdávání questů. Nos jídlo, nech volné tašky a promysli únikovou cestu."),
  s("10–20: combine nearby quests","10–20: spoj blízké questy","Collect quests from one hub. In the Database check their objectives, start NPCs and turn-ins, then finish nearby objectives in one circuit. Before a dungeon inspect its quest tab and complete any outdoor prerequisites first.","Naber questy z jednoho centra. V Databázi ověř cíle, zadavatele a odevzdání a blízké úkoly spoj do jednoho okruhu. Před dungeonem projdi jeho questy a venkovní podmínky řetězců.","database"),
@@ -133,7 +139,14 @@ local function readStore()if not A.db then return{}end;if type(A.db.guideRead)~=
 local function follow(action)
  if not action then return end
  local kind,id=action:match("^([^:]+):(.+)$")
- if kind=="item"then if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item",tonumber(id))end
+ if kind=="navigate"then
+  local map,x,y,title=id:match("^(%d+):([%d%.]+):([%d%.]+):(.+)$")
+  map,x,y=tonumber(map),tonumber(x),tonumber(y)
+  if map and x and y and x>=0 and x<=1 and y>=0 and y<=1 and A.NavigateToPoint then
+   local ok,reason=A.NavigateToPoint(title,map,x,y,{view="guides"})
+   if not ok then A.Print(A.L(reason=="map_off" and "navErr_map_off" or "navNoMap"))end
+  end
+ elseif kind=="item"then if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item",tonumber(id))end
  elseif kind=="recipe"then A.ShowView("recipes");if A.map and A.map.OpenRecipe then A.map.OpenRecipe(tonumber(id))end
  elseif kind=="gather"then A.ShowView("world");if A.map and A.map.SetGatherType then A.map.SetGatherType(id,true)end;if A.worldBody and A.map then A.worldBody.mode="gather";A.map.RefreshWorld(A.worldBody)end
  else A.ShowView(action)end
@@ -179,7 +192,7 @@ function A.BuildGuidesPage(page,kit)
    if spec.action then
     frame.action:ClearAllPoints();frame.action:SetPoint("TOPLEFT",0,-height-9)
     local actionKind=spec.action:match("^([^:]+)")
-    frame.action.text:SetText(A.L(actionKind=="recipe"and"guideRecipe"or actionKind=="gather"and"guideMap"or actionKind=="talents"and"guideTalents"or actionKind=="recipes"and"guideRecipes"or actionKind=="item"and"openDatabase"or spec.action));height=height+42
+    frame.action.text:SetText(A.L(actionKind=="navigate"and"guideNavigate"or actionKind=="recipe"and"guideRecipe"or actionKind=="gather"and"guideMap"or actionKind=="talents"and"guideTalents"or actionKind=="recipes"and"guideRecipes"or actionKind=="item"and"openDatabase"or spec.action));height=height+42
    end
    frame:SetHeight(height);frame:Show();y=y+height+20
   end
