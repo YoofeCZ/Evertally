@@ -119,6 +119,34 @@ class ForumTests(unittest.TestCase):
         self.assertNotIn("Nevyexportuj", self.a.Encode(self.a.ExportStore()))
         self.assertNotIn("Nevyexportuj", self.a.Encode(self.a.MakeSummary()))
 
+    def test_authenticated_ack_removes_only_confirmed_even_when_post_was_deleted(self):
+        ok, first = self.a.ForumNewThread("general", "První téma", "text")
+        self.assertTrue(ok)
+        self.a.ForumResetThrottle()
+        ok, second = self.a.ForumNewThread("general", "Druhé téma", "text")
+        self.assertTrue(ok)
+        self.load('EvertallyForumData={schemaVersion=1,generatedAt=NOW-1,threads={},acknowledgedIds={"%s"}}' % first)
+        self.assertEqual(self.a.ForumPrune(), 1)
+        self.assertEqual(len(self.a.ForumOutbox()), 1)
+        self.assertEqual(self.a.ForumOutbox()[1].id, second)
+
+    def test_invalid_or_partial_acknowledgements_never_clear_pending_entries(self):
+        ok, tid = self.a.ForumNewThread("general", "Moje téma", "text")
+        self.assertTrue(ok)
+        for ack in ('false', '{"%s","bad"}' % tid, '{[2]="%s"}' % tid,
+                    '{"%s","%s"}' % (tid, tid), '{%s}' % ','.join('"id%06d"' % n for n in range(161))):
+            with self.subTest(ack=ack[:35]):
+                self.load('EvertallyForumData={schemaVersion=1,generatedAt=NOW-1,threads={},acknowledgedIds=%s}' % ack)
+                self.assertEqual(self.a.ForumPrune(), 0)
+                self.assertEqual(self.a.ForumOutbox()[1].id, tid)
+
+    def test_explicit_empty_ack_does_not_prune_from_public_snapshot(self):
+        ok, tid = self.a.ForumNewThread("general", "Moje vlákno", "text")
+        self.assertTrue(ok)
+        self.load('EvertallyForumData={schemaVersion=1,generatedAt=NOW-1,acknowledgedIds={},threads={{id="%s",category="general",title="Moje vlákno",author="Fixture Hero-Fixture Realm",origin="game",pinned=false,createdAt=NOW-10,lastPostAt=NOW-5,replies=0,posts={{id="%s",author="Fixture Hero-Fixture Realm",origin="game",body="text",createdAt=NOW-10}}}}}' % (tid, tid))
+        self.assertEqual(self.a.ForumPrune(), 0)
+        self.assertEqual(self.a.ForumOutbox()[1].id, tid)
+
 
 class ForumPageTests(unittest.TestCase):
     def setUp(self):

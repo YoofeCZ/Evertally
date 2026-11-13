@@ -235,6 +235,21 @@ fn thread_lua(thread: &Value) -> Option<String> {
 /// The Lua data file for the server's answer (`generatedAt` and `threads`). Anything that does not look like a forum is left out.
 #[must_use]
 pub fn data_file(answer: &Value) -> String {
+    data_file_impl(answer, false)
+}
+
+/// Writes acknowledgements only for an installed addon that understands them.
+/// The old addon rejects unknown keys in ForumData.lua, so detecting its marker
+/// is essential when an updated bridge runs before the addon has been upgraded.
+#[must_use]
+pub fn data_file_for_addon(answer: &Value, addon: &Path) -> String {
+    const MARKER: &str = "FORUM_ACK_SCHEMA_V1";
+    let supports_ack = std::fs::read_to_string(addon.join("Forum.lua"))
+        .is_ok_and(|source| source.contains(MARKER));
+    data_file_impl(answer, supports_ack)
+}
+
+fn data_file_impl(answer: &Value, supports_ack: bool) -> String {
     let generated = int_of(answer, "generatedAt", 0, 253_402_300_799).unwrap_or(0);
     let mut body = String::new();
     let mut count = 0;
@@ -255,9 +270,24 @@ pub fn data_file(answer: &Value) -> String {
         body.push_str(",\n");
         count += 1;
     }
+    let ack = if supports_ack && answer.get("acknowledgedIds").is_some() {
+        // Do not partially trust a damaged response. An empty list means no
+        // acknowledgements and prevents snapshot-based pruning on new clients.
+        let ids = answer.get("acknowledgedIds").and_then(Value::as_array);
+        let valid = ids.filter(|ids| ids.len() <= 160 && ids.iter().all(|v| v.as_str().is_some_and(valid_id)));
+        let mut field = String::from("acknowledgedIds={");
+        if let Some(ids) = valid {
+            let mut seen = std::collections::HashSet::new();
+            for id in ids.iter().filter_map(Value::as_str) {
+                if seen.insert(id) { lua_string(&mut field, id); field.push(','); }
+            }
+        }
+        field.push_str("},\n");
+        field
+    } else { String::new() };
     format!(
         "-- Written by Evertally Sync from the website forum. It is replaced after every sync; do not edit.\n\
-         EvertallyForumData = {{\nschemaVersion=1,generatedAt={generated},count={count},\nthreads={{\n{body}}},\n}}\n"
+         EvertallyForumData = {{\nschemaVersion=1,generatedAt={generated},count={count},\n{ack}threads={{\n{body}}},\n}}\n"
     )
 }
 
@@ -328,6 +358,34 @@ mod tests {
         let lua = data_file(&json!({}));
         let parsed = savedvars::parse_assignment(&lua, "EvertallyForumData").unwrap();
         assert_eq!(parsed["count"], 0);
+    }
+
+    #[test]
+    fn acknowledgements_require_capability_and_are_serialized_as_data() {
+        let addon = temp("ack-capability");
+        let answer = json!({"generatedAt":1,"threads":[],"acknowledgedIds":["gabcdef12345","gdeleted1234"]});
+        let old = data_file_for_addon(&answer, &addon);
+        assert!(!old.contains("acknowledgedIds"));
+        std::fs::write(addon.join("Forum.lua"), "-- FORUM_ACK_SCHEMA_V1\n").unwrap();
+        let updated = data_file_for_addon(&answer, &addon);
+        let parsed = savedvars::parse_assignment(&updated, "EvertallyForumData").unwrap();
+        assert_eq!(parsed["acknowledgedIds"], json!(["gabcdef12345","gdeleted1234"]));
+        std::fs::remove_dir_all(addon).unwrap();
+    }
+
+    #[test]
+    fn malformed_acknowledgements_never_produce_partial_confirmation() {
+        let addon = temp("ack-invalid");
+        std::fs::write(addon.join("Forum.lua"), "-- FORUM_ACK_SCHEMA_V1\n").unwrap();
+        for ack in [json!(false), json!(["gabcdef12345", "bad"]), json!(["gabcdef12345", 1]), json!(vec!["gabcdef12345"; 161])] {
+            let lua = data_file_for_addon(&json!({"threads":[],"acknowledgedIds":ack}), &addon);
+            let parsed = savedvars::parse_assignment(&lua, "EvertallyForumData").unwrap();
+            assert!(parsed["acknowledgedIds"].as_array().is_some_and(Vec::is_empty)
+                || parsed["acknowledgedIds"].as_object().is_some_and(serde_json::Map::is_empty));
+        }
+        let legacy = data_file_for_addon(&json!({"threads":[]}), &addon);
+        assert!(!legacy.contains("acknowledgedIds"));
+        std::fs::remove_dir_all(addon).unwrap();
     }
 
     #[test]

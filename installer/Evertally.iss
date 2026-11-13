@@ -57,7 +57,7 @@ czech.StartBackground=Spustit Evertally Bridge vedle hodin Windows
 [Tasks]
 Name: "startwow"; Description: "{cm:StartWoW}"; GroupDescription: "Evertally:"; Flags: checkedonce
 Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "Evertally:"; Flags: unchecked
-Name: "addon"; Description: "{cm:AddonTask}"; GroupDescription: "World of Warcraft:"; Flags: unchecked
+Name: "addon"; Description: "{cm:AddonTask}"; GroupDescription: "World of Warcraft:"
 
 [Files]
 Source: "{#ProjectRoot}\desktop\native\target\release\Evertally.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -148,7 +148,7 @@ begin
   end;
 end;
 
-procedure CopyTree(const Source, Dest: String);
+procedure CopyTree(const Source, Dest: String; PreserveForumData: Boolean);
 var Find: TFindRec;
 begin
   { An existing addon directory must not redirect writes outside the selected game. }
@@ -165,12 +165,15 @@ begin
           if (Find.Attributes and $400) <> 0 then
             RaiseException('Cannot copy linked addon path ' + Find.Name);
           if (Find.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
-            CopyTree(AddBackslash(Source) + Find.Name, AddBackslash(Dest) + Find.Name)
+            CopyTree(AddBackslash(Source) + Find.Name, AddBackslash(Dest) + Find.Name, PreserveForumData)
           else begin
-            if not FileCopy(AddBackslash(Source) + Find.Name, AddBackslash(Dest) + Find.Name, False) then
-              RaiseException('Cannot copy addon file ' + Find.Name);
-            if GetSHA256OfFile(AddBackslash(Source) + Find.Name) <> GetSHA256OfFile(AddBackslash(Dest) + Find.Name) then
-              RaiseException('Addon file verification failed: ' + Find.Name);
+            { This file is maintained by the running bridge and contains the forum snapshot. }
+            if not (PreserveForumData and (CompareText(Find.Name, 'ForumData.lua') = 0) and FileExists(AddBackslash(Dest) + Find.Name)) then begin
+              if not FileCopy(AddBackslash(Source) + Find.Name, AddBackslash(Dest) + Find.Name, False) then
+                RaiseException('Cannot copy addon file ' + Find.Name);
+              if GetSHA256OfFile(AddBackslash(Source) + Find.Name) <> GetSHA256OfFile(AddBackslash(Dest) + Find.Name) then
+                RaiseException('Addon file verification failed: ' + Find.Name);
+            end;
           end;
         end;
       until not FindNext(Find);
@@ -187,8 +190,8 @@ begin
     for I := 0 to 2 do begin
       if I = 0 then Name := 'Evertally' else if I = 1 then Name := 'Evertally_Export' else Name := 'Evertally_Map';
       Destination := AddBackslash(GameRoot) + 'Interface\AddOns\' + Name;
-      if DirExists(Destination) then CopyTree(Destination, AddBackslash(Backup) + Name);
-      CopyTree(ExpandConstant('{app}\addon\') + Name, Destination);
+      if DirExists(Destination) then CopyTree(Destination, AddBackslash(Backup) + Name, False);
+      CopyTree(ExpandConstant('{app}\addon\') + Name, Destination, True);
     end;
   end;
 end;

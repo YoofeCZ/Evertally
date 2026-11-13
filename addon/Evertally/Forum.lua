@@ -8,6 +8,7 @@ local _, A = ...
 --    travels to the website through the desktop app when the game saves its files (/reload or logout). When the website's
 --    copy comes back with the same id, the outbox entry is dropped.
 -- Authors are always the full character name "Name-Realm". The addon makes no request of its own.
+-- FORUM_ACK_SCHEMA_V1: this client accepts authenticated per-entry delivery acknowledgements.
 local MAX_THREADS, MAX_POSTS, MAX_TITLE, MIN_TITLE, MAX_BODY = 60, 30, 80, 3, 800
 local OUTBOX_MAX, OUTBOX_AGE, GAP = 40, 14 * 86400, 10
 local CATEGORIES = {"general", "dungeons", "professions", "trading", "guilds", "feedback"}
@@ -15,7 +16,7 @@ local CATEGORY = {}
 for _, id in ipairs(CATEGORIES) do CATEGORY[id] = true end
 A.FORUM_LIMITS = {title = MAX_TITLE, body = MAX_BODY, titleMin = MIN_TITLE}
 
-local rootKeys = {schemaVersion = true, generatedAt = true, count = true, threads = true}
+local rootKeys = {schemaVersion = true, generatedAt = true, count = true, threads = true, acknowledgedIds = true}
 local threadKeys = {id = true, category = true, title = true, author = true, classId = true, origin = true, pinned = true, createdAt = true, lastPostAt = true, replies = true, posts = true}
 local postKeys = {id = true, author = true, classId = true, origin = true, body = true, createdAt = true, replyTo = true}
 
@@ -124,6 +125,17 @@ local function validate(data)
     if not strict(data, rootKeys) or data.schemaVersion ~= 1 or type(data.threads) ~= "table" then return nil, "forumInvalid" end
     local now = A.Now()
     if not integer(data.generatedAt, 0, now + 86400) then return nil, "forumInvalid" end
+    local acknowledgements
+    if data.acknowledgedIds ~= nil then
+        if type(data.acknowledgedIds) ~= "table" then return nil, "forumInvalid" end
+        local count, highest, seenAck = 0, 0, {}
+        for key, id in pairs(data.acknowledgedIds) do
+            if not integer(key, 1, 160) or not validId(id) or seenAck[id] then return nil, "forumInvalid" end
+            seenAck[id] = true; count = count + 1; highest = math.max(highest, key)
+        end
+        if count ~= highest then return nil, "forumInvalid" end
+        acknowledgements = data.acknowledgedIds
+    end
     local threads, seen, dropped = {}, {}, 0
     local length = 0
     for key in pairs(data.threads) do
@@ -134,7 +146,7 @@ local function validate(data)
         local thread = cleanThread(data.threads[index], now)
         if thread and not seen[thread.id] then seen[thread.id] = true;threads[#threads + 1] = thread else dropped = dropped + 1 end
     end
-    return {generatedAt = data.generatedAt, threads = threads, dropped = dropped}
+    return {generatedAt = data.generatedAt, threads = threads, dropped = dropped, acknowledgedIds = acknowledgements}
 end
 local cache = {raw = nil, clean = nil, err = nil}
 --- The website's forum as the game loaded it, checked: {generatedAt, threads, dropped}, or nil when there is no data (or nil, "forumInvalid").
@@ -189,9 +201,14 @@ function A.ForumPrune()
     if not forum then return 0 end
     local snapshot = A.ForumSnapshot()
     local known = {}
-    for _, thread in ipairs(snapshot and snapshot.threads or {}) do
-        known[thread.id] = true
-        for _, post in ipairs(thread.posts) do known[post.id] = true end
+    if snapshot and snapshot.acknowledgedIds ~= nil then
+        for _, id in ipairs(snapshot.acknowledgedIds) do known[id] = true end
+    else
+        -- Backwards-compatible snapshots from older bridge/server versions.
+        for _, thread in ipairs(snapshot and snapshot.threads or {}) do
+            known[thread.id] = true
+            for _, post in ipairs(thread.posts) do known[post.id] = true end
+        end
     end
     local now, kept, removed = A.Now(), {}, 0
     for _, entry in ipairs(forum.outbox) do

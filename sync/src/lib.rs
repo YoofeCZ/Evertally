@@ -4,6 +4,7 @@
 //! The tray bridge and its connection settings share this library.
 
 pub mod api;
+pub mod addon_update;
 pub mod bridge;
 pub mod config;
 pub mod forum;

@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
+use std::sync::{Arc, Mutex, mpsc::{Receiver, RecvTimeoutError, Sender}};
 use std::time::{Duration, Instant, SystemTime};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
@@ -30,6 +30,7 @@ pub enum Command {
     ReloadConfig(Config),
     Unpair,
     Quit,
+    AddonStatus(String),
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -79,6 +80,7 @@ pub struct Worker {
     identity: crate::optical::Identity,
     marker_fresh: crate::optical::Freshness,
     base_status: String,
+    addon_forum_lock: Arc<Mutex<()>>,
 }
 
 impl Worker {
@@ -119,6 +121,7 @@ impl Worker {
             identity: crate::optical::Identity::default(),
             marker_fresh: crate::optical::Freshness::default(),
             base_status: String::new(),
+            addon_forum_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -146,6 +149,28 @@ impl Worker {
     pub fn run(mut self, rx: &Receiver<Command>) {
         self.show(self.texts.starting.to_owned());
         self.refresh_watch();
+        // Network and archive work must never pause live positions or forum sync.
+        // Dropping this sender when the worker exits stops the updater thread.
+        let (update_stop, update_rx)=std::sync::mpsc::channel::<()>();
+        let update_tx=self.tx.clone();
+        let config_path=self.paths.config.clone();
+        let addon_lock=Arc::clone(&self.addon_forum_lock);
+        std::thread::spawn(move || {
+            let mut updater=crate::addon_update::Updater::new(config_path.parent().unwrap_or_else(||std::path::Path::new(".")));let mut last=String::new();
+            loop {
+                let mut wait=Duration::from_secs(300);
+                let result=if config_path.is_file(){crate::config::load_config(&config_path).and_then(|config|updater.check(&config,&addon_lock))}else{Ok(None)};
+                let cs=crate::platform::prefers_czech();
+                let message=match result {
+                    Ok(Some(true))=>if cs {"Addon je aktuální"}else{"Addon is up to date"}.to_owned(),
+                    Ok(Some(false))=>{wait=Duration::from_secs(30);if cs {"Aktualizace addonu čeká na zavření WoW"}else{"Addon update waits for WoW to close"}.to_owned()},
+                    Ok(None)=>String::new(),
+                    Err(error)=>{wait=Duration::from_secs(60);format!("{}: {error}",if cs {"Aktualizace addonu selhala"}else{"Addon update failed"})},
+                };
+                if !message.is_empty() && message!=last {let _=update_tx.send(Command::AddonStatus(message.clone()));last=message;}
+                match update_rx.recv_timeout(wait) {Ok(())|Err(RecvTimeoutError::Disconnected)=>break,Err(RecvTimeoutError::Timeout)=>{}}
+            }
+        });
         if let Err(error) = self.config.server_origin() {
             self.show(format!("{error}"));
         } else if self.token.is_none() {
@@ -176,6 +201,7 @@ impl Worker {
                     dirty.insert(path);
                     settle_at = Some(Instant::now() + SETTLE);
                 }
+                Ok(Command::AddonStatus(message)) => { self.log(&message);self.show(message); }
                 Ok(Command::SyncNow) => {
                     self.refresh_watch();
                     self.sync_all(true);
@@ -200,7 +226,7 @@ impl Worker {
                     self.log("disconnected by user");
                     self.show(self.texts.not_paired.to_owned());
                 }
-                Ok(Command::Quit) | Err(RecvTimeoutError::Disconnected) => return,
+                Ok(Command::Quit) | Err(RecvTimeoutError::Disconnected) => {drop(update_stop);return},
                 Err(RecvTimeoutError::Timeout) => {
                     if settle_at.is_some_and(|at| at <= Instant::now()) {
                         settle_at = None;
@@ -232,6 +258,8 @@ impl Worker {
         if self.dirs.is_empty() {
             return;
         }
+        let addon_lock=Arc::clone(&self.addon_forum_lock);
+        let Ok(_guard)=addon_lock.lock() else { self.log("forum: addon update lock unavailable");return; };
         let outbox = crate::forum::read_outboxes(&self.dirs);
         let answer = match self.client.forum(&token, &outbox) {
             Ok(answer) => answer,
@@ -256,11 +284,11 @@ impl Worker {
                 answer["rejected"]
             ));
         }
-        let text = crate::forum::data_file(&answer);
         for dir in self.dirs.clone() {
             let Some(addon) = crate::forum::addon_folder(&dir) else {
                 continue;
             };
+            let text = crate::forum::data_file_for_addon(&answer, &addon);
             match crate::forum::write_if_changed(&addon.join(crate::forum::DATA_FILE), &text) {
                 Ok(true) => self.log(&format!("forum: updated {}", addon.display())),
                 Ok(false) => {}
