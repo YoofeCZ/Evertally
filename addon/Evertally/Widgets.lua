@@ -336,7 +336,7 @@ function A.ExtendKit(kit)
         return f
     end
 
-    --- A scrolling grid of item icons (equipped gear, bags). grid.SetCells(items[, emptyText]) with items[i] = {icon, itemId, count, slot, label, mark = "want"|"offer", markText, onClick}.
+    --- A scrolling grid of item icons (equipped gear, bags). grid.SetCells(items[, emptyText]) with items[i] = {icon, itemId, count, slot, label, caption, mark = "want"|"offer", markText, onClick}; {header = "Weapons"} is a full-width group title.
     function kit.IconGrid(parent, size, gap)
         gap = gap or 6
         local scroll = kit.ScrollArea(parent, 0)
@@ -344,6 +344,7 @@ function A.ExtendKit(kit)
         scroll.cells = {}
         scroll.empty = label(scroll, 12, C.mist); scroll.empty:SetPoint("TOPLEFT", 14, -30); scroll.empty:SetPoint("TOPRIGHT", -14, -30); scroll.empty:SetJustifyH("CENTER")
         local data = {}
+        scroll.heads = {}
         local marks = {want = C.green, offer = C.peach}
         local function tip(cell)
             local item = cell.item
@@ -368,6 +369,7 @@ function A.ExtendKit(kit)
             b.tint = b:CreateTexture(nil, "OVERLAY"); b.tint:SetAllPoints(b)
             b.count = label(b, 10, C.text); b.count:SetPoint("BOTTOMRIGHT", -3, 3); b.count:SetJustifyH("RIGHT")
             b.markText = label(b, 9, C.text); b.markText:SetPoint("TOPLEFT", 3, -3)
+            b.caption = label(b, 8, C.mist); b.caption:SetPoint("BOTTOMLEFT", 3, 3); b.caption:SetWidth(size - 6); b.caption:SetJustifyH("LEFT"); b.caption:SetWordWrap(false)
             b:SetScript("OnEnter", tip)
             b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
             b:SetScript("OnClick", function(self) if self.item and self.item.onClick then self.item.onClick() end end)
@@ -378,36 +380,65 @@ function A.ExtendKit(kit)
             local color = q and type(ITEM_QUALITY_COLORS) == "table" and ITEM_QUALITY_COLORS[q]
             if color and q >= 2 then return {color.r, color.g, color.b, 1} end
         end
+        local function newHead()
+            local h = CreateFrame("Frame", nil, content); h:SetHeight(16)
+            h.text = label(h, 10, C.gold); h.text:SetPoint("LEFT", 2, 0)
+            h.rule = h:CreateTexture(nil, "ARTWORK"); h.rule:SetHeight(1); h.rule:SetPoint("LEFT", h.text, "RIGHT", 8, 0); h.rule:SetPoint("RIGHT", h, "RIGHT", 0, 0); paint(h.rule, C.line, 0.7)
+            return h
+        end
         function scroll.Layout(width)
             width = tonumber(width) or content:GetWidth() or 300
             local columns = math.max(1, math.floor((width + gap) / (size + gap)))
-            for i, cell in ipairs(scroll.cells) do
-                if i <= #data then
-                    local column, row = (i - 1) % columns, math.floor((i - 1) / columns)
-                    cell:ClearAllPoints(); cell:SetPoint("TOPLEFT", content, "TOPLEFT", column * (size + gap), -row * (size + gap))
+            local column, y, cellIndex, headIndex = 0, 0, 0, 0
+            for _, item in ipairs(data) do
+                if item.header then
+                    if column > 0 then column = 0; y = y + size + gap end
+                    headIndex = headIndex + 1
+                    local head = scroll.heads[headIndex]
+                    if head then
+                        head:ClearAllPoints(); head:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -y); head:SetWidth(math.max(40, width)); y = y + 20
+                    end
+                else
+                    cellIndex = cellIndex + 1
+                    local cell = scroll.cells[cellIndex]
+                    if cell then cell:ClearAllPoints(); cell:SetPoint("TOPLEFT", content, "TOPLEFT", column * (size + gap), -y) end
+                    column = column + 1
+                    if column >= columns then column = 0; y = y + size + gap end
                 end
             end
-            content:SetHeight(math.max(1, math.ceil(#data / columns) * (size + gap)))
+            if column > 0 then y = y + size + gap end
+            content:SetHeight(math.max(1, y))
             scroll.UpdateThumb()
         end
         scroll.onResize = scroll.Layout
         function scroll.SetCells(items, emptyText)
             data = items
-            for i, item in ipairs(items) do
-                local cell = scroll.cells[i]
-                if not cell then cell = newCell(); scroll.cells[i] = cell end
-                cell.item = item
-                kit.setIcon(cell.icon, item.icon)
-                local edge = marks[item.mark] or (item.itemId and qualityColor(item.itemId)) or C.line
-                for _, t in ipairs(cell.edges) do paint(t, edge) end
-                local mark = marks[item.mark]
-                if mark then paint(cell.tint, mark, 0.22); cell.tint:Show() else cell.tint:Hide() end
-                cell.markText:SetText(item.markText or "")
-                cell.count:SetText((item.count or 0) > 1 and tostring(item.count) or "")
-                cell:Show()
+            local cellIndex, headIndex = 0, 0
+            for _, item in ipairs(items) do
+                if item.header then
+                    headIndex = headIndex + 1
+                    local head = scroll.heads[headIndex]
+                    if not head then head = newHead(); scroll.heads[headIndex] = head end
+                    head.text:SetText(tostring(item.header)); head:Show()
+                else
+                    cellIndex = cellIndex + 1
+                    local cell = scroll.cells[cellIndex]
+                    if not cell then cell = newCell(); scroll.cells[cellIndex] = cell end
+                    cell.item = item
+                    kit.setIcon(cell.icon, item.icon)
+                    local edge = marks[item.mark] or (item.itemId and qualityColor(item.itemId)) or C.line
+                    for _, t in ipairs(cell.edges) do paint(t, edge) end
+                    local mark = marks[item.mark]
+                    if mark then paint(cell.tint, mark, 0.22); cell.tint:Show() else cell.tint:Hide() end
+                    cell.markText:SetText(item.markText or "")
+                    cell.caption:SetText(item.caption or "")
+                    cell.count:SetText((item.count or 0) > 1 and tostring(item.count) or "")
+                    cell:Show()
+                end
             end
-            for i = #items + 1, #scroll.cells do scroll.cells[i]:Hide() end
-            scroll.empty:SetText(#items == 0 and (emptyText or "") or "")
+            for i = cellIndex + 1, #scroll.cells do scroll.cells[i]:Hide() end
+            for i = headIndex + 1, #scroll.heads do scroll.heads[i]:Hide() end
+            scroll.empty:SetText(cellIndex == 0 and (emptyText or "") or "")
             scroll.Layout()
         end
         return scroll

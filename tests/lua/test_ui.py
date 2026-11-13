@@ -245,6 +245,35 @@ class WindowTests(unittest.TestCase):
         self.assertFalse(viewer.grid.shown); self.assertTrue(viewer.list.shown)
         self.assertIsNone(self.a.errors.social_viewer)
 
+    def test_the_viewer_filters_by_name_sorts_and_groups_bags(self):
+        self.a.SetWeb(True); self.a.OpenUI()
+        ok, ident = self.a.RequestInspect("Other-Fixture Realm", "ip")
+        self.a.ReceiveMessage("Evtly1", "S|A|%s|ip|1" % ident, "WHISPER", "Other-Fixture Realm")
+        self.a.ReceiveMessage("Evtly1", "S|D|%s|1|1|I1;E=1:987654,5:987655;B=2589*20,2592*5,4306*3" % ident, "WHISPER", "Other-Fixture Realm")
+        viewer = self.lua.globals().EvertallyViewFrame
+        self.assertIsNone(self.a.errors.social_viewer, self.a.lastUIError)
+        self.assertTrue(viewer.search.shown and viewer.sortBtn.shown)
+        viewer.tabs.bags.scripts.OnClick(viewer.tabs.bags)
+        self.assertEqual(str(viewer.summary.GetText(viewer.summary)), "3/3")
+        # a search by item id narrows the grid (names are not loaded in the fixture)
+        viewer.search.SetText(viewer.search, "2592")
+        viewer.search.scripts.OnTextChanged(viewer.search)
+        self.assertEqual(viewer.grid.cells[1].item.itemId, 2592)
+        self.assertFalse(viewer.grid.cells[2].shown)
+        self.assertEqual(str(viewer.summary.GetText(viewer.summary)), "1/3")
+        viewer.search.SetText(viewer.search, "zzz")
+        viewer.search.scripts.OnTextChanged(viewer.search)
+        self.assertEqual(str(viewer.grid.empty.GetText(viewer.grid.empty)), str(self.a.L("viewNoMatch")))
+        viewer.search.SetText(viewer.search, "")
+        viewer.search.scripts.OnTextChanged(viewer.search)
+        # cycle the sort to "type": group headers appear above the items and every item stays reachable
+        for _ in range(3):
+            viewer.sortBtn.scripts.OnClick(viewer.sortBtn)
+        self.assertIn(str(self.a.L("viewSort_type")), str(viewer.sortBtn.text.GetText(viewer.sortBtn.text)))
+        self.assertTrue(viewer.grid.heads[1].shown)
+        self.assertEqual(sum(1 for c in viewer.grid.cells.values() if c.shown), 3)
+        self.assertIsNone(self.a.errors.social_viewer, self.a.lastUIError)
+
     def test_the_look_page_lists_whoever_showed_you_something_and_draws_cleanly(self):
         self.receive_view()
         self.open_view("social")
