@@ -1472,6 +1472,7 @@ local function slash(text)
             local ok, reason = A.map.NavigateTerrain()
             A.Print(A.L(ok and "terrainStarted" or ("terrainErr_" .. tostring(reason))))
         end
+    elseif text == "mark" or text:match("^mark%s") then A.MarkCommand(text)
     elseif text == "ping" or text:match("^ping%s") then
         local ok, err = A.SendPing(text:match("^ping%s+(.+)$") or "")
         A.Print(ok and A.L("pingSent") or A.L("pingErr_" .. tostring(err)))

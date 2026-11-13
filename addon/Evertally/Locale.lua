@@ -1,5 +1,5 @@
 local _, A = ...
-A.version = "0.9.7"
+A.version = "0.9.8"
 A.locale = {
     en = {
         title = "Evertally", overview = "Overview", history = "Runs", facts = "Atlas", peers = "Sharing", settings = "Settings",

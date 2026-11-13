@@ -628,6 +628,12 @@ function A.BuildSocialPage(host, k)
         page.kindButtons[key]=chip;last=chip
     end
     page.permissionNote=k.label(form,10,muted);page.permissionNote:SetPoint("TOPLEFT",14,-195);page.permissionNote:SetPoint("TOPRIGHT",-14,-195);page.permissionNote:SetHeight(16)
+    -- a private mark for this player, drawn beside their nameplate; one click cycles 0 (none), 1..8, 0
+    page.markButton=k.Button(form,nil,96,"ghost",function()
+        local who=page.name:GetText() or ""
+        local current=A.GetMark and A.GetMark(who) or 0
+        if A.SetMark and A.SetMark(who,(current+1)%((A.MARK_COUNT or 8)+1)) then A.RefreshUI() end
+    end);page.markButton:SetPoint("TOPLEFT",204,-77)
     page.sendRequest=k.Button(form,"socialSend",180,"primary",function()
         local chosen="";for _,key in ipairs({"i","s","t","p","g","w"})do if page.kinds[key]then chosen=chosen..key end end
         local ok,err=A.RequestInspect(page.name:GetText() or "",chosen)
@@ -713,6 +719,8 @@ function A.BuildSocialPage(host, k)
             else k.setIcon(page.contactPortrait,k.ICON.npc)end
             page.permissionTitle:SetText(A.db.settings.language=="cs" and "O co chceš požádat" or "What you want to see")
             page.permissionNote:SetText(A.L("socialPermissionNote"))
+            local currentMark = A.GetMark and A.GetMark(page.name:GetText() or "") or 0
+            page.markButton.text:SetText(A.L("markButton") .. (currentMark > 0 and ("  |TInterface" .. string.char(92) .. "TargetingFrame" .. string.char(92) .. "UI-RaidTargetingIcon_" .. currentMark .. ":14|t") or ""))
             page.viewList.SetItems(viewRows(), A.L("socialNoViews"))
         elseif mode == "live" then page.list.SetItems(liveRows(), A.L("liveNone"))
         elseif mode == "proposals" then page.list.SetItems(proposalRows(), A.L("socialNoProposals"))

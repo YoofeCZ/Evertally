@@ -113,6 +113,7 @@ function A.ReceiveMessage(prefix,message,channel,sender)
     prefix=A.Text(prefix,30);message=A.Text(message,255);channel=A.Text(channel,20);sender=A.Text(sender,150)
     if not A.db or prefix~=PREFIX or not message or not sender then return end
     -- Social messages have their own rules (every inspect needs the other player's answer) and are not "sharing summaries".
+    if A.NoteEvertallyUser then A.NoteEvertallyUser(sender) end
     if message:sub(1,2)=="S|" then if A.ReceiveSocial then A.ReceiveSocial(channel,sender,message) end;return end
     if not allowed(channel) then return end
     if message:sub(1,2)=="R|" then
