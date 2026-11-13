@@ -228,6 +228,11 @@ function A.BuildRankingsPage(page,kit)
  page.summary=kit.label(page,10,C.mist);page.summary:SetJustifyH("LEFT");page.summary:SetWordWrap(false)
  page.book=kit.Book(page,150);page.catalog=page.book.index;page.board=page.book.paper
  page.dungeonList=kit.ListView(page.book.index,0,true);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6);page.document=kit.Document(page.book.paper)
+ page.boardFrame=CreateFrame("Frame",nil,page.book.paper);page.boardFrame:SetPoint("TOPLEFT",4,-4);page.boardFrame:SetPoint("BOTTOMRIGHT",-4,4)
+ kit.fill(page.boardFrame,{0.094,0.09,0.086},1)
+ page.boardTitle=kit.label(page.boardFrame,16,{1,1,1});page.boardTitle:SetPoint("TOPLEFT",10,-12);page.boardTitle:SetPoint("TOPRIGHT",-10,-12);page.boardTitle:SetJustifyH("CENTER")
+ page.boardSub=kit.label(page.boardFrame,10,{0.79,0.77,0.73});page.boardSub:SetPoint("TOPLEFT",10,-34);page.boardSub:SetPoint("TOPRIGHT",-10,-34);page.boardSub:SetJustifyH("CENTER");page.boardSub:SetWordWrap(false)
+ page.boardList=kit.ListView(page.boardFrame,0,true);page.boardList:ClearAllPoints();page.boardList:SetPoint("TOPLEFT",0,-52);page.boardList:SetPoint("BOTTOMRIGHT",-8,0)
  local function showSelection()
   local selected=page.selection;if not selected then return false end;local spec
   if selected.run then spec=A.RankingRunDetail(kit,selected.run,selected.character)
@@ -264,7 +269,18 @@ function A.BuildRankingsPage(page,kit)
    choices[#choices+1]={title=kit.plain(item.name),icon=item.kind=="raid" and kit.ICON.raid or kit.ICON.run,sub=item.count>0 and tostring(item.count).." · "..A.L("rankModeHistory") or A.L("rankWithoutRuns"),tag=page.dungeon==instance and "•" or nil,onClick=function()page.dungeon=instance;page.selection=nil;if page.mode=="dungeons" then page.mode="history" end;A.RefreshUI()end}
   end
   page.dungeonList.SetItems(choices,A.L("rankNoData"));local data=A.RankingRows(kit,page.mode,page.dungeon,page.filters);page.data=data;page.summary:SetText(A.L("rankFilterHint"))
-  if showSelection() then return end
+  if showSelection() then page.boardFrame:Hide();page.document.scroll:Show();return end
+  page.boardFrame:Show();page.document.scroll:Hide()
+  local boardRows={}
+  for _,row in ipairs(data) do local selected=row
+   local classId=row.character and row.character.classId
+   local color=classId and A.ClassColor and A.ClassColor(classId)
+   boardRows[#boardRows+1]={class=classId,title=kit.plain(row.name),sub=row.sub or "",right=row.valueText,titleColor=type(color)=="table" and color[1] and {color[1],color[2],color[3]} or nil,
+    onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};A.RefreshUI()end}
+  end
+  page.boardTitle:SetText((page.dungeon and kit.plain(page.dungeon) or modeLabel(page.mode)):upper())
+  page.boardSub:SetText((page.mode=="dps" or page.mode=="heals") and A.L("rankRateNote") or A.L("rankPersonal"))
+  page.boardList.SetItems(boardRows,A.L("rankNoData"))
   local entries={};if page.mode=="dps" or page.mode=="heals" then entries[#entries+1]={text=A.L("rankRateNote")} end
   for _,row in ipairs(data) do local selected=row
    entries[#entries+1]={text=tostring(row.rank)..". "..kit.plain(row.name).." · "..row.valueText,head=true,classId=row.character and row.character.classId,raceId=row.character and row.character.raceId,onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};A.RefreshUI()end}

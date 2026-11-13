@@ -282,7 +282,7 @@ local function ListView(parent, top, striped)
             local heading = item.heading ~= nil
             r.heading = heading
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -y); r:SetPoint("TOPRIGHT", 0, -y)
-            r:SetHeight((heading and HEAD_ROW or ROW) - 4)
+            r:SetHeight((heading and HEAD_ROW or ROW) - (scroll.striped and not heading and 0 or 4))
             r.bg:SetShown(not heading); r.hover:SetShown(not heading); r.divider:SetShown(not heading)
             if not heading and scroll.striped then stripe = stripe + 1; paint(r.bg, stripe % 2 == 1 and {0.17, 0.165, 0.16} or {0.137, 0.133, 0.129}, 1)
             elseif not heading then paint(r.bg, C.card, 0.55) end
