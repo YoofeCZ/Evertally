@@ -907,7 +907,7 @@ local function buildPlaces(page)
                     document={title=plain(area.mapName or mapName(area.mapId)),subtitle=A.L("areaOnly"),entries={
                         {text=A.L("recordedVisits")..": "..area.count,head=true},
                         {text=A.L("lastVisit")..": "..stamp(area.lastSeen)},
-                        {text=A.L("showMap"),icon=ICON.places,onClick=function() A.OpenRecordedMap(current) end},
+                        {text=A.L("openMap"),icon=ICON.places,onClick=function() A.OpenRecordedMap(current) end},
                     }},onClick=function()
                         showDetails(plain(current.mapName or mapName(current.mapId)),A.L("areaOnly"),{detailRow("recordedVisits",current.count),detailRow("lastVisit",stamp(current.lastSeen))},current)
                     end}
