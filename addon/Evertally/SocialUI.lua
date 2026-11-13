@@ -347,10 +347,13 @@ function openViewer(view)
             local divider=f:CreateTexture(nil,"BORDER");divider:SetPoint("TOPLEFT",482,-62);divider:SetPoint("BOTTOMLEFT",482,32);divider:SetWidth(1);k.paint(divider,{0.65,0.50,0.25},0.65)
             f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", function() f:StartMoving() end); f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
             f.title = k.label(f, 18, C.gold); f.title:SetPoint("TOPLEFT", 20, -10); f.title:SetWidth(560)
-            f.sub = k.label(f, 10, C.mist); f.sub:SetPoint("TOPLEFT", 20, -34); f.sub:SetWidth(740)
+            f.sub = k.label(f, 10, C.mist); f.sub:SetPoint("TOPLEFT", 20, -34); f.sub:SetWidth(560)
             f.close = k.Button(f, nil, 30, "ghost", function() f:Hide() end); f.close:SetPoint("TOPRIGHT", -14, -12); f.close.text:SetText("x")
             f.pointChip = k.Chip(f, function() f.pointMode = not f.pointMode; A.SocialRefreshViewer() end)
             f.pointChip:SetPoint("TOPRIGHT", -54, -14)
+            f.pointInfo = k.label(f, 10, C.green); f.pointInfo:SetPoint("TOPRIGHT", f.pointChip, "TOPLEFT", -10, 3); f.pointInfo:SetWidth(250); f.pointInfo:SetHeight(26); f.pointInfo:SetJustifyH("RIGHT")
+            f.pointChip:HookScript("OnEnter", function() if GameTooltip then GameTooltip:SetOwner(f.pointChip, "ANCHOR_BOTTOM"); GameTooltip:SetText(A.L("viewPointInfo"), 1, 1, 1, 1, true); GameTooltip:Show() end end)
+            f.pointChip:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
             f.tabs = {}
             local previous
             for _, mode in ipairs({"equipped", "stats", "talents", "bags", "professions", "gold"}) do
@@ -403,7 +406,7 @@ function A.SocialRefreshViewer()
     for mode, chip in pairs(f.tabs) do chip.SetLabel(A.L("viewTab_" .. mode)); chip.SetOn(f.mode == mode) end
     f.offerTitle:SetText(A.L("viewMyOffer")); f.goldLabel:SetText(A.L("viewGoldOffer")); f.noteLabel:SetText(A.L("viewNote"))
     f.send.text:SetText(A.L("viewSend")); f.hint:SetText(f.pointMode and A.L("viewPointHint") or A.L("viewHint")); f.hint:SetTextColor(unpack(f.pointMode and k.C.green or k.C.faint))
-    f.pointChip.SetLabel(A.L("viewPoint")); f.pointChip.SetOn(f.pointMode == true)
+    f.pointChip.SetLabel(A.L("viewPoint")); f.pointInfo:SetText(A.L("viewPointInfo")); f.pointChip.SetOn(f.pointMode == true)
     local icons = f.mode == "equipped" or f.mode == "bags"
     f.grid:SetShown(icons); f.list:SetShown(not icons)
     f.search:SetShown(icons); f.sortBtn:SetShown(icons); f.summary:SetShown(icons)
@@ -938,7 +941,7 @@ local text = {
         socialPermissionNote = "They choose what to show. Gold is separate.",
         viewTab_stats = "Stats", viewTab_talents = "Talents", viewNoStats = "No stats shown.", viewNoTalents = "No talents shown.", viewTalentPoints = "%d talents with points",
         viewTitle = "%s", viewReceived = "received %s", viewTab_equipped = "Equipped", viewTab_bags = "Bags", viewTab_professions = "Professions", viewTab_gold = "Gold",
-        viewPoint = "Show mode", viewPointed = "Showing %s to %s", viewPointHint = "SHOW MODE is on: click an item and it blinks green in THEIR open bags (any bag addon) and they get a chat message. Click \"Show mode\" again to go back to choosing wanted items.",
+        viewPointInfo = "Point at an item: click it and it blinks green in their open bags.", viewPoint = "Show mode", viewPointed = "Showing %s to %s", viewPointHint = "SHOW MODE is on: click an item and it blinks green in THEIR open bags (any bag addon) and they get a chat message. Click \"Show mode\" again to go back to choosing wanted items.",
         viewWant = "WANT", viewOffer = "OFFER", viewMyOffer = "My offer (my bags)", viewGoldOffer = "Gold I offer", viewNote = "Note", viewSend = "Send proposal", viewSent = "Proposal sent to %s.",
         viewHint = "Click an item to mark it as wanted (click again for the whole stack, again to remove). Pick what you offer on the right, then send.", viewNoGold = "They did not show their gold.",
         viewNoProf = "No professions shown, or none recorded yet.", viewRecipes = "%d known recipes",
@@ -971,7 +974,7 @@ local text = {
         socialPermissionNote = "Hráč rozhodne, co ukáže. Zlato se žádá zvlášť.",
         viewTab_stats = "Statistiky", viewTab_talents = "Talenty", viewNoStats = "Statistiky neukázal.", viewNoTalents = "Talenty neukázal.", viewTalentPoints = "Talentů s body: %d",
         viewTitle = "%s", viewReceived = "přijato %s", viewTab_equipped = "Nasazené", viewTab_bags = "Tašky", viewTab_professions = "Profese", viewTab_gold = "Zlato",
-        viewPoint = "Ukazovat", viewPointed = "Ukazuji %s hráči %s", viewPointHint = "REŽIM UKAZOVÁNÍ je zapnutý: klikni na předmět a v JEHO otevřených taškách (i v addonech na tašky) zableská zeleně a přijde mu zpráva do chatu. Dalším klikem na \"Ukazovat\" se vrátíš k výběru chtěných předmětů.",
+        viewPointInfo = "Ukaž předmět: klikni na něj a v jeho otevřených taškách zableská zeleně.", viewPoint = "Ukazovat", viewPointed = "Ukazuji %s hráči %s", viewPointHint = "REŽIM UKAZOVÁNÍ je zapnutý: klikni na předmět a v JEHO otevřených taškách (i v addonech na tašky) zableská zeleně a přijde mu zpráva do chatu. Dalším klikem na \"Ukazovat\" se vrátíš k výběru chtěných předmětů.",
         viewWant = "CHCI", viewOffer = "NABÍZÍM", viewMyOffer = "Moje nabídka (moje tašky)", viewGoldOffer = "Zlato, které nabízím", viewNote = "Poznámka", viewSend = "Poslat návrh", viewSent = "Návrh odeslán hráči %s.",
         viewHint = "Kliknutím na věc ji označíš jako chtěnou (znovu = celý stack, znovu = zrušit). Vpravo vyber, co nabízíš, a pošli.", viewNoGold = "Své zlato neukázal.",
         viewNoProf = "Žádné profese neukázal, nebo ještě žádné nejsou zaznamenané.", viewRecipes = "Známých receptů: %d",
