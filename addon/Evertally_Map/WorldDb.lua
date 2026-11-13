@@ -19,6 +19,12 @@ local CHUNK, MAX_RESULTS, MAX_NAME_INDEX = 1500, 400, 60000
 
 local text = {
     en = {
+        worldDbCat = "Category", worldDbCatLevels = "Level %d-%d", worldDbCat_all = "All",
+        worldDbCat_consumable = "Consumable", worldDbCat_weapon = "Weapon", worldDbCat_armor = "Armor", worldDbCat_container = "Container", worldDbCat_tradegoods = "Trade goods",
+        worldDbCat_recipe = "Recipe", worldDbCat_quest = "Quest item", worldDbCat_key = "Key", worldDbCat_misc = "Miscellaneous", worldDbCat_other = "Other",
+        worldDbCat_questgiver = "Quest givers", worldDbCat_vendor = "Vendors", worldDbCat_trainer = "Trainers", worldDbCat_service = "Services (inn, flight, bank...)", worldDbCat_creature = "Creatures",
+        worldDbCat_sort = "Class and profession quests", worldDbCat_containers = "Chests and containers", worldDbCat_mining = "Mining nodes", worldDbCat_herbs = "Herbs",
+        worldDbCat_crafting = "Forges, anvils, cauldrons", worldDbCat_readables = "Books and notes", worldDbCat_mailbox = "Mailboxes", worldDbCatScanning = "Sorting... %d%%",
         worldDb_npc = "NPCs", worldDb_quest = "Quests", worldDb_item = "Items", worldDb_object = "Objects", worldDbSearch = "Search",
         worldDbCount = "%d entries. Type to narrow them down.", worldDbKill = "Kill", worldDbUse = "Use", worldDbCollect = "Collect", worldDbZone = "Zone",
         worldDbPrereq = "Do first", worldDbNext = "Next in the chain", worldDbGives = "Gives you", worldDbSoldBy = "Sold by", worldDbFromObjects = "Found in",
@@ -32,6 +38,12 @@ local text = {
         worldDbObjectives = "What to do", worldDbDrops = "Dropped by", worldDbRewards = "Reward of", worldDbMore = "… and %d more", worldDbNoMapFor = "That place is not on a map I can show.",
     },
     cs = {
+        worldDbCat = "Kategorie", worldDbCatLevels = "Úroveň %d-%d", worldDbCat_all = "Vše",
+        worldDbCat_consumable = "Spotřební", worldDbCat_weapon = "Zbraň", worldDbCat_armor = "Zbroj", worldDbCat_container = "Taška", worldDbCat_tradegoods = "Obchodní zboží",
+        worldDbCat_recipe = "Recept", worldDbCat_quest = "Předmět z questu", worldDbCat_key = "Klíč", worldDbCat_misc = "Různé", worldDbCat_other = "Ostatní",
+        worldDbCat_questgiver = "Zadavatelé questů", worldDbCat_vendor = "Obchodníci", worldDbCat_trainer = "Trenéři", worldDbCat_service = "Služby (hostinec, let, banka...)", worldDbCat_creature = "Tvorové",
+        worldDbCat_sort = "Questy povolání a profesí", worldDbCat_containers = "Truhly a schránky", worldDbCat_mining = "Rudné žíly", worldDbCat_herbs = "Byliny",
+        worldDbCat_crafting = "Výhně, kovadliny, kotle", worldDbCat_readables = "Knihy a vzkazy", worldDbCat_mailbox = "Poštovní schránky", worldDbCatScanning = "Třídím... %d %%",
         worldDb_npc = "NPC", worldDb_quest = "Questy", worldDb_item = "Itemy", worldDb_object = "Objekty", worldDbSearch = "Hledat",
         worldDbCount = "Záznamů: %d. Piš a zúžíš je.", worldDbKill = "Zabít", worldDbUse = "Použít", worldDbCollect = "Sebrat", worldDbZone = "Oblast",
         worldDbPrereq = "Nejdřív udělej", worldDbNext = "Další v řetězu", worldDbGives = "Dá ti", worldDbSoldBy = "Prodává", worldDbFromObjects = "Najdeš v",
@@ -205,6 +217,78 @@ function Db.Sorted(kind)
     for i, at in ipairs(order) do out[i] = entry.found[at] end
     entry.sorted, entry.sortedSize = out, #entry.found
     return out
+end
+
+-- ---------------------------------------------------------------- categories
+-- A category is worked out from what the record itself says, so nothing has to be stored: an item's class comes from the
+-- game's own item data, an NPC's from its title and its quests, a quest's from its level (or "class and profession"
+-- when QuestieDB files it under a sort), an object's from its name.
+local ITEM_CLASSES = {0, 2, 4, 1, 7, 9, 12, 13, 15}   -- consumable, weapon, armor, container, trade goods, recipe, quest, key, miscellaneous
+local ITEM_CLASS_KEY = {[0] = "consumable", [2] = "weapon", [4] = "armor", [1] = "container", [7] = "tradegoods", [9] = "recipe", [12] = "quest", [13] = "key", [15] = "misc"}
+local OBJECT_PATTERNS = {
+    {"mailbox", "mailbox"}, {"containers", "chest"}, {"containers", "coffer"}, {"containers", "cache"}, {"containers", "footlocker"}, {"containers", "strongbox"},
+    {"containers", "crate"}, {"containers", "barrel"}, {"containers", "lockbox"}, {"mining", "vein"}, {"mining", "deposit"}, {"mining", "ore"},
+    {"crafting", "forge"}, {"crafting", "anvil"}, {"crafting", "furnace"}, {"crafting", "cauldron"}, {"crafting", "oven"}, {"crafting", "stove"}, {"crafting", "loom"},
+    {"readables", "book"}, {"readables", "tome"}, {"readables", "journal"}, {"readables", "letter"}, {"readables", "note"}, {"readables", "scroll"}, {"readables", "tablet"}, {"readables", "sign"},
+    {"herbs", "bloom"}, {"herbs", "leaf"}, {"herbs", "root"}, {"herbs", "weed"}, {"herbs", "thistle"}, {"herbs", "briar"}, {"herbs", "sage"}, {"herbs", "moss"}, {"herbs", "lotus"}, {"herbs", "herb"}, {"herbs", "mushroom"}, {"herbs", "flower"},
+}
+local NPC_PATTERNS = {
+    {"trainer", "trainer"}, {"trainer", "instructor"}, {"trainer", "teacher"}, {"trainer", "master"},
+    {"vendor", "merchant"}, {"vendor", "vendor"}, {"vendor", "supplies"}, {"vendor", "goods"}, {"vendor", "armorer"}, {"vendor", "weaponsmith"}, {"vendor", "reagents"}, {"vendor", "food"}, {"vendor", "drink"}, {"vendor", "poison"}, {"vendor", "tailor"},
+    {"service", "innkeeper"}, {"service", "flight"}, {"service", "banker"}, {"service", "stable"}, {"service", "auctioneer"}, {"service", "battlemaster"}, {"service", "guild"}, {"service", "mailbox"}, {"service", "repair"}, {"service", "portal"},
+}
+local QUEST_BANDS = {{1, 10}, {11, 20}, {21, 30}, {31, 40}, {41, 50}, {51, 70}}
+
+--- The categories a kind can be filtered by: array of keys ("all" first).
+function Db.Categories(kind)
+    local out = {"all"}
+    if kind == "item" then for _, class in ipairs(ITEM_CLASSES) do out[#out + 1] = ITEM_CLASS_KEY[class] end; out[#out + 1] = "other"
+    elseif kind == "npc" then for _, key in ipairs({"questgiver", "vendor", "trainer", "service", "creature"}) do out[#out + 1] = key end
+    elseif kind == "quest" then for i = 1, #QUEST_BANDS do out[#out + 1] = "band" .. i end; out[#out + 1] = "sort"; out[#out + 1] = "other"
+    elseif kind == "object" then for _, key in ipairs({"containers", "mining", "herbs", "crafting", "readables", "mailbox", "other"}) do out[#out + 1] = key end end
+    return out
+end
+--- The text of a category for the page: the game's own name for an item class when the client has one.
+function Db.CategoryLabel(kind, key)
+    if kind == "item" then
+        for class, k in pairs(ITEM_CLASS_KEY) do
+            if k == key and type(GetItemClassInfo) == "function" then local ok, name = pcall(GetItemClassInfo, class); if ok and type(name) == "string" and name ~= "" then return name end end
+        end
+    elseif kind == "quest" then
+        local band = key:match("^band(%d+)$"); band = band and QUEST_BANDS[tonumber(band)]
+        if band then return string.format(A.L("worldDbCatLevels"), band[1], band[2]) end
+    end
+    return A.L("worldDbCat_" .. key)
+end
+local function nameMatches(patterns, text)
+    text = (type(text) == "string" and text or ""):lower()
+    for _, entry in ipairs(patterns) do if text:find(entry[2], 1, true) then return entry[1] end end
+end
+--- The category key of one record, or nil when the record is not readable.
+function Db.Category(db, kind, id)
+    if kind == "item" then
+        local fn = C_Item and C_Item.GetItemInfoInstant or GetItemInfoInstant
+        if type(fn) ~= "function" then return "other" end
+        local ok, _, _, _, _, _, class = pcall(fn, id)
+        return ok and ITEM_CLASS_KEY[class] or "other"
+    end
+    local v = Db.Get(db, kind, id)
+    if not v then return nil end
+    if kind == "npc" then
+        local by = nameMatches(NPC_PATTERNS, v.subName)
+        if by then return by end
+        local starts = type(v.questStarts) == "table" and next(v.questStarts) ~= nil
+        local ends = type(v.questEnds) == "table" and next(v.questEnds) ~= nil
+        return (starts or ends) and "questgiver" or "creature"
+    elseif kind == "quest" then
+        if type(v.zoneOrSort) == "number" and v.zoneOrSort < 0 then return "sort" end
+        local level = type(v.questLevel) == "number" and v.questLevel or nil
+        if not level then return "other" end
+        for i, band in ipairs(QUEST_BANDS) do if level >= band[1] and level <= band[2] then return "band" .. i end end
+        return level > 70 and "band" .. #QUEST_BANDS or "other"
+    elseif kind == "object" then
+        return nameMatches(OBJECT_PATTERNS, v.name) or "other"
+    end
 end
 
 --- Entities whose name contains the query (case-insensitive), the ones that start with it first. Works on what is read so far.

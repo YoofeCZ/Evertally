@@ -732,6 +732,21 @@ class MapTests(unittest.TestCase):
         M, opened = self.db()
         self.assertIsNotNone(opened)
 
+    def test_records_get_a_category_from_what_they_say_about_themselves(self):
+        M, db = self.db()
+        cat = lambda kind, id: str(M.Db.Category(db, kind, id))
+        self.assertEqual(cat("npc", 100), "questgiver")          # starts and ends a quest
+        self.assertEqual(cat("npc", 103), "creature")            # says nothing
+        self.assertEqual(cat("quest", 200), "band1")             # level 2
+        self.assertEqual(str(M.Db.CategoryLabel("quest", "band1")), str(self.a.L("worldDbCatLevels")) % (1, 10))
+        self.assertEqual(cat("item", 300), "other")              # the test client has no item data: never a failure
+        for kind in ("npc", "quest", "item", "object"):
+            keys = [str(k) for k in lst(M.Db.Categories(kind))]
+            self.assertEqual(keys[0], "all")
+            self.assertEqual(len(keys), len(set(keys)))
+            for key in keys:
+                self.assertNotEqual(str(M.Db.CategoryLabel(kind, key)), "worldDbCat_" + key, "every category has a caption")
+
     def test_areas_become_maps_with_the_override_and_places_are_fractions(self):
         M, db = self.db()
         self.assertEqual(M.Db.MapOf(db, 12), 1429)

@@ -226,6 +226,33 @@ function M.WorldDbDetail(frame)
     s.show:SetShown(d ~= nil and d.map ~= nil); s.go:SetShown(d ~= nil and #d.spots > 0)
 end
 
+--- The records of `base` that belong to the category, found a slice at a time so that sorting tens of thousands of records never freezes the game:
+--- the list fills up while the slices run, and the page is drawn again after each one.
+function M.WorldDbFiltered(frame, base, cat, typed)
+    local s = frame.db
+    local key = table.concat({s.kind, cat, typed and s.query or "", #base}, "|")
+    if not s.scan or s.scan.key ~= key then
+        s.scan = {key = key, source = base, pos = 1, out = {}, done = false}
+        local scan = s.scan
+        local function step()
+            if s.scan ~= scan or scan.done then return end
+            local started = (debugprofilestop and debugprofilestop()) or 0
+            local last = math.min(#scan.source, scan.pos + 1500)
+            while scan.pos <= last do
+                local id = scan.source[scan.pos]
+                if Db.Category(s.dbHandle, s.kind, id) == cat then scan.out[#scan.out + 1] = id end
+                scan.pos = scan.pos + 1
+                if debugprofilestop and debugprofilestop() - started > 6 then break end
+            end
+            if scan.pos > #scan.source then scan.done = true end
+            if frame:IsShown() then M.WorldDbRefresh(frame, true) end
+            if not scan.done and C_Timer and C_Timer.After then C_Timer.After(0.02, step) end
+        end
+        if C_Timer and C_Timer.After then C_Timer.After(0, step) else step() end
+    end
+    return s.scan.out
+end
+
 function M.WorldDbRefresh(frame, fromTimer)
     local s = frame.db
     if not s then return end
@@ -244,11 +271,15 @@ function M.WorldDbRefresh(frame, fromTimer)
     local entry = Db.StartIndex(s.dbHandle, s.kind)
     local reading = entry.at <= #entry.ids
     local typed = #(s.query:gsub("%s", "")) >= 2
-    s.results = typed and Db.Search(s.dbHandle, s.kind, s.query, MAX_RESULTS) or Db.Sorted(s.kind)
+    local base = typed and Db.Search(s.dbHandle, s.kind, s.query, MAX_RESULTS) or Db.Sorted(s.kind)
+    local cat = s.category and s.category[s.kind] or "all"
+    s.catButton.text:SetText(A.L("worldDbCat") .. ": " .. Db.CategoryLabel(s.kind, cat))
+    s.results = (cat ~= "all" and not reading) and M.WorldDbFiltered(frame, base, cat, typed) or base
     if reading then
         local progress = s.progress or (#entry.ids == 0 and 1 or (entry.at - 1) / #entry.ids)
         s.status:SetText(string.format(A.L("worldDbIndexing"), math.floor(progress * 100)))
     elseif typed and #s.results == 0 then s.status:SetText(A.L("worldDbNone"))
+    elseif s.scan and not s.scan.done then s.status:SetText(string.format(A.L("worldDbCatScanning"), math.floor((s.scan.pos - 1) / math.max(1, #s.scan.source) * 100)) .. "  (" .. #s.results .. ")")
     elseif not typed then s.status:SetText(string.format(A.L("worldDbCount"), #s.results))
     else s.status:SetText(string.format(A.L("catalogCounts"), #s.results)) end
     M.WorldDbRows(frame)
@@ -269,7 +300,19 @@ local function build(frame, kit)
         local b = kit.Button(frame, "worldDb_" .. kind, 72, "ghost", function() s.kind = kind; s.offset = 0; s.selected = nil; s.progress = nil; M.WorldDbRefresh(frame) end)
         b:SetPoint("TOPLEFT", 246 + (i - 1) * 78, -2); s.kindButtons[kind] = b
     end
-    s.status = kit.label(frame, 11, C.mist); s.status:SetPoint("TOPLEFT", 6, -40); s.status:SetWidth(620)
+    -- one click cycles the category of the kind that is shown: all, then each category in turn
+    s.category = {}
+    s.catButton = kit.Button(frame, nil, 290, "ghost", function()
+        local list = Db.Categories(s.kind)
+        local current = s.category[s.kind] or "all"
+        local at = 1
+        for i, key in ipairs(list) do if key == current then at = i end end
+        s.category[s.kind] = list[at % #list + 1]
+        s.offset = 0; s.selected = nil
+        M.WorldDbRefresh(frame)
+    end)
+    s.status = kit.label(frame, 11, C.mist); s.status:SetPoint("TOPLEFT", 6, -40); s.status:SetWidth(330)
+    s.catButton:SetPoint("TOPLEFT", 346, -34)
     -- the list
     s.list = CreateFrame("Frame", nil, frame)
     s.list:SetPoint("TOPLEFT", 0, -58); s.list:SetSize(290, ROWS * ROW_H)
