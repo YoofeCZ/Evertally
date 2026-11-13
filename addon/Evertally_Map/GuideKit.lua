@@ -155,7 +155,7 @@ function M.GuideDetail(kit, parent)
         row:SetHeight(ROW_H - 4)
         if d.theme=="quest" then kit.paint(row.bg,{0.16,0.105,0.055},1);row.bg:SetAlpha(1)
         else kit.paint(row.bg,{1,1,1},1);row.bg:SetAlpha(0.05) end
-        local itemOnPaper = d.theme == "quest" and spec.itemId ~= nil
+        local itemOnPaper = d.theme == "quest"
         if itemOnPaper then kit.paint(row.bg, {0.16, 0.105, 0.055}, 1); row.bg:SetAlpha(1) end
         row.icon:ClearAllPoints(); row.icon:SetSize(ICON, ICON); row.icon:SetPoint("LEFT", 6, 0)
         row.title:ClearAllPoints(); row.title:SetPoint("TOPLEFT", ICON + 16, -6); row.title:SetPoint("TOPRIGHT", -34, -6); row.title:SetHeight(15); row.title:SetWordWrap(false)

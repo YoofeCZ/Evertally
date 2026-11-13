@@ -53,6 +53,6 @@ foreach ($addonName in $names) {
     Write-Output "Nainstalovano a overeno: $target"
 }
 if (-not $CheckOnly) {
-    Write-Output 'Nove addony hra nacte po uplnem ukonceni a novem spusteni klienta.'
+    Write-Output 'Beznou aktualizaci nacte /reload. Pokud pribyl addon nebo soubory v TOC, klienta uplne ukonci a znovu spust.'
     if (Test-Path -LiteralPath $backupRoot) { Write-Output "Zaloha predchozi verze: $backupRoot" }
 }

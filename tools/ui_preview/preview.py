@@ -23,6 +23,7 @@ from test_addon import runtime  # noqa: E402
 from test_navigation import FAKE_LIBS, MapTests  # noqa: E402
 from test_dungeons import FAKE_JOURNAL  # noqa: E402
 from test_openmap import OPENMAP  # noqa: E402
+from test_forever_traits import FOREVER_TRAITS  # noqa: E402
 
 CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
@@ -46,16 +47,6 @@ C_Map={GetMapInfo=function(id) return {name=({[1429]="Elwynn Forest",[1453]="Sto
   GetBestMapForUnit=function() return 1429 end,GetPlayerMapPosition=function() return {GetXY=function() return .42,.65 end} end}
 GetItemInfo=function(id) return ({[2136]="Conjured Water",[2589]="Linen Cloth",[4540]="Tough Hunk of Bread",[6948]="Hearthstone"})[id] end
 GetItemIcon=function() return "Interface\\Icons\\INV_Misc_Bag_08" end
--- Synthetic talent API for exercising all planner controls; these are explicit test nodes, not an all-class talent database.
-local talentIcons={"Interface\\Icons\\Spell_Holy_HolyBolt","Interface\\Icons\\Spell_Holy_DevotionAura","Interface\\Icons\\Spell_Holy_AuraOfLight"}
-GetNumTalentTabs=function() return 3 end
-GetTalentTabInfo=function(tab) return ({"Test Holy","Test Protection","Test Retribution"})[tab],talentIcons[tab],tab==1 and 4 or 0,({"PaladinHoly","PaladinProtection","PaladinCombat"})[tab] end
-GetNumTalents=function() return 10 end
-GetTalentInfo=function(tab,index)
- local pos={{1,1},{1,2},{1,3},{2,1},{2,3},{3,2},{4,1},{4,3},{5,2},{6,2}}
- local p=pos[index];return "Test talent "..tab.."-"..index,talentIcons[tab],p[1],p[2],tab==1 and index==1 and 4 or 0,index==10 and 1 or 5
-end
-GetTalentPrereqs=function(tab,index) if index==10 then return 5,2,true elseif index==6 then return 2,3,true end end
 UnitFactionGroup=function() return "Alliance" end
 local A=Evertally
 local day=86400
@@ -341,6 +332,9 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     lua.execute(f"SCREEN_W,SCREEN_H={sw},{sh}")
     lua.execute((HERE / "layout_mock.lua").read_text(encoding="utf8"))
     lua.execute(FIXTURE)
+    # Forever has C_Traits only. Leave legacy GetTalent* globals absent so a broken adapter cannot hide behind the mock.
+    lua.execute(FOREVER_TRAITS)
+    lua.execute('TRAIT_NODES[100001].activeRank=4;TRAIT_NODES[100201].activeRank=0')
     a.db.settings.language = language
     a.db.settings.uiWidth, a.db.settings.uiHeight = ww, wh
     # the map add-on, loaded the way the game does it on first use (with the stand-ins the unit tests use for the map libraries and QuestieDB)

@@ -46,14 +46,18 @@ function A.NativePanel(frame, C)
 end
 
 local PARCHMENT = {ink = {0.20, 0.12, 0.055}, mutedInk = {0.36, 0.26, 0.14}, heading = {0.42, 0.23, 0.055}}
--- The same warm, fully opaque paper as the game's quest reader. Dark text belongs on this surface.
+-- Opaque paper across the whole reader. QuestBG contains transparent padding in this client and cannot be the backing surface.
 function A.NativeParchment(frame, C)
     frame.parchment = true
     local ok = backdrop(frame, {
-        bgFile = "Interface\\QuestFrame\\QuestBG", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         tile = false, edgeSize = 12, insets = {left = 5, right = 5, top = 5, bottom = 5}},
-        {1, 0.96, 0.84, 1}, {0.42, 0.29, 0.13, 1})
+        {0.73, 0.63, 0.43, 1}, {0.42, 0.29, 0.13, 1})
     if not ok then surfaceFallback(frame, {0.73, 0.63, 0.43, 1}, {0.42, 0.29, 0.13, 1}) end
+    if not frame.paperBase then frame.paperBase=frame:CreateTexture(nil,"BACKGROUND") end
+    frame.paperBase:ClearAllPoints();frame.paperBase:SetPoint("TOPLEFT",4,-4);frame.paperBase:SetPoint("BOTTOMRIGHT",-4,4)
+    if frame.paperBase.SetColorTexture then frame.paperBase:SetColorTexture(0.73,0.63,0.43,1)
+    else frame.paperBase:SetTexture("Interface\\Buttons\\WHITE8X8");frame.paperBase:SetVertexColor(0.73,0.63,0.43,1) end
     return PARCHMENT
 end
 

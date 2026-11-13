@@ -1,5 +1,9 @@
 # Zadání: Průvodce v addonu (Databáze, Dungeon Journal) — požadavky a stav
 
+## Opravy podle herních snímků v 0.8.1
+
+Snímky uživatele prokázaly, že QuestBG pokrývá jen část panelu a staré Classic talentové funkce na Forever nejsou. Neprůhledný podklad nyní pokrývá celý panel a talentový adaptér používá C_Traits. Náhledy talentů i regrese již běží bez GetTalent funkcí; průhledná dekorativní textura není základem papíru. Herní potvrzení nové opravy zůstává samostatným krokem.
+
 ## Aktuální implementace 0.8.0
 
 Questy v Databázi, Deníku a Dungeon Journalu používají společnou plnou pergamenovou kartu podle druhého uživatelského obrázku. Krátký quest se zadáním, odevzdáním, odměnami a XP se vejde do čtecí plochy. Výběrové a pevné odměny se rozlišují pouze při doložených datech; základní XP je označené.

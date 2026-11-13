@@ -1,12 +1,12 @@
 # Evertally — herní atlas a statistiky pro WoW Forever
 
-Implementace 0.8.0 a původní zadání • 12. listopadu 2026
+Implementace 0.8.1 a původní zadání • 12. listopadu 2026
 
 Název: **Evertally**. Původní pracovní označení „Forever Atlas“ už používá jiný addon na CurseForge, proto bylo 2026-11-09 změněno; u názvu Evertally nenašlo vyhledávání na CurseForge, Wago, WoWInterface ani GitHubu žádný existující projekt (ochranná známka ověřená není).
 
 **Samostatný addon sbírá herní pozorování, ukazuje vlastní historii a umožňuje porovnávání s dalšími uživateli addonu. Kdo se výslovně rozhodne přispívat na web, propojí své vlastní záznamy s komunitní databází a webovými žebříčky.**
 
-Verze 0.8.0 spojuje nové herní okno, deník, přehled, žebříčky a sjednocené stránky profesí, míst, atlasu, komunity a nastavení. Do mapy OpenMap přidává místa sbírání s ikonami surovin, živé hráče, srazy, pingy a navigaci. Databáze a Dungeon Journal se načtou i bez OpenMap; stránka Mapa a cesty obsahuje plánování a mapové katalogy. Rozsáhlá webová databáze má 22 881 předmětů, z nichž 22 779 má doloženou ikonu. Windows Bridge běží vedle hodin a obsahuje pouze spojení, párování a Web sync. **Instalace a skutečný stav ověření jsou v [NAVOD.md](NAVOD.md)**; aktuální vydání shrnuje [VYDANI-0.8.0.md](VYDANI-0.8.0.md).
+Verze 0.8.0 spojuje nové herní okno, deník, přehled, žebříčky a sjednocené stránky profesí, míst, atlasu, komunity a nastavení. Do mapy OpenMap přidává místa sbírání s ikonami surovin, živé hráče, srazy, pingy a navigaci. Databáze a Dungeon Journal se načtou i bez OpenMap; stránka Mapa a cesty obsahuje plánování a mapové katalogy. Rozsáhlá webová databáze má 22 881 předmětů, z nichž 22 779 má doloženou ikonu. Windows Bridge běží vedle hodin a obsahuje pouze spojení, párování a Web sync. **Instalace a skutečný stav ověření jsou v [NAVOD.md](NAVOD.md)**; aktuální vydání shrnuje [VYDANI-0.8.1.md](VYDANI-0.8.1.md).
 
 Web běží na **https://evertally.afstudio.dev**. Skutečný most dne 11. 11. 2026 odesílal živou polohu a produkční databáze přijala bod starý tři sekundy. To potvrzuje tento přenos; neprokazuje průchod dungeonem, správnost každé šipky ani vzhled nových stránek ve WoW. Ověření herního rozhraní a ověření automatickými testy jsou vedená odděleně.
 
