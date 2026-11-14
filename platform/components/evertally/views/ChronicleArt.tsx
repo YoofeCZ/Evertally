@@ -12,6 +12,7 @@ export const ICON: Record<string, string> = {
   "quest.abandon": "M7 5.6l5 5 5-5L18.4 7l-5 5 5 5-1.4 1.4-5-5-5 5L5.6 17l5-5-5-5L7 5.6z",
   "combat.kill": "M12 5.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 2.6a3.9 3.9 0 1 1 0 7.8 3.9 3.9 0 0 1 0-7.8zM11 2h2v3h-2V2zm0 17h2v3h-2v-3zM2 11h3v2H2v-2zm17 0h3v2h-3v-2z",
   "combat.death": "M12 3C7.6 3 5 6 5 9.7c0 2.3 1 3.8 2.4 4.8V18h2v-1.6h1.2V18h2.8v-1.6h1.2V18h2v-3.5c1.4-1 2.4-2.5 2.4-4.8C19 6 16.4 3 12 3zM9.2 9a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6zm5.6 0a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6z",
+  "combat.pvp": "M6 3.5l6 6 6-6 2.5 2.5-6 6 6 6-2.5 2.5-6-6-6 6L3.5 18l6-6-6-6L6 3.5z",
   "combat.boss": "M3.5 18.5L2.5 7l5 4 4.5-7 4.5 7 5-4-1 11.5h-17zM5 20.5h14V22H5v-1.5z",
   "loot.item": "M12 2.5l7.5 6.5L12 21.5 4.5 9 12 2.5zM12 6.2L8.2 9.2 12 16.2l3.8-7L12 6.2z",
   "loot.money": "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zm0 2.6a5.9 5.9 0 1 1 0 11.8 5.9 5.9 0 0 1 0-11.8zm-.9 2.4v.9H10v1.7h2.1c.4 0 .6.2.6.4s-.2.4-.6.4h-.6c-1.2 0-2 .8-2 1.8 0 1 .8 1.7 1.8 1.8v.9h1.4v-.9H14v-1.7h-2.2c-.3 0-.5-.2-.5-.4s.2-.4.5-.4h.5c1.3 0 2.2-.8 2.2-1.9 0-1-.7-1.6-1.7-1.8v-.8h-1.7z",
@@ -24,7 +25,7 @@ export const ICON: Record<string, string> = {
   "char.emote": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9 9.4a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6zm6 0a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6zM7.8 14h8.4a4.2 4.2 0 0 1-8.4 0z",
 };
 export const MARK_COLOR: Record<string, string> = {
-  "quest.accept": "#f2c04b", "quest.turnin": "#f2c04b", "quest.abandon": "#8f8ca0", "combat.kill": "#e2786a", "combat.death": "#d9534f", "combat.boss": "#d9534f",
+  "quest.accept": "#f2c04b", "quest.turnin": "#f2c04b", "quest.abandon": "#8f8ca0", "combat.kill": "#e2786a", "combat.death": "#d9534f", "combat.boss": "#d9534f", "combat.pvp": "#ff7a59",
   "loot.item": "#e8a15a", "loot.money": "#f2c04b", "prof.skill": "#5fb98d", "travel.flight": "#5b8def", "travel.instance": "#5b8def", "travel.zone": "#7fb2ff",
   "char.level": "#a78bfa", "char.group": "#5b8def", "char.emote": "#e8a15a",
 };

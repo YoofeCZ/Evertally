@@ -1,13 +1,13 @@
 // A recorded journey ("kronika") and everything the player needs to replay it. Pure functions, no browser and no server:
 // the recording is one file that is played back entirely in the visitor's browser.
 
-export type EventKind = "quest" | "kill" | "loot" | "money" | "level" | "skill" | "zone" | "death" | "dungeon" | "travel" | "boss" | "group" | "emote";
+export type EventKind = "quest" | "kill" | "loot" | "money" | "level" | "skill" | "zone" | "death" | "dungeon" | "travel" | "boss" | "group" | "emote" | "pvp";
 /** The groups shown as filter chips next to the list of moments. */
 export type Category = "quests" | "combat" | "loot" | "professions" | "travel" | "character";
 export const CATEGORIES: readonly Category[] = ["quests", "combat", "loot", "professions", "travel", "character"];
 const CATEGORY_OF: Record<EventKind, Category> = {
   quest: "quests", kill: "combat", death: "combat", loot: "loot", money: "loot", skill: "professions",
-  zone: "travel", travel: "travel", dungeon: "travel", level: "character", boss: "combat", group: "character", emote: "character",
+  zone: "travel", travel: "travel", dungeon: "travel", level: "character", boss: "combat", group: "character", emote: "character", pvp: "combat",
 };
 export const categoryOf = (kind: EventKind): Category => CATEGORY_OF[kind];
 
@@ -26,12 +26,29 @@ export type ChronicleEvent = {
   q?: number;
   /** The game id of the item (loot) or of the quest, for icons and links. */
   id?: number;
+  /** boss and pvp: the index into `fights` of the fight this moment closes, which opens the window of the event. */
+  f?: number;
   /** Where it happened: index into `zones` and the position 0 to 1 inside that zone. */
   zone?: number; x?: number; y?: number;
   /** boss: seconds the fight lasted (n is the number of the attempt). */
   d?: number;
   /** A line of detail under the text (for example the damage of a fight, or the difficulty of a dungeon). */
   detail?: string;
+};
+/** One line of a damage or healing meter: how often a spell was used and what it did. */
+export type SpellRow = { name: string; total: number; casts: number; hits?: number; crits?: number; max?: number; /** physical | nature | fire | frost | shadow | arcane | holy */ school?: string };
+export type Member = { name: string; classId: number; role?: "tank" | "healer" | "dps"; dmg: number; heal: number; taken: number; deaths?: number; me?: boolean };
+export type FightMark = { /** seconds from the start of the fight */ t: number; kind: "death" | "cooldown" | "phase" | "interrupt" | "lust"; text: string };
+/** A boss fight, an arena or a battleground: everything the window of the event shows. Times are journey seconds. */
+export type Fight = {
+  t: number; d: number; kind: "boss" | "pvp"; name: string; result: "kill" | "wipe" | "win" | "loss";
+  zone?: number; difficulty?: string; size?: number; attempt?: number;
+  me: { dmg: number; heal: number; taken: number; deaths: number; interrupts?: number; dispels?: number; dealt: SpellRow[]; healed: SpellRow[]; took: SpellRow[] };
+  group?: Member[];
+  /** Damage, healing and damage taken of the character in steps of `step` seconds, for the graph and the live counters. */
+  series?: { step: number; dmg: number[]; heal?: number[]; taken?: number[] };
+  marks?: FightMark[];
+  pvp?: { score?: [number, number]; kills: number; deaths: number; assists?: number; objectives?: number; honor?: number };
 };
 /** What the character sheet showed from `t` on. */
 export type StatSnapshot = { t: number; ilvl?: number; attrs?: [name: string, value: number][]; enh?: [name: string, value: string][] };
@@ -55,6 +72,7 @@ export type Chronicle = {
   stats?: StatSnapshot[];
   /** Skills known at the start: name to [value, maximum]. */
   skills0?: Record<string, [number, number]>;
+  fights?: Fight[];
 };
 
 export const MAX_EVENTS = 200_000;
@@ -63,6 +81,27 @@ const KINDS = new Set<string>(Object.keys(CATEGORY_OF));
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const unit = (v: unknown): v is number => finite(v) && v >= 0 && v <= 1;
 const short = (v: unknown, max = 160): v is string => typeof v === "string" && v.length <= max;
+
+const num = (v: unknown): v is number => finite(v) && v >= 0;
+const spellList = (v: unknown): boolean => Array.isArray(v) && v.length <= 300 && v.every(r => !!r && short(r.name, 60) && num(r.total) && num(r.casts)
+  && (r.hits === undefined || num(r.hits)) && (r.crits === undefined || num(r.crits)) && (r.max === undefined || num(r.max)) && (r.school === undefined || short(r.school, 16)));
+const series = (v: unknown): boolean => v === undefined || (Array.isArray(v) && v.length <= 5000 && v.every(num));
+function validFights(list: unknown, zones: number, events: readonly ChronicleEvent[]): boolean {
+  if (!Array.isArray(list) || list.length > 5000) return false;
+  let at = -Infinity;
+  for (const f of list as Fight[]) {
+    if (!f || !num(f.t) || f.t < at || !num(f.d) || (f.kind !== "boss" && f.kind !== "pvp") || !["kill", "wipe", "win", "loss"].includes(f.result) || !short(f.name, 80)) return false;
+    at = f.t;
+    if ((f.zone !== undefined && !(Number.isInteger(f.zone) && f.zone >= 0 && f.zone < zones)) || (f.difficulty !== undefined && !short(f.difficulty, 40)) || (f.size !== undefined && !num(f.size)) || (f.attempt !== undefined && !num(f.attempt))) return false;
+    const me = f.me;
+    if (!me || !num(me.dmg) || !num(me.heal) || !num(me.taken) || !num(me.deaths) || !spellList(me.dealt) || !spellList(me.healed) || !spellList(me.took)) return false;
+    if (f.group !== undefined && (!Array.isArray(f.group) || f.group.length > 80 || !f.group.every(m => !!m && short(m.name, 40) && Number.isInteger(m.classId) && num(m.dmg) && num(m.heal) && num(m.taken) && (m.deaths === undefined || num(m.deaths)) && (m.role === undefined || ["tank", "healer", "dps"].includes(m.role))))) return false;
+    if (f.series !== undefined && (!f.series || !(finite(f.series.step) && f.series.step > 0) || !Array.isArray(f.series.dmg) || !series(f.series.dmg) || !series(f.series.heal) || !series(f.series.taken))) return false;
+    if (f.marks !== undefined && (!Array.isArray(f.marks) || f.marks.length > 500 || !f.marks.every(m => !!m && num(m.t) && ["death", "cooldown", "phase", "interrupt", "lust"].includes(m.kind) && short(m.text, 80)))) return false;
+    if (f.pvp !== undefined && (!f.pvp || !num(f.pvp.kills) || !num(f.pvp.deaths) || (f.pvp.score !== undefined && !(Array.isArray(f.pvp.score) && f.pvp.score.length === 2 && f.pvp.score.every(num))))) return false;
+  }
+  return events.every(e => e.f === undefined || (Number.isInteger(e.f) && e.f >= 0 && e.f < list.length));
+}
 
 /** Checks a loaded file. Returns the recording, or null when anything in it cannot be trusted. Nothing is repaired. */
 export function parseChronicle(raw: unknown): Chronicle | null {
@@ -90,6 +129,8 @@ export function parseChronicle(raw: unknown): Chronicle | null {
     if ((e.x !== undefined && !unit(e.x)) || (e.y !== undefined && !unit(e.y))) return null;
     last = e.t;
   }
+  if (c.fights !== undefined && !validFights(c.fights, zones, c.events)) return null;
+  if (c.fights === undefined && c.events.some(e => e.f !== undefined)) return null;
   if (c.sessions !== undefined) {
     if (!Array.isArray(c.sessions) || c.sessions.length > 100_000) return null;
     let at = -Infinity;
@@ -226,6 +267,7 @@ export function typeKey(e: ChronicleEvent): string {
     case "kill": return "combat.kill";
     case "death": return "combat.death";
     case "boss": return "combat.boss";
+    case "pvp": return "combat.pvp";
     case "loot": return "loot.item";
     case "money": return "loot.money";
     case "skill": return "prof.skill";
@@ -238,7 +280,7 @@ export function typeKey(e: ChronicleEvent): string {
   }
 }
 export const TYPE_KEYS: Record<Category, string[]> = {
-  quests: ["quest.accept", "quest.turnin", "quest.abandon"], combat: ["combat.kill", "combat.death", "combat.boss"], loot: ["loot.item", "loot.money"],
+  quests: ["quest.accept", "quest.turnin", "quest.abandon"], combat: ["combat.kill", "combat.death", "combat.boss", "combat.pvp"], loot: ["loot.item", "loot.money"],
   professions: ["prof.skill"], travel: ["travel.flight", "travel.instance", "travel.zone"], character: ["char.level", "char.group", "char.emote"],
 };
 export const ALL_TYPES: string[] = Object.values(TYPE_KEYS).flat();
@@ -295,12 +337,33 @@ export function instanceAt(list: readonly Instance[], t: number): Instance | nul
   }
   return null;
 }
+/** The fight in progress at journey time `t`, or -1. */
+export function fightAt(c: Chronicle, t: number): number {
+  const list = c.fights;
+  if (!list?.length) return -1;
+  const i = upper(list, t, f => f.t) - 1;
+  return i >= 0 && t <= list[i].t + list[i].d ? i : -1;
+}
+/** What the character had done, taken and healed `local` seconds into a fight (from the series, interpolated inside a step). */
+export function fightProgress(f: Fight, local: number): { dmg: number; heal: number; taken: number } {
+  const sr = f.series;
+  const sum = (a: number[] | undefined, total: number) => {
+    if (!a?.length || !sr) return total * Math.min(1, Math.max(0, local / Math.max(1, f.d)));
+    const x = Math.max(0, local) / sr.step, whole = Math.min(a.length, Math.floor(x));
+    let out = 0;
+    for (let i = 0; i < whole; i++) out += a[i];
+    if (whole < a.length) out += a[whole] * (x - whole);
+    return out;
+  };
+  return { dmg: sum(sr?.dmg, f.me.dmg), heal: sum(sr?.heal, f.me.heal), taken: sum(sr?.taken, f.me.taken) };
+}
+
 export type InstanceSummary = { kills: number; deaths: number; items: number; copper: number; bosses: ChronicleEvent[] };
 export function instanceSummary(c: Chronicle, inst: Instance, t: number): InstanceSummary {
   const out: InstanceSummary = { kills: 0, deaths: 0, items: 0, copper: 0, bosses: [] };
   for (const e of eventsBetween(c, inst.from - 1e-6, Math.min(t, inst.to ?? t))) {
     if (e.k === "kill") out.kills++; else if (e.k === "death") out.deaths++; else if (e.k === "loot") out.items += e.n ?? 1;
-    else if (e.k === "money") out.copper += e.n ?? 0; else if (e.k === "boss") out.bosses.push(e);
+    else if (e.k === "money") out.copper += e.n ?? 0; else if (e.k === "boss" || e.k === "pvp") out.bosses.push(e);
   }
   return out;
 }
@@ -326,11 +389,58 @@ const LEGS: Leg[] = [
 ];
 const LOOT: [string, number, number][] = [["Ruined Leather Scraps", 0, 2934], ["Light Feather", 1, 17056], ["Strider Meat", 1, 5469], ["Linen Cloth", 1, 2589], ["Copper Bar", 1, 2840], ["Heavy Hide", 1, 4235], ["Mageweave Cloth", 1, 4338], ["Strider Stew", 1, 5477]];
 
+type SpellDef = [name: string, school: string, perSecond: number, average: number];
+const DEALT: SpellDef[] = [["Wrath", "nature", 0.34, 64], ["Starfire", "arcane", 0.12, 96], ["Moonfire", "arcane", 0.1, 52], ["Insect Swarm", "nature", 0.07, 70]];
+const HEALED: SpellDef[] = [["Rejuvenation", "nature", 0.05, 95], ["Regrowth", "nature", 0.03, 150], ["Healing Touch", "nature", 0.02, 210]];
+const BOSS_SPELLS: SpellDef[][] = [
+  [["Melee", "physical", 0.4, 25], ["Trample", "physical", 0.05, 40], ["Bash", "physical", 0.02, 70]],
+  [["Melee", "physical", 0.35, 28], ["Forked Lightning", "nature", 0.06, 55], ["Frost Nova", "frost", 0.03, 60], ["Slow", "frost", 0.03, 10]],
+  [["Melee", "physical", 0.3, 30], ["Shadow Bolt", "shadow", 0.07, 70], ["Mind Blast", "shadow", 0.05, 95]],
+];
+const ENEMY_PLAYERS: SpellDef[] = [["Melee", "physical", 0.5, 22], ["Sinister Strike", "physical", 0.12, 48], ["Frostbolt", "frost", 0.08, 58], ["Shadow Word: Pain", "shadow", 0.05, 30]];
+function spellRows(rand: () => number, d: number, defs: SpellDef[]): SpellRow[] {
+  return defs.map(([name, school, perSecond, average]) => {
+    const casts = Math.max(1, Math.round(d * perSecond * (0.8 + rand() * 0.4)));
+    const crits = Math.round(casts * (0.04 + rand() * 0.12));
+    return { name, school, casts, hits: casts, crits, max: Math.round(average * (1.7 + rand() * 0.5)), total: Math.round(casts * average * (0.9 + rand() * 0.2) + crits * average * 0.5) };
+  }).sort((a, b) => b.total - a.total);
+}
+/** `total` spread over the steps of a fight with a random but smooth shape, adding up exactly. */
+function buckets(rand: () => number, d: number, total: number, step = 5): number[] {
+  const n = Math.max(1, Math.ceil(d / step));
+  const phase = rand() * 6;
+  const weights = Array.from({ length: n }, (_, i) => 0.55 + 0.45 * Math.sin(phase + i * 0.7) + rand() * 0.5);
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const out = weights.map(x => Math.round((x / sum) * total));
+  out[out.length - 1] += total - out.reduce((a, b) => a + b, 0);
+  return out.map(x => Math.max(0, x));
+}
+function makeFight(rand: () => number, o: { kind: "boss" | "pvp"; name: string; result: Fight["result"]; t: number; d: number; size: number; attempt?: number; difficulty?: string; zone: number; took: SpellDef[]; deaths: number; pvp?: Fight["pvp"] }): Fight {
+  const dealt = spellRows(rand, o.d, DEALT), healed = spellRows(rand, o.d, HEALED), took = spellRows(rand, o.d, o.took);
+  const sumOf = (rows: SpellRow[]) => rows.reduce((a, r) => a + r.total, 0);
+  const me = { dmg: sumOf(dealt), heal: sumOf(healed), taken: sumOf(took), deaths: o.deaths, interrupts: Math.floor(rand() * 3), dispels: Math.floor(rand() * 2), dealt, healed, took };
+  const others: [string, number, "tank" | "healer" | "dps", number, number, number][] = [["Thornwick", 1, "tank", 0.55, 0.05, 3.2], ["Lumi", 5, "healer", 0.12, 7, 0.8], ["Kragg", 4, "dps", 1.4, 0.02, 1.1], ["Selene", 8, "dps", 1.2, 0.03, 0.9]];
+  const group: Member[] = [
+    ...others.slice(0, Math.max(0, Math.min(4, o.size - 1))).map(([name, classId, role, dmg, heal, taken]) => ({ name, classId, role, dmg: Math.round(me.dmg * dmg * (0.9 + rand() * 0.2)), heal: Math.round(Math.max(me.heal, 60) * heal * (0.9 + rand() * 0.2)), taken: Math.round(me.taken * taken * (0.9 + rand() * 0.2)), deaths: o.result === "wipe" && rand() < 0.4 ? 1 : 0 })),
+    { name: "Demo Wanderer", classId: 11, role: "dps" as const, dmg: me.dmg, heal: me.heal, taken: me.taken, deaths: o.deaths, me: true },
+  ].sort((a, b) => b.dmg - a.dmg);
+  const marks: FightMark[] = [{ t: Math.round(o.d * 0.22), kind: "cooldown", text: "Innervate" }];
+  if (o.kind === "boss") marks.push({ t: Math.round(o.d * 0.55), kind: "phase", text: "Phase 2" }, { t: Math.round(o.d * 0.38), kind: "interrupt", text: "Interrupted Frost Nova" });
+  if (o.deaths) marks.push({ t: Math.round(o.d * 0.92), kind: "death", text: "You died" });
+  return {
+    t: o.t, d: o.d, kind: o.kind, name: o.name, result: o.result, zone: o.zone, difficulty: o.difficulty, size: o.size, attempt: o.attempt, me, group,
+    series: { step: 5, dmg: buckets(rand, o.d, me.dmg), heal: buckets(rand, o.d, me.heal), taken: buckets(rand, o.d, me.taken) },
+    marks: marks.sort((a, b) => a.t - b.t), pvp: o.pvp,
+  };
+}
+const fightLine = (f: Fight) => `Dealt ${f.me.dmg.toLocaleString("en-US")} (${Math.round((f.me.dmg / Math.max(1, (f.group ?? []).reduce((a, m) => a + m.dmg, 0) || f.me.dmg)) * 100)}% of the group), took ${f.me.taken.toLocaleString("en-US")}, healed ${f.me.heal.toLocaleString("en-US")}`;
+
 export function demoChronicle(seed = 7): Chronicle {
   const rand = rng(seed);
   const zones = LEGS.map(l => l.zone);
   const path: PathPoint[] = [];
   const events: ChronicleEvent[] = [];
+  const fights: Fight[] = [];
   let t = 0, xpTotal = 0, level = 14;
   const skill: Record<string, number> = { Herbalism: 41, Skinning: 88, Mining: 57 };
   const push = (e: ChronicleEvent) => events.push({ ...e, t: Math.round(e.t * 10) / 10 });
@@ -395,7 +505,7 @@ export function demoChronicle(seed = 7): Chronicle {
   push({ t, k: "group", a: "join", text: "Joined a group of 5", ...spot });
   push({ t: t + 1, k: "dungeon", a: "enter", text: "Blackfathom Deeps", detail: "Dungeon · Normal", ...spot });
   const trash = ["Blackfathom Tide Priestess", "Aku'mai Snapjaw", "Twilight Aquamancer", "Murkshallow Soothsayer", "Blindlight Murloc"];
-  const boss: [string, number][] = [["Ghamoo-ra", 5], ["Lady Sarevess", 7], ["Twilight Lord Kelris", 9]];
+  const boss: [string, number][] = [["Ghamoo-ra", 5], ["Lady Sarevess", 5], ["Twilight Lord Kelris", 5]];
   boss.forEach(([name, size], bi) => {
     for (let k = 0; k < 9; k++) {
       wait(8);
@@ -405,18 +515,49 @@ export function demoChronicle(seed = 7): Chronicle {
       if (rand() < 0.6) push({ t: t + 1.2, k: "money", text: "Money", n: 30 + Math.floor(rand() * 120), ...spot });
     }
     wait(20);
+    const close = (result: "kill" | "wipe", d: number, attempt: number) => {
+      const start = t;
+      wait(d); // the fight takes its time, so fights never overlap
+      const fight = makeFight(rand, { kind: "boss", name, result, t: start, d: t - start, size, attempt, difficulty: "Normal", zone: last, took: BOSS_SPELLS[bi], deaths: result === "wipe" ? 1 : 0 });
+      fights.push(fight);
+      push({ t, k: "boss", a: result, text: name, n: attempt, d: fight.d, f: fights.length - 1, detail: fightLine(fight), ...spot });
+      return fight;
+    };
     if (bi === 1) {
-      push({ t, k: "boss", a: "wipe", text: name, n: 1, d: 74, detail: `Dealt ${(11 + rand() * 3).toFixed(1)}M of the ${size}-player group's damage, took 6.2M`, ...spot });
+      close("wipe", 74, 1);
       push({ t: t + 1, k: "death", text: "You died", ...spot });
       wait(40);
     }
-    push({ t, k: "boss", a: "kill", text: name, n: bi === 1 ? 2 : 1, d: 150 + bi * 40, detail: `Group of ${size}, ${(2.1 + bi * 0.6).toFixed(1)}M damage in total`, ...spot });
+    close("kill", 150 + bi * 40, bi === 1 ? 2 : 1);
     xpTotal += 300; push({ t: t + 0.5, k: "loot", text: ["Tortoise Armor", "Naga Heartpiercer", "Twilight Maul"][bi], n: 1, q: 3, id: [6907, 3078, 273841][bi], ...spot });
     if (xpTotal >= need(level)) { xpTotal -= need(level); level++; push({ t: t + 1, k: "level", text: `Reached level ${level}`, n: level, ...spot }); }
     if (bi === 2) push({ t: t + 2, k: "emote", text: "You cheer", ...spot });
   });
   push({ t: t + 3, k: "dungeon", a: "leave", text: "Blackfathom Deeps", ...spot });
   push({ t: t + 4, k: "group", a: "leave", text: "Left the group", ...spot });
+  wait(10);
+  // a battleground: a ten-minute match with kills, a flag and the result
+  const bg = zones.length;
+  zones.push("warsong-gulch");
+  t += 30;
+  push({ t, k: "zone", text: "Entered Warsong Gulch", zone: bg, x: 0.5, y: 0.5 });
+  push({ t: t + 1, k: "dungeon", a: "enter", text: "Warsong Gulch", detail: "Battleground · 10 vs 10", zone: bg, x: 0.5, y: 0.5 });
+  const matchStart = t;
+  let bx = 0.3, by = 0.5, honor = 0, pvpKills = 0;
+  const enemies = ["Skarn", "Gorrik", "Vexa", "Murdok", "Tazra", "Brogg"];
+  for (let i = 0; i < 300; i++) {
+    t += 2;
+    bx = Math.min(0.85, Math.max(0.15, bx + (rand() - 0.46) * 0.025)); by = Math.min(0.85, Math.max(0.15, by + (rand() - 0.5) * 0.03));
+    path.push([t, bg, Math.round(bx * 1e4) / 1e4, Math.round(by * 1e4) / 1e4]);
+    const here = { zone: bg, x: Math.round(bx * 1e4) / 1e4, y: Math.round(by * 1e4) / 1e4 };
+    if (i % 17 === 5) { pvpKills++; honor += 14; push({ t, k: "kill", text: `${enemies[pvpKills % enemies.length]} (Horde player)`, detail: "Honorable kill", ...here }); }
+    if (i === 120 || i === 240) push({ t, k: "quest", a: "done", text: "Captured the flag", ...here });
+    if (i === 90) push({ t, k: "death", text: "You died", ...here });
+  }
+  const pvpFight = makeFight(rand, { kind: "pvp", name: "Warsong Gulch", result: "win", t: matchStart, d: t - matchStart, size: 10, zone: bg, took: ENEMY_PLAYERS, deaths: 1, pvp: { score: [3, 2], kills: pvpKills, deaths: 1, assists: 4, objectives: 2, honor } });
+  fights.push(pvpFight);
+  push({ t: t + 1, k: "pvp", a: "win", text: "Warsong Gulch", n: 1, d: pvpFight.d, f: fights.length - 1, detail: `Won 3 : 2 · ${pvpKills} honorable kills · ${honor} honor`, zone: bg, x: 0.5, y: 0.5 });
+  push({ t: t + 4, k: "dungeon", a: "leave", text: "Warsong Gulch", zone: bg, x: 0.5, y: 0.5 });
   wait(10);
   push({ t: 400, k: "quest", a: "abandon", text: "The Zoram Strand", zone: 1, x: 0.4, y: 0.7 });
   events.sort((a, b) => a.t - b.t);
@@ -430,7 +571,7 @@ export function demoChronicle(seed = 7): Chronicle {
   return {
     v: 1,
     character: { name: "Demo Wanderer", classId: 11, raceId: 4, race: "Night Elf", faction: "Alliance", realm: "Demo", guild: "Evertally", level: 14 },
-    startedAt: days[0].at, duration, zones, path, events, sessions: days, stats,
+    startedAt: days[0].at, duration, zones, path, events, sessions: days, stats, fights,
     skills0: { Herbalism: [41, 150], Skinning: [88, 150], Mining: [57, 150], Cooking: [75, 150], Fishing: [54, 150] },
   };
 }

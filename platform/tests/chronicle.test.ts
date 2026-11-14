@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildIndex, clock, countByCategory, demoChronicle, eventAt, moneyText, parseChronicle, pathWindow, positionAt, totalsAt, visits, type Chronicle } from "../lib/chronicle";
+import { buildIndex, clock, countByCategory, demoChronicle, eventAt, moneyText, parseChronicle, pathWindow, positionAt, totalsAt, visits, type Chronicle, type ChronicleEvent } from "../lib/chronicle";
 
 const small = (): Chronicle => ({
   v: 1, character: { name: "Aria", classId: 8, level: 10 }, startedAt: 1000, duration: 100, zones: ["darkshore", "ashenvale"],
@@ -103,7 +103,7 @@ test("the days played and the clock of the day follow the sessions", () => {
 test("a dungeon visit is summed up with its attempts on the bosses", () => {
   const c = demoChronicle();
   const list = instances(c);
-  assert.equal(list.length, 1); assert.equal(list[0].name, "Blackfathom Deeps"); assert.ok(list[0].to !== null);
+  assert.equal(list.length, 2, "the dungeon and then the battleground"); assert.equal(list[0].name, "Blackfathom Deeps"); assert.equal(list[1].name, "Warsong Gulch"); assert.ok(list[0].to !== null);
   assert.equal(instanceAt(list, list[0].from - 5), null); assert.equal(instanceAt(list, list[0].from + 5)?.name, "Blackfathom Deeps"); assert.equal(instanceAt(list, list[0].to! + 5), null);
   const done = instanceSummary(c, list[0], c.duration);
   assert.equal(done.bosses.filter(b => b.a === "kill").length, 3); assert.equal(done.bosses.filter(b => b.a === "wipe").length, 1);
@@ -136,4 +136,63 @@ test("item and race ids are plain positive numbers, and the demo's loot has real
   assert.equal(parseChronicle({ ...c, character: { ...c.character, raceId: 4.5 } }), null);
   const loot = demoChronicle().events.filter(e => e.k === "loot");
   assert.ok(loot.length > 10 && loot.every(e => Number.isInteger(e.id) && (e.id ?? 0) > 0), "every demo item can show its icon");
+});
+
+import { fightAt, fightProgress } from "../lib/chronicle";
+
+test("the demo's fights are consistent: each event opens its own fight, fights do not overlap and the series add up", () => {
+  const c = demoChronicle();
+  const fights = c.fights!;
+  assert.equal(fights.filter(f => f.kind === "boss").length, 4, "three bosses and one wipe");
+  assert.equal(fights.filter(f => f.kind === "pvp").length, 1);
+  for (let i = 1; i < fights.length; i++) assert.ok(fights[i].t >= fights[i - 1].t + fights[i - 1].d - 1e-6, "no overlap");
+  const opening = c.events.filter(e => e.f !== undefined);
+  assert.equal(opening.length, fights.length);
+  for (const e of opening) { const f = fights[e.f!]; assert.equal(f.name, e.text); assert.ok(Math.abs(e.t - (f.t + f.d)) < 2, "the moment closes its fight"); }
+  for (const f of fights) {
+    const sum = (a?: number[]) => (a ?? []).reduce((x, y) => x + y, 0);
+    assert.equal(sum(f.series?.dmg), f.me.dmg); assert.equal(sum(f.series?.heal), f.me.heal); assert.equal(sum(f.series?.taken), f.me.taken);
+    assert.equal(f.me.dmg, f.me.dealt.reduce((x, r) => x + r.total, 0), "the spells add up to the damage");
+    assert.equal(f.group!.filter(m => m.me).length, 1, "exactly one member is the character");
+  }
+});
+
+test("the fight in progress and its running counters follow the playhead", () => {
+  const c = demoChronicle();
+  const f = c.fights![0];
+  assert.equal(fightAt(c, f.t - 1), -1); assert.equal(fightAt(c, f.t + f.d / 2), 0); assert.equal(fightAt(c, f.t + f.d + 1), -1);
+  const half = fightProgress(f, f.d / 2), end = fightProgress(f, f.d);
+  assert.ok(half.dmg > 0 && half.dmg < f.me.dmg, "partway through");
+  assert.equal(end.dmg, f.me.dmg); assert.equal(end.taken, f.me.taken);
+  assert.equal(fightProgress(f, 0).dmg, 0);
+});
+
+test("a file that points at a fight that is not there, or carries a broken one, is refused", () => {
+  const demo = demoChronicle();
+  assert.equal(parseChronicle({ ...demo, events: [...demo.events, { t: demo.duration, k: "boss", text: "x", f: 99 }] }), null, "no such fight");
+  const { fights, ...without } = demo;
+  assert.equal(parseChronicle({ ...without, events: [{ t: 1, k: "boss", text: "x", f: 0 }] }), null, "an event points at fights, but the file has none");
+  assert.ok(fights && parseChronicle({ ...demo }));
+  const bad = (change: (f: NonNullable<typeof demo.fights>[number]) => void) => { const copy = JSON.parse(JSON.stringify(demo)) as typeof demo; change(copy.fights![0]); return parseChronicle(copy); };
+  assert.equal(bad(f => { f.me.dmg = -5; }), null, "negative damage");
+  assert.equal(bad(f => { f.result = "draw" as never; }), null, "an unknown result");
+  assert.equal(bad(f => { f.me.dealt[0].name = "x".repeat(200); }), null, "a long spell name");
+  assert.equal(bad(f => { f.group![0].classId = 1.5; }), null);
+  assert.equal(bad(f => { f.series!.step = 0; }), null);
+});
+
+import { MAX_SOUND_SPEED, cueFor, pickCues } from "../lib/chronicle-sound";
+
+test("each moment has a sound or none, and a crowd of moments gives a few sounds, the most important first", () => {
+  const e = (k: ChronicleEvent["k"], extra: Partial<ChronicleEvent> = {}): ChronicleEvent => ({ t: 1, k, text: "x", ...extra });
+  assert.equal(cueFor(e("quest", { a: "accept" })), "quest-accept"); assert.equal(cueFor(e("quest", { a: "turnin" })), "quest-done"); assert.equal(cueFor(e("quest", { a: "abandon" })), null);
+  assert.equal(cueFor(e("loot", { q: 1 })), null, "plain loot is silent"); assert.equal(cueFor(e("loot", { q: 2 })), "item"); assert.equal(cueFor(e("loot", { q: 4 })), "item-rare");
+  assert.equal(cueFor(e("money", { n: 12 })), "coin"); assert.equal(cueFor(e("money", { n: 0 })), null);
+  assert.equal(cueFor(e("boss", { a: "wipe" })), "boss-wipe"); assert.equal(cueFor(e("boss", { a: "kill" })), "boss-kill");
+  assert.equal(cueFor(e("pvp", { a: "win" })), "pvp-win"); assert.equal(cueFor(e("pvp", { a: "loss" })), "pvp-loss");
+  assert.equal(cueFor(e("dungeon", { a: "leave" })), null); assert.equal(cueFor(e("emote")), null);
+  const crowd = [e("kill"), e("kill"), e("money", { n: 5 }), e("level", { n: 20 }), e("kill"), e("boss", { a: "kill" }), e("skill", { n: 5 })];
+  assert.deepEqual(pickCues(crowd), ["boss-kill", "level", "skill"], "three at most, each kind once");
+  assert.deepEqual(pickCues([]), []); assert.deepEqual(pickCues([e("emote")]), []);
+  assert.ok(MAX_SOUND_SPEED >= 20 && MAX_SOUND_SPEED < 200, "no sounds at the fastest speeds");
 });
