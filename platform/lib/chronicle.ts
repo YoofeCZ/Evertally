@@ -656,3 +656,35 @@ export function eventsBetween(c: Chronicle, from: number, to: number): Chronicle
   const a = upper(c.events, from, e => e.t), b = upper(c.events, to, e => e.t);
   return c.events.slice(a, b);
 }
+
+/**
+ * Where a rejected file goes wrong, as far as it can be told ("events[1432]", "fights[2]", "sessions"), for the people who write a
+ * recorder. A valid file gives null. It relies on the checks being sequential: a list that is valid up to element n and invalid with
+ * element n + 1 has its fault at n.
+ */
+export function findProblem(raw: unknown): string | null {
+  if (parseChronicle(raw)) return null;
+  const c = raw as Record<string, unknown> | null;
+  if (!c || typeof c !== "object" || Array.isArray(c)) return "the file is not a JSON object";
+  if (c.v !== 1) return '"v" must be 1';
+  const base: Record<string, unknown> = { ...c, path: [], events: [] };
+  for (const key of ["fights", "sessions", "stats", "skills0"]) delete base[key];
+  if (!parseChronicle(base)) return "the header: character, startedAt, duration or zones";
+  for (const key of ["skills0", "sessions", "stats"]) if (c[key] !== undefined && !parseChronicle({ ...base, [key]: c[key] })) return `"${key}"`;
+  const firstBad = (list: readonly unknown[], make: (n: number) => unknown): number => {
+    let lo = 0, hi = list.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (parseChronicle(make(mid + 1))) lo = mid + 1; else hi = mid; }
+    return lo;
+  };
+  if (!Array.isArray(c.path)) return '"path" must be a list';
+  if (!parseChronicle({ ...base, path: c.path })) return `path[${firstBad(c.path, n => ({ ...base, path: (c.path as unknown[]).slice(0, n) }))}]`;
+  if (c.fights !== undefined) {
+    const fights = c.fights as unknown[];
+    if (!Array.isArray(fights)) return '"fights" must be a list';
+    if (!parseChronicle({ ...base, fights })) return `fights[${firstBad(fights, n => ({ ...base, fights: fights.slice(0, n) }))}]`;
+  }
+  if (!Array.isArray(c.events)) return '"events" must be a list';
+  const withFights = { ...base, path: c.path, ...(c.fights !== undefined ? { fights: c.fights } : {}) };
+  if (!parseChronicle({ ...withFights, events: c.events })) return `events[${firstBad(c.events, n => ({ ...withFights, events: (c.events as unknown[]).slice(0, n) }))}]`;
+  return "something in the file (every part passes on its own, so it is a combination)";
+}

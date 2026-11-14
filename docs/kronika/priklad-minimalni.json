@@ -1,0 +1,19 @@
+{
+  "v": 1,
+  "character": { "name": "Aria", "classId": 8, "raceId": 4, "race": "Night Elf", "faction": "Alliance", "realm": "Forever", "level": 12 },
+  "startedAt": 1794300000,
+  "duration": 120,
+  "zones": ["darkshore"],
+  "path": [
+    [0, 0, 0.4, 0.8], [2, 0, 0.41, 0.79], [4, 0, 0.42, 0.78], [6, 0, 0.43, 0.77], [8, 0, 0.44, 0.76],
+    [10, 0, 0.45, 0.75], [60, 0, 0.45, 0.75], [62, 0, 0.46, 0.74], [120, 0, 0.5, 0.7]
+  ],
+  "events": [
+    { "t": 3, "k": "quest", "a": "accept", "text": "A Lost Master", "id": 3524, "zone": 0, "x": 0.41, "y": 0.79 },
+    { "t": 9, "k": "kill", "text": "Thistle Bear", "xp": 42, "zone": 0, "x": 0.44, "y": 0.76 },
+    { "t": 10, "k": "loot", "text": "Light Feather", "n": 1, "q": 1, "id": 17056, "zone": 0, "x": 0.45, "y": 0.75 },
+    { "t": 10.4, "k": "money", "text": "Money", "n": 36, "zone": 0, "x": 0.45, "y": 0.75 },
+    { "t": 62, "k": "quest", "a": "turnin", "text": "A Lost Master", "id": 3524, "xp": 180, "zone": 0, "x": 0.46, "y": 0.74 },
+    { "t": 63, "k": "level", "text": "Reached level 13", "n": 13, "zone": 0, "x": 0.46, "y": 0.74 }
+  ]
+}

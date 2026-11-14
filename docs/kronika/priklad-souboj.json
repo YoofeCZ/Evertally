@@ -1,0 +1,52 @@
+{
+  "v": 1,
+  "character": { "name": "Aria", "classId": 11, "raceId": 4, "race": "Night Elf", "faction": "Alliance", "level": 24 },
+  "startedAt": 1794300000,
+  "duration": 70,
+  "zones": ["ashenvale"],
+  "path": [[0, 0, 0.14, 0.86], [2, 0, 0.14, 0.86], [40, 0, 0.14, 0.86], [70, 0, 0.14, 0.86]],
+  "sessions": [{ "t": 0, "at": 1794300000 }],
+  "stats": [{ "t": 0, "ilvl": 50, "attrs": [["Strength", 40], ["Stamina", 62]], "enh": [["Critical Strike", "5.1%"], ["Haste", "2.0%"]] }],
+  "skills0": { "Herbalism": [41, 150], "Skinning": [88, 150] },
+  "events": [
+    { "t": 1, "k": "group", "a": "join", "text": "Joined a group of 5", "zone": 0, "x": 0.14, "y": 0.86 },
+    { "t": 2, "k": "dungeon", "a": "enter", "text": "Blackfathom Deeps", "detail": "Dungeon · Normal", "zone": 0, "x": 0.14, "y": 0.86 },
+    { "t": 6, "k": "kill", "text": "Blackfathom Tide Priestess", "xp": 120, "zone": 0, "x": 0.14, "y": 0.86 },
+    { "t": 40, "k": "boss", "a": "kill", "text": "Ghamoo-ra", "n": 1, "d": 30, "f": 0, "detail": "Dealt 244 (91% of the group), took 0, healed 95", "zone": 0, "x": 0.14, "y": 0.86 },
+    { "t": 40.5, "k": "loot", "text": "Tortoise Armor", "n": 1, "q": 3, "id": 6907, "zone": 0, "x": 0.14, "y": 0.86 },
+    { "t": 45, "k": "dungeon", "a": "leave", "text": "Blackfathom Deeps", "zone": 0, "x": 0.14, "y": 0.86 }
+  ],
+  "fights": [
+    {
+      "t": 10, "d": 30, "kind": "boss", "name": "Ghamoo-ra", "result": "kill", "zone": 0, "difficulty": "Normal", "size": 5, "attempt": 1,
+      "me": {
+        "dmg": 244, "heal": 95, "taken": 0, "deaths": 0, "interrupts": 0, "dispels": 0,
+        "dealt": [{ "name": "Wrath", "school": "nature", "total": 244, "casts": 3, "hits": 3, "crits": 1, "max": 110 }],
+        "healed": [{ "name": "Rejuvenation", "school": "nature", "total": 95, "casts": 1, "hits": 1, "crits": 0, "max": 95 }],
+        "took": []
+      },
+      "group": [
+        { "name": "Aria", "classId": 11, "role": "dps", "dmg": 244, "heal": 95, "taken": 0, "deaths": 0, "me": true },
+        { "name": "Thornwick", "classId": 1, "role": "tank", "dmg": 22, "heal": 0, "taken": 30, "deaths": 0 }
+      ],
+      "series": { "step": 5, "dmg": [174, 0, 0, 0, 0, 70], "heal": [95, 0, 0, 0, 0, 0], "taken": [0, 0, 0, 0, 0, 0] },
+      "marks": [{ "t": 8, "kind": "cooldown", "text": "Innervate" }],
+      "actors": [
+        { "name": "Aria", "side": "me", "classId": 11, "role": "dps" },
+        { "name": "Thornwick", "side": "party", "classId": 1, "role": "tank" },
+        { "name": "Ghamoo-ra", "side": "enemy", "boss": true }
+      ],
+      "spells": [{ "name": "Thorns", "school": "nature" }, { "name": "Wrath", "school": "nature" }, { "name": "Melee", "school": "physical" }, { "name": "Rejuvenation", "school": "nature" }],
+      "log": [
+        [0.5, 0, 0, 2, 0, 0, 0],
+        [1.2, 0, 2, 0, 1, 64, 0],
+        [1.8, 1, 2, 0, 2, 22, 0],
+        [2.4, 2, 1, 0, 2, 30, 0],
+        [3.0, 0, 1, 1, 3, 95, 0],
+        [3.1, 0, 2, 0, 1, 110, 1],
+        [28.0, 0, 2, 0, 1, 70, 0],
+        [30.0, 0, 2, 6, -1, 0, 0]
+      ]
+    }
+  ]
+}

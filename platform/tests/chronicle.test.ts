@@ -231,3 +231,34 @@ test("a combat log with a wrong index or a wrong order is refused", () => {
   assert.equal(bad(f => { delete f.spells; }), null, "a log without its spell names");
   assert.ok(bad(f => { delete f.log; delete f.actors; delete f.spells; }), "a fight without a log is still fine (older recordings)");
 });
+
+import { findProblem } from "../lib/chronicle";
+
+test("a refused file is traced to the part that is wrong, so a recorder can be fixed without guessing", () => {
+  const demo = demoChronicle();
+  const copy = () => JSON.parse(JSON.stringify(demo)) as Chronicle & Record<string, unknown>;
+  assert.equal(findProblem(demo), null);
+  assert.equal(findProblem(null), "the file is not a JSON object"); assert.equal(findProblem([]), "the file is not a JSON object");
+  assert.equal(findProblem({ ...copy(), v: 2 }), '"v" must be 1');
+  assert.equal(findProblem({ ...copy(), duration: 0 }), "the header: character, startedAt, duration or zones");
+  let c = copy(); c.events[77].t = -5; assert.equal(findProblem(c), "events[77]");
+  c = copy(); c.path[1234][2] = 7; assert.equal(findProblem(c), "path[1234]");
+  c = copy(); c.fights![2].me.dmg = -1; assert.equal(findProblem(c), "fights[2]");
+  c = copy(); c.fights![1].log![10][1] = 99; assert.equal(findProblem(c), "fights[1]");
+  c = copy(); c.sessions = [{ t: 9, at: 1 }, { t: 3, at: 2 }]; assert.equal(findProblem(c), '"sessions"');
+  c = copy(); c.events[5].f = 999; assert.equal(findProblem(c), "events[5]", "a fight that is not there");
+  c = copy(); (c as Record<string, unknown>).events = "no"; assert.equal(findProblem(c), '"events" must be a list');
+});
+
+import { readFileSync } from "node:fs";
+test("the example files of the format specification are valid recordings", () => {
+  for (const name of ["priklad-minimalni.json", "priklad-souboj.json"]) {
+    const raw = JSON.parse(readFileSync(`../docs/kronika/${name}`, "utf8"));
+    assert.equal(findProblem(raw), null, name);
+    assert.ok(parseChronicle(raw), name);
+  }
+  const fight = parseChronicle(JSON.parse(readFileSync("../docs/kronika/priklad-souboj.json", "utf8")))!;
+  const f = fight.fights![0], log = f.log!;
+  assert.equal(f.me.dmg, log.filter(l => l[1] === 0 && l[3] === 0).reduce((a, l) => a + l[5], 0), "the example's totals really are the sum of its log");
+  assert.equal(f.series!.dmg.reduce((a, b) => a + b, 0), f.me.dmg);
+});
