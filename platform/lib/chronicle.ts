@@ -24,6 +24,8 @@ export type ChronicleEvent = {
   xp?: number;
   /** Item quality 0 to 5. */
   q?: number;
+  /** The game id of the item (loot) or of the quest, for icons and links. */
+  id?: number;
   /** Where it happened: index into `zones` and the position 0 to 1 inside that zone. */
   zone?: number; x?: number; y?: number;
   /** boss: seconds the fight lasted (n is the number of the attempt). */
@@ -39,7 +41,7 @@ export type Session = { t: number; at: number };
 export type PathPoint = [t: number, zone: number, x: number, y: number];
 export type Chronicle = {
   v: 1;
-  character: { name: string; classId: number; race?: string; faction?: string; realm?: string; guild?: string; level: number };
+  character: { name: string; classId: number; raceId?: number; race?: string; faction?: string; realm?: string; guild?: string; level: number };
   /** Unix time of the start of the recording, seconds. */
   startedAt: number;
   /** Length of the recording, seconds. */
@@ -67,7 +69,7 @@ export function parseChronicle(raw: unknown): Chronicle | null {
   const c = raw as Partial<Chronicle> | null;
   if (!c || typeof c !== "object" || c.v !== 1) return null;
   const who = c.character;
-  if (!who || !short(who.name, 64) || !finite(who.classId) || !finite(who.level)) return null;
+  if (!who || !short(who.name, 64) || !finite(who.classId) || !finite(who.level) || (who.raceId !== undefined && !Number.isInteger(who.raceId))) return null;
   for (const key of ["race", "faction", "realm", "guild"] as const) if (who[key] !== undefined && !short(who[key], 80)) return null;
   if (!finite(c.startedAt) || !finite(c.duration) || c.duration <= 0) return null;
   if (!Array.isArray(c.zones) || !c.zones.length || c.zones.length > 500 || !c.zones.every(z => typeof z === "string" && /^[a-z0-9][a-z0-9-]{0,79}$/.test(z))) return null;
@@ -83,6 +85,7 @@ export function parseChronicle(raw: unknown): Chronicle | null {
     if (!e || !finite(e.t) || e.t < last || e.t > c.duration + 1 || !KINDS.has(e.k) || !short(e.text)) return null;
     if ((e.a !== undefined && !short(e.a, 24)) || (e.n !== undefined && !finite(e.n)) || (e.max !== undefined && !finite(e.max)) || (e.xp !== undefined && !finite(e.xp)) || (e.q !== undefined && !(Number.isInteger(e.q) && e.q >= 0 && e.q <= 5))) return null;
     if (e.zone !== undefined && !(Number.isInteger(e.zone) && e.zone >= 0 && e.zone < zones)) return null;
+    if (e.id !== undefined && !(Number.isInteger(e.id) && e.id > 0)) return null;
     if ((e.d !== undefined && !(finite(e.d) && e.d >= 0)) || (e.detail !== undefined && !short(e.detail, 300))) return null;
     if ((e.x !== undefined && !unit(e.x)) || (e.y !== undefined && !unit(e.y))) return null;
     last = e.t;
@@ -321,7 +324,7 @@ const LEGS: Leg[] = [
   { zone: "darkshore", route: [[0.4, 0.82], [0.42, 0.7], [0.46, 0.58], [0.4, 0.46], [0.45, 0.34], [0.5, 0.22]], mobs: ["Foreststrider Fledgling", "Thistle Bear", "Vile Sprite", "Wild Grell"], quests: ["Thresher Eye", "Tools of the Highborne", "The Fall of Ameth'Aran"], ore: "Skinning" },
   { zone: "ashenvale", route: [[0.3, 0.7], [0.4, 0.62], [0.52, 0.55], [0.6, 0.45], [0.7, 0.36], [0.62, 0.25]], mobs: ["Elder Ashenvale Bear", "Dryad Warden", "Satyr Rogue", "Ghostpaw Alpha"], quests: ["Raene's Cleansing", "The Zoram Strand", "Orendil's Cure"], ore: "Mining" },
 ];
-const LOOT: [string, number][] = [["Ruined Leather Scraps", 1], ["Light Feather", 1], ["Strider Meat", 1], ["Thistle Bear Pelt", 2], ["Linen Cloth", 1], ["Spider Silk", 2], ["Copper Bar", 1], ["Heavy Hide", 2], ["Mageweave Cloth", 3]];
+const LOOT: [string, number, number][] = [["Ruined Leather Scraps", 0, 2934], ["Light Feather", 1, 17056], ["Strider Meat", 1, 5469], ["Linen Cloth", 1, 2589], ["Copper Bar", 1, 2840], ["Heavy Hide", 1, 4235], ["Mageweave Cloth", 1, 4338], ["Strider Stew", 1, 5477]];
 
 export function demoChronicle(seed = 7): Chronicle {
   const rand = rng(seed);
@@ -354,7 +357,7 @@ export function demoChronicle(seed = 7): Chronicle {
             const xp = 38 + Math.floor(rand() * 30) + level * 2;
             xpTotal += xp;
             push({ t: t + k * 3, k: "kill", text: leg.mobs[Math.floor(rand() * leg.mobs.length)], xp, ...here });
-            if (rand() < 0.65) { const [name, q] = LOOT[Math.floor(rand() * LOOT.length)]; push({ t: t + k * 3 + 1, k: "loot", text: name, n: 1 + Math.floor(rand() * 2), q: q > 2 ? 2 : q === 2 ? 1 : 0, ...here }); }
+            if (rand() < 0.65) { const [name, q, id] = LOOT[Math.floor(rand() * LOOT.length)]; push({ t: t + k * 3 + 1, k: "loot", text: name, n: 1 + Math.floor(rand() * 2), q, id, ...here }); }
             if (rand() < 0.5) push({ t: t + k * 3 + 1.2, k: "money", text: "Money", n: 4 + Math.floor(rand() * 60), ...here });
           }
           t += kills * 3;
@@ -398,7 +401,7 @@ export function demoChronicle(seed = 7): Chronicle {
       wait(8);
       const xp = 90 + level * 3; xpTotal += xp;
       push({ t, k: "kill", text: trash[Math.floor(rand() * trash.length)], xp, ...spot });
-      if (rand() < 0.5) push({ t: t + 1, k: "loot", text: LOOT[Math.floor(rand() * LOOT.length)][0], n: 1, q: 1, ...spot });
+      if (rand() < 0.5) { const [name, q, id] = LOOT[Math.floor(rand() * LOOT.length)]; push({ t: t + 1, k: "loot", text: name, n: 1, q, id, ...spot }); }
       if (rand() < 0.6) push({ t: t + 1.2, k: "money", text: "Money", n: 30 + Math.floor(rand() * 120), ...spot });
     }
     wait(20);
@@ -408,7 +411,7 @@ export function demoChronicle(seed = 7): Chronicle {
       wait(40);
     }
     push({ t, k: "boss", a: "kill", text: name, n: bi === 1 ? 2 : 1, d: 150 + bi * 40, detail: `Group of ${size}, ${(2.1 + bi * 0.6).toFixed(1)}M damage in total`, ...spot });
-    xpTotal += 300; push({ t: t + 0.5, k: "loot", text: ["Fang of Ghamoo-ra", "Sarevess's Mantle", "Kelris's Blade"][bi], n: 1, q: 3, ...spot });
+    xpTotal += 300; push({ t: t + 0.5, k: "loot", text: ["Tortoise Armor", "Naga Heartpiercer", "Twilight Maul"][bi], n: 1, q: 3, id: [6907, 3078, 273841][bi], ...spot });
     if (xpTotal >= need(level)) { xpTotal -= need(level); level++; push({ t: t + 1, k: "level", text: `Reached level ${level}`, n: level, ...spot }); }
     if (bi === 2) push({ t: t + 2, k: "emote", text: "You cheer", ...spot });
   });
@@ -426,7 +429,7 @@ export function demoChronicle(seed = 7): Chronicle {
   }));
   return {
     v: 1,
-    character: { name: "Demo Wanderer", classId: 11, race: "Night Elf", faction: "Alliance", realm: "Demo", guild: "Evertally", level: 14 },
+    character: { name: "Demo Wanderer", classId: 11, raceId: 4, race: "Night Elf", faction: "Alliance", realm: "Demo", guild: "Evertally", level: 14 },
     startedAt: days[0].at, duration, zones, path, events, sessions: days, stats,
     skills0: { Herbalism: [41, 150], Skinning: [88, 150], Mining: [57, 150], Cooking: [75, 150], Fishing: [54, 150] },
   };

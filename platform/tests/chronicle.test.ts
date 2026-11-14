@@ -127,3 +127,13 @@ test("the new parts of a recording are checked as strictly as the old ones", () 
   assert.equal(parseChronicle({ ...c, events: [{ t: 1, k: "boss", text: "x", d: -3 }] }), null, "a negative fight time");
   assert.equal(parseChronicle({ ...c, events: [{ t: 1, k: "boss", text: "x", detail: "y".repeat(400) }] }), null);
 });
+
+test("item and race ids are plain positive numbers, and the demo's loot has real ids", () => {
+  const c = small();
+  assert.ok(parseChronicle({ ...c, character: { ...c.character, raceId: 4 }, events: [{ t: 1, k: "loot", text: "Linen Cloth", id: 2589, q: 1 }] }));
+  assert.equal(parseChronicle({ ...c, events: [{ t: 1, k: "loot", text: "x", id: 0 }] }), null);
+  assert.equal(parseChronicle({ ...c, events: [{ t: 1, k: "loot", text: "x", id: 1.5 }] }), null);
+  assert.equal(parseChronicle({ ...c, character: { ...c.character, raceId: 4.5 } }), null);
+  const loot = demoChronicle().events.filter(e => e.k === "loot");
+  assert.ok(loot.length > 10 && loot.every(e => Number.isInteger(e.id) && (e.id ?? 0) > 0), "every demo item can show its icon");
+});

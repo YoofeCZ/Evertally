@@ -13,18 +13,11 @@ import { CLASS_COLORS, CLASSES } from "../data";
 import { Icon } from "../ui";
 import { useMaps } from "../db/store";
 import type { MapDefinition } from "../world-map";
+import { INK, IconChip, ItemIcon, MARK_COLOR, Portrait, TypeIcon, classIconUrl, drawIcon, hasIcon } from "./ChronicleArt";
 
 const SPEEDS = [1, 5, 20, 60, 200] as const;
 const COLORS: Record<Category, string> = { quests: "#f2c04b", combat: "#e2786a", loot: "#c9c4d6", professions: "#5fb98d", travel: "#7fb2ff", character: "#a78bfa" };
 const QUALITY = ["#9d9d9d", "#ffffff", "#1eff00", "#0070dd", "#a335ee", "#ff8000"];
-/** How each kind of moment looks on the timeline. */
-const MARK: Record<string, { g: string; c: string }> = {
-  "quest.accept": { g: "!", c: "#f2c04b" }, "quest.turnin": { g: "?", c: "#f2c04b" }, "quest.abandon": { g: "×", c: "#9a97a8" },
-  "combat.kill": { g: "•", c: "#e2786a" }, "combat.death": { g: "✕", c: "#e2786a" }, "combat.boss": { g: "☠", c: "#d9534f" },
-  "loot.item": { g: "◆", c: "#e8a15a" }, "loot.money": { g: "¢", c: "#f2c04b" }, "prof.skill": { g: "▲", c: "#5fb98d" },
-  "travel.flight": { g: "➤", c: "#5b8def" }, "travel.instance": { g: "∩", c: "#5b8def" }, "travel.zone": { g: "◇", c: "#7fb2ff" },
-  "char.level": { g: "★", c: "#a78bfa" }, "char.group": { g: "+", c: "#5b8def" }, "char.emote": { g: "☺", c: "#e8a15a" },
-};
 const SHOWN_ON_TIMELINE = ["quest.accept", "quest.turnin", "quest.abandon", "combat.boss", "combat.death", "travel.instance", "travel.flight", "char.level", "char.group"];
 const SHOWN_ON_MAP = ["quest.accept", "quest.turnin", "quest.abandon", "combat.kill", "combat.death", "combat.boss", "char.level", "travel.instance", "travel.flight"];
 
@@ -118,6 +111,8 @@ function Stage({ c, maps, timeRef, props, onApi }: { c: Chronicle; maps: readonl
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return;
     const images = new Map<string, HTMLImageElement>();
+    const portrait = new Image();
+    portrait.src = classIconUrl(c.character.classId);
     const art = (key: string): ZoneArt => {
       const def = maps.find(m => m.key === key);
       if (!def) return { key, img: null, w: 1000, h: 667 };
@@ -269,9 +264,11 @@ function Stage({ c, maps, timeRef, props, onApi }: { c: Chronicle; maps: readonl
       const from = all.length ? all[0][0] : 0;
       let fights = 0;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const badge = (x: number, y: number, r: number, fill: string, glyph: string, ink = "#14121c") => {
-        ctx.fillStyle = fill; ctx.strokeStyle = "#14121c"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = ink; ctx.font = `700 ${Math.round(r * 1.25)}px Inter, sans-serif`; ctx.fillText(glyph, x, y + 0.5);
+      const badge = (x: number, y: number, r: number, key: string) => {
+        ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 5;
+        ctx.fillStyle = MARK_COLOR[key] ?? "#7fb2ff"; ctx.strokeStyle = "#14121c"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0;
+        drawIcon(ctx, key, x, y, r * 1.35, INK[key] ?? "#fff");
       };
       for (const e of eventsBetween(c, from, t)) {
         if (e.k === "kill" && t - e.t < 7 && e.zone === pos.zone) fights++;
@@ -280,23 +277,18 @@ function Stage({ c, maps, timeRef, props, onApi }: { c: Chronicle; maps: readonl
         if (ex < -20 || ey < -20 || ex > cw + 20 || ey > ch + 20) continue;
         const key = typeKey(e);
         if (e.k === "kill") { ctx.fillStyle = `rgba(226,120,106,${Math.max(0.15, 0.85 - (t - e.t) / 400)})`; ctx.beginPath(); ctx.arc(ex, ey, 3.2, 0, 7); ctx.fill(); }
-        else if (key === "quest.accept") badge(ex, ey, 9, "#f2c04b", "!");
-        else if (key === "quest.turnin") badge(ex, ey, 9, "#f2c04b", "?");
-        else if (key === "quest.abandon") badge(ex, ey, 8, "#9a97a8", "×");
-        else if (e.k === "level") badge(ex, ey, 8, "#a78bfa", "★", "#fff");
-        else if (e.k === "boss") badge(ex, ey, 11, e.a === "wipe" ? "#9b3b34" : "#d9534f", "☠", "#fff");
-        else if (e.k === "dungeon") badge(ex, ey, 10, "#5b8def", e.a === "enter" ? "∩" : "↩", "#fff");
-        else if (e.k === "travel") badge(ex, ey, 9, "#5b8def", "➤", "#fff");
-        else if (e.k === "death") { ctx.strokeStyle = "#e2786a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ex - 5, ey - 5); ctx.lineTo(ex + 5, ey + 5); ctx.moveTo(ex + 5, ey - 5); ctx.lineTo(ex - 5, ey + 5); ctx.stroke(); }
+        else if (hasIcon(key)) badge(ex, ey, key === "combat.boss" ? 12 : 10, key);
       }
 
       // the character, with a ring that pulses and turns red in a fight
       const pulse = p.reduced ? 0.5 : (Math.sin(now / 320) + 1) / 2;
       const ring = fights ? "226,120,106" : "105,204,240";
       ctx.strokeStyle = `rgba(${ring},${0.85 - pulse * 0.6})`; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(px, py, 11 + pulse * 9, 0, 7); ctx.stroke();
-      ctx.fillStyle = classColor; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 6;
-      ctx.beginPath(); ctx.arc(px, py, 8, 0, 7); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(px, py, 17 + pulse * 10, 0, 7); ctx.stroke();
+      ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 9;
+      ctx.fillStyle = classColor; ctx.beginPath(); ctx.arc(px, py, 14, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      if (portrait.complete && portrait.naturalWidth) { ctx.save(); ctx.beginPath(); ctx.arc(px, py, 11.5, 0, 7); ctx.clip(); ctx.drawImage(portrait, px - 11.5, py - 11.5, 23, 23); ctx.restore(); }
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(px, py, 13, 0, 7); ctx.stroke();
 
       // messages rise from the character and fade: the newest nearest to it
       const recent = eventsBetween(c, t - 5, t).filter(e => e.k !== "zone" && passes(e, p.iconTypes, p.minQ)).slice(-5);
@@ -305,7 +297,7 @@ function Stage({ c, maps, timeRef, props, onApi }: { c: Chronicle; maps: readonl
         const age = t - e.t, m = popup(e, p.words);
         const fadeOut = Math.min(1, Math.max(0, (5 - age) / 1.5));
         const rise = p.reduced ? 0 : Math.min(age, 3) * 5;
-        const y = py - 28 - (recent.length - 1 - i) * 20 - rise;
+        const y = py - 36 - (recent.length - 1 - i) * 20 - rise;
         ctx.globalAlpha = fadeOut; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(10,9,18,0.92)"; ctx.strokeText(m.text, px, y);
         ctx.fillStyle = m.color; ctx.fillText(m.text, px, y); ctx.globalAlpha = 1;
       });
@@ -338,7 +330,7 @@ function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, lang 
     const last: Record<string, number> = {};
     for (const e of eventsBetween(c, dom.from, dom.to)) {
       const key = typeKey(e);
-      if (!MARK[key] || !passes(e, types, minQ) || e.t - (last[key] ?? -1e9) < gap) continue;
+      if (!hasIcon(key) || !passes(e, types, minQ) || e.t - (last[key] ?? -1e9) < gap) continue;
       last[key] = e.t; out.push({ t: e.t, key, label: e.text });
     }
     return out;
@@ -367,12 +359,12 @@ function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, lang 
       <div className="chr-levels" aria-hidden="true">{levels.map(l => <span key={l.t} style={{ left: pct(l.t) }}>{l.n}</span>)}</div>
       <div className="chr-zones" aria-hidden="true">
         {runs.map((r, i) => <span key={i} style={{ ...band(r.from, r.to), background: `hsl(${hue(c.zones[r.zone])} 38% 30% / .92)` }}>{nameOf(maps, c.zones[r.zone], lang)}</span>)}
-        {instanceList.filter(x => (x.to ?? c.duration) > dom.from && x.from < dom.to).map((x, i) => <span key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)}>∩ {x.name}</span>)}
+        {instanceList.filter(x => (x.to ?? c.duration) > dom.from && x.from < dom.to).map((x, i) => <span key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)}><TypeIcon k="travel.instance" size={12} /> {x.name}</span>)}
       </div>
       <div ref={track} className="chr-track" role="slider" tabIndex={-1} aria-label="Timeline" aria-valuemin={Math.round(dom.from)} aria-valuemax={Math.round(dom.to)} aria-valuenow={Math.round(time)} aria-valuetext={clock(time)}
         onPointerDown={down} onPointerMove={move} onPointerUp={() => { dragging.current = false; }} onPointerLeave={() => setHover(null)}>
         <i className="chr-fill" style={{ width: pct(time) }} />
-        {marks.map((m, i) => <b key={i} className="chr-mark" style={{ left: pct(m.t), ["--mark" as string]: MARK[m.key].c }} title={m.label}>{MARK[m.key].g}</b>)}
+        {marks.map((m, i) => <b key={i} className="chr-mark" style={{ left: pct(m.t), ["--mark" as string]: MARK_COLOR[m.key], color: INK[m.key] ?? "#fff" }} title={m.label}><TypeIcon k={m.key} size={12} /></b>)}
         <u className="chr-head" style={{ left: pct(time) }} />
         {hover !== null && <em className="chr-hover" style={{ left: pct(hover) }}>{clock(hover)}</em>}
       </div>
@@ -463,8 +455,8 @@ function Filters({ w, counts, sets, minQ, setMinQ, setSets, defaults }: {
           <fieldset key={cat} className="chr-group">
             <label className="chr-check is-master"><input type="checkbox" checked={on === keys.length} ref={el => { if (el) el.indeterminate = on > 0 && on < keys.length; }} onChange={event => flip(keys, event.target.checked)} /> {w.cat[cat]}</label>
             <div>{keys.map(k => (
-              <label key={k} className="chr-check" style={{ ["--mark" as string]: MARK[k].c }}>
-                <input type="checkbox" checked={set.has(k)} onChange={event => flip([k], event.target.checked)} /> {w.types[k]} <small>{counts[k] ?? 0}</small>
+              <label key={k} className="chr-check" style={{ ["--mark" as string]: MARK_COLOR[k] }}>
+                <input type="checkbox" checked={set.has(k)} onChange={event => flip([k], event.target.checked)} /> <span className="chr-key"><TypeIcon k={k} size={13} /></span> {w.types[k]} <small>{counts[k] ?? 0}</small>
               </label>
             ))}</div>
           </fieldset>
@@ -555,10 +547,10 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
   const inside = instanceAt(instanceList, time);
   const insideSummary = inside ? instanceSummary(c, inside, time) : null;
   const recentWindow = useMemo(() => {
-    const kills = new Map<string, number>(), items = new Map<string, { n: number; q: number }>();
+    const kills = new Map<string, number>(), items = new Map<string, { n: number; q: number; id?: number }>();
     for (const e of eventsBetween(c, time - 90, time)) {
       if (e.k === "kill") kills.set(e.text, (kills.get(e.text) ?? 0) + 1);
-      else if (e.k === "loot" && (e.q ?? 1) >= minQ) { const x = items.get(e.text); items.set(e.text, { n: (x?.n ?? 0) + (e.n ?? 1), q: e.q ?? 1 }); }
+      else if (e.k === "loot" && (e.q ?? 1) >= minQ) { const x = items.get(e.text); items.set(e.text, { n: (x?.n ?? 0) + (e.n ?? 1), q: e.q ?? 1, id: e.id }); }
     }
     return { kills: [...kills].sort((a, b) => b[1] - a[1]).slice(0, 8), items: [...items].slice(-8) };
   }, [c, time, minQ]);
@@ -637,7 +629,7 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
 
       <aside className="chr-card chr-left">
         <header>
-          <span className="chr-level" style={{ borderColor: color }}>{totals.level}</span>
+          <Portrait classId={c.character.classId} raceId={c.character.raceId} level={totals.level} color={color} />
           <div><h2 style={{ color }}>{c.character.name}</h2>
             <p>{[c.character.race, className, c.character.faction].filter(Boolean).join(" · ")}</p>
             {c.character.guild && <p className="chr-guild">&lt;{c.character.guild}&gt;</p>}</div>
@@ -694,14 +686,14 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
             {list.length === 0 && <li className="chr-muted">{w.none}</li>}
             {list.map(e => (
               <li key={`${e.t}${e.k}${e.text}`} className={e === currentEvent ? "is-current" : ""} style={{ ["--chip" as string]: COLORS[categoryOf(e.k)] }}>
-                <button type="button" onClick={() => seek(e.t)}><time>{clock(e.t)}</time><span>{popup(e, w).text}{e.detail && <small>{e.detail}</small>}</span></button>
+                <button type="button" onClick={() => seek(e.t)}><time>{clock(e.t)}</time>{e.k === "loot" ? <ItemIcon id={e.id} q={e.q} size={26} /> : <IconChip k={typeKey(e)} size={26} />}<span>{popup(e, w).text}{e.detail && <small>{e.detail}</small>}</span></button>
               </li>
             ))}
           </ol>
           {shown.length - split - 6 > 0 && <p className="chr-muted">{shown.length - split - 6} {w.later}</p>}
           {currentEvent && (
             <section className="chr-detail">
-              <h3>{popup(currentEvent, w).text}</h3>
+              <div className="chr-detail-head">{currentEvent.k === "loot" ? <ItemIcon id={currentEvent.id} q={currentEvent.q} size={38} /> : <IconChip k={typeKey(currentEvent)} size={38} />}<h3>{popup(currentEvent, w).text}</h3></div>
               <p className="chr-muted">{clock(currentEvent.t)} {w.into} · {when(currentEvent.t)}{c.sessions?.length ? ` · ${w.session} ${sessionAt(c, currentEvent.t) + 1}` : ""}</p>
               <h4>{w.what}</h4>
               <dl>
@@ -717,7 +709,7 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
           {(recentWindow.kills.length > 0 || recentWindow.items.length > 0) && (
             <section className="chr-recent">
               <div><h4>{w.killsList}</h4>{recentWindow.kills.map(([n, k]) => <p key={n}><span>{n}</span>{k > 1 && <b>×{k}</b>}</p>)}</div>
-              <div><h4>{w.itemsList}</h4>{recentWindow.items.map(([n, x]) => <p key={n} style={{ color: QUALITY[x.q] }}><span>{n}</span>{x.n > 1 && <b>×{x.n}</b>}</p>)}</div>
+              <div><h4>{w.itemsList}</h4>{recentWindow.items.map(([n, x]) => <p key={n} style={{ color: QUALITY[x.q] }}><ItemIcon id={x.id} q={x.q} size={20} /><span>{n}</span>{x.n > 1 && <b>×{x.n}</b>}</p>)}</div>
             </section>
           )}
         </aside>
