@@ -7,7 +7,7 @@ import { COMMUNITY_OBSERVATIONS_SQL } from "./community";
 import { atlasEntities } from "./atlas";
 import { PUBLIC_PROFILE_ACCESS_SQL } from "./profiles";
 import { applyGuildSnapshots, pruneTracks, releaseStatements, type Db as PeopleDb, type GuildSnapshot } from "./people";
-import { publicRankingObservations, rankObservedRuns, rankPublicLevels, RUN_OBSERVATION_ORDER } from "./run-rankings";
+import { publicRankingObservations, rankObservedRuns, rankPublicLevels, RUN_OBSERVATION_ORDER, withRankingExtras } from "./run-rankings";
 import { projectRunActors } from "./run-combat";
 import type { Run, RunCombat, RunMember } from "../components/evertally/types";
 
@@ -22,7 +22,7 @@ const nullableNum=(v:unknown)=>typeof v==="number"?v:null;
 const nullableText=(v:unknown)=>typeof v==="string"?v:null;
 
 export function serializeGrant(row:Row){return {id:String(row.id),producerId:String(row.producer_id),consentEpoch:Number(row.consent_epoch),since:Number(row.since),scopes:decode<Scope[]>(row.scopes,[]),revokedAt:nullableNum(row.revoked_at),createdAt:Number(row.created_at)};}
-export function serializeProfile(row:Row){return {id:String(row.id),name:nullableText(row.name),realm:nullableText(row.realm),classId:nullableNum(row.class_id),raceId:nullableNum(row.race_id),level:nullableNum(row.level),public:bool(row.public),lastSeen:Number(row.last_seen)};}
+export function serializeProfile(row:Row){return {id:String(row.id),name:nullableText(row.name),realm:nullableText(row.realm),classId:nullableNum(row.class_id),raceId:nullableNum(row.race_id),level:nullableNum(row.level),public:bool(row.public),showItemLevel:bool(row.show_item_level),showGuild:bool(row.show_guild),lastSeen:Number(row.last_seen)};}
 
 export async function createGrant(userId:string,input:{producerId:string;consentEpoch:number;since:number;scopes:Scope[]}){
   const existing=await first("SELECT * FROM atlas_grants WHERE user_id=? AND producer_id=? AND consent_epoch=?",[userId,input.producerId,input.consentEpoch]);
@@ -113,10 +113,14 @@ export async function meData(userId:string){
   return {grants:grants.map(serializeGrant),profiles:profiles.map(serializeProfile),eventCount:Number(count?.count??0),runCount:runs.length};
 }
 
-export async function setProfileVisibility(userId:string,id:string,published:boolean){
+export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean}){
   const existing=await first("SELECT * FROM atlas_profiles WHERE id=? AND user_id=?",[id,userId]);if(!existing)throw new ApiError("not_found","Character not found.",404);
-  await getDb().update(profileTable).set({public:published}).where(eq(profileTable.id,id));
-  return serializeProfile({...existing,public:published});
+  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean}={};
+  if(change.public!==undefined)set.public=change.public;
+  if(change.showItemLevel!==undefined)set.showItemLevel=change.showItemLevel;
+  if(change.showGuild!==undefined)set.showGuild=change.showGuild;
+  await getDb().update(profileTable).set(set).where(eq(profileTable.id,id));
+  return serializeProfile({...existing,...(set.public!==undefined?{public:set.public}:{}),...(set.showItemLevel!==undefined?{show_item_level:set.showItemLevel}:{}),...(set.showGuild!==undefined?{show_guild:set.showGuild}:{})});
 }
 
 export async function deleteMyData(userId:string){const db=getBinding();await db.batch([
@@ -175,5 +179,5 @@ export async function statusData(){
 
 export async function getLeaderboards(params:URLSearchParams){
   if(params.get("metric")==="level") return rankPublicLevels(getBinding() as unknown as PeopleDb,params);
-  return rankObservedRuns(await getRuns(undefined,true) as Run[],params);
+  return withRankingExtras(getBinding() as unknown as PeopleDb,rankObservedRuns(await getRuns(undefined,true) as Run[],params));
 }

@@ -21,11 +21,12 @@ export type Run = {
 export type Entity = { id: string; kind: string; name: string; count: number; lastSeen?: number; payload?: Record<string, unknown>; origin?: "catalog" | "observation"; sourceLabel?: string; isVendor?: boolean; locations?: {mapId:number;mapSystem?:string;x?:number;y?:number;positionMethod?:string;count?:number;lastSeen?:number}[] };
 export type Grant = { id: string; producerId: string; scopes: Scope[]; revokedAt: number | null; createdAt: number };
 export type Device = { id: string; name: string; scopes: Scope[]; createdAt: number; lastSeenAt: number | null };
-export type Profile = Character & { public: boolean };
+export type Profile = Character & { public: boolean; showItemLevel?: boolean; showGuild?: boolean };
 export type User = { id: string; username: string; displayName: string; avatarUrl: string | null };
 export type Status = {
   version: string; user: User | null; totalEvents: number; totalRuns: number; totalCharacters: number; latestAt: number | null;
   auth: { discord: boolean; devLogin: boolean };
 };
 export type Me = { user: User; grants: Grant[]; profiles: Profile[]; devices: Device[]; eventCount: number; runCount: number };
-export type Entry = { rank: number; character: Character; count: number; bestMs?: number | null; value?:number;runId?:string;instanceName?:string };
+export type Entry = { rank: number; character: Character; count: number; bestMs?: number | null; value?:number;runId?:string;instanceName?:string;
+  /** Shown only when the player turned it on for a public character. */ itemLevel?: number; guild?: string };

@@ -5,7 +5,8 @@ import { useApi } from "./api";
 import type { Status, View } from "./types";
 import { DiscordGlyph, Icon, Logo } from "./ui";
 import { AccountView, LinkView } from "./views/Account";
-import { RankingsView, RunsView } from "./views/Data";
+import { RunsView } from "./views/Data";
+import { RankingsView } from "./views/Rankings";
 import { Overview } from "./views/Overview";
 import { SyncView } from "./views/Sync";
 import { ProfessionsView } from "./views/Professions";
@@ -110,7 +111,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
       <main id="main">
         {view === "overview" && <Overview status={status.data} go={go} />}
         {view === "runs" && <RunsView user={user} />}
-        {view === "rankings" && <RankingsView />}
+        {view === "rankings" && <RankingsView route={route} />}
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
         {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}

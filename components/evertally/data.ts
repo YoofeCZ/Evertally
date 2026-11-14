@@ -1,7 +1,15 @@
 import type { Run } from "./types";
 
 export const CLASSES: Record<number, string> = { 1: "Warrior", 2: "Paladin", 3: "Hunter", 4: "Rogue", 5: "Priest", 6: "Death Knight", 7: "Shaman", 8: "Mage", 9: "Warlock", 10: "Monk", 11: "Druid", 12: "Demon Hunter", 13: "Evoker" };
-export const RACES: Record<number, string> = { 1: "Human", 2: "Orc", 3: "Dwarf", 4: "Night Elf", 5: "Undead", 6: "Tauren", 7: "Gnome", 8: "Troll", 9: "Goblin", 10: "Blood Elf", 11: "Draenei", 22: "Worgen", 24: "Pandaren", 25: "Pandaren", 26: "Pandaren" };
+export const RACES: Record<number, string> = { 1: "Human", 2: "Orc", 3: "Dwarf", 4: "Night Elf", 5: "Undead", 6: "Tauren", 7: "Gnome", 8: "Troll", 9: "Goblin", 10: "Blood Elf", 11: "Draenei", 22: "Worgen", 24: "Pandaren", 25: "Pandaren", 26: "Pandaren", 95: "High Order Skyborne", 96: "Windshaper Skyborne" };
+// 95/96 are the Skyborne races new in Forever (UnitRace ids, as in QuestieDB raceMaskById and AllTheThings).
+/** The class colours the game uses for names (RAID_CLASS_COLORS). */
+export const CLASS_COLORS: Record<number, string> = { 1: "#c79c6e", 2: "#f58cba", 3: "#abd473", 4: "#fff569", 5: "#ffffff", 6: "#c41f3b", 7: "#0070de", 8: "#69ccf0", 9: "#9482c9", 10: "#00ff96", 11: "#ff7d0a", 12: "#a330c9", 13: "#33937f" };
+
+export type Faction = "alliance" | "horde";
+// Race 24 is the unaligned Pandaren of the starting isle; it belongs to neither faction.
+const FACTION_BY_RACE: Record<number, Faction> = { 1: "alliance", 3: "alliance", 4: "alliance", 7: "alliance", 11: "alliance", 22: "alliance", 25: "alliance", 95: "alliance", 2: "horde", 5: "horde", 6: "horde", 8: "horde", 9: "horde", 10: "horde", 26: "horde", 96: "horde" };
+export const factionOf = (raceId?: number | null): Faction | null => (raceId ? FACTION_BY_RACE[raceId] : undefined) ?? null;
 
 export function duration(ms?: number | null): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return "—";

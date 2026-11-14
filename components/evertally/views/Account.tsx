@@ -76,13 +76,23 @@ export function AccountView({ user, signIn, onChanged }: { user: User | null; si
         </ConsoleWindow>
         <ConsoleWindow title={<>{t("nav.account").toLowerCase()} <span>/</span> {t("account.profiles").toLowerCase()}</>}>
           {data?.profiles.length ? data.profiles.map((p) => (
-            <div className="row-item" key={p.id}>
+            <div className="row-item profile-row" key={p.id}>
               <span className="avatar">{p.name?.charAt(0) ?? "?"}</span>
               <span><strong>{fullName(p) || t("common.private")}</strong><small>{[CLASSES[p.classId ?? 0], p.level].filter(Boolean).join(" · ")}</small></span>
               <button className={`btn btn-sm ${p.public ? "btn-on" : "btn-ghost"}`} disabled={busy}
                 onClick={() => void act(() => api(`/api/profiles/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ public: !p.public }) }))}>
                 <Icon name={p.public ? "globe" : "lock"} size={14} /> {p.public ? t("account.public") : t("account.private")}
               </button>
+              {p.public && <div className="profile-extras" role="group" aria-label={t("account.rankingExtras")}>
+                <span>{t("account.rankingExtras")}</span>
+                {(["showItemLevel", "showGuild"] as const).map((key) => (
+                  <label key={key} className="check">
+                    <input type="checkbox" checked={Boolean(p[key])} disabled={busy}
+                      onChange={(event) => void act(() => api(`/api/profiles/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ [key]: event.target.checked }) }))} />
+                    <span>{t(key === "showItemLevel" ? "account.showItemLevel" : "account.showGuild")}<small>{t(key === "showItemLevel" ? "account.showItemLevelHelp" : "account.showGuildHelp")}</small></span>
+                  </label>
+                ))}
+              </div>}
             </div>
           )) : <Empty icon="user" title={t("account.profiles")}>{t("account.profilesEmpty")}</Empty>}
         </ConsoleWindow>

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { api, ApiFailure } from "../api";
-import { CLASSES } from "../data";
+import { CLASSES, CLASS_COLORS as CLASS_COLOR } from "../data";
 import type { User } from "../types";
 import { Icon } from "../ui";
 import type { Person, Trail } from "./MapCanvas";
@@ -30,7 +30,6 @@ type Circle = { id: string; name: string; isOwner: boolean; inviteCode: string |
 type Profile = { id: string; name: string | null; classId: number | null; level: number | null };
 export type GroupAction = "share" | "character" | "leave" | "rotate" | "close" | "kick";
 
-const CLASS_COLOR: Record<number, string> = { 1: "#c79c6e", 2: "#f58cba", 3: "#abd473", 4: "#fff569", 5: "#ffffff", 6: "#c41f3b", 7: "#0070de", 8: "#69ccf0", 9: "#9482c9", 10: "#00ff96", 11: "#ff7d0a", 12: "#a330c9", 13: "#33937f" };
 const ROUTE_COLORS = ["#ffd24a", "#7ee081", "#6cb8ff", "#ff8f6b", "#c79bff", "#ff6bb5"];
 const MEMBER_COLOR = "#cfd3dc";
 const MAX_VERTICES = 40000;

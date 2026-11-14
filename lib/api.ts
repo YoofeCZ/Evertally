@@ -58,7 +58,9 @@ const scopeList = z.array(z.enum(SCOPES)).min(1).max(SCOPES.length).refine((v) =
 const grantInput = z.object({ producerId: z.string().min(1).max(180), consentEpoch: z.number().int().nonnegative(), since: z.number().finite().nonnegative(), scopes: scopeList })
   .strict().refine((v) => v.since <= Math.floor(Date.now() / 1000) + 300, "The period cannot start in the future.");
 const uploadInput = z.object({ grantId: z.string().uuid(), export: z.unknown() }).strict();
-const visibilityInput = z.object({ public: z.boolean() }).strict();
+// Any of the three may change at once; item level and guild only show while the character is public.
+const visibilityInput = z.object({ public: z.boolean().optional(), showItemLevel: z.boolean().optional(), showGuild: z.boolean().optional() }).strict()
+  .refine(v => v.public !== undefined || v.showItemLevel !== undefined || v.showGuild !== undefined, "Nothing to change.");
 const deviceStartInput = z.object({ name: z.string().max(200).optional() }).strict();
 const devicePollInput = z.object({ deviceCode: z.string().min(10).max(100) }).strict();
 const deviceApproveInput = z.object({ userCode: z.string().min(8).max(12), scopes: z.array(z.enum(SCOPES)).max(SCOPES.length), approve: z.boolean() }).strict();
@@ -157,7 +159,7 @@ export async function handleApi(request: Request, operation: string, id?: string
     }
     if (operation === "profile" && id) {
       const input = parse(visibilityInput, await readBody(request), "invalid_profile", "Invalid profile visibility.");
-      return json({ profile: await setProfileVisibility(user.id, id, input.public) });
+      return json({ profile: await setProfileVisibility(user.id, id, input) });
     }
     if (operation === "delete") {
       await deleteMyData(user.id);

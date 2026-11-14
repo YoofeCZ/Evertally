@@ -1,0 +1,158 @@
+/* Leaderboard in the shape of the Raider.IO leaderboards: an art banner with filter pills and a breadcrumb
+   title, pagination above the table, one dense row per character with the name in its class colour and the
+   ranked value large on the right. Neutral greys with an orange value, on the site's own dark canvas. */
+
+.lb { --lb-orange: #ff9a1f; --lb-row: #222128; --lb-row-alt: #26252d; --lb-line: #ffffff10; padding-top: 22px; padding-bottom: 8px; }
+
+/* ---------- banner ---------- */
+.lb-banner {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  min-height: 168px; padding: 16px 20px 18px; box-sizing: border-box;
+  border: 1px solid #ffffff14; border-radius: 10px 10px 0 0; overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(14, 13, 19, 0.35) 0%, rgba(14, 13, 19, 0.88) 100%),
+    linear-gradient(90deg, rgba(14, 13, 19, 0.9) 0%, rgba(14, 13, 19, 0.35) 60%, rgba(14, 13, 19, 0.75) 100%),
+    var(--lb-art) center 38% / cover no-repeat, #1a1920;
+}
+.lb-pills { position: absolute; top: 16px; left: 20px; right: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+.lb-pill { position: relative; display: inline-flex; }
+.lb-pill select {
+  appearance: none; -webkit-appearance: none; max-width: 240px; padding: 6px 30px 6px 12px;
+  border: 1px solid #ffffff2e; border-radius: 6px; background-color: rgba(24, 23, 30, 0.92);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23ff9a1f'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+  color: #f1f1f3; font: 600 13px/1.3 var(--sans); cursor: pointer;
+  box-shadow: 0 1px 2px #0006; transition: border-color .15s, background-color .15s;
+}
+.lb-pill select:hover { border-color: #ffffff5c; background-color: rgba(38, 36, 46, 0.95); }
+.lb-pill select option { background: #1d1c23; color: #f1f1f3; }
+.lb-pill.set select { border-color: rgba(255, 154, 31, 0.55); color: #ffd7a3; }
+.lb-pill.accent select { border-color: var(--lb-orange); background-color: rgba(70, 42, 10, 0.92); color: #fff; }
+.lb-pill.attention select { border-color: var(--lb-orange); animation: lb-attention 1.6s ease-in-out infinite; }
+@keyframes lb-attention { 50% { box-shadow: 0 0 0 4px rgba(255, 154, 31, 0.25); } }
+@media (prefers-reduced-motion: reduce) { .lb-pill.attention select { animation: none; box-shadow: 0 0 0 3px rgba(255, 154, 31, 0.3); } }
+
+.lb-eyebrow { color: var(--lb-orange); font: 700 11px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+.lb-title { margin: 0; color: #fff; font: 700 19px/1.35 var(--sans); letter-spacing: -.01em; text-shadow: 0 1px 3px #000c; }
+.lb-title span { font-weight: 600; color: #e9e9ee; }
+
+/* ---------- bars above and below the table ---------- */
+.lb-bar, .lb-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lb-bar { padding: 12px 14px; border: 1px solid #ffffff14; border-top: 0; background: #18171e; }
+.lb-foot { padding: 12px 0 0; }
+.lb-pager { display: flex; align-items: center; gap: 6px; }
+.lb-pager span { min-width: 64px; text-align: center; color: #c9c9cf; font-size: 13px; font-variant-numeric: tabular-nums; }
+.lb-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+  border: 1px solid #ffffffb0; border-radius: 4px; background: #1c1b22; color: #fff;
+  font: 600 13px/1.4 var(--sans); white-space: nowrap; transition: background-color .15s, border-color .15s;
+}
+.lb-btn:hover:not(:disabled) { background: #2d2c35; }
+.lb-btn.ghost { border-color: #ffffff2e; color: #d6d6dc; }
+.lb-btn:disabled { opacity: .4; }
+.lb-search { display: flex; align-items: center; gap: 6px; }
+.lb-search label {
+  display: flex; align-items: center; gap: 7px; padding: 0 10px; height: 31px; box-sizing: border-box;
+  border: 1px solid #ffffff26; border-radius: 4px; background: #111016; color: #8d8c96;
+}
+.lb-search label:focus-within { border-color: var(--lb-orange); }
+.lb-search input { width: 190px; min-width: 0; border: 0; outline: 0; background: transparent; color: #f1f1f3; font: 13px var(--sans); }
+.lb-count { color: #a7a6b0; font-size: 13px; }
+
+/* ---------- the table ---------- */
+.lb-table-wrap { border: 1px solid #ffffff14; border-top: 0; overflow-x: auto; transition: opacity .15s; }
+.lb-table-wrap.is-loading { opacity: .55; }
+.lb-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.lb-table thead th {
+  padding: 9px 14px; background: #141319; color: #d3d3d9; text-align: left;
+  font: 600 13px/1.3 var(--sans); border-bottom: 1px solid #ffffff1a;
+}
+.lb-table thead th.num { text-align: right; }
+.lb-table tbody tr { background: var(--lb-row); border-bottom: 1px solid var(--lb-line); }
+.lb-table tbody tr:nth-child(even) { background: var(--lb-row-alt); }
+.lb-table tbody tr:not(.lb-message):hover { background: #302f38; }
+.lb-table td { padding: 8px 14px; vertical-align: middle; }
+.lb-rank { width: 56px; color: #b9b8c2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb-top-1 .lb-rank { color: #f3c862; font-weight: 700; }
+.lb-top-2 .lb-rank { color: #d9dee6; font-weight: 700; }
+.lb-top-3 .lb-rank { color: #d99a62; font-weight: 700; }
+
+.lb-char { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lb .character-icons { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.lb .game-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; border: 1px solid #000000a0; background: #14131a; box-shadow: 0 0 0 1px #ffffff14; }
+.lb .game-icon img { width: 100%; height: 100%; object-fit: cover; }
+.lb-faction { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 18px; height: 24px; }
+.lb-faction svg { fill: currentColor; stroke: #0009; stroke-width: 1; }
+.lb-faction.alliance { color: #3d7fe0; }
+.lb-faction.horde { color: #d23a2f; }
+.lb-who { display: flex; flex-direction: column; min-width: 0; margin-left: 4px; }
+.lb-who small { overflow: hidden; color: #a9a8b2; font-size: 12px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.lb-who .profile-name, .lb-who > span:first-child:not(.profile-anchor) {
+  padding: 0; border: 0; background: none; color: var(--class, #ececf0);
+  font: 600 15px/1.3 var(--sans); text-align: left; cursor: pointer;
+}
+.lb-guild { color: #e8d9b8; font-weight: 600; }
+.lb-who .profile-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.lb-value { text-align: right; white-space: nowrap; }
+.lb-value small { display: block; color: #cfcfd6; font: 600 11px/1.3 var(--sans); letter-spacing: .02em; }
+.lb-value strong { color: var(--lb-orange); font: 700 22px/1.15 var(--sans); font-variant-numeric: tabular-nums; }
+.lb-value .lb-unit { display: inline; color: #ffbf73; font: 600 12px var(--sans); letter-spacing: 0; }
+
+.lb-message td { padding: 46px 20px; text-align: center; }
+.lb-message strong { display: block; color: #f1f1f3; font: 600 16px/1.4 var(--sans); }
+.lb-message p { max-width: 520px; margin: 6px auto 0; color: #a7a6b0; font-size: 14px; }
+.lb-message .lb-btn { margin-top: 16px; }
+.lb-message-icon { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; margin-bottom: 10px; border-radius: 50%; background: #ffffff0d; color: var(--lb-orange); }
+
+.lb-about { margin-top: 14px; color: #a1a0ab; font-size: 13px; }
+.lb-about summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.lb-about summary::-webkit-details-marker { display: none; }
+.lb-about p { max-width: 760px; margin: 8px 0 0; }
+
+@media (max-width: 720px) {
+  .lb { padding-left: 12px; padding-right: 12px; }
+  .lb-banner { min-height: 0; padding-top: 14px; }
+  .lb-pills { position: static; margin-bottom: 14px; }
+  .lb-pill select { max-width: 170px; }
+  .lb-title { font-size: 16px; }
+  .lb-search { width: 100%; }
+  .lb-search label { flex: 1; }
+  .lb-search input { width: 100%; }
+  .lb-table td { padding: 8px 8px; }
+  .lb-rank { width: 36px; }
+  .lb .character-icons .game-icon + .game-icon { display: none; }
+  .lb-value strong { font-size: 17px; }
+  .lb-value small { display: none; } /* the instance is already in the title above */
+  .lb-who small { white-space: normal; }
+  .lb-who .profile-name { font-size: 14px; word-break: break-word; }
+  .lb-table thead th { padding: 9px 8px; }
+}
+
+/* ---------- character profile preview (opened from a name in the leaderboard and the run tables) ---------- */
+.profile-anchor { position: relative; display: inline; }
+.profile-preview {
+  position: fixed; z-index: 2100; display: flex; flex-direction: column; gap: 6px;
+  width: 320px; max-height: 330px; overflow-y: auto; padding: 14px 16px; box-sizing: border-box;
+  border: 1px solid #ffffff24; border-radius: 8px; background: #1c1b22; color: #e6e6ea;
+  box-shadow: 0 18px 40px #000a; font: 13px/1.45 var(--sans); text-align: left; white-space: normal;
+}
+.profile-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.profile-heading strong { font-size: 15px; }
+.profile-close { width: 24px; height: 24px; border: 0; border-radius: 4px; background: #ffffff10; color: #ddd; font-size: 16px; line-height: 1; }
+.profile-close:hover { background: #ffffff20; }
+.profile-section-title { margin-top: 6px; color: var(--lb-orange, #ff9a1f); font: 700 11px/1.3 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+.profile-entry { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px solid #ffffff0d; }
+.profile-entry small { display: block; color: #9f9ea8; font-size: 11px; }
+.profile-armory { margin-top: 6px; color: #ffbf73; font-weight: 600; }
+.profile-armory:hover { text-decoration: underline; }
+.profile-privacy { color: #8f8e98; font-size: 11px; }
+
+/* ---------- Account: what a public character also shows in the leaderboard ---------- */
+.profile-row { flex-wrap: wrap; }
+.profile-extras { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 22px; flex-basis: 100%; margin: 2px 0 0 52px; color: var(--mist); font-size: 13px; }
+.profile-extras > span { flex-basis: 100%; color: var(--track); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.profile-extras label { display: inline-flex; align-items: flex-start; gap: 8px; max-width: 340px; color: var(--text); cursor: pointer; }
+.profile-extras input { margin-top: 3px; accent-color: #ff9a1f; }
+.profile-extras small { white-space: normal; }
+@media (max-width: 720px) { .profile-extras { margin-left: 0; } }

@@ -55,3 +55,15 @@ test("search reaches an older result after 5000 and ranks it before paging", () 
   assert.equal(result.entries[0].rank,5050);
   assert.equal(rankObservedRuns(runs,new URLSearchParams({page:"125",classId:"11"})).entries[0].rank,5001);
 });
+
+test("faction filter follows race on both boards and skips characters without a known faction", async () => {
+  const runs:Run[]=[[1,"Ally"],[2,"Hordie"],[24,"Unaligned"],[0,"Unknown"]].map(([raceId,name],i)=>({id:`f${i}`,name:"Deadmines",instanceId:36,instanceType:"party",status:"completed",completion:"last_boss",evidence:"api_event",character:{id:`pf${i}`,name:String(name),realm:"Test",classId:1,raceId:Number(raceId)||null}}));
+  assert.deepEqual(rankObservedRuns(runs,new URLSearchParams({faction:"alliance"})).entries.map(e=>e.character.name),["Ally"]);
+  assert.deepEqual(rankObservedRuns(runs,new URLSearchParams({faction:"horde"})).entries.map(e=>e.character.name),["Hordie"]);
+  assert.equal(rankObservedRuns(runs,new URLSearchParams()).total,4);
+  const f=fixture([["a","Ally"],["h","Hordie"]]);
+  f.sql.exec(`UPDATE atlas_profiles SET public=1; UPDATE atlas_profiles SET race_id=4 WHERE user_id='a'; UPDATE atlas_profiles SET race_id=8 WHERE user_id='h';`);
+  for (const user of ["a","h"]) f.addTrack(user,1000,1429,.5,.5,`grant-${user}`);
+  assert.deepEqual((await rankPublicLevels(f.db,new URLSearchParams({faction:"horde"}))).entries.map(e=>e.character.name),["Hordie"]);
+  assert.equal((await rankPublicLevels(f.db,new URLSearchParams())).total,2);
+});
