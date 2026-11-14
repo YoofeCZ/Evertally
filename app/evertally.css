@@ -397,7 +397,15 @@ img { display: block; }
   .chapter-inner.split, .sync-grid, .account-grid { grid-template-columns: minmax(0, 1fr); }
   .triad { grid-template-columns: minmax(0, 1fr); gap: 20px; }
 }
-@media (max-width: 1120px) {
+/* The menu must never lose an entry to the scroller (EN and CS, signed in or out). Measured worst cases:
+   the Czech menu is 808 px wide and the right side is widest with "Přihlásit přes Discord" or a long user name.
+   1280-1440: tighter spacing and a shorter user name keep one row; below 1280 the menu gets a row of its own. */
+@media (min-width: 1280px) and (max-width: 1440px) {
+  .topbar { gap: 16px; padding: 0 20px; }
+  .nav button { padding: 6px 8px; }
+  .user-name { max-width: 96px; }
+}
+@media (max-width: 1279px) {
   .topbar { flex-wrap: wrap; gap: 8px 12px; height: auto; padding: 12px 16px; }
   .nav { order: 3; width: 100%; margin: 0; }
   .top-actions { margin-left: auto; }

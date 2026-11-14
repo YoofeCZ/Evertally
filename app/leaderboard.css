@@ -237,13 +237,14 @@ a.profile-name { color: var(--class, #ececf0); }
 .lb-runtable .empty { padding: 40px 20px; background: #18171e; }
 
 /* ---------- search in the top bar ---------- */
-.top-search { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; box-sizing: border-box; border: 1px solid #ffffff1f; border-radius: 6px; background: #0f0e14; color: #8d8c96; }
+.top-search { display: flex; flex-shrink: 0; align-items: center; gap: 7px; height: 32px; padding: 0 10px; box-sizing: border-box; border: 1px solid #ffffff1f; border-radius: 6px; background: #0f0e14; color: #8d8c96; }
 .top-search:focus-within { border-color: #ff9a1f; }
 .top-search input { width: 160px; border: 0; outline: 0; background: transparent; color: #f1f1f3; font: 13px var(--sans); }
 .top-search button { display: inline-flex; padding: 0; border: 0; background: none; color: inherit; }
 .top-search button:hover { color: #fff; }
-/* the menu must never lose entries to the search: on narrower screens only the icon stays (it opens the leaderboard search) */
-@media (max-width: 1540px) { .top-search { width: 32px; padding: 0; justify-content: center; } .top-search input { display: none; } }
+/* the menu must never lose entries to the search: the full field needs ~1590 px with the Czech menu and a long
+   user name, so below that only the icon stays (it opens the leaderboard search); evertally.css has the other steps */
+@media (max-width: 1640px) { .top-search { width: 32px; padding: 0; justify-content: center; } .top-search input { display: none; } }
 
 /* ---------- home page ---------- */
 .home-hero {
