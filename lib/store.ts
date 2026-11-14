@@ -7,7 +7,7 @@ import { COMMUNITY_OBSERVATIONS_SQL } from "./community";
 import { atlasEntities } from "./atlas";
 import { PUBLIC_PROFILE_ACCESS_SQL } from "./profiles";
 import { applyGuildSnapshots, pruneTracks, releaseStatements, type Db as PeopleDb, type GuildSnapshot } from "./people";
-import { applyPublishChoices, type PublishChoice } from "./publish";
+import { applyAccountChoice, applyPublishChoices, type PublishChoice } from "./publish";
 import { instanceSummary, publicRankingObservations, rankingExtras, rankingPackage, rankObservedRuns, rankPublicLevels, realmSummary, RUN_OBSERVATION_ORDER, statistics, withRankingExtras } from "./run-rankings";
 import { projectRunActors } from "./run-combat";
 import { guildBoard, guildDetail, hallOfFame, publicBossKills, raidProgress } from "./guilds";
@@ -110,6 +110,8 @@ export async function uploadEvents(userId:string,grantId:string,raw:unknown){
   const people=db as unknown as PeopleDb;
   if(guildSnapshots.length)await applyGuildSnapshots(people,userId,guildSnapshots);
   if(publishChoices.length)await applyPublishChoices(people,userId,publishChoices);
+  // the game's choice covers the whole WoW account: characters not played since, and characters seen for the first time
+  if(envelope.scopes.includes("own_character"))for(const producerId of new Set(envelope.events.map(e=>e.producerId)))await applyAccountChoice(people,userId,producerId);
   if(hasTracks)await pruneTracks(people,userId);
   const duplicates=envelope.events.length-accepted;
   await db.prepare("INSERT INTO atlas_uploads(id,user_id,grant_id,created_at,accepted,duplicates,rejected) VALUES(?,?,?,?,?,?,0)").bind(uploadId,userId,grantId,now(),accepted,duplicates).run();
