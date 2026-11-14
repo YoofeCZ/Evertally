@@ -1,119 +1,124 @@
 "use client";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
+import type { InstanceSummary } from "@/lib/run-rankings";
 import { useApi } from "../api";
-import { fullName } from "../Identity";
+import { CLASS_COLORS, CLASSES, factionOf } from "../data";
+import { useDungeonArt } from "../db/store";
 import type { Entity, Entry, Run, Status, View } from "../types";
-import { CLASSES, ConsoleWindow, DuskSky, Empty, Icon, RunTable, SplitFlapBoard, Tag } from "../ui";
+import { Empty, Icon, RunTable } from "../ui";
+import { DungeonGrid, Row } from "./Rankings";
 
+type PackagePlayer = { classId: number | null; raceId: number | null };
+const ART = "/media/dungeons/blackrock-depths.jpg";
+
+function searchCharacters(text: string) {
+  const q = text.trim().slice(0, 80);
+  window.location.hash = `rankings/level${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+}
+function openInstance(id: number) { window.location.hash = `rankings/time?instance=${id}`; }
+
+/** The home page in the shape of Raider.IO's: a search-first banner, then the board, the instances and the community at a glance. */
 export function Overview({ status, go }: { status: Status | null; go: (view: View) => void }) {
   const { t, num, date } = useI18n();
+  const board = useApi<{ entries: Entry[]; total: number }>("/api/leaderboards?metric=level");
+  const pkg = useApi<{ players: PackagePlayer[]; total: number }>("/api/ranking-package");
+  const instances = useApi<{ instances: InstanceSummary[] }>("/api/leaderboards?metric=instances");
   const runs = useApi<{ runs: Run[] }>("/api/runs");
   const atlas = useApi<{ entities: Entity[] }>("/api/atlas");
-  const board = useApi<{ entries: Entry[]; sampleSize: number }>("/api/leaderboards?metric=count");
+  const art = useDungeonArt();
+
+  const top = board.data?.entries.slice(0, 8) ?? [];
   const recent = runs.data?.runs.slice(0, 5) ?? [];
   const sightings = [...(atlas.data?.entities ?? [])].sort((a, b) => b.count - a.count).slice(0, 6);
+  const players = pkg.data?.players ?? [];
+  const classCounts = new Map<number, number>();
+  let alliance = 0, horde = 0;
+  for (const p of players) {
+    if (p.classId) classCounts.set(p.classId, (classCounts.get(p.classId) ?? 0) + 1);
+    const faction = factionOf(p.raceId);
+    if (faction === "alliance") alliance++; else if (faction === "horde") horde++;
+  }
+  const classes = [...classCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const most = classes[0]?.[1] ?? 1;
+  const sides = alliance + horde;
+  const search = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); searchCharacters(String(new FormData(event.currentTarget).get("q") ?? "")); };
+  const stats: [string, number | null | undefined][] = [[t("home.statCharacters"), status?.totalCharacters], [t("home.statRuns"), status?.totalRuns], [t("home.statObservations"), status?.totalEvents]];
 
   return (
-    <>
-      <section className="hero panel-inset">
-        <DuskSky />
-        <div className="hero-copy">
-          <Tag>{t("hero.tag")}</Tag>
-          <h1>{t("hero.title")}<br /><span className="accent">{t("hero.titleAccent")}</span></h1>
-          <p>{t("hero.subtitle")}</p>
-          <div className="button-row center">
-            <a className="btn btn-primary btn-lg" href="/downloads/Evertally.zip"><Icon name="download" /> {t("hero.download")}</a>
-            <button className="btn btn-glass btn-lg" onClick={() => go("sync")}>{t("hero.sync")} <Icon name="arrow" /></button>
-          </div>
+    <div className="page-column lb home">
+      <section className="home-hero" style={{ "--lb-art": `url("${ART}")` } as CSSProperties}>
+        <span className="lb-eyebrow">{t("home.eyebrow")}</span>
+        <h1>{t("home.title")}</h1>
+        <p>{t("home.lead")}</p>
+        <form className="home-search" role="search" onSubmit={search}>
+          <Icon name="search" size={18} />
+          <input name="q" type="search" maxLength={80} placeholder={t("home.searchPlaceholder")} aria-label={t("nav.search")} />
+          <button className="lb-btn" type="submit">{t("common.search")}</button>
+        </form>
+        <div className="home-actions">
+          <a className="lb-btn" href="/downloads/Evertally.zip"><Icon name="download" size={15} /> {t("hero.download")}</a>
+          <button className="lb-btn ghost" onClick={() => go("sync")}>{t("hero.sync")} <Icon name="arrow" size={14} /></button>
         </div>
-        <ConsoleWindow className="hero-console" title={<>evertally <span>/</span> {t("nav.runs").toLowerCase()}</>}
-          actions={<button className="link-btn" onClick={() => go("runs")}>{t("common.viewAll")} <Icon name="arrow" size={14} /></button>}>
-          {recent.length ? <RunTable runs={recent} compact /> : (
-            <Empty icon="sword" title={runs.loading ? t("common.loading") : t("runs.emptyTitle")}>{t("runs.emptyText")}</Empty>
-          )}
-        </ConsoleWindow>
-      </section>
-
-      <section className="board-section page-column">
-        <div className="board-head">
-          <h2 className="serif-heading">{t("board.title")}</h2>
-          <span className="status-line"><i className="pulse" /> {t("board.updated")}: {date(status?.latestAt)}</span>
-        </div>
-        <SplitFlapBoard rows={[
-          { label: t("board.runs"), value: status ? status.totalRuns : null },
-          { label: t("board.characters"), value: status ? status.totalCharacters : null },
-          { label: t("board.observations"), value: status ? status.totalEvents : null },
-        ]} />
-        <p className="fine-print">{t("board.note")}</p>
-      </section>
-
-      <section className="chapter tint-navy panel-inset">
-        <div className="chapter-inner page-column">
-          <div className="rail" aria-hidden="true"><Icon name="sword" size={16} /><i /></div>
-          <div className="chapter-copy">
-            <Tag>{t("chapter.runs.tag")}</Tag>
-            <h2 className="serif-heading">{t("chapter.runs.title")}</h2>
-            <p className="lead">{t("chapter.runs.lead")} <button className="link-btn" onClick={() => go("runs")}>{t("common.learnMore")} <Icon name="arrow" size={14} /></button></p>
-          </div>
-          <div className="triad">
-            {(["boss", "clear", "honest"] as const).map((item, i) => (
-              <div key={item}><Icon name={["trophy", "check", "shield"][i]} /><strong>{t(`triad.${item}.title`)}</strong><p>{t(`triad.${item}.text`)}</p></div>
-            ))}
-          </div>
+        <div className="home-stats">
+          {stats.map(([label, value]) => <div key={label}><strong>{status ? num(value ?? 0) : "—"}</strong><small>{label}</small></div>)}
+          <div><strong className="home-date">{date(status?.latestAt)}</strong><small>{t("home.updated")}</small></div>
         </div>
       </section>
 
-      <section className="chapter tint-pine panel-inset">
-        <div className="chapter-inner page-column split">
-          <div className="rail green" aria-hidden="true"><Icon name="map" size={16} /><i /></div>
-          <div className="chapter-copy">
-            <Tag tone="green">{t("chapter.atlas.tag")}</Tag>
-            <h2 className="serif-heading">{t("chapter.atlas.title")}</h2>
-            <p className="lead">{t("chapter.atlas.lead")} <button className="link-btn" onClick={() => go("atlas")}>{t("common.learnMore")} <Icon name="arrow" size={14} /></button></p>
-          </div>
-          <ConsoleWindow title={<>atlas <span>/</span> {t("atlas.sightings").toLowerCase()}</>}>
-            {sightings.length ? (
-              <ul className="sighting-list">
-                {sightings.map((e) => (
-                  <li key={`${e.kind}:${e.id}`}><span className={`node node-${e.kind}`} /><span>{e.name}<small>{t(e.kind === "quest" ? "atlas.quest" : e.kind === "npc" ? "atlas.npc" : "atlas.item")} · ID {e.id}</small></span><b className="mono">{num(e.count)}</b></li>
-                ))}
-              </ul>
-            ) : <Empty icon="map" title={atlas.loading ? t("common.loading") : t("atlas.emptyTitle")}>{t("atlas.emptyText")}</Empty>}
-          </ConsoleWindow>
+      <div className="home-grid">
+        <div>
+          <Card title={t("home.topTitle")} more={<a href="#rankings">{t("home.allRankings")} →</a>}>
+            {top.length ? <table className="lb-table">
+              <tbody>{top.map(entry => <Row key={entry.character.id} entry={entry} metric="level" />)}</tbody>
+            </table> : <Note icon="trophy" title={board.loading ? t("common.loading") : t("rankings.noPublicTitle")}>
+              {!board.loading && <>{t("rankings.noPublicText")} <a href="#account">{t("rankings.makePublic")}</a></>}
+            </Note>}
+          </Card>
+          <Card title={t("home.dungeonsTitle")} more={<a href="#rankings/time">{t("home.allDungeons")} →</a>}>
+            <DungeonGrid data={instances.data} failed={Boolean(instances.error)} art={art.data} onPick={openInstance} lead={null} emptyTitle={t("home.noDungeons")} limit={6} />
+          </Card>
+          <Card title={t("home.recentRuns")} more={<a href="#runs">{t("home.allRuns")} →</a>}>
+            {recent.length ? <div className="lb-runtable"><RunTable runs={recent} compact /></div>
+              : <Note icon="sword" title={runs.loading ? t("common.loading") : t("runs.emptyTitle")}>{!runs.loading && t("runs.emptyText")}</Note>}
+          </Card>
         </div>
-      </section>
-
-      <section className="chapter tint-plum panel-inset">
-        <div className="chapter-inner page-column split">
-          <div className="rail peach" aria-hidden="true"><Icon name="trophy" size={16} /><i /></div>
-          <div className="chapter-copy">
-            <Tag tone="peach">{t("chapter.community.tag")}</Tag>
-            <h2 className="serif-heading">{t("chapter.community.title")}</h2>
-            <p className="lead">{t("chapter.community.lead")} <button className="link-btn" onClick={() => go("rankings")}>{t("common.learnMore")} <Icon name="arrow" size={14} /></button></p>
-            <div className="quote-card">
-              <Icon name="shield" size={20} />
-              <strong>{t("chapter.privacy.title")}</strong>
-              <p>{t("chapter.privacy.lead")}</p>
-            </div>
-          </div>
-          <ConsoleWindow title={<>{t("nav.rankings").toLowerCase()} <span>/</span> {t("rankings.count").toLowerCase()}</>}>
-            {board.data?.entries.length ? (
-              <ol className="rank-list">
-                {board.data.entries.slice(0, 6).map((entry) => (
-                  <li key={entry.character.id}><span className="mono rank">{String(entry.rank).padStart(2, "0")}</span><span>{fullName(entry.character) || t("common.private")}<small>{CLASSES[entry.character.classId ?? 0] ?? ""}</small></span><b className="mono">{num(entry.count)}</b></li>
-                ))}
-              </ol>
-            ) : <Empty icon="trophy" title={board.loading ? t("common.loading") : t("common.noData")}>{t("rankings.countEmpty")}</Empty>}
-          </ConsoleWindow>
+        <div>
+          <Card title={t("home.factions")}>
+            {sides ? <div className="home-factions">
+              <div className="home-split"><i className="alliance" style={{ flexGrow: alliance }} /><i className="horde" style={{ flexGrow: horde }} /></div>
+              <p><span className="alliance">{t("rankings.alliance")} {Math.round(alliance / sides * 100)} %</span><span className="horde">{t("rankings.horde")} {Math.round(horde / sides * 100)} %</span></p>
+            </div> : <p className="ch-empty">{t("common.noData")}</p>}
+          </Card>
+          <Card title={t("home.classes")} more={pkg.data ? <span>{t("home.sample", { count: num(pkg.data.total) })}</span> : null}>
+            {classes.length ? <ul className="home-bars">{classes.map(([id, count]) => <li key={id}>
+              <span style={{ color: CLASS_COLORS[id] }}>{CLASSES[id] ?? `#${id}`}</span>
+              <i><b style={{ width: `${count / most * 100}%`, background: CLASS_COLORS[id] }} /></i>
+              <em>{num(count)}</em>
+            </li>)}</ul> : <p className="ch-empty">{t("common.noData")}</p>}
+          </Card>
+          <Card title={t("home.joinTitle")}>
+            <ol className="home-steps">
+              <li><strong>{t("home.join1")}</strong><span>{t("home.join1Text")}</span><a href="/downloads/Evertally.zip">{t("hero.download")}</a></li>
+              <li><strong>{t("home.join2")}</strong><span>{t("home.join2Text")}</span><button className="link-btn" onClick={() => go("sync")}>{t("hero.sync")}</button></li>
+              <li><strong>{t("home.join3")}</strong><span>{t("home.join3Text")}</span><a href="#account">{t("nav.account")}</a></li>
+            </ol>
+          </Card>
+          <Card title={t("home.discoveries")} more={<a href="#atlas">{t("home.allAtlas")} →</a>}>
+            {sightings.length ? <ul className="ch-zones">{sightings.map(e => <li key={`${e.kind}:${e.id}`}>
+              <span>{e.name}<small>{t(e.kind === "quest" ? "atlas.quest" : e.kind === "npc" ? "atlas.npc" : "atlas.item")}</small></span><b>{num(e.count)}×</b>
+            </li>)}</ul> : <p className="ch-empty">{atlas.loading ? t("common.loading") : t("common.noData")}</p>}
+          </Card>
         </div>
-      </section>
-
-      <section className="finale page-column">
-        <div className="finale-door" aria-hidden="true"><i /><i /></div>
-        <h2>{t("cta.title")}</h2>
-        <p>{t("cta.subtitle")}</p>
-        <button className="btn btn-boarding" onClick={() => go("sync")}>{t("cta.button")} <Icon name="arrow" /></button>
-      </section>
-    </>
+      </div>
+    </div>
   );
+}
+
+function Card({ title, more, children }: { title: string; more?: ReactNode; children: ReactNode }) {
+  return <section className="ch-card home-panel"><h2>{title}{more && <span className="home-more">{more}</span>}</h2>{children}</section>;
+}
+
+function Note({ icon, title, children }: { icon: string; title: string; children?: ReactNode }) {
+  return <div className="home-note"><Empty icon={icon} title={title}>{children}</Empty></div>;
 }

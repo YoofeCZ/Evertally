@@ -182,7 +182,7 @@ export function FactionMark({ faction }: { faction: Faction | null }) {
   </span>;
 }
 
-function Row({ entry, metric }: { entry: Entry; metric: Metric }) {
+export function Row({ entry, metric }: { entry: Entry; metric: Metric }) {
   const { t, num, lang } = useI18n();
   const c = entry.character;
   const color = CLASS_COLORS[c.classId ?? 0];
@@ -217,14 +217,16 @@ function MessageRow({ icon, title, action, children }: { icon: string; title: st
   </td></tr>;
 }
 
-function DungeonGrid({ data, failed, art, onPick }: { data: { instances: InstanceSummary[] } | null; failed: boolean; art: Record<string, { image: string; source: string }> | null; onPick: (id: number) => void }) {
+/** One card per instance with its record. `lead` and `emptyTitle` let the home page reuse it without the leaderboard's wording. */
+export function DungeonGrid({ data, failed, art, onPick, lead, emptyTitle, limit }: { data: { instances: InstanceSummary[] } | null; failed: boolean; art: Record<string, { image: string; source: string }> | null; onPick: (id: number) => void; lead?: string | null; emptyTitle?: string; limit?: number }) {
   const { t, num } = useI18n();
   if (failed) return <div className="lb-grid-note">{t("error.service_unavailable")}</div>;
   if (!data) return <div className="lb-grid-note">{t("common.loading")}</div>;
-  if (!data.instances.length) return <div className="lb-grid-note"><strong>{t("rankings.pickInstanceTitle")}</strong><p>{t("rankings.countEmpty")}</p></div>;
+  if (!data.instances.length) return <div className="lb-grid-note"><strong>{emptyTitle ?? t("rankings.pickInstanceTitle")}</strong><p>{t("rankings.countEmpty")}</p></div>;
+  const lines = lead === undefined ? t("rankings.pickInstanceText") : lead;
   return <div className="lb-dungeons">
-    <p className="lb-grid-lead">{t("rankings.pickInstanceText")}</p>
-    <div className="lb-dungeon-grid">{data.instances.map(item => {
+    {lines && <p className="lb-grid-lead">{lines}</p>}
+    <div className="lb-dungeon-grid">{data.instances.slice(0, limit ?? data.instances.length).map(item => {
       const picture = art?.[slug(item.name)];
       const image = picture && picture.source !== "floor" && picture.source !== "map" ? picture.image : null;
       const color = CLASS_COLORS[item.holder?.classId ?? 0];

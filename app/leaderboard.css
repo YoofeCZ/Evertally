@@ -244,3 +244,63 @@ a.profile-name { color: var(--class, #ececf0); }
 .top-search button:hover { color: #fff; }
 /* the menu must never lose entries to the search: on narrower screens only the icon stays (it opens the leaderboard search) */
 @media (max-width: 1540px) { .top-search { width: 32px; padding: 0; justify-content: center; } .top-search input { display: none; } }
+
+/* ---------- home page ---------- */
+.home-hero {
+  display: flex; flex-direction: column; gap: 10px; padding: 34px 32px 22px; box-sizing: border-box;
+  border: 1px solid #ffffff14; border-radius: 10px; overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(14, 13, 19, 0.94) 0%, rgba(14, 13, 19, 0.72) 55%, rgba(14, 13, 19, 0.55) 100%),
+    var(--lb-art) center 40% / cover no-repeat, #1a1920;
+}
+.home-hero h1 { max-width: 720px; margin: 0; color: #fff; font: 700 34px/1.15 var(--sans); letter-spacing: -.02em; text-shadow: 0 2px 6px #000c; }
+.home-hero > p { max-width: 640px; margin: 0; color: #d6d6dc; font-size: 16px; }
+.home-search { display: flex; align-items: center; gap: 10px; max-width: 620px; margin-top: 8px; padding: 6px 6px 6px 14px; border: 1px solid #ffffff38; border-radius: 8px; background: rgba(12, 11, 16, 0.88); color: #8d8c96; }
+.home-search:focus-within { border-color: var(--lb-orange); }
+.home-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #fff; font: 16px var(--sans); }
+.home-search .lb-btn { padding: 7px 16px; border-color: var(--lb-orange); background: rgba(70, 42, 10, 0.92); }
+.home-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-stats { display: flex; flex-wrap: wrap; gap: 26px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #ffffff1a; }
+.home-stats div { display: flex; flex-direction: column; }
+.home-stats strong { color: var(--lb-orange); font: 700 24px/1.1 var(--sans); font-variant-numeric: tabular-nums; }
+.home-stats .home-date { color: #ececf0; font-size: 15px; line-height: 1.6; }
+.home-stats small { color: #a9a8b2; font-size: 12px; }
+.home-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; margin-top: 16px; }
+.home-grid > div { min-width: 0; }
+.home-panel .table-wrap { overflow-x: auto; }
+.home-panel h2 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.home-more { color: #a9a8b2; font: 400 12px var(--sans); }
+.home-more a { color: #ffbf73; }
+.home-panel .lb-table td { padding: 7px 14px; }
+.home-panel .lb-dungeons, .home-panel .lb-grid-note { border: 0; }
+.home-panel .lb-runtable .data-table { min-width: 0; }
+.home-note .empty { padding: 26px 16px; }
+.home-note .empty a { color: #ffbf73; text-decoration: underline; }
+.home-factions { padding: 14px; }
+.home-split { display: flex; height: 12px; overflow: hidden; border-radius: 6px; background: #ffffff14; }
+.home-split i { min-width: 0; }
+.home-split .alliance { background: #3d7fe0; }
+.home-split .horde { background: #d23a2f; }
+.home-factions p { display: flex; justify-content: space-between; margin: 8px 0 0; font-size: 13px; font-weight: 600; }
+.home-factions .alliance { color: #6ea2ef; }
+.home-factions .horde { color: #e8645a; }
+.home-bars { margin: 0; padding: 10px 14px; list-style: none; }
+.home-bars li { display: grid; grid-template-columns: 96px 1fr 28px; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+.home-bars span { font-weight: 600; }
+.home-bars i { height: 8px; overflow: hidden; border-radius: 4px; background: #ffffff10; }
+.home-bars b { display: block; height: 100%; border-radius: 4px; }
+.home-bars em { color: #d6d6dc; font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+.home-steps { margin: 0; padding: 6px 14px 12px; list-style: none; }
+.home-steps li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid #ffffff0a; font-size: 13px; }
+.home-steps li:last-child { border-bottom: 0; }
+.home-steps strong { color: #f1f1f3; }
+.home-steps span { color: #a9a8b2; }
+.home-steps a, .home-steps .link-btn { align-self: flex-start; padding: 0; border: 0; background: none; color: #ffbf73; font: 600 13px var(--sans); cursor: pointer; }
+@media (max-width: 860px) { .home-grid { grid-template-columns: minmax(0, 1fr); } .home-hero { padding: 24px 18px 18px; } .home-hero h1 { font-size: 26px; } }
+
+/* empty states on the pages in the leaderboard shape: the sans heading and orange icon of the rest of them */
+.lb .empty h3 { font: 600 16px/1.4 var(--sans); letter-spacing: 0; color: #f1f1f3; }
+.lb .empty p { color: #a7a6b0; }
+.lb .empty-icon { background: #ffffff0d; color: var(--lb-orange); box-shadow: none; }
+.lb-runtable .record-toggle, .lb-runtable .record-toggle strong { color: #ececf0; }
+.lb-runtable .record-toggle:hover strong { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
