@@ -75,7 +75,7 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
               {!board.loading && <>{t("rankings.noPublicText")} <a href="#account">{t("rankings.makePublic")}</a></>}
             </Note>}
           </Card>
-          <Card title={t("home.dungeonsTitle")} more={<a href="#rankings/time">{t("home.allDungeons")} →</a>}>
+          <Card title={t("home.dungeonsTitle")} more={<a href="#rankings/instances">{t("home.allDungeons")} →</a>}>
             <DungeonGrid data={instances.data} failed={Boolean(instances.error)} art={art.data} onPick={openInstance} lead={null} emptyTitle={t("home.noDungeons")} limit={6} />
           </Card>
           <Card title={t("home.recentRuns")} more={<a href="#runs">{t("home.allRuns")} →</a>}>

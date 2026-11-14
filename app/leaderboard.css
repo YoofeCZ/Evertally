@@ -34,6 +34,21 @@
 @keyframes lb-attention { 50% { box-shadow: 0 0 0 4px rgba(255, 154, 31, 0.25); } }
 @media (prefers-reduced-motion: reduce) { .lb-pill.attention select { animation: none; box-shadow: 0 0 0 3px rgba(255, 154, 31, 0.3); } }
 
+/* ---------- one button per board, and Dungeons / Raids as a switch ---------- */
+.lb-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.lb-tabs a {
+  padding: 7px 15px; border: 1px solid #ffffff1f; border-radius: 999px; background: #1d1c23;
+  color: #c9c8d0; font: 600 13px/1.3 var(--sans); text-decoration: none; transition: border-color .15s, background-color .15s, color .15s;
+}
+.lb-tabs a:hover { border-color: #ffffff52; color: #fff; }
+.lb-tabs a.on { border-color: var(--lb-orange); background: rgba(70, 42, 10, 0.92); color: #fff; }
+.lb-seg { display: inline-flex; border: 1px solid #ffffff2e; border-radius: 6px; overflow: hidden; background: rgba(24, 23, 30, 0.92); box-shadow: 0 1px 2px #0006; }
+.lb-seg button { padding: 6px 12px; border: 0; border-right: 1px solid #ffffff1f; background: transparent; color: #f1f1f3; font: 600 13px/1.3 var(--sans); cursor: pointer; }
+.lb-seg button:last-child { border-right: 0; }
+.lb-seg button:hover { background: rgba(38, 36, 46, 0.95); }
+.lb-seg button.on { background: rgba(70, 42, 10, 0.92); color: #ffd7a3; }
+.lb-tabs a:focus-visible, .lb-seg button:focus-visible { outline: 2px solid var(--lb-orange); outline-offset: 2px; }
+
 .lb-eyebrow { color: var(--lb-orange); font: 700 11px/1.3 var(--sans); letter-spacing: .12em; text-transform: uppercase; }
 .lb-title { margin: 0; color: #fff; font: 700 19px/1.35 var(--sans); letter-spacing: -.01em; text-shadow: 0 1px 3px #000c; }
 .lb-title span { font-weight: 600; color: #e9e9ee; }

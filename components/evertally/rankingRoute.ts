@@ -1,8 +1,9 @@
 // The leaderboard keeps its whole state in the address, like `#rankings/level?class=3&faction=horde&page=2`,
 // so a view can be shared, reloaded and walked with the back button.
 
-export type Metric = "level" | "count" | "time" | "dps" | "hps";
-export const METRICS: readonly Metric[] = ["level", "count", "time", "dps", "hps"];
+// "instances" is the overview of every instance with its record; a click opens the times of that one instance.
+export type Metric = "level" | "count" | "time" | "instances" | "dps" | "hps";
+export const METRICS: readonly Metric[] = ["level", "count", "time", "instances", "dps", "hps"];
 /** Times and combat rates are only comparable inside one instance. */
 export const needsInstance = (metric: Metric) => metric === "time" || metric === "dps" || metric === "hps";
 
@@ -17,6 +18,8 @@ const VALID: Record<keyof RankingFilters, RegExp> = {
   faction: /^(alliance|horde)$/, instanceType: /^(party|raid)$/,
 };
 const MAX_PAGE = 10000;
+/** Which filters a board understands: the level board knows no runs, the instance overview no single instance. */
+const applies = (metric: Metric, key: keyof RankingFilters) => metric === "level" ? !RUN_ONLY.includes(key) : !(metric === "instances" && key === "instanceId");
 
 export function parseRankingRoute(route: string): RankingState {
   const at = route.indexOf("?");
@@ -27,7 +30,7 @@ export function parseRankingRoute(route: string): RankingState {
   const filters: RankingFilters = {};
   for (const [name, key] of FILTERS) {
     const value = params.get(name)?.trim();
-    if (value && VALID[key].test(value) && !(metric === "level" && RUN_ONLY.includes(key))) filters[key] = value;
+    if (value && VALID[key].test(value) && applies(metric, key)) filters[key] = value;
   }
   const page = Number(params.get("page"));
   return {
@@ -43,7 +46,7 @@ export function rankingHash(state: RankingState): string {
   const params = new URLSearchParams();
   for (const [name, key] of FILTERS) {
     const value = state.filters[key];
-    if (value && !(state.metric === "level" && RUN_ONLY.includes(key))) params.set(name, value);
+    if (value && applies(state.metric, key)) params.set(name, value);
   }
   if (state.q) params.set("q", state.q);
   if (state.page > 0) params.set("page", String(state.page + 1));
@@ -57,7 +60,7 @@ export function rankingQuery(state: RankingState): string {
   if (state.q) params.set("q", state.q);
   for (const [, key] of FILTERS) {
     const value = state.filters[key];
-    if (value && !(state.metric === "level" && RUN_ONLY.includes(key))) params.set(key, value);
+    if (value && applies(state.metric, key)) params.set(key, value);
   }
   return params.toString();
 }

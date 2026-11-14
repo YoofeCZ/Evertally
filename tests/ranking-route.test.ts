@@ -47,3 +47,16 @@ test("faction follows the race, unaligned Pandaren and unknown races have none",
   assert.equal(factionOf(null), null);
   assert.equal(factionOf(999), null);
 });
+
+test("the instances board keeps class, race, faction and dungeon/raid but never one instance", () => {
+  const state = parseRankingRoute("instances?class=4&type=raid&instance=409&faction=horde");
+  assert.equal(state.metric, "instances");
+  assert.deepEqual(state.filters, { classId: "4", faction: "horde", instanceType: "raid" });
+  assert.equal(rankingHash(state), "rankings/instances?class=4&faction=horde&type=raid");
+  const api = new URLSearchParams(rankingQuery({ ...state, filters: { ...state.filters, instanceId: "409" } }));
+  assert.equal(api.get("metric"), "instances");
+  assert.equal(api.has("instanceId"), false);
+  // switching to the level board drops the dungeon/raid choice, switching back to times keeps it
+  assert.equal(rankingHash({ ...state, metric: "level" }), "rankings/level?class=4&faction=horde");
+  assert.equal(rankingHash({ ...state, metric: "time" }), "rankings/time?class=4&faction=horde&type=raid");
+});

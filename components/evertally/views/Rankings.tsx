@@ -12,7 +12,8 @@ import { Icon } from "../ui";
 
 type Board = { entries: Entry[]; sampleSize: number; rulesLabel: string; total: number; page: number; pageSize: number; hasMore: boolean };
 
-const METRIC_KEY: Record<Metric, Key> = { level: "rankings.level", count: "rankings.count", time: "rankings.time", dps: "rankings.dps", hps: "rankings.hps" };
+const METRIC_KEY: Record<Metric, Key> = { level: "rankings.level", count: "rankings.count", time: "rankings.time", instances: "rankings.instances", dps: "rankings.dps", hps: "rankings.hps" };
+const KINDS: readonly (readonly [string, Key])[] = [["", "rankings.kindAll"], ["party", "rankings.dungeons"], ["raid", "rankings.raids"]];
 const DEFAULT_ART = "/media/dungeons/blackrock-depths.jpg";
 const slug = (name: string) => name.toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -23,17 +24,21 @@ export function RankingsView({ route, user = null }: { route: string; user?: Use
   const { t, num } = useI18n();
   const state = parseRankingRoute(route);
   const { metric, filters } = state;
-  const setMetric = (next: Metric) => go({ ...state, metric: next, page: 0 });
   const setFilter = (key: keyof RankingFilters, value: string) => go({ ...state, filters: { ...filters, [key]: value || undefined }, page: 0 });
   const setPage = (page: number) => go({ ...state, page });
 
   const waiting = needsInstance(metric) && !filters.instanceId;
-  const board = useApi<Board>(waiting ? null : `/api/leaderboards?${rankingQuery(state)}`);
-  // without an instance, times and combat rates start from an overview of the instances, one card each
+  // the Instances board, and times or combat rates without an instance, show one card per instance instead of a table
+  const overviewMode = metric === "instances";
+  const showGrid = waiting || overviewMode;
+  const board = useApi<Board>(showGrid ? null : `/api/leaderboards?${rankingQuery(state)}`);
   const overviewQuery = new URLSearchParams(rankingQuery({ ...state, metric: "count", q: "", page: 0 }));
-  overviewQuery.set("metric", "instances"); overviewQuery.delete("page");
-  const overview = useApi<{ instances: InstanceSummary[]; sampleSize: number }>(waiting ? `/api/leaderboards?${overviewQuery}` : null);
-  const runs = useApi<{ runs: Run[] }>(metric === "level" ? null : "/api/runs");
+  overviewQuery.set("metric", "instances"); overviewQuery.delete("page"); overviewQuery.delete("instanceId");
+  const overview = useApi<{ instances: InstanceSummary[]; sampleSize: number }>(showGrid ? `/api/leaderboards?${overviewQuery}` : null);
+  const runs = useApi<{ runs: Run[] }>(metric === "level" || overviewMode ? null : "/api/runs");
+  const pickInstance = (id: number) => overviewMode
+    ? go({ ...state, metric: "time", filters: { ...filters, instanceId: String(id) }, page: 0 })
+    : setFilter("instanceId", String(id));
   const art = useDungeonArt();
   // a signed-in player sees which of their own characters are not on the board yet
   const me = useApi<Me>(user ? "/api/me" : null);
@@ -42,7 +47,7 @@ export function RankingsView({ route, user = null }: { route: string; user?: Use
   // keep the last table on screen while the next filter loads, instead of flashing an empty page
   const [shown, setShown] = useState<Board | null>(null);
   if (board.data && board.data !== shown) setShown(board.data);
-  const data = waiting ? null : board.data ?? shown;
+  const data = showGrid ? null : board.data ?? shown;
 
   // the search box follows the address when it changes from outside (back button, a shared link)
   const [draft, setDraft] = useState(state.q);
@@ -75,11 +80,12 @@ export function RankingsView({ route, user = null }: { route: string; user?: Use
 
   return (
     <div className="page-column lb">
+      {/* every board is one button: level, completions, best time, instances, DPS, HPS */}
+      <nav className="lb-tabs" aria-label={t("rankings.metric")}>
+        {METRICS.map(m => <a key={m} href={`#${rankingHash({ ...state, metric: m, page: 0 })}`} className={m === metric ? "on" : undefined} aria-current={m === metric ? "page" : undefined}>{t(METRIC_KEY[m])}</a>)}
+      </nav>
       <section className="lb-banner" style={{ "--lb-art": `url("${banner}")` } as CSSProperties}>
         <div className="lb-pills">
-          <Pill label={t("rankings.metric")} accent value={metric} onChange={value => setMetric(value as Metric)}>
-            {METRICS.map(m => <option key={m} value={m}>{t(METRIC_KEY[m])}</option>)}
-          </Pill>
           <Pill label={t("runs.class")} value={filters.classId ?? ""} onChange={value => setFilter("classId", value)}>
             <option value="">{t("runs.allClasses")}</option>
             {FOREVER_CLASS_IDS.map(id => <option key={id} value={id}>{CLASSES[id]}</option>)}
@@ -94,15 +100,17 @@ export function RankingsView({ route, user = null }: { route: string; user?: Use
             <option value="horde">{t("rankings.horde")}</option>
           </Pill>
           {metric !== "level" && <>
-            <Pill label={t("rankings.category")} value={filters.instanceType ?? ""} onChange={value => go({ ...state, filters: { ...filters, instanceType: value || undefined, instanceId: undefined }, page: 0 })}>
-              <option value="">{t("rankings.allCategories")}</option>
-              <option value="party">{t("rankings.dungeons")}</option>
-              <option value="raid">{t("rankings.raids")}</option>
-            </Pill>
-            <Pill label={t("rankings.instance")} attention={waiting} value={filters.instanceId ?? ""} onChange={value => setFilter("instanceId", value)}>
+            <div className="lb-seg" role="group" aria-label={t("rankings.category")}>
+              {KINDS.map(([value, key]) => {
+                const on = (filters.instanceType ?? "") === value;
+                return <button key={value || "all"} type="button" className={on ? "on" : undefined} aria-pressed={on}
+                  onClick={() => go({ ...state, filters: { ...filters, instanceType: value || undefined, instanceId: undefined }, page: 0 })}>{t(key)}</button>;
+              })}
+            </div>
+            {!overviewMode && <Pill label={t("rankings.instance")} attention={waiting} value={filters.instanceId ?? ""} onChange={value => setFilter("instanceId", value)}>
               <option value="">{needsInstance(metric) ? t("rankings.pickInstance") : t("runs.allInstances")}</option>
               {instances.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </Pill>
+            </Pill>}
           </>}
         </div>
         <span className="lb-eyebrow">{t("rankings.eyebrow")}</span>
@@ -116,17 +124,17 @@ export function RankingsView({ route, user = null }: { route: string; user?: Use
       </div>}
       <div className="lb-bar">
         {pager ?? <span />}
-        <form className="lb-search" role="search" onSubmit={search}>
+        {!overviewMode && <form className="lb-search" role="search" onSubmit={search}>
           <label><span className="visually-hidden">{t("rankings.searchLabel")}</span>
             <Icon name="search" size={15} />
             <input type="search" maxLength={80} value={draft} onChange={event => setDraft(event.target.value)} placeholder={t("rankings.searchPlaceholder")} />
           </label>
           <button className="lb-btn" type="submit">{t("rankings.search")}</button>
           {state.q && <button className="lb-btn ghost" type="button" onClick={() => go({ ...state, q: "", page: 0 })}>{t("rankings.clear")}</button>}
-        </form>
+        </form>}
       </div>
 
-      {waiting ? <DungeonGrid data={overview.data} failed={Boolean(overview.error)} art={art.data} onPick={id => setFilter("instanceId", String(id))} /> :
+      {showGrid ? <DungeonGrid data={overview.data} failed={Boolean(overview.error)} art={art.data} onPick={pickInstance} lead={overviewMode ? t("rankings.instancesLead") : undefined} emptyTitle={overviewMode ? t("home.noDungeons") : undefined} /> :
       <div className={`lb-table-wrap${board.loading && shown ? " is-loading" : ""}`} aria-busy={board.loading}>
         <table className="lb-table">
           <thead><tr><th className="lb-rank">{t("rankings.rank")}</th><th>{t("runs.character")}</th><th className="num">{metricTitle}</th></tr></thead>
@@ -146,6 +154,7 @@ export function RankingsView({ route, user = null }: { route: string; user?: Use
       <div className="lb-foot">
         {pager ?? <span />}
         {data && <span className="lb-count">{t("rankings.results", { count: num(data.total) })}{metric !== "level" && <> · {t("rankings.sample")}: {num(data.sampleSize)}</>}</span>}
+        {overviewMode && overview.data && <span className="lb-count">{t("rankings.sample")}: {num(overview.data.sampleSize)}</span>}
       </div>
       <details className="lb-about">
         <summary><Icon name="info" size={14} /> {t("rankings.about")}</summary>
