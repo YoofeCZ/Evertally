@@ -4,9 +4,10 @@ import { useI18n, type Key } from "@/lib/i18n";
 import { useApi } from "../api";
 import { CLASS_COLORS, CLASSES, FOREVER_CLASS_IDS, FOREVER_RACE_IDS, RACES, duration, factionOf, type Faction } from "../data";
 import { useDungeonArt } from "../db/store";
-import { CharacterIcons, CharacterName } from "../Identity";
+import { CharacterIcons, fullName } from "../Identity";
 import { METRICS, needsInstance, parseRankingRoute, rankingHash, rankingQuery, type Metric, type RankingFilters, type RankingState } from "../rankingRoute";
-import type { Entry, Run } from "../types";
+import type { Entry, Me, Run, User } from "../types";
+import type { InstanceSummary } from "@/lib/run-rankings";
 import { Icon } from "../ui";
 
 type Board = { entries: Entry[]; sampleSize: number; rulesLabel: string; total: number; page: number; pageSize: number; hasMore: boolean };
@@ -18,7 +19,7 @@ const slug = (name: string) => name.toLowerCase().replace(/['’]/g, "").replace
 function go(next: RankingState) { window.location.hash = rankingHash(next); }
 
 /** Raider.IO-style leaderboard: art banner with filter pills, pagination on top, one dense row per character. */
-export function RankingsView({ route }: { route: string }) {
+export function RankingsView({ route, user = null }: { route: string; user?: User | null }) {
   const { t, num } = useI18n();
   const state = parseRankingRoute(route);
   const { metric, filters } = state;
@@ -28,8 +29,15 @@ export function RankingsView({ route }: { route: string }) {
 
   const waiting = needsInstance(metric) && !filters.instanceId;
   const board = useApi<Board>(waiting ? null : `/api/leaderboards?${rankingQuery(state)}`);
+  // without an instance, times and combat rates start from an overview of the instances, one card each
+  const overviewQuery = new URLSearchParams(rankingQuery({ ...state, metric: "count", q: "", page: 0 }));
+  overviewQuery.set("metric", "instances"); overviewQuery.delete("page");
+  const overview = useApi<{ instances: InstanceSummary[]; sampleSize: number }>(waiting ? `/api/leaderboards?${overviewQuery}` : null);
   const runs = useApi<{ runs: Run[] }>(metric === "level" ? null : "/api/runs");
   const art = useDungeonArt();
+  // a signed-in player sees which of their own characters are not on the board yet
+  const me = useApi<Me>(user ? "/api/me" : null);
+  const hidden = (me.data?.profiles ?? []).filter(p => !p.public && p.name);
 
   // keep the last table on screen while the next filter loads, instead of flashing an empty page
   const [shown, setShown] = useState<Board | null>(null);
@@ -101,6 +109,11 @@ export function RankingsView({ route }: { route: string }) {
         <h1 className="lb-title">{t("rankings.board")}{crumbs.map(crumb => <span key={crumb}> • {crumb}</span>)}</h1>
       </section>
 
+      {hidden.length > 0 && <div className="lb-mine">
+        <Icon name="lock" size={14} />
+        <span>{t("rankings.mineHidden", { names: hidden.slice(0, 4).map(p => p.name).join(", ") + (hidden.length > 4 ? ` +${hidden.length - 4}` : "") })}</span>
+        <a href="#account">{t("rankings.makePublic")}</a>
+      </div>}
       <div className="lb-bar">
         {pager ?? <span />}
         <form className="lb-search" role="search" onSubmit={search}>
@@ -113,12 +126,12 @@ export function RankingsView({ route }: { route: string }) {
         </form>
       </div>
 
+      {waiting ? <DungeonGrid data={overview.data} failed={Boolean(overview.error)} art={art.data} onPick={id => setFilter("instanceId", String(id))} /> :
       <div className={`lb-table-wrap${board.loading && shown ? " is-loading" : ""}`} aria-busy={board.loading}>
         <table className="lb-table">
           <thead><tr><th className="lb-rank">{t("rankings.rank")}</th><th>{t("runs.character")}</th><th className="num">{metricTitle}</th></tr></thead>
           <tbody>
             {board.error ? <MessageRow icon="info" title={t("error.service_unavailable")} />
-              : waiting ? <MessageRow icon="map" title={t("rankings.pickInstanceTitle")}>{t("rankings.pickInstanceText")}</MessageRow>
               : !data ? <MessageRow icon="trophy" title={t("common.loading")} />
               : entries.length ? entries.map(entry => <Row key={entry.character.id} entry={entry} metric={metric} />)
               : !nothingPublic ? <MessageRow icon="search" title={t("rankings.noMatch")} />
@@ -128,7 +141,7 @@ export function RankingsView({ route }: { route: string }) {
                 </MessageRow>}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       <div className="lb-foot">
         {pager ?? <span />}
@@ -143,7 +156,7 @@ export function RankingsView({ route }: { route: string }) {
   );
 }
 
-function Pill({ label, value, onChange, accent = false, attention = false, children }: { label: string; value: string; onChange: (value: string) => void; accent?: boolean; attention?: boolean; children: ReactNode }) {
+export function Pill({ label, value, onChange, accent = false, attention = false, children }: { label: string; value: string; onChange: (value: string) => void; accent?: boolean; attention?: boolean; children: ReactNode }) {
   return <label className={`lb-pill${accent ? " accent" : ""}${attention ? " attention" : ""}${value ? " set" : ""}`}>
     <span className="visually-hidden">{label}</span>
     <select value={value} onChange={event => onChange(event.target.value)}>{children}</select>
@@ -160,7 +173,7 @@ function Pager({ page, hasMore, onPage }: { page: number; hasMore: boolean; onPa
   </nav>;
 }
 
-function FactionMark({ faction }: { faction: Faction | null }) {
+export function FactionMark({ faction }: { faction: Faction | null }) {
   const { t } = useI18n();
   if (!faction) return null;
   const label = t(faction === "horde" ? "rankings.horde" : "rankings.alliance");
@@ -188,7 +201,7 @@ function Row({ entry, metric }: { entry: Entry; metric: Metric }) {
       <div className="lb-char" style={color ? { "--class": color } as CSSProperties : undefined}>
         <CharacterIcons character={c} size={24} />
         <FactionMark faction={factionOf(c.raceId)} />
-        <span className="lb-who"><CharacterName character={c} unnamed={t("common.private")} />{(entry.guild || sub) && <small>{entry.guild && <span className="lb-guild">&lsaquo;{entry.guild}&rsaquo;</span>}{entry.guild && sub ? " · " : ""}{sub}</small>}</span>
+        <span className="lb-who"><a className="profile-name" href={`#character/${encodeURIComponent(c.id)}`}>{fullName(c) || t("common.private")}</a>{(entry.guild || sub) && <small>{entry.guild && <span className="lb-guild">&lsaquo;{entry.guild}&rsaquo;</span>}{entry.guild && sub ? " · " : ""}{sub}</small>}</span>
       </div>
     </td>
     <td className="lb-value">{top && <small>{top}</small>}<strong>{main}</strong></td>
@@ -202,4 +215,26 @@ function MessageRow({ icon, title, action, children }: { icon: string; title: st
     {children && <p>{children}</p>}
     {action}
   </td></tr>;
+}
+
+function DungeonGrid({ data, failed, art, onPick }: { data: { instances: InstanceSummary[] } | null; failed: boolean; art: Record<string, { image: string; source: string }> | null; onPick: (id: number) => void }) {
+  const { t, num } = useI18n();
+  if (failed) return <div className="lb-grid-note">{t("error.service_unavailable")}</div>;
+  if (!data) return <div className="lb-grid-note">{t("common.loading")}</div>;
+  if (!data.instances.length) return <div className="lb-grid-note"><strong>{t("rankings.pickInstanceTitle")}</strong><p>{t("rankings.countEmpty")}</p></div>;
+  return <div className="lb-dungeons">
+    <p className="lb-grid-lead">{t("rankings.pickInstanceText")}</p>
+    <div className="lb-dungeon-grid">{data.instances.map(item => {
+      const picture = art?.[slug(item.name)];
+      const image = picture && picture.source !== "floor" && picture.source !== "map" ? picture.image : null;
+      const color = CLASS_COLORS[item.holder?.classId ?? 0];
+      return <button key={item.instanceId} className="lb-dungeon" style={image ? { "--art": `url("${image}")` } as CSSProperties : undefined} onClick={() => onPick(item.instanceId)}>
+        <span className="lb-dungeon-kind">{t(item.instanceType === "raid" ? "rankings.raids" : "rankings.dungeons")}</span>
+        <strong>{item.name}</strong>
+        {item.bestMs ? <span className="lb-dungeon-record">{t("rankings.record")} <b>{duration(item.bestMs)}</b> · <i style={color ? { color } : undefined}>{item.holder ? fullName(item.holder) : ""}</i></span>
+          : <span className="lb-dungeon-record">{t("rankings.noRecord")}</span>}
+        <small>{t("rankings.runsPlayers", { runs: num(item.runs), players: num(item.players) })}</small>
+      </button>;
+    })}</div>
+  </div>;
 }

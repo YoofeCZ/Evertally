@@ -7,6 +7,7 @@ import { DiscordGlyph, Icon, Logo } from "./ui";
 import { AccountView, LinkView } from "./views/Account";
 import { RunsView } from "./views/Data";
 import { RankingsView } from "./views/Rankings";
+import { CharacterView } from "./views/Character";
 import { Overview } from "./views/Overview";
 import { SyncView } from "./views/Sync";
 import { ProfessionsView } from "./views/Professions";
@@ -15,10 +16,16 @@ import { ForumView } from "./views/Forum";
 import { DatabaseView } from "./db/Database";
 import { MapView } from "./db/MapView";
 
-const NAV: { id: Exclude<View, "link">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
+const NAV: { id: Exclude<View, "link" | "character">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
   { id: "overview", key: "nav.overview" }, { id: "runs", key: "nav.runs" }, { id: "rankings", key: "nav.rankings" },
   { id: "atlas", key: "nav.atlas" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
 ];
+
+/** The search in the top bar finds characters (and guilds shown on the board) in the leaderboard. */
+function searchCharacters(text: string) {
+  const q = text.trim().slice(0, 80);
+  window.location.hash = `rankings/level${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+}
 
 const subscribeHash = (onChange: () => void) => {
   window.addEventListener("hashchange", onChange);
@@ -32,7 +39,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   // `#atlas/durotar?focus=npc:3139`, `#database/items/19019`: the first segment is the view, the rest belongs to it.
   const head = hash.split(/[/?]/)[0];
   const route = hash.slice(head.length).replace(/^\//, "");
-  const view: View = initialView === "link" ? "link" : NAV.some((n) => n.id === head) ? head as View : "overview";
+  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : NAV.some((n) => n.id === head) ? head as View : "overview";
   const authError = useSyncExternalStore(subscribeNever, () => new URLSearchParams(window.location.search).get("auth_error"), () => null);
   const [dismissed, setDismissed] = useState(false);
   const [version, setVersion] = useState(0);
@@ -84,6 +91,10 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
             <button key={item.id} className={view === item.id ? "on" : ""} aria-current={view === item.id ? "page" : undefined} onClick={() => go(item.id)}>{t(item.key)}</button>
           ))}
         </nav>
+        <form className="top-search" role="search" onSubmit={(event) => { event.preventDefault(); searchCharacters(String(new FormData(event.currentTarget).get("q") ?? "")); }}>
+          <button type="submit" aria-label={t("nav.search")} title={t("nav.search")}><Icon name="search" size={14} /></button>
+          <input name="q" type="search" maxLength={80} placeholder={t("nav.searchPlaceholder")} aria-label={t("nav.search")} />
+        </form>
         <div className="top-actions">
           <div className="lang" role="group" aria-label={t("nav.language")}>
             {(["en", "cs"] as Lang[]).map((l) => <button key={l} className={lang === l ? "on" : ""} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}
@@ -111,7 +122,8 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
       <main id="main">
         {view === "overview" && <Overview status={status.data} go={go} />}
         {view === "runs" && <RunsView user={user} />}
-        {view === "rankings" && <RankingsView route={route} />}
+        {view === "rankings" && <RankingsView route={route} user={user} />}
+        {view === "character" && <CharacterView id={decodeURIComponent(route.split("?")[0])} />}
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
         {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}

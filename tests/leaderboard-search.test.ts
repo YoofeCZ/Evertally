@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publicRankingObservations, rankObservedRuns, rankPublicLevels } from "../lib/run-rankings";
+import { instanceSummary, publicRankingObservations, rankObservedRuns, rankPublicLevels } from "../lib/run-rankings";
 import type { Run } from "../components/evertally/types";
 import { fixture } from "./sqlite-db";
 
@@ -66,4 +66,18 @@ test("faction filter follows race on both boards and skips characters without a 
   for (const user of ["a","h"]) f.addTrack(user,1000,1429,.5,.5,`grant-${user}`);
   assert.deepEqual((await rankPublicLevels(f.db,new URLSearchParams({faction:"horde"}))).entries.map(e=>e.character.name),["Hordie"]);
   assert.equal((await rankPublicLevels(f.db,new URLSearchParams())).total,2);
+});
+
+test("the dungeon overview counts finished runs and characters per instance and keeps the record holder", () => {
+  const run = (id: string, instanceId: number, name: string, who: string, durationMs: number | null, extra: Partial<Run> = {}): Run =>
+    ({ id, name, instanceId, instanceType: "party", status: "completed", completion: "last_boss", evidence: "api_event", durationMs, startedAt: 1000 + Number(id.slice(1)), character: { id: who, name: who, realm: "Test", classId: 1, raceId: 2 }, ...extra });
+  const runs: Run[] = [
+    run("r1", 36, "Deadmines", "a", 1_800_000), run("r2", 36, "Deadmines", "a", 1_500_000), run("r3", 36, "Deadmines", "b", null),
+    run("r4", 230, "Blackrock Depths", "c", 3_600_000),
+    run("r5", 36, "Deadmines", "d", 1_000_000, { evidence: "manual" }), run("r6", 36, "Deadmines", "e", 900_000, { completion: "visiting", status: "interrupted" }),
+  ];
+  const { instances, sampleSize } = instanceSummary(runs, new URLSearchParams());
+  assert.equal(sampleSize, 4, "manual and unfinished runs never count");
+  assert.deepEqual(instances.map(i => [i.name, i.runs, i.players, i.bestMs, i.holder?.id]), [["Deadmines", 3, 2, 1_500_000, "a"], ["Blackrock Depths", 1, 1, 3_600_000, "c"]]);
+  assert.deepEqual(instanceSummary(runs, new URLSearchParams({ faction: "alliance" })).instances, [], "filters apply (all of them are orcs)");
 });

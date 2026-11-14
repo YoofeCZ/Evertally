@@ -7,7 +7,8 @@ import { COMMUNITY_OBSERVATIONS_SQL } from "./community";
 import { atlasEntities } from "./atlas";
 import { PUBLIC_PROFILE_ACCESS_SQL } from "./profiles";
 import { applyGuildSnapshots, pruneTracks, releaseStatements, type Db as PeopleDb, type GuildSnapshot } from "./people";
-import { publicRankingObservations, rankObservedRuns, rankPublicLevels, RUN_OBSERVATION_ORDER, withRankingExtras } from "./run-rankings";
+import { applyPublishChoices, type PublishChoice } from "./publish";
+import { instanceSummary, publicRankingObservations, rankingExtras, rankingPackage, rankObservedRuns, rankPublicLevels, RUN_OBSERVATION_ORDER, withRankingExtras } from "./run-rankings";
 import { projectRunActors } from "./run-combat";
 import type { Run, RunCombat, RunMember } from "../components/evertally/types";
 
@@ -77,7 +78,7 @@ export async function uploadEvents(userId:string,grantId:string,raw:unknown){
   const grant=serializeGrant(row);const envelope=validateUpload(grant,raw);
   if(envelope.events.length>500)throw new ApiError("batch_too_large","One batch may contain at most 500 events.",413);
   const db=getBinding(),profileRows:Row[]=[],observationRows:Row[]=[];const uploadId=crypto.randomUUID();
-  const guildSnapshots:GuildSnapshot[]=[];let hasTracks=false;
+  const guildSnapshots:GuildSnapshot[]=[];const publishChoices:PublishChoice[]=[];let hasTracks=false;
   for(const event of envelope.events){
     const eventId=await stableId(userId,event.producerId,event.eventId);
     const profileId=event.character&&envelope.scopes.includes("own_character")?await stableId(userId,event.producerId,event.character.id):null;
@@ -85,6 +86,9 @@ export async function uploadEvents(userId:string,grantId:string,raw:unknown){
       profileRows.push({id:profileId,userId,producerId:event.producerId,characterKey:c.id,name:c.name??null,realm:c.realm??null,classId:c.classId??null,raceId:c.raceId??null,level:c.level??null,lastSeen:event.observedAt,observationId:eventId});
     }
     if(event.kind==="track.path")hasTracks=true;
+    if(event.kind==="character.publish"&&profileId){const p=event.payload as {public:boolean;showItemLevel?:boolean;showGuild?:boolean;chosenAt?:number};
+      // the moment of the choice decides, never later than the observation itself
+      publishChoices.push({profileId,observedAt:Math.min(p.chosenAt??event.observedAt,event.observedAt),public:p.public,showItemLevel:p.showItemLevel,showGuild:p.showGuild});}
     if(event.kind==="guild.snapshot"&&profileId&&event.character?.name){
       const p=event.payload as {guildName?:string;rankIndex?:number;roster?:GuildSnapshot["roster"]};
       guildSnapshots.push({profileId,name:event.character.name,realm:event.character.realm??event.game.realm,observedAt:event.observedAt,guildName:p.guildName,rankIndex:p.rankIndex,roster:p.roster});
@@ -102,6 +106,7 @@ export async function uploadEvents(userId:string,grantId:string,raw:unknown){
   if(!current||current.revoked_at!==null)throw new ApiError("consent_revoked","The consent was revoked during the upload.",403);
   const people=db as unknown as PeopleDb;
   if(guildSnapshots.length)await applyGuildSnapshots(people,userId,guildSnapshots);
+  if(publishChoices.length)await applyPublishChoices(people,userId,publishChoices);
   if(hasTracks)await pruneTracks(people,userId);
   const duplicates=envelope.events.length-accepted;
   await db.prepare("INSERT INTO atlas_uploads(id,user_id,grant_id,created_at,accepted,duplicates,rejected) VALUES(?,?,?,?,?,?,0)").bind(uploadId,userId,grantId,now(),accepted,duplicates).run();
@@ -115,7 +120,7 @@ export async function meData(userId:string){
 
 export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean}){
   const existing=await first("SELECT * FROM atlas_profiles WHERE id=? AND user_id=?",[id,userId]);if(!existing)throw new ApiError("not_found","Character not found.",404);
-  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean}={};
+  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;visibilityAt?:number}={visibilityAt:now()};
   if(change.public!==undefined)set.public=change.public;
   if(change.showItemLevel!==undefined)set.showItemLevel=change.showItemLevel;
   if(change.showGuild!==undefined)set.showGuild=change.showGuild;
@@ -164,7 +169,16 @@ export async function profileHistory(id:string,userId?:string){
   const runs=(await getRuns(owner?userId:undefined)).filter(r=>(r.character as Record<string,unknown>|null)?.id===id).slice(0,100);
   const profile=serializeProfile(row);
   if(!owner)profile.lastSeen=Math.floor(profile.lastSeen/86400)*86400;
-  return {profile,zones:rows.map(r=>({mapId:r.mapId,mapName:r.mapName,visits:r.visits,lastVisited:r.lastVisited})),runs};
+  // the character page: what the leaderboard shows of it (its place, and the details its player chose to show)
+  const people=getBinding() as unknown as PeopleDb;
+  const extras=(await rankingExtras(people,[id])).get(id)??{};
+  let ranks:{overall:number|null;total:number;class:number|null;classTotal:number}|null=null;
+  if(profile.public&&profile.name){
+    const place=async(extra:Record<string,string>)=>{const board=await rankPublicLevels(people,new URLSearchParams({q:profile.name!,...extra}));return {rank:board.entries.find(e=>e.character.id===id)?.rank??null,total:board.sampleSize};};
+    const [overall,inClass]=await Promise.all([place({}),profile.classId?place({classId:String(profile.classId)}):Promise.resolve({rank:null,total:0})]);
+    ranks={overall:overall.rank,total:overall.total,class:inClass.rank,classTotal:inClass.total};
+  }
+  return {profile,zones:rows.map(r=>({mapId:r.mapId,mapName:r.mapName,visits:r.visits,lastVisited:r.lastVisited})),runs,...extras,ranks};
 }
 
 export async function statusData(){
@@ -177,7 +191,10 @@ export async function statusData(){
   return {totalEvents:Number(events?.count??0),totalCharacters:Number(events?.characters??0),totalRuns:runs.length,latestAt:nullableNum(events?.latest)};
 }
 
+export async function getRankingPackage(){return rankingPackage(getBinding() as unknown as PeopleDb,await getRuns(undefined,true) as Run[]);}
+
 export async function getLeaderboards(params:URLSearchParams){
   if(params.get("metric")==="level") return rankPublicLevels(getBinding() as unknown as PeopleDb,params);
+  if(params.get("metric")==="instances") return instanceSummary(await getRuns(undefined,true) as Run[],params);
   return withRankingExtras(getBinding() as unknown as PeopleDb,rankObservedRuns(await getRuns(undefined,true) as Run[],params));
 }

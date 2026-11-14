@@ -1,6 +1,6 @@
 import type { Run, Entry } from "../components/evertally/types";
 import type { Db } from "./people";
-import { factionOf } from "../components/evertally/data";
+import { completed, factionOf } from "../components/evertally/data";
 import { averageItemLevel } from "./item-level";
 
 const factionMatches=(params:URLSearchParams,raceId:unknown)=>{const wanted=params.get("faction");return !wanted||factionOf(typeof raceId==="number"?raceId:null)===wanted;};
@@ -73,14 +73,15 @@ const PAGE_SIZE=40;
 function paginate(entries: Entry[], params: URLSearchParams) {
   const search=(params.get("q")??"").trim().slice(0,80).toLocaleLowerCase("cs-CZ");
   const ranked=entries.map((entry,index)=>({...entry,rank:index+1}));
-  const matches=search?ranked.filter(({character})=>`${character.name??""} ${character.realm??""} ${character.name??""}-${character.realm??""}`.toLocaleLowerCase("cs-CZ").includes(search)):ranked;
+  // the guild counts only where the player chose to show it (it is on the entry only then)
+  const matches=search?ranked.filter(({character,guild})=>`${character.name??""} ${character.realm??""} ${character.name??""}-${character.realm??""} ${guild??""}`.toLocaleLowerCase("cs-CZ").includes(search)):ranked;
   const raw=Number(params.get("page"));
   const page=Number.isFinite(raw)?Math.max(0,Math.min(10000,Math.floor(raw))):0;
   return {entries:matches.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE),total:matches.length,page,pageSize:PAGE_SIZE,hasMore:(page+1)*PAGE_SIZE<matches.length};
 }
 
-/** Level ranking includes public profiles even when they have no recorded run. */
-export async function rankPublicLevels(db: Db, params: URLSearchParams) {
+/** Level ranking includes public profiles even when they have no recorded run. The whole board, ranked. */
+export async function levelBoard(db: Db, params: URLSearchParams): Promise<Entry[]> {
   const rows:Record<string,unknown>[]=[];
   for (;;) {
     const batch=await db.prepare(`SELECT p.id,p.name,p.realm,p.class_id,p.race_id,p.level,p.show_item_level,p.show_guild FROM atlas_profiles p
@@ -97,13 +98,43 @@ export async function rankPublicLevels(db: Db, params: URLSearchParams) {
   const extras=await rankingExtras(db,rows.filter(r=>Number(r.show_item_level)===1||Number(r.show_guild)===1).map(r=>String(r.id)));
   const ranked:Entry[]=filtered.map(e=>({...e,...extras.get(e.character.id)}));
   ranked.sort((a,b)=>(b.value??0)-(a.value??0)||(b.itemLevel??-1)-(a.itemLevel??-1)||a.character.id.localeCompare(b.character.id));
+  return ranked;
+}
+
+export async function rankPublicLevels(db: Db, params: URLSearchParams) {
+  const ranked=await levelBoard(db,params);
   return {...paginate(ranked,params),sampleSize:ranked.length,countingUnit:"character",rulesLabel:"Public character levels; equal levels by the item level of players who show it, then by profile ID."};
 }
 
-export function rankObservedRuns(runs: readonly Run[], params: URLSearchParams) {
-  const wanted=params.get("metric");
-  const metric=wanted==="time"||wanted==="dps"||wanted==="hps"?wanted:"count";
-  const filtered=runs.filter(run=>{
+export const RANKING_PACKAGE_MAX = 2000;
+export const RANKING_PACKAGE_DAYS = 3;
+/**
+ * The public leaderboard as the game reads it (Evertally Sync writes it into RankingData.lua for the unit tooltip).
+ * Only what the website already shows to everyone: name, realm, level, class, race, place on the level board and in
+ * the class, completed public runs, and item level and guild only where the player chose to show them. No account or
+ * profile identifiers.
+ */
+export async function rankingPackage(db: Db, runs: readonly Run[], at = Math.floor(Date.now() / 1000)) {
+  const board = await levelBoard(db, new URLSearchParams());
+  const done = new Map<string, number>();
+  for (const run of runs) if (run.character && completed(run)) done.set(run.character.id, (done.get(run.character.id) ?? 0) + 1);
+  const inClass = new Map<number, number>();
+  const players = [];
+  for (let i = 0; i < board.length; i++) {
+    const e = board[i], c = e.character, cls = c.classId ?? 0;
+    const classRank = (inClass.get(cls) ?? 0) + 1;
+    inClass.set(cls, classRank);
+    if (players.length >= RANKING_PACKAGE_MAX || !c.name || !c.realm) continue;
+    players.push({ name: c.name, realm: c.realm, level: c.level ?? null, classId: c.classId ?? null, raceId: c.raceId ?? null, rank: i + 1, classRank,
+      completed: done.get(c.id) ?? 0, ...(e.itemLevel != null ? { itemLevel: e.itemLevel } : {}), ...(e.guild ? { guild: e.guild } : {}) });
+  }
+  return { schemaVersion: 1, kind: "evertally-ranking", game: { product: "forever" }, generatedAt: at, expiresAt: at + RANKING_PACKAGE_DAYS * 86400,
+    total: board.length, truncated: board.length > players.length, players };
+}
+
+/** Finished public runs that count for a board, with the board's filters applied. */
+function rankableRuns(runs: readonly Run[], params: URLSearchParams): Run[] {
+  return runs.filter(run=>{
     const c=run.character;
     return c&&run.status==="completed"&&["last_boss","full_clear"].includes(run.completion??"")&&run.evidence!=="manual"&&
       (!params.get("classId")||String(c.classId)===params.get("classId"))&&
@@ -114,6 +145,31 @@ export function rankObservedRuns(runs: readonly Run[], params: URLSearchParams) 
       (!params.get("difficultyId")||String(run.difficultyId)===params.get("difficultyId"))&&
       (!params.get("completion")||run.completion===params.get("completion"));
   });
+}
+
+export type InstanceSummary = { instanceId: number; name: string; instanceType: string | null; runs: number; players: number; bestMs: number | null; holder: Entry["character"] | null; lastAt: number | null };
+/** One card per instance for the dungeon overview: how often it was finished, by how many characters, and the record. */
+export function instanceSummary(runs: readonly Run[], params: URLSearchParams): { instances: InstanceSummary[]; sampleSize: number } {
+  const filtered = rankableRuns(runs, params);
+  const byInstance = new Map<number, InstanceSummary & { ids: Set<string> }>();
+  for (const run of filtered) {
+    if (typeof run.instanceId !== "number" || run.instanceId <= 0) continue;
+    let row = byInstance.get(run.instanceId);
+    if (!row) { row = { instanceId: run.instanceId, name: run.name, instanceType: run.instanceType ?? null, runs: 0, players: 0, bestMs: null, holder: null, lastAt: null, ids: new Set() }; byInstance.set(run.instanceId, row); }
+    row.runs++;
+    row.ids.add(run.character!.id);
+    if (typeof run.durationMs === "number" && run.durationMs > 0 && (row.bestMs === null || run.durationMs < row.bestMs)) { row.bestMs = run.durationMs; row.holder = run.character!; }
+    if (typeof run.startedAt === "number" && (row.lastAt === null || run.startedAt > row.lastAt)) row.lastAt = run.startedAt;
+  }
+  const instances = [...byInstance.values()].map(({ ids, ...row }) => ({ ...row, players: ids.size }))
+    .sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name));
+  return { instances, sampleSize: filtered.length };
+}
+
+export function rankObservedRuns(runs: readonly Run[], params: URLSearchParams) {
+  const wanted=params.get("metric");
+  const metric=wanted==="time"||wanted==="dps"||wanted==="hps"?wanted:"count";
+  const filtered=rankableRuns(runs,params);
   const note="Observed public participations, not verified competitive scores or unique group runs. DPS/HPS use attributable recorded combat seconds; partial data is excluded.";
   if(metric!=="count"&&!params.get("instanceId"))return {...paginate([],params),sampleSize:filtered.length,countingUnit:"participation",rulesLabel:"Select one instance to compare times or combat rates. "+note};
   const grouped=new Map<string,Entry>();

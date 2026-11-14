@@ -79,7 +79,7 @@ const summary = { config: path.relative(root, productionPath).replaceAll(path.se
 if (args.has("--init-db")) {
   const info = verifiedInfo();
   if (info.num_tables !== 0 || userTables().length !== 0) throw new Error("Initialisation refused: the approved D1 database is not empty. No reset or destructive repair is performed.");
-  const migrations = ["0000_fixed_cardiac.sql", "0001_futuristic_invisible_woman.sql", "0002_auth_devices.sql", "0003_people.sql", "0004_circles_meets.sql", "0005_live_positions.sql", "0006_sharing.sql", "0007_game_connections.sql", "0008_forum.sql", "0009_ranking_details.sql"];
+  const migrations = ["0000_fixed_cardiac.sql", "0001_futuristic_invisible_woman.sql", "0002_auth_devices.sql", "0003_people.sql", "0004_circles_meets.sql", "0005_live_positions.sql", "0006_sharing.sql", "0007_game_connections.sql", "0008_forum.sql", "0009_ranking_details.sql", "0010_publish_from_game.sql"];
   // Review every statement before the first write. The allowlist rejects DML,
   // DROP/REPLACE/PRAGMA and scripts which address attached databases.
   const prepared = [];
@@ -110,8 +110,8 @@ if (args.has("--check-db")) {
   if (JSON.stringify(summary.applicationTables) !== JSON.stringify(schema)) throw new Error("Production schema differs from the current application schema. Apply missing additive migrations before deploying.");
   // Column-only migrations do not change the table list; the leaderboard reads these columns of 0009.
   const profileColumns = sql("PRAGMA table_info('atlas_profiles')").map((row) => row.name);
-  const missing = ["show_item_level", "show_guild"].filter((name) => !profileColumns.includes(name));
-  if (missing.length) throw new Error(`atlas_profiles lacks ${missing.join(", ")}. Apply drizzle/0009_ranking_details.sql before deploying.`);
+  const missing = ["show_item_level", "show_guild", "visibility_at"].filter((name) => !profileColumns.includes(name));
+  if (missing.length) throw new Error(`atlas_profiles lacks ${missing.join(", ")}. Apply drizzle/0009_ranking_details.sql and 0010_publish_from_game.sql before deploying.`);
 }
 if (args.has("--dry-run")) {
   const output = wrangler(["deploy", "--dry-run", "--outdir", path.join(root, ".test-artifacts/production-dry-run")]);

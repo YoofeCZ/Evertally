@@ -59,9 +59,12 @@ const armoryViewPayload=z.object({
   mode:z.enum(["once","always"]),kinds:z.string().max(8).regex(/^[istp]*$/),...armoryBody,
 }).strict();
 const armoryRevokedPayload=z.object({name:z.string().min(1).max(60),realm:text.optional()}).strict();
+// The player's leaderboard choice for this character, made in the game (Settings or the setup guide).
+// chosenAt = when the player made the choice; one choice is sent again for every character the player logs in with.
+const publishPayload=z.object({public:z.boolean(),showItemLevel:z.boolean().optional(),showGuild:z.boolean().optional(),chosenAt:num.optional()}).strict();
 
 export const payloadSchemas = {
-  "character.snapshot":characterPayload,"character.level":characterPayload,
+  "character.snapshot":characterPayload,"character.level":characterPayload,"character.publish":publishPayload,
   "quest.accepted":questPayload,"quest.turned_in":questPayload,"quest.abandoned":questPayload,
   "npc.observed":npcPayload,"vendor.snapshot":vendorPayload,"loot.received":lootPayload,
   "profession.snapshot":professionPayload,"craft.result":craftPayload,"cooldown.snapshot":cooldownPayload,

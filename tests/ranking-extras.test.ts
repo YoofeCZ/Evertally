@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { averageItemLevel, itemLevels, type ItemLevelInfo } from "../lib/item-level";
-import { rankingExtras, rankPublicLevels, withRankingExtras } from "../lib/run-rankings";
+import { rankingExtras, rankingPackage, rankPublicLevels, withRankingExtras } from "../lib/run-rankings";
 import { fixture } from "./sqlite-db";
 import type { Entry } from "../components/evertally/types";
 
@@ -85,4 +85,31 @@ test("equal levels are ordered by the item level of those who show it, and run b
   const page = await withRankingExtras(w.db, { entries });
   assert.equal(page.entries[0].itemLevel, 6);
   assert.equal(page.entries[1].itemLevel, undefined);
+});
+
+test("the game package lists the public board with class places and no identifiers", async () => {
+  const w = world();
+  w.sql.exec(`UPDATE atlas_profiles SET class_id=11 WHERE user_id IN ('a','b'); UPDATE atlas_profiles SET class_id=1, level=59 WHERE user_id='c';
+    UPDATE atlas_profiles SET show_item_level=1, show_guild=1 WHERE user_id='a';`);
+  w.add("a", "armory.snapshot", "own_character", 100, w.gear(647));
+  w.add("a", "guild.snapshot", "guild_share", 100, { guildName: "Dawn Watch", rankIndex: 3 });
+  for (const user of ["a", "b", "c"]) w.addTrack(user, 1000);
+  const runs = [{ id: "r1", name: "Deadmines", status: "completed", completion: "last_boss", evidence: "api_event", character: { id: "p-b" } }];
+  const pkg = await rankingPackage(w.db, runs, 1000);
+  assert.equal(pkg.kind, "evertally-ranking");
+  assert.equal(pkg.expiresAt - pkg.generatedAt, 3 * 86400);
+  assert.deepEqual(pkg.players.map(p => [p.name, p.rank, p.classRank, p.completed, p.itemLevel ?? null, p.guild ?? null]),
+    [["Ayla", 1, 1, 0, 6, "Dawn Watch"], ["Bram", 2, 2, 1, null, null], ["Cora", 3, 1, 0, null, null]]);
+  assert.ok(!JSON.stringify(pkg).includes("p-a"), "no profile ids");
+  w.sql.exec(`UPDATE atlas_profiles SET public=0 WHERE user_id='b'`);
+  assert.deepEqual((await rankingPackage(w.db, runs, 1000)).players.map(p => p.name), ["Ayla", "Cora"]);
+});
+
+test("the leaderboard search finds a guild only where its player shows it", async () => {
+  const w = world();
+  w.add("a", "guild.snapshot", "guild_share", 100, { guildName: "Dawn Watch", rankIndex: 3 });
+  w.add("b", "guild.snapshot", "guild_share", 100, { guildName: "Dawn Riders", rankIndex: 3 });
+  w.sql.exec(`UPDATE atlas_profiles SET show_guild=1 WHERE user_id='a';`);
+  for (const user of ["a", "b", "c"]) w.addTrack(user, 1000);
+  assert.deepEqual((await rankPublicLevels(w.db, new URLSearchParams({ q: "dawn" }))).entries.map(e => e.character.name), ["Ayla"]);
 });

@@ -14,7 +14,7 @@ import { createMeet, listMeets, meetInput, meetPatch, respondToMeet, rsvpInput, 
 import { eraseMyTrail, guildOverview, guildTrail, myTrail, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
 import { armoryOverview } from "./armory";
 import { createThread, createPost, deleteForumPost, editForumPost, editPostInput, moderateForumThread, moderateThreadInput, isForumAdmin, deviceForum, getThread, listForum, myForumCharacters, postInput, threadInput } from "./forum";
-import { createGrant, deleteMyData, getAtlas, getLeaderboards, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
+import { createGrant, deleteMyData, getAtlas, getLeaderboards, getRankingPackage, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
 
 export const VERSION = "0.9.0";
 export const json = (value: unknown, status = 200) =>
@@ -134,6 +134,8 @@ export async function handleApi(request: Request, operation: string, id?: string
     if (operation === "forum") return json(await listForum(getBinding() as unknown as PeopleDb, user?.id ?? null, { category: params.get("category") ?? undefined, page: Number(params.get("page")) || 0, q: params.get("q") ?? undefined }, await forumAdmin()));
     if (operation === "forum-thread" && id) return json(await getThread(getBinding() as unknown as PeopleDb, id, user?.id ?? null, await forumAdmin()));
     if (operation === "leaderboards") return json(await getLeaderboards(params));
+    // the public leaderboard for the in-game tooltip, fetched by Evertally Sync without credentials
+    if (operation === "ranking-package") return json(await getRankingPackage());
     if (operation === "runs" && !params.has("mine")) return json({ runs: await getRuns(), countingUnit: "participation" });
     if (operation === "export") {
       const runs = (await getRuns()).filter((run) => !params.get("instanceId") || String(run.instanceId) === params.get("instanceId")).slice(0, 100);

@@ -64,6 +64,7 @@ export function CharacterName({ character, unnamed }: { character?: Character | 
         {zones.length > 12 && <small>+{zones.length - 12}</small>}
         <span className="profile-section-title">{cs ? "Zaznamenané výpravy" : "Recorded runs"} · {runs.length}</span>
         {runs.slice(0, 5).map(run => <span className="profile-entry" key={run.id}><span>{run.name}</span><span className="mono">{duration(run.durationMs)}</span></span>)}
+        <a className="profile-armory" href={`#character/${encodeURIComponent(character.id)}`}>{cs ? "Otevřít stránku postavy" : "Open the character page"}</a>
         <a className="profile-armory" href={`#armory/${encodeURIComponent(character.id)}`}>{cs ? "Armory: výbava, statistiky, talenty, profese, tašky" : "Armory: gear, stats, talents, professions, bags"}</a>
         <small className="profile-privacy">{cs ? "Pouze navštívené oblasti. Přesná poloha ani živé sledování hráče se nezobrazuje." : "Visited zones only. No exact player location or live tracking is displayed."}</small>
       </>}
