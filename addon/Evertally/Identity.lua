@@ -30,6 +30,9 @@ local races = {
     [9]={"goblin", "Goblin", "Goblin"}, [10]={"bloodelf", "Blood Elf", "Krvavý elf"},
     [11]={"draenei", "Draenei", "Draenei"}, [22]={"worgen", "Worgen", "Worgen"},
     [24]={"pandaren", "Pandaren", "Pandaren"}, [25]={"pandaren", "Pandaren", "Pandaren"}, [26]={"pandaren", "Pandaren", "Pandaren"},
+    -- The Skyborne races new in Forever (UnitRace ids as in QuestieDB raceMaskById). The game has no Czech
+    -- names, so both languages keep the English ones; without an atlas they fall back to the question mark.
+    [95]={"highorderskyborne", "High Order Skyborne", "High Order Skyborne"}, [96]={"windshaperskyborne", "Windshaper Skyborne", "Windshaper Skyborne"},
 }
 local function localized(info)
     return info and info[A.db and A.db.settings.language == "cs" and 3 or 2] or A.L("unknown")

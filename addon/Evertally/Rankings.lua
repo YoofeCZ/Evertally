@@ -52,7 +52,7 @@ local function fitIndex(text,width,measure)
 end
 local MODES={"runs","level","fastest","dungeons","dps","heals","history"}
 local CLASSES={false,1,2,3,4,5,7,8,9,11,0}
-local RACES={false,1,2,3,4,5,6,7,8,0}
+local RACES={false,1,2,3,4,5,6,7,8,95,96,0}
 local KINDS={false,"party","raid"}
 local function num(v) return A.Number(v,0) end
 local function countText(v) local n=num(v);return n and string.format("%.0f",n) or A.L("rankUnrecorded") end

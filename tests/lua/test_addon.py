@@ -499,6 +499,19 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(self.a.ClassName(7),"Šaman")
         self.assertEqual(self.a.RaceName(6),"Tauren")
 
+    def test_identity_knows_the_skyborne_races_of_forever(self):
+        self.lua.execute('''
+        C_Texture=nil
+        T={SetTexture=function(self,v) self.texture=v;return true end,SetTexCoord=function(self,...) self.coords={...} end}
+        ''')
+        for language in ("en","cs"):
+            self.a.db.settings.language=language
+            self.assertEqual(self.a.RaceName(95),"High Order Skyborne")
+            self.assertEqual(self.a.RaceName(96),"Windshaper Skyborne")
+        texture=self.lua.globals().T
+        self.a.SetRaceIcon(texture,95)
+        self.assertTrue(texture.texture.endswith("INV_Misc_QuestionMark"))
+
     def test_profession_summary_uses_latest_own_snapshot_and_keeps_unknown_values(self):
         self.lua.execute('''
         local A=Evertally
