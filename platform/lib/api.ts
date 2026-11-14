@@ -6,7 +6,7 @@ import { SCOPES } from "./contracts";
 import { approvePairing, describePairing, deviceFromRequest, deviceUpload, listDevices, pollPairing, revokeDevice, startDevicePairing } from "./devices";
 import { ApiError } from "./policy";
 import {deviceLive} from "./live";
-import {requestLocate} from "./locate";
+import {requestLocate,searchLocatable} from "./locate";
 import {ownLast,ownLive} from "./people";
 import { getBinding } from "@/db";
 import { circleAction, circlesOverview, circleTrail, createCircle, joinCircle } from "./circles";
@@ -186,6 +186,7 @@ export async function handleApi(request: Request, operation: string, id?: string
       const others=await visiblePlayers(db,user.id);
       return json({own,last:await ownLast(db,user.id),peers:[...peers].map(([profileId,position])=>({profileId,...position})),others});
     }
+    if(operation==="locate"&&request.method==="GET")return json({players:await searchLocatable(people(),user.id,params.get("q")??"")});
     if(operation==="locate"&&request.method==="POST")return json(await requestLocate(people(),user.id,await request.json().then((body:unknown)=>typeof body==="object"&&body?body as {profileId?:unknown;userId?:unknown}:{},()=>({}))));
     const hours = (fallback: number, max: number) => Math.min(Math.max(1, Number(params.get("hours")) || fallback), max);
     if (operation === "track" && request.method === "GET") return json(await myTrail(people(), user.id, { profileId: params.get("profile") || undefined, since: Math.floor(Date.now() / 1000) - hours(24, 720) * 3600 }));

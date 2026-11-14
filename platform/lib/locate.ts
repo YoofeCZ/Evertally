@@ -31,3 +31,21 @@ export async function requestLocate(db:Db,viewerId:string,target:{profileId?:unk
     .bind(owner,at).run();
   return {requested:true,own:owner===viewerId};
 }
+
+export type Locatable = { profileId: string; name: string; realm: string | null; classId: number | null; level: number | null };
+
+/**
+ * Characters by name that this viewer may ask "where are you?": only those whose player shares their position with the viewer
+ * (everyone, signed-in visitors, or confirmed friends), never the viewer's own characters. A name needs at least three letters,
+ * so the list cannot be walked through, and at most ten are returned.
+ */
+export async function searchLocatable(db:Db,viewerId:string,query:string):Promise<Locatable[]>{
+  const q=query.trim().toLowerCase().slice(0,40);
+  if([...q].length<3)return [];
+  const like=q.replace(/[!%_]/g,m=>"!"+m)+"%";
+  const rows=await db.prepare(`SELECT p.id,p.name,p.realm,p.class_id,p.level FROM atlas_profiles p JOIN et_sharing s ON s.user_id=p.user_id
+    WHERE p.user_id<>? AND p.name IS NOT NULL AND lower(p.name) LIKE ? ESCAPE '!'
+      AND (s.public=1 OR s.signed_in=1 OR (s.friends=1 AND EXISTS(SELECT 1 FROM et_friends f WHERE f.status='accepted' AND f.user_a=MIN(p.user_id,?) AND f.user_b=MAX(p.user_id,?))))
+    ORDER BY p.last_seen DESC LIMIT 10`).bind(viewerId,like,viewerId,viewerId).all<Row>();
+  return rows.results.map(r=>({profileId:String(r.id),name:String(r.name),realm:typeof r.realm==="string"?r.realm:null,classId:typeof r.class_id==="number"?r.class_id:null,level:typeof r.level==="number"?r.level:null}));
+}

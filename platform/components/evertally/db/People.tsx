@@ -440,6 +440,7 @@ export function PeoplePanel({ panel, signIn, onRoute, onLayer }: { panel: People
               {panel.notice && <p className="pp-notice" role="status">{panel.notice}</p>}
               {panel.failed && <p className="pp-notice" role="alert">{s.routeLoadFailed}</p>}
               <label className="pp-toggle"><input type="checkbox" checked={panel.showPaths} onChange={event => panel.setShowPaths(event.target.checked)} /> {s.showPaths}</label>
+              <LocateSearch lang={lang} onAsk={profileId => void panel.askAbout({ profileId })} />
               {active === "share" && (
                 <div className="pp-block">
                   <h4>{s.shareHeading}</h4>
@@ -680,6 +681,36 @@ function GroupsBlock({ panel, state, shareLabel, onRoute }: { panel: PeopleHook[
           </div>}
         </div>
       )}
+    </div>
+  );
+}
+
+type Locatable = { profileId: string; name: string; realm: string | null; classId: number | null; level: number | null };
+/** Find a player by name and ask "where are you?". Only players who share their position with this viewer are listed. */
+function LocateSearch({ lang, onAsk }: { lang: string; onAsk: (profileId: string) => void }) {
+  const cs = lang === "cs";
+  const [text, setText] = useState("");
+  const [found, setFound] = useState<Locatable[]>([]);
+  useEffect(() => {
+    const q = text.trim();
+    if ([...q].length < 3) { const clear = setTimeout(() => setFound([]), 0); return () => clearTimeout(clear); }
+    let live = true;
+    const timer = setTimeout(() => {
+      api<{ players: Locatable[] }>(`/api/locate?q=${encodeURIComponent(q)}`).then(data => { if (live) setFound(data.players); }).catch(() => { if (live) setFound([]); });
+    }, 350);
+    return () => { live = false; clearTimeout(timer); };
+  }, [text]);
+  return (
+    <div className="pp-block">
+      <h4>{cs ? "Kde je hráč?" : "Where is a player?"}</h4>
+      <input value={text} onChange={event => setText(event.target.value)} maxLength={40} placeholder={cs ? "Jméno postavy (aspoň 3 písmena)" : "Character name (3+ letters)"} aria-label={cs ? "Hledat hráče" : "Find a player"} />
+      {found.map(player => (
+        <div key={player.profileId} className="pp-friend">
+          <span><strong>{player.name}</strong><small>{[player.realm, player.level ? `${cs ? "úr." : "lvl"} ${player.level}` : null].filter(Boolean).join(" · ")}</small></span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAsk(player.profileId)}>{cs ? "Kde je?" : "Where?"}</button>
+        </div>
+      ))}
+      {[...text.trim()].length >= 3 && !found.length && <p className="muted small">{cs ? "Nikdo takový, kdo by ti sdílel polohu." : "Nobody who shares their position with you."}</p>}
     </div>
   );
 }

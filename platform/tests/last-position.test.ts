@@ -61,3 +61,15 @@ test("one account may ask about other players once a minute, and about itself al
   assert.deepEqual(await requestLocate(db, "gm"), { requested: true, own: true });
   assert.deepEqual(await requestLocate(db, "gm", { profileId: "p-gm" }), { requested: true, own: true }, "own character needs no sharing choice");
 });
+
+import { searchLocatable } from "../lib/locate";
+test("the player search lists only characters whose player shares their position with the viewer", async () => {
+  const { sql, db } = fixture([["gm", "Aria"], ["bob", "Aragorn"], ["eve", "Arwen"], ["zed", "Arthas"]]);
+  sql.prepare("INSERT INTO et_sharing(user_id,friends,signed_in,public,updated_at) VALUES('bob',0,0,1,0),('eve',1,0,0,0),('gm',0,0,1,0)").run();
+  const names = async (q: string, viewer = "gm") => (await searchLocatable(db, viewer, q)).map(p => p.name).sort();
+  assert.deepEqual(await names("ara"), ["Aragorn"], "public shown; friends-only eve, non-sharing zed and own Aria are not");
+  assert.deepEqual(await names("ar"), [], "fewer than three letters never lists anyone");
+  assert.deepEqual(await names("%%%"), [], "wildcards are plain characters");
+  sql.prepare("INSERT INTO et_friends(user_a,user_b,status,requested_by,created_at) VALUES('eve','gm','accepted','gm',0)").run();
+  assert.deepEqual(await names("ar"+"w"), ["Arwen"], "a confirmed friend who shares with friends is found");
+});
