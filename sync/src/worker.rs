@@ -172,8 +172,14 @@ impl Worker {
                 let community_note=match &config {
                     Ok(config) if manual || community_at.is_none_or(|at|at.elapsed()>=Duration::from_secs(3600)) => {
                         community_at=Some(Instant::now());
-                        match config.server_origin().and_then(|origin|crate::community::sync(&origin,&crate::addon_update::roots(config))) {
-                            Ok(_)=>None,
+                        // The public leaderboard for the unit tooltip travels with the facts; one failing does not stop the other.
+                        match config.server_origin() {
+                            Ok(origin)=>{
+                                let roots=crate::addon_update::roots(config);
+                                let facts=crate::community::sync(&origin,&roots).err().map(|error|format!("{}: {error}",if cs {"Webová fakta se nenačetla"}else{"Website facts failed"}));
+                                let ranks=crate::ranking::sync(&origin,&roots).err().map(|error|format!("{}: {error}",if cs {"Žebříček se nenačetl"}else{"Leaderboard failed"}));
+                                facts.or(ranks)
+                            }
                             Err(error)=>Some(format!("{}: {error}",if cs {"Webová fakta se nenačetla"}else{"Website facts failed"})),
                         }
                     }

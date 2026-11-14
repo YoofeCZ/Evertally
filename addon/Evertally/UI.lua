@@ -995,6 +995,14 @@ local function buildSettings(page)
         local key=scope
         local t=Toggle(card,key,function() return s().scopes[key]==true end,function(v) A.SetScope(key,v) end);t.disabled=function() return not s().web end;place(t,40,18)
     end
+    local publishOff=function() return not (A.CanPublish and A.CanPublish()) end
+    local publish=Toggle(card,"leaderboard",function() return A.PublishChoice and A.PublishChoice().public==true end,function(v) A.SetPublish("public",v) end)
+    publish.disabled=publishOff;place(publish,40,18)
+    for _,field in ipairs({"itemLevel","guild"}) do
+        local which=field
+        local t=Toggle(card,which=="itemLevel" and "leaderboardItemLevel" or "leaderboardGuild",function() return A.PublishChoice and A.PublishChoice()[which]==true end,function(v) A.SetPublish(which,v) end)
+        t.disabled=function() return publishOff() or A.PublishChoice().public~=true end;place(t,62,18)
+    end
     local liveWeb=Toggle(card,"liveWeb",function() return s().liveWeb==true end,function(v) s().liveWeb=v==true;if A.OpticalTick then A.OpticalTick() end end)
     liveWeb.disabled=function() return not s().web end;place(liveWeb,40,18)
     page.webLiveHint=note(60);page.webHint=note(60)
@@ -1007,6 +1015,7 @@ local function buildSettings(page)
         b:SetPoint("TOPLEFT",132+(i-1)*54,cy);b.text:SetText(choice:upper());b.lang=choice;page.langButtons[i]=b
     end
     cy=cy-38
+    place(Toggle(card,"rankTooltip",function() return s().rankTooltip~=false end,function(v) s().rankTooltip=v==true end))
     place(Toggle(card,"minimap",function() return not s().hideMinimap end,function(v) s().hideMinimap=not v;if minimapButton then minimapButton:SetShown(v) end end))
 
     section("actionsSection")

@@ -14,6 +14,7 @@ pub mod lang;
 pub mod local;
 pub mod optical;
 pub mod platform;
+pub mod ranking;
 pub mod savedvars;
 pub mod shutdown;
 #[cfg(feature = "tray")]

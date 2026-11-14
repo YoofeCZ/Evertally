@@ -49,7 +49,7 @@ def runtime(record_globals=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "Live.lua", "Community.lua", "Forum.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -341,6 +341,79 @@ class ReplayTests(unittest.TestCase):
         self.assertFalse(store.enabled)
         self.assertGreater(store.consentEpoch,epoch)
         self.assertEqual(len(store.events),0)
+
+
+    # ---- the leaderboard in the player tooltip (Tooltip.lua) ----
+    def tooltip_world(self, expires_in=3600, realm=None):
+        self.lua.execute(f"""
+        LINES={{}};SHOWN=0;TooltipDataProcessor=nil
+        GameTooltip={{GetUnit=function() return "Aerin","mouseover" end,
+          AddDoubleLine=function(self,l,r) table.insert(LINES,l.." = "..r) end,AddLine=function(self,l) table.insert(LINES,l) end,
+          Show=function() SHOWN=SHOWN+1 end,HookScript=function(self,name,fn) if name=="OnTooltipSetUnit" then HOOK=fn end end}}
+        UnitIsPlayer=function(unit) return unit=="mouseover" end
+        UnitName=function(unit) return "Aerin",{repr(realm) if realm else "nil"} end
+        GetNormalizedRealmName=function() return "Firemaw" end
+        EvertallyRankingData={{schemaVersion=1,kind="evertally-ranking",generatedAt=NOW-60,expiresAt=NOW+{expires_in},total=12,truncated=false,
+          players={{{{n="Aerin",r="Firemaw",k=3,ck=1,u=4,l=60,c=11,x=95,i=62}},{{n="Brok",r="Golem agg",k=5,ck=2,u=0,l=60,c=1,x=2}}}}}}
+        """.replace("repr","").replace("'","\""))
+        self.a.HookRankingTooltip()
+
+    def hover(self):
+        self.lua.execute("LINES={} HOOK(GameTooltip)")
+        lines = self.lua.globals().LINES
+        return [lines[i] for i in range(1, len(lines) + 1)]
+
+    def test_tooltip_shows_the_place_class_place_item_level_and_runs(self):
+        self.tooltip_world()
+        self.assertEqual(self.hover(), ["Evertally = #3 of 12", "Place among Druids = #1", "Item level = 62", "Completed runs = 4"])
+        self.assertEqual(self.lua.globals().SHOWN, 1)
+
+    def test_tooltip_matches_realms_written_differently_and_skips_empty_details(self):
+        self.tooltip_world(realm="GolemAgg")
+        self.lua.execute('GameTooltip.GetUnit=function() return "Brok","mouseover" end;UnitName=function() return "Brok","GolemAgg" end')
+        self.assertEqual(self.hover(), ["Evertally = #5 of 12", "Place among Warriors = #2"])
+
+    def test_tooltip_adds_nothing_when_stale_unknown_or_turned_off(self):
+        self.tooltip_world(expires_in=-1)
+        self.assertEqual(self.hover(), [], "a stale package")
+        self.tooltip_world()
+        self.lua.execute('UnitName=function() return "Nobody",nil end')
+        self.assertEqual(self.hover(), [], "a player not on the board")
+        self.tooltip_world()
+        self.a.db.settings.rankTooltip = False
+        self.assertEqual(self.hover(), [], "the setting is off")
+        self.a.db.settings.rankTooltip = None
+        self.lua.execute('EvertallyRankingData=nil')
+        self.assertEqual(self.hover(), [], "no package at all")
+
+    # ---- the public leaderboard choice (Publish.lua) ----
+    def test_leaderboard_choice_is_off_and_travels_only_with_web_and_character(self):
+        self.assertFalse(self.a.PublishChoice().public)
+        self.assertFalse(self.a.SendPublish(), "never chosen in the game: nothing is sent")
+        self.a.SetPublish("public", True)
+        self.assertEqual(len(self.lua.globals().EvertallyExportDB.events), 0, "web export is off")
+        self.a.SetWeb(True)
+        sent = self.exported("character.publish")
+        self.assertEqual(len(sent), 1, "turning the website on sends the choice into the new outbox")
+        p = sent[0].payload
+        self.assertTrue(p.public); self.assertFalse(p.showItemLevel); self.assertFalse(p.showGuild)
+        self.assertEqual(p.chosenAt, self.lua.globals().NOW)
+        self.assertEqual(sent[0].character.id, "Player-TEST-own")
+        self.assertEqual(len([e for e in self.lua.globals().EvertallyDB.events.values() if e.kind == "character.publish"]), 0, "not in the local history")
+
+    def test_leaderboard_choice_is_sent_once_per_character_and_again_after_a_new_consent(self):
+        self.a.SetWeb(True)
+        self.a.SetPublish("public", True)
+        self.a.SetPublish("itemLevel", True)
+        self.assertEqual(len(self.exported("character.publish")), 2, "every change is a new choice")
+        self.assertTrue(self.exported("character.publish")[1].payload.showItemLevel)
+        self.assertFalse(self.a.SendPublish(), "the same choice is not sent twice for one character")
+        self.lua.execute('UnitGUID=function(unit) if unit=="player" then return "Player-TEST-alt" end end')
+        self.assertTrue(self.a.SendPublish(), "another character gets the same choice")
+        self.a.SetScope("own_character", False)
+        self.assertEqual(len(self.exported("character.publish")), 0, "without the character scope nothing travels")
+        self.a.SetScope("own_character", True)
+        self.assertEqual(len(self.exported("character.publish")), 1, "a new consent resends the choice")
 
     def test_reload_keeps_existing_enabled_outbox(self):
         self.a.SetWeb(True)

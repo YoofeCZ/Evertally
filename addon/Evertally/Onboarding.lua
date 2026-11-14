@@ -127,6 +127,7 @@ function A.OnboardingDraft()
         ingame = s.ingame == true, group = s.group ~= false, guild = s.guild == true, social = s.social ~= false,
         mapPins = s.mapPins == nil and true or s.mapPins == true, layers = {gather = gather}, kinds = kinds,
         minimap = not s.hideMinimap, scale = A.GetUIScale and A.GetUIScale() or 1,
+        publish = A.PublishChoice and A.PublishChoice().public == true,
     }
     return draft
 end
@@ -159,6 +160,9 @@ function A.OnboardingApply(d)
         if A.SetWeb(d.web) == false then notes[#notes + 1] = "export_missing"; d.web, d.liveWeb = false, false end
     end
     s.liveWeb = d.liveWeb == true and s.web == true
+    -- the public leaderboard needs the website and the character; it is the player's own choice, off by default
+    local publish = d.publish == true and s.web == true and s.scopes.own_character == true
+    if A.PublishChoice and A.PublishChoice().public ~= publish and (publish or A.PublishChoice().chosenAt) then A.SetPublish("public", publish) end
     if A.OpticalTick then A.OpticalTick() end
     -- sharing with players, then the live position for each group
     s.group, s.guild, s.social = d.group, d.guild, d.social
@@ -326,12 +330,15 @@ local function build()
         place(sw, FIRST + 34 + 42 + (i - 1) * 38, 34, 24)
         p.scopes[scope] = sw
     end
-    p.missing = kit.label(p, 11, C.peach); p.missing:SetPoint("TOPLEFT", 0, -FIRST - 34 - 42 - #SCOPES * 38 - 2); p.missing:SetPoint("TOPRIGHT", 0, -FIRST - 34 - 42 - #SCOPES * 38 - 2)
+    p.publish = kit.Switch(p, function(on) draft.publish = on; if on then draft.web = true; draft.scopes.own_character = true end; refresh() end, 34)
+    place(p.publish, FIRST + 34 + 42 + #SCOPES * 38, 34, 24)
+    p.missing = kit.label(p, 11, C.peach); p.missing:SetPoint("TOPLEFT", 0, -FIRST - 34 - 42 - (#SCOPES + 1) * 38 - 2); p.missing:SetPoint("TOPRIGHT", 0, -FIRST - 34 - 42 - (#SCOPES + 1) * 38 - 2)
     p.refresh = function()
         titles(p); p.quickLabel:SetText(A.L("setupQuick") .. ":")
         for name, chip in pairs(p.presets) do chip.SetLabel(A.L(name == "local_only" and "setupPresetLocal" or name == "recommended" and "setupPresetRecommended" or "setupPresetEverything")); chip.SetOn(false) end
         p.web.SetTexts(A.L("web")); p.web.Set(draft.web, true)
         for scope, sw in pairs(p.scopes) do sw.SetTexts(A.L(scope)); sw.Set(draft.scopes[scope], draft.web and not (draft.liveWeb and (scope == "own_character" or scope == "own_track"))) end
+        p.publish.SetTexts(A.L("leaderboard")); p.publish.Set(draft.publish == true and draft.web and draft.scopes.own_character, draft.web)
         p.missing:SetText(A.ExportStore() and "" or A.L("setupWebMissing"))
     end
 

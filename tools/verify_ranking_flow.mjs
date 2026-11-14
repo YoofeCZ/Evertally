@@ -7,7 +7,7 @@
 //   node tools/verify_ranking_flow.mjs --keep     leave the fixture in place (to look at it in a browser); prints a session cookie
 //   node tools/verify_ranking_flow.mjs --cleanup  remove every fixture this script ever left behind
 import assert from 'node:assert/strict';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -25,7 +25,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 
 function cleanup(like = `${PREFIX}%`) {
   db.prepare('DELETE FROM atlas_observations WHERE user_id LIKE ?').run(like);
-  for (const table of ['atlas_profiles', 'atlas_grants', 'atlas_sources', 'et_devices', 'et_sessions']) db.prepare(`DELETE FROM ${table} WHERE user_id LIKE ?`).run(like);
+  for (const table of ['atlas_profiles', 'atlas_grants', 'atlas_sources', 'atlas_uploads', 'et_devices', 'et_sessions']) db.prepare(`DELETE FROM ${table} WHERE user_id LIKE ?`).run(like);
   db.prepare('DELETE FROM et_users WHERE id LIKE ?').run(like);
 }
 if (process.argv.includes('--cleanup')) { cleanup(); console.log('Removed every leaderboard fixture.'); process.exit(0); }
@@ -98,6 +98,26 @@ try {
   check('equal levels: the character with an item level ranks first', both.findIndex(e => e.character.id === a.profile) < both.findIndex(e => e.character.id === b.profile));
   check('faction filter: Skyborne 95 is Alliance', mine(await board('metric=level&faction=alliance'), a) && !mine(await board('metric=level&faction=alliance'), b));
   check('faction filter: the orc is Horde', mine(await board('metric=level&faction=horde'), b) && !mine(await board('metric=level&faction=horde'), a));
+
+  // the character page: place on the board and the details the player chose to show
+  const page = (await call(null, 'GET', `/api/profiles/${encodeURIComponent(a.profile)}`)).data;
+  check('the character page shows its place, item level and guild', page.ranks?.overall === 1 && page.ranks.class === 1 && page.itemLevel === 13 && page.guild === 'Dawn Watch');
+  check('the character page never carries the gear', !JSON.stringify(page).includes('647'));
+
+  // publishing from the game: a character.publish event through the real upload API
+  const c = account('c', { name: `Cael${run}`, classId: 3, raceId: 96, level: 42 });
+  const grant = randomUUID();
+  db.prepare('INSERT INTO atlas_grants(id,user_id,producer_id,consent_epoch,since,scopes,created_at) VALUES(?,?,?,?,?,?,?)').run(grant, c.id, 'game-' + c.id, 1, 0, JSON.stringify(['own_character']), at());
+  const upload = (eventId, payload, observedAt = at()) => call(c, 'POST', '/api/uploads', { grantId: grant, export: { schemaVersion: 1, enabled: true, producerId: 'game-' + c.id, consentEpoch: 1, since: 0, scopes: ['own_character'],
+    events: [{ schemaVersion: 1, eventId, producerId: 'game-' + c.id, origin: 'local_observation', kind: 'character.publish', observedAt, game: { product: 'forever', build: 'test', interface: 11507, region: 'eu', realm: 'Fixture' },
+      character: { id: 'Player-' + c.id, name: c.name, realm: 'Fixture', classId: 3, raceId: 96, level: 42 }, payload, evidence: 'api_snapshot' }] } });
+  check('a choice from the game is accepted', (await upload('pub-1', { public: true, showItemLevel: false, chosenAt: at() })).status === 200);
+  const gameProfile = db.prepare('SELECT id,"public" AS p,visibility_at AS v FROM atlas_profiles WHERE user_id=? AND producer_id=?').get(c.id, 'game-' + c.id);
+  check('the game choice published the character', gameProfile?.p === 1 && gameProfile.v > 0);
+  check('a Windshaper Skyborne from the game is on the Horde board', (await board('metric=level&faction=horde')).some(e => e.character.id === gameProfile.id));
+  check('the website can still make it private', (await patch(c, gameProfile.id, { public: false })).data.profile.public === false);
+  check('an older game choice replayed later does not publish it again', (await upload('pub-old', { public: true, chosenAt: at() - 3600 }, at() - 60)).status === 200
+    && db.prepare('SELECT "public" AS p FROM atlas_profiles WHERE id=?').get(gameProfile.id).p === 0);
 
   await patch(a, a.profile, { public: false });
   check('making the character private again removes it with its details', !mine(await board(), a));

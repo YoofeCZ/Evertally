@@ -100,7 +100,7 @@ function A.Game()
 end
 
 local scopeFor={
-    ["character.snapshot"]="own_character",["character.level"]="own_character",
+    ["character.snapshot"]="own_character",["character.level"]="own_character",["character.publish"]="own_character",
     ["profession.snapshot"]="own_professions",["craft.result"]="own_professions",["cooldown.snapshot"]="own_professions",
     ["instance.entered"]="own_runs",["run.finished"]="own_runs",["run.interrupted"]="own_runs",["raid.encounter_finished"]="own_runs",
     ["quest.accepted"]="world_facts",["quest.turned_in"]="world_facts",["quest.abandoned"]="world_facts",
@@ -138,6 +138,7 @@ function A.SetWeb(enabled)
     A.db.settings.consentEpoch=A.db.settings.consentEpoch+1;A.db.settings.since=A.Now()
     A.ResetExport();A.Changed()
     if A.OpticalClear then A.OpticalClear() end
+    if enabled and A.ResendPublish then A.ResendPublish() end
     if not enabled then A.Print(A.L("revokeHint")) end
     return true
 end

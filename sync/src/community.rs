@@ -161,7 +161,7 @@ mod tests {
     fn live_package_is_fetched_checked_and_written() {
         let dir = std::env::temp_dir().join(format!("evertally-community-test-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("Evertally")).unwrap();
-        let changed = sync("https://evertally.afstudio.dev", &[dir.clone()]).expect("the live package passes the checks");
+        let changed = sync("https://evertally.afstudio.dev", std::slice::from_ref(&dir)).expect("the live package passes the checks");
         let text = std::fs::read_to_string(dir.join("Evertally").join(DATA_FILE)).unwrap();
         let parsed = crate::savedvars::parse_assignment(&text, "EvertallyCommunityData").expect("data only");
         assert_eq!(changed, 1);
