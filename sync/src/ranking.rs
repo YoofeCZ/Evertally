@@ -186,6 +186,17 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "reads the live website"]
+    fn the_live_package_passes_the_checks() {
+        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(25))).build().into();
+        let bytes = crate::addon_update::read_url(&agent, "https://evertally.afstudio.dev/api/ranking-package", MAX_BYTES).expect("the website answers");
+        let package: Value = serde_json::from_slice(&bytes).expect("JSON");
+        let lua = data_file(&package).expect("the live package passes every check");
+        let parsed = crate::savedvars::parse_assignment(&lua, "EvertallyRankingData").expect("data only, no code");
+        assert_eq!(parsed["players"].as_array().map(Vec::len), package["players"].as_array().map(Vec::len));
+    }
+
+    #[test]
     fn only_https_origins_are_fetched() {
         assert!(sync("http://example.test", &[]).is_err());
     }
