@@ -9,6 +9,7 @@ import { RunsView } from "./views/Data";
 import { RankingsView } from "./views/Rankings";
 import { CharacterView } from "./views/Character";
 import { GuildView } from "./views/Guild";
+import { ChronicleView } from "./views/Chronicle";
 import { Overview } from "./views/Overview";
 import { SyncView } from "./views/Sync";
 import { ProfessionsView } from "./views/Professions";
@@ -40,7 +41,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   // `#atlas/durotar?focus=npc:3139`, `#database/items/19019`: the first segment is the view, the rest belongs to it.
   const head = hash.split(/[/?]/)[0];
   const route = hash.slice(head.length).replace(/^\//, "");
-  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : head === "guild" ? "guild" : NAV.some((n) => n.id === head) ? head as View : "overview";
+  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : head === "guild" ? "guild" : head === "chronicle" ? "chronicle" : NAV.some((n) => n.id === head) ? head as View : "overview";
   const authError = useSyncExternalStore(subscribeNever, () => new URLSearchParams(window.location.search).get("auth_error"), () => null);
   const [dismissed, setDismissed] = useState(false);
   const [version, setVersion] = useState(0);
@@ -126,6 +127,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
         {view === "rankings" && <RankingsView route={route} user={user} />}
         {view === "character" && <CharacterView id={decodeURIComponent(route.split("?")[0])} />}
         {view === "guild" && <GuildView route={route} />}
+        {view === "chronicle" && <ChronicleView route={route} />}
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
         {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}
