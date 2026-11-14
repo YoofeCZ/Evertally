@@ -75,6 +75,10 @@ function A.On(event,fn)
     end
 end
 function A.Dispatch(event,...)
+    if A.RequirementsReady and not A.RequirementsReady() then
+        if (event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_REGEN_ENABLED") and A.RequirementsMaybe then A.RequirementsMaybe() end
+        return
+    end
     for _,fn in ipairs(A.handlers[event] or {}) do
         local ok=pcall(fn,...)
         if not ok then A.errors[event]=(A.errors[event] or 0)+1 end
@@ -193,6 +197,7 @@ function A.DiagLog(text)
     while #log>120 do table.remove(log,1) end
 end
 function A.Record(kind,payload,evidence,ownCharacter,exportOnly)
+    if A.RequirementsReady and not A.RequirementsReady() then return nil end
     if not A.db or not scopeFor[kind] then return nil end
     if not exportOnly and overLimit(#A.db.events,A.MAX_EVENTS,A.HARD_EVENTS,kind) then A.storageFull=true;return nil end
     local data=scopeFor[kind]=="world_facts" and A.SafeWorldPayload(kind,payload) or A.Copy(payload);if type(data)~="table" then return nil end

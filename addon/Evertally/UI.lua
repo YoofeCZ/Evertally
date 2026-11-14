@@ -1027,6 +1027,7 @@ local function buildSettings(page)
 
     section("actionsSection")
     page.actions={
+        Button(card,"installVerify",180,"ghost",function() A.VerifyInstallation();A.ShowRequirements() end),
         Button(card,"send",150,"primary",function() local ok,err=A.ShareNow();if not ok then A.Print(err or "sharing_error") end end),
         Button(card,"export",150,"ghost",showCopy),
         Button(card,"confirm",190,"ghost",function() A.FinishRun("manual","last_boss");A.RefreshUI() end),
@@ -1373,6 +1374,7 @@ end
 
 function A.OpenUI()
     if not A.db then return end
+    if A.RequirementsGuard and not A.RequirementsGuard() then if frame then frame:Hide() end;return end
     if not frame then build() end
     frame:Show(); A.RefreshUI()
 end
@@ -1458,6 +1460,8 @@ SLASH_EVERTALLY1 = "/evertally"
 SLASH_EVERTALLY2 = "/etally"
 local function slash(text)
     text = A.Text(text, 100) or ""
+    if text=="install" then A.ShowRequirements();return end
+    if text~="diag" and text~="web off" and text~="share off" and text~="stop" and text~="reset" and A.RequirementsGuard and not A.RequirementsGuard() then return end
     if text == "share" then local ok, err = A.ShareNow(); if not ok then A.Print(err or "sharing_error") end
     elseif text == "finish" then A.FinishRun("manual")
     elseif text == "export" then showCopy()

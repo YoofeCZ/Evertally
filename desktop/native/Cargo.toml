@@ -1,6 +1,6 @@
 [package]
 name = "evertally-desktop"
-version = "0.9.8"
+version = "0.9.9"
 edition = "2024"
 rust-version = "1.95"
 description = "Evertally background bridge between WoW and the website"

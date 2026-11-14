@@ -29,6 +29,7 @@ end
 
 --- The sample to show, or nil: only with the live-position switch and the web consents on, and only with a known position.
 function A.OpticalPacket()
+    if A.RequirementsReady and not A.RequirementsReady() then return nil end
     local s=A.db and A.db.settings
     -- drawn on the player's screen, so its own opt-in (off by default), on top of the web consents
     if not s or s.liveWeb ~= true or not s.web or not s.scopes.own_track or not s.scopes.own_character then return nil end

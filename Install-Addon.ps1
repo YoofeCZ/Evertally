@@ -34,6 +34,11 @@ foreach ($addonName in $names) {
             throw 'Soubor smeruje mimo adresar vlastniho addonu.'
         }
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        # Generated locally by Bridge; the distribution contains only a placeholder.
+        if ($addonName -eq 'Evertally' -and $relative -eq 'BridgeInstallation.lua' -and (Test-Path -LiteralPath $destination -PathType Leaf)) {
+            Write-Output 'Zachovano mistni potvrzeni instalace mostu.'
+            continue
+        }
         Copy-Item -LiteralPath $entry.FullName -Destination $destination -Force
         if ((Get-FileHash -LiteralPath $entry.FullName).Hash -ne (Get-FileHash -LiteralPath $destination).Hash) {
             throw "Nesouhlasi overeni souboru $relative"

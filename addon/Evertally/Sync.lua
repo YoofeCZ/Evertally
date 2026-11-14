@@ -142,6 +142,7 @@ function A.ReceiveMessage(prefix,message,channel,sender)
     end
 end
 function A.PumpSync()
+    if A.RequirementsReady and not A.RequirementsReady() then return end
     if #outgoing==0 or A.Call(InCombatLockdown)==true then return end
     local now=A.Monotonic()
     if lastRefill then tokens=math.min(BURST,tokens+math.max(0,now-lastRefill)*REFILL_PER_SEC) end

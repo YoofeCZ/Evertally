@@ -163,7 +163,13 @@ impl Worker {
             loop {
                 let mut wait=Duration::from_secs(300);
                 let config=if config_path.is_file(){crate::config::load_config(&config_path)}else{Err(anyhow::anyhow!("no config"))};
+                // This local proof works offline and without a paired device.
+                if let Ok(config)=&config
+                    && let Err(error)=crate::addon_update::write_installation_receipts(config,&addon_lock) {
+                    let _=update_tx.send(Command::AddonStatus(format!("Installation receipt: {error}")));
+                }
                 let result=match &config {Ok(config)=>updater.check(config,&addon_lock),Err(_)=>Ok(None)};
+                if let Ok(config)=&config {let _=crate::addon_update::write_installation_receipts(config,&addon_lock);}
                 // A newer published installer replaces this app; setup closes the bridge and starts the new one.
                 let manual=crate::app_update::take_manual();if manual {last.clear();}
                 let app=match &config {Ok(config)=>crate::app_update::check(config_path.parent().unwrap_or_else(||std::path::Path::new(".")),config,manual),Err(_)=>Ok(crate::app_update::Outcome::Nothing)};

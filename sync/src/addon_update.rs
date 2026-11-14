@@ -26,7 +26,7 @@ struct Journal { staging: String, backup: String, existed: Vec<bool> }
 /// `keep_existing`: a file the bridge writes itself; the bundle's copy is only a placeholder for a tree that lacks it.
 struct FileEntry { relative: PathBuf, data: Vec<u8>, keep_existing: bool }
 
-const BRIDGE_OWNED: [&str; 3] = ["evertally/forumdata.lua", "evertally/communitydata.lua", "evertally/rankingdata.lua"];
+const BRIDGE_OWNED: [&str; 4] = ["evertally/forumdata.lua", "evertally/communitydata.lua", "evertally/rankingdata.lua", "evertally/bridgeinstallation.lua"];
 
 /// What one installation did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,6 +155,28 @@ pub(crate) fn roots(config: &crate::config::Config)->Vec<PathBuf>{
             if addons.join("Evertally").join("Evertally.toc").is_file() && !out.contains(&addons) {out.push(addons)}
         }
     } out
+}
+
+/// Writes a local installation receipt without contacting the web or requiring
+/// pairing. This proves a compatible Bridge ran for this addon folder; it is not
+/// a process heartbeat, credential or web-sharing consent.
+pub fn write_installation_receipts(config: &crate::config::Config, lock: &std::sync::Mutex<()>) -> Result<()> {
+    let Some(version)=crate::app_update::current_version() else {return Ok(())};
+    ensure!(!version.is_empty() && version.len()<=32 && version.bytes().all(|c|c.is_ascii_digit() || c==b'.'),"invalid bridge version");
+    let dirs=roots(config);
+    let _guard=lock.lock().map_err(|_|anyhow::anyhow!("addon update lock unavailable"))?;
+    for dir in dirs {write_installation_receipt(&dir,version)?;}
+    Ok(())
+}
+fn write_installation_receipt(addons: &Path, version: &str) -> Result<()> {
+    ensure!(!version.is_empty() && version.len()<=32 && version.bytes().all(|c|c.is_ascii_digit() || c==b'.'),"invalid bridge version");
+    let path=addons.join("Evertally/BridgeInstallation.lua");
+    safe_ancestors(&path)?;
+    safe_ancestors(&path.with_extension("lua.tmp"))?;
+    let now=SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let body=format!("-- Local installation receipt. No tokens or account data.\nlocal _, A = ...\nA.bridgeInstallation = {{schemaVersion=1,kind=\"evertally-bridge-installation\",bridgeVersion=\"{version}\",createdAt={now}}}\n");
+    crate::forum::write_if_changed(&path,&body)?;
+    Ok(())
 }
 
 fn restore(addons: &Path, work: &Path, journal: &Journal)->Result<()> {
@@ -322,9 +344,21 @@ mod tests {
         if !path.exists(){return;}
         let entries=unpack(&fs::read(path).unwrap()).unwrap();
         assert!(entries.len()>20);
-        for name in ["ForumData.lua","CommunityData.lua","RankingData.lua"] {
+        for name in ["ForumData.lua","CommunityData.lua","RankingData.lua","BridgeInstallation.lua"] {
             assert!(entries.iter().filter(|e|e.relative.file_name().is_some_and(|n|n.eq_ignore_ascii_case(name))).all(|e|e.keep_existing),"{name} is bridge-owned");
         }
+    }
+    #[test] fn local_receipt_works_without_a_web_token_and_survives_bundle_updates(){
+        let (dir,mut files)=fixture();let lock=std::sync::Mutex::new(());
+        write_installation_receipt(&dir.addons(),"0.9.9").unwrap();
+        let path=dir.addons().join("Evertally/BridgeInstallation.lua");
+        let receipt=fs::read_to_string(&path).unwrap();
+        assert!(receipt.contains("bridgeVersion=\"0.9.9\"") && receipt.contains("schemaVersion=1"));
+        assert!(!receipt.contains("token") || receipt.contains("No tokens"));
+        files.push(FileEntry{relative:PathBuf::from("Evertally/BridgeInstallation.lua"),data:b"placeholder".to_vec(),keep_existing:true});
+        install(&dir.addons(),&files,&lock).unwrap();
+        assert_eq!(fs::read_to_string(path).unwrap(),receipt);
+        assert!(write_installation_receipt(&dir.addons(),"bad\"version").is_err());
     }
     #[test] fn checksum_and_size_are_verified(){
         let data=b"verified";let addon=Addon{file:"Evertally.zip".into(),bytes:data.len() as u64,sha256:format!("{:x}",Sha256::digest(data))};

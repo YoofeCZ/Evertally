@@ -399,6 +399,13 @@ STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "7:names", "7:icons", "7:
 
 def capture(lua, a, view, tab=None, quest_id=None, destination=None):
     """Opens one page (one tab of the World page), lets the client's size events settle and exports what is drawn."""
+    if view == "installation":
+        a.bridgeInstallation = lua.table(schemaVersion=1,kind="evertally-bridge-installation",bridgeVersion="0.9.9",createdAt=a.Now()) if tab in ("bridge", "ready") else None
+        lua.execute('OpenMapAPI={RegisterMenuToggle=function() end}' if tab in ("openmap", "ready") else 'OpenMapAPI=nil')
+        a.ShowRequirements()
+        a.VerifyInstallation()
+        lua.execute("PREVIEW_SETTLE()")
+        return to_py(lua.eval("PREVIEW_EXPORT")(a.requirementsWindow))
     if view == "setup":   # the first-start setup, one step at a time
         step, _, group = (tab or "1").partition(":")
         a.OpenOnboarding(int(step))

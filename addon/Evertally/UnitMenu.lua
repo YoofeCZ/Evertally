@@ -23,6 +23,7 @@ function A.OpenNameplateSettings()
     if A.settingsPage then A.settingsPage.SelectSection(5) end
 end
 function A.AddPlayerUnitMenu(owner,root,data)
+    if A.RequirementsReady and not A.RequirementsReady() then return end
     local unit=A.Text(A.Field(data,"unit"),40)
     if not unit or restricted(unit) or A.Call(UnitIsPlayer,unit)~=true then return end
     local name=A.UnitPlayerName(unit)

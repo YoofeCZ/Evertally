@@ -3,7 +3,7 @@ local _, A = ...
 -- nine steps: language, the website, live position, sharing with other players, the map, the window, nameplates, what to install and a summary. Nothing is chosen for
 -- the player: every switch that sends something anywhere starts off, the wizard only shows what the current choices are (a quick choice for
 -- the website sets the switches, and they stay visible). Nameplate choices are live; other choices apply at Finish.
-local VERSION = 3   -- provider choice and nameplate changes now activate immediately
+local VERSION = 4   -- required installation is verified before setup
 local W, H, HEADER, FOOTER, PAD = 720, 540, 58, 66, 28
 A.DOWNLOAD_URL = "https://evertally.afstudio.dev/#sync"                  -- the Download page of the website (the app for Windows)
 A.OPENMAP_URL = "https://www.curseforge.com/wow/addons/openmap"          -- OpenMap on CurseForge
@@ -52,13 +52,13 @@ local text = {
         setupNotePlates = "The game could not switch friendly nameplates. Outside combat, enable them in Settings → Nameplates.",
         -- 8
         setupGetTitle = "What you need",
-        setupGetBody = "Evertally works inside the game on its own. Two things from outside the game give you all of it.",
+        setupGetBody = "The Evertally app and OpenMap are required. Verify their installation here at any time.",
         setupGetApp = "Evertally app for Windows",
         setupGetAppSub = "Sends your data to your page on the website and your live position. Download it on the website, on the Download page:",
         setupGetOpenMap = "OpenMap add-on",
         setupGetOpenMapSub = "The map Evertally works in: gathering places with their icons, people, meets, pings and your journeys. Free, on CurseForge:",
         setupGetInstalled = "installed", setupGetMissing = "not installed",
-        setupGetHow = "The game cannot open links: click an address, press Ctrl+C and paste it into your browser.",
+        setupGetHow = "Use the download buttons, then reload the interface and verify the installation.",
         -- 9
         setupSumTitle = "All set", setupSumBody = "Nameplate changes already apply. Finish confirms the other choices below; you can change everything in Settings.",
         setupSumLanguage = "Language: %s", setupSumWeb = "Website: %s", setupSumLive = "Live position: %s", setupSumShare = "Sharing with players: %s", setupSumMap = "Map: %s", setupSumGather = "Gathering on the map: %s",
@@ -97,13 +97,13 @@ local text = {
         setupSumPlates = "Jmenovky Evertally: %s; jména %d px, značky %d px, logo %d px",
         setupNotePlates = "Hra nedovolila přepnout jmenovky spojenců. Mimo boj je zapni v Nastavení → Jmenovky.",
         setupGetTitle = "Co potřebuješ",
-        setupGetBody = "Evertally ve hře funguje samo. Dvě věci mimo hru z něj udělají celek.",
+        setupGetBody = "Aplikace Evertally a OpenMap jsou vyžadované. Jejich instalaci můžeš tady kdykoli znovu ověřit.",
         setupGetApp = "Aplikace Evertally pro Windows",
         setupGetAppSub = "Posílá tvoje data na tvoji stránku na webu a tvoji živou polohu. Stáhneš ji na webu, na stránce Stažení:",
         setupGetOpenMap = "Addon OpenMap",
         setupGetOpenMapSub = "Mapa, ve které Evertally pracuje: místa sbírání s ikonami, lidé, srazy, pingy a tvoje cesty. Zdarma, na CurseForge:",
         setupGetInstalled = "nainstalováno", setupGetMissing = "není nainstalováno",
-        setupGetHow = "Hra neumí otevřít odkaz: klikni na adresu, stiskni Ctrl+C a vlož ji do prohlížeče.",
+        setupGetHow = "Použij tlačítka pro stažení, potom načti znovu rozhraní a ověř instalaci.",
         setupSumTitle = "Hotovo", setupSumBody = "Změny jmenovek už platí. Dokončit potvrdí ostatní volby níže; všechno můžeš později změnit v Nastavení.",
         setupSumLanguage = "Jazyk: %s", setupSumWeb = "Web: %s", setupSumLive = "Živá poloha: %s", setupSumShare = "Sdílení s hráči: %s", setupSumMap = "Mapa: %s", setupSumGather = "Sbírání na mapě: %s",
         setupSumPins = "lidé, srazy a pingy na mapě: %s", setupSumOpenMap = "OpenMap", setupSumNoOpenMap = "OpenMap (zatím není nainstalovaná)", setupSumWindow = "Tlačítko u minimapy: %s, velikost okna: %s", setupSumNothing = "nic",
@@ -452,30 +452,35 @@ local function build()
     p.plates:SetPoint("TOPLEFT",0,-FIRST);p.plates:SetPoint("BOTTOMRIGHT",0,0)
     p.refresh=function() titles(p);p.plates.Update() end
     end
-    -- 8: what to install (the app from the website, OpenMap from CurseForge): the game cannot open a link, so each address is a field to copy
+    -- 8: installation actions; addresses are shown only in the requested copy dialog.
     do
     local p = newPage(8, "setupGetTitle", "setupGetBody")
-    local function block(y, titleKey, subKey, url)
+    local function block(y, titleKey, subKey, destination)
         local block = {}
         block.status = kit.label(p, 11, C.mist); block.status:SetPoint("TOPRIGHT", 0, -y - 2); block.status:SetJustifyH("RIGHT"); block.status:SetWidth(150)
         block.title = kit.label(p, 14, C.text); block.title:SetPoint("TOPLEFT", 0, -y); block.title:SetPoint("TOPRIGHT", block.status, "TOPLEFT", -8, 2); block.title:SetWordWrap(false)
         block.sub = kit.label(p, 11, C.mist); block.sub:SetPoint("TOPLEFT", 0, -y - 22); block.sub:SetPoint("TOPRIGHT", 0, -y - 22)
-        block.link = kit.LinkBox(p); block.link:SetPoint("TOPLEFT", 0, -y - 62); block.link:SetPoint("TOPRIGHT", 0, -y - 62); block.link.SetUrl(url)
+        block.open=kit.Button(p,"installOpen_"..destination,210,"ghost",function() A.OpenInstallationLink(destination) end)
+        block.open:SetPoint("TOPLEFT",0,-y-62)
         block.titleKey, block.subKey = titleKey, subKey
         return block
     end
-    p.app = block(FIRST, "setupGetApp", "setupGetAppSub", A.DOWNLOAD_URL)
-    p.openmap = block(FIRST + 112, "setupGetOpenMap", "setupGetOpenMapSub", A.OPENMAP_URL)
+    p.app = block(FIRST, "setupGetApp", "setupGetAppSub", "bridge")
+    p.openmap = block(FIRST + 112, "setupGetOpenMap", "setupGetOpenMapSub", "openmap")
     p.how = kit.label(p, 11, C.peach); p.how:SetPoint("TOPLEFT", 0, -FIRST - 232); p.how:SetPoint("TOPRIGHT", 0, -FIRST - 232)
+    p.verify=kit.Button(p,"installVerify",180,"primary",function() A.VerifyInstallation();A.ShowRequirements() end)
+    p.verify:SetPoint("TOPLEFT",0,-FIRST-270)
     p.refresh = function()
         titles(p)
-        for _, b in ipairs({p.app, p.openmap}) do b.title:SetText(A.L(b.titleKey)); b.sub:SetText(A.L(b.subKey)) end
+        for _, b in ipairs({p.app, p.openmap}) do b.title:SetText(A.L(b.titleKey)); b.sub:SetText(A.L(b.subKey));b.open.text:SetText(A.L(b.open.localeKey)) end
         -- (the app cannot be seen from the game; OpenMap can: its interface is there when it is installed and enabled)
-        p.app.status:SetText("")
+        local status=A.RequirementsStatus()
+        p.app.status:SetText(A.L(status.bridge and "installPresent" or "installMissing"))
         local present = A.OpenMapInstalled()
         p.openmap.status:SetText(A.L(present and "setupGetInstalled" or "setupGetMissing"))
         p.openmap.status:SetTextColor(unpack(present and C.green or C.peach))
         p.how:SetText(A.L("setupGetHow"))
+        p.verify.text:SetText(A.L("installVerify"))
     end
     end
     -- 9: the summary
@@ -502,6 +507,7 @@ end
 --- Opens the setup on its first step, with the present choices.
 function A.OpenOnboarding(startStep)
     if not A.db then return end
+    if A.RequirementsGuard and not A.RequirementsGuard() then return end
     if not f then build() end
     draft = A.OnboardingDraft()
     pages[7].plates.choosing=true
@@ -516,6 +522,7 @@ function A.OnboardingShown() return f ~= nil and f:IsShown() end
 --- Applies the choices and closes.
 function A.OnboardingFinish()
     if not draft then return {} end
+    if A.RequirementsGuard and not A.RequirementsGuard() then return {"dependencies_required"} end
     local notes = A.OnboardingApply(draft)
     if f then f:Hide() end
     A.Print(A.L("setupDone"))
@@ -536,6 +543,7 @@ end
 -- ---------------------------------------------------------------- when it opens by itself: once, a few seconds after the world is there, never in combat
 local offered, waiting = false, false
 function A.OnboardingMaybe()
+    if A.RequirementsReady and not A.RequirementsReady() then A.RequirementsMaybe();return end
     if offered or not A.db or A.db.settings.onboarded == VERSION or type(CreateFrame) ~= "function" then return end
     if A.Call(InCombatLockdown) == true then waiting = true; return end
     offered = true

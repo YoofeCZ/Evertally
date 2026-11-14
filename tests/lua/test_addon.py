@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ADDON = ROOT / "addon" / "Evertally"
 
 
-def runtime(record_globals=False):
+def runtime(record_globals=False, enforce_requirements=False):
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute('''
     NOW=1794236400; CLOCK=100; INSIDE=false; INSTANCE=36; INCOMBAT=false
@@ -49,7 +49,7 @@ def runtime(record_globals=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -57,6 +57,10 @@ def runtime(record_globals=False):
         if record_globals:
             lua.eval("setfenv")(fn, lua.eval("ENVPROXY"))
         fn("Evertally", ns)
+    # Feature suites model a completed installation; requirement tests opt into the
+    # actual gate, rather than making unrelated map mocks imply installed software.
+    if not enforce_requirements:
+        ns.RequirementsReady = lua.eval('function() return true end')
     ns.Initialize()
     return lua, ns
 

@@ -78,7 +78,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertFalse(s.mapLayers.gather); self.assertTrue(s.mapLayers.trainer, "the other layers are left as they were")
         self.assertFalse(s.gatherTypes.ore); self.assertTrue(s.gatherTypes.herb)
         self.assertTrue(s.hideMinimap); self.assertAlmostEqual(self.a.GetUIScale(), 1.2)
-        self.assertEqual(s.onboarded, 3)
+        self.assertEqual(s.onboarded, 4)
 
     def test_nothing_changes_for_what_was_not_touched(self):
         s = self.a.db.settings
@@ -137,7 +137,7 @@ class OnboardingTests(unittest.TestCase):
         self.a.OnboardingGo(9)
         f.next.scripts.OnClick(f.next)
         self.assertFalse(self.a.OnboardingShown())
-        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 3)
+        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 4)
 
     def test_skipping_keeps_the_settings_and_does_not_ask_again(self):
         f = self.open()
@@ -147,7 +147,7 @@ class OnboardingTests(unittest.TestCase):
         f.skip.scripts.OnClick(f.skip)
         self.assertFalse(self.a.OnboardingShown())
         self.assertFalse(self.a.db.settings.web, "skipping applies nothing")
-        self.assertEqual(self.a.db.settings.onboarded, 3)
+        self.assertEqual(self.a.db.settings.onboarded, 4)
 
     def test_a_switch_that_needs_others_shows_what_it_switches_on(self):
         self.open()
@@ -180,18 +180,22 @@ class OnboardingTests(unittest.TestCase):
         pages[5].pins.scripts.OnClick(pages[5].pins)
         self.assertFalse(self.a.OnboardingState()[1].mapPins)
 
-    def test_the_install_step_gives_the_addresses_of_the_app_and_of_openmap_to_copy(self):
+    def test_the_install_step_has_buttons_and_opens_the_requested_download_dialog(self):
         self.open()
         pages = self.a.onboarding.pages
         self.a.OnboardingGo(8)
         page = pages[8]
-        self.assertEqual(str(page.app.link.url), "https://evertally.afstudio.dev/#sync", "the Download page of the website")
-        self.assertEqual(str(page.openmap.link.url), "https://www.curseforge.com/wow/addons/openmap")
+        self.assertIsNone(page.app.link)
+        self.assertIsNone(page.openmap.link)
+        page.app.open.scripts.OnClick(page.app.open)
+        self.assertEqual(str(self.a.installationLinkWindow.address.url), "https://evertally.afstudio.dev/#sync")
+        page.openmap.open.scripts.OnClick(page.openmap.open)
+        self.assertEqual(str(self.a.installationLinkWindow.address.url), "https://www.curseforge.com/wow/addons/openmap")
         self.assertEqual(str(page.openmap.status.text), self.a.L("setupGetMissing"), "no OpenMap here: it says so")
         self.lua.execute(OPENMAP)
         self.a.OpenOnboarding(8)
         self.assertEqual(str(page.openmap.status.text), self.a.L("setupGetInstalled"))
-        link = page.openmap.link
+        link = self.a.installationLinkWindow.address
         link.scripts.OnEditFocusGained(link)   # (a click selects it all, ready for Ctrl+C)
         link.SetText(link, "typed over")
         link.scripts.OnTextChanged(link, True)
@@ -212,7 +216,7 @@ class OnboardingTests(unittest.TestCase):
 
     def test_it_does_not_open_for_someone_who_has_done_it(self):
         self.lua.execute("C_Timer={After=function(s,fn) fn() end}")
-        self.a.db.settings.onboarded = 3
+        self.a.db.settings.onboarded = 4
         self.a.Dispatch("PLAYER_ENTERING_WORLD")
         self.assertFalse(self.a.OnboardingShown())
         self.lua.execute('SlashCmdList.EVERTALLY("setup")')

@@ -167,6 +167,7 @@ local UNIT_FRAMES = {{"target", "TargetFrame"}, {"party1", "PartyMemberFrame1"},
 function A.MarksRefresh()
     if A.RefreshFriendlyPlates then A.RefreshFriendlyPlates() end
     local s = settings()
+    if A.RequirementsReady and not A.RequirementsReady() then s=nil end
     local used = 0
     if s then
         local showLogo = s.markUsers ~= false

@@ -302,7 +302,7 @@ end
 function A.RefreshFriendlyPlates()
     for _,state in pairs(states) do state.seen=false end
     local s=settings()
-    if s.plateGameLook~=false and A.FriendlyPlatesShown() and A.PlateCVar("nameplateShowOnlyNameForFriendlyPlayerUnits")=="1" then
+    if (not A.RequirementsReady or A.RequirementsReady()) and s.plateGameLook~=false and A.FriendlyPlatesShown() and A.PlateCVar("nameplateShowOnlyNameForFriendlyPlayerUnits")=="1" then
         local plates=A.Call(C_NamePlate and C_NamePlate.GetNamePlates)
         if type(plates)=="table" then
             local n=0

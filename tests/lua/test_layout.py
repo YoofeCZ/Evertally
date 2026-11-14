@@ -18,6 +18,13 @@ def serious(problems):
 
 
 class LayoutTests(unittest.TestCase):
+    def test_installation_gate_layout_handles_each_missing_requirement_in_both_languages(self):
+        for language in ("en", "cs"):
+            for state in ("missing", "bridge", "openmap", "ready"):
+                lua,a=preview.make_session(960,620,language=language)
+                nodes=preview.capture(lua,a,"installation",state)
+                self.assertEqual(serious(preview.lint(nodes)),[],f"installation {language} {state}")
+
     def check(self, size, scenes):
         lua, a = preview.make_session(*size)
         for view, tab in scenes:

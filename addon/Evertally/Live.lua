@@ -291,6 +291,7 @@ function A.OpenMapMissing()
     return ok and (found == nil or (type(found) == "table" and found.name == nil))
 end
 function A.LoadMap()
+    if A.RequirementsReady and not A.RequirementsReady() then return false,"dependencies_required" end
     local s = settings()
     if not s or s.mapPins ~= true then return false, "disabled" end
     if A.OpenMapMissing() then A.Print(A.L("mapNeedsOpenMap")); return false, "openmap_missing" end

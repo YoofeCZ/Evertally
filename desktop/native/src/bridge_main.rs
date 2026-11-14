@@ -208,6 +208,15 @@ impl ConnectionSettings {
                 });
             }
         });
+        ui.add_space(12.0);
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(self.t("Get OpenMap", "Získat OpenMap")).clicked() && !self.preview {
+                let _ = open::that("https://www.curseforge.com/wow/addons/openmap");
+            }
+            if ui.button(self.t("Open app downloads", "Otevřít stažení aplikace")).clicked() && !self.preview {
+                let _ = open::that("https://evertally.afstudio.dev/#sync");
+            }
+        });
         ui.add_space(18.0);
         ui.label(RichText::new(self.t("Export permissions", "Oprávnění exportu")).size(18.0));
         ui.weak(self.t(
