@@ -268,13 +268,22 @@ function A.SetFriendlyPlateRange(value)
     for _,name in ipairs({"nameplateMaxDistance","nameplatePlayerMaxDistance"}) do
         if cvar(name) then
             setCVar(name,tostring(value))
-            local actual=A.Number(tonumber(cvar(name)),1,1000)
+            local actual=A.Number(tonumber(cvar(name)),20,100)
             if actual then accepted=accepted and math.min(accepted,actual) or actual end
         end
     end
     if not accepted then return false end
-    settings().plateDistance=accepted;A.Changed()
+    settings().plateDistance=accepted;settings().plateRangeConfigured=true;A.Changed()
     return true
+end
+function A.EnsureFriendlyPlateRange(force)
+    local s=settings()
+    if not s or (not force and s.plateGameLook==false) or not A.FriendlyPlatesShown() or A.Call(InCombatLockdown)==true then return end
+    local wanted=A.Number(s.plateDistance,20,100) or 60
+    -- Older builds stored the client's untouched 40/45-yard default without
+    -- ever applying our range. Migrate once; subsequent explicit choices win.
+    if not s.plateRangeConfigured then wanted=math.max(60,wanted) end
+    A.SetFriendlyPlateRange(wanted)
 end
 function A.FriendlyPlatesShown() return cvar(FRIENDLY_PLATES) == "1" end
 --- on: friendly player nameplates as names only; off: back to names drawn by the game. Returns true when it took effect.
@@ -285,6 +294,7 @@ function A.SetFriendlyPlates(on)
         local namesOnly=cvar(NAME_ONLY)=="1" or setCVar(NAME_ONLY,"1")
         done = namesOnly and setCVar(FRIENDLY_PLATES, "1")
     else done = setCVar(FRIENDLY_PLATES, "0") end
+    if done and on then A.EnsureFriendlyPlateRange(true) end
     if A.MarksRefresh then pcall(A.MarksRefresh) end
     return done
 end

@@ -1,0 +1,9 @@
+# Evertally 0.9.25
+
+Instalace je nyní krok 1 jediného průvodce. Druhé instalační okno bylo odstraněné. Ověření pouze aktualizuje stav uvnitř stejného kroku. Dokud chybí kompatibilní Bridge nebo načtený OpenMap, tlačítko Dál je neaktivní a přímé přechody i dokončení zůstávají blokované. Tlačítko přeskočení se nenabízí; zavření křížkem neznamená dokončení. Tlačítko u minimapy se vytvoří i při chybějících závislostech a obnoví první krok. Nastavení jmenovek je po přesunutí instalace krok 8.
+
+Identita mapových bodů na Foreveru nyní používá i příjmení a realm. Vlastní živý bod se nekreslí vedle nativní šipky. Členové skupiny se vynechávají tam, kde jejich přesnou polohu už zobrazuje hra nebo OpenMap. Přesné body přátel a cechu z OpenMap také nahradí duplicitní bod Evertally na světové mapě; pouhá značka oblasti přesný bod nenahrazuje. OpenMap a Blizzard se nepřepisují.
+
+Dosah vlastních jmenovek se použije při jejich zapnutí i po načtení světa. Starší uložený výchozí dosah klienta 40/45 yardů se jednou zvýší na požadovaných alespoň 60, další ruční volby se respektují. Ukládá se hodnota přijatá klientem. Za hranicí, kde hra neposkytuje dostupnou jmenovku jako kotvu, zůstává běžné jméno hry; neexistuje ověřený způsob jak jej libovolně nahradit. Přehled proměnných: [CVars klienta Forever](https://raw.githubusercontent.com/Ketho/BlizzardInterfaceResources/forever/Resources/CVars.lua), [správa jmenovek klienta](https://raw.githubusercontent.com/Gethe/wow-ui-source/forever/Interface/AddOns/Blizzard_NamePlates/Blizzard_NamePlates.lua).
+
+Automatické testy a izolované náhledy pokrývají přechody průvodce, jediné okno, tlačítko minimapy, identitu bodů, spolupráci s OpenMap a nastavení dosahu. Skutečný vzhled, vzdálenost a odstranění konkrétních bodů ze screenshotu se ověří až po načtení změn v běžící hře. Z 0.9.24 stačí `/reload`; Bridge zůstává 0.9.9.

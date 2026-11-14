@@ -394,24 +394,28 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
 
 WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 # pages with more than one state worth looking at: view -> the states
-STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "7:names", "7:icons", "7:position", "7:auras", "7:bars", "8", "9"), "settings": ("names", "icons", "auras", "bars", "position"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
+STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8:names", "8:icons", "8:position", "8:auras", "8:bars", "8", "9"), "settings": ("names", "icons", "auras", "bars", "position"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
 def capture(lua, a, view, tab=None, quest_id=None, destination=None):
     """Opens one page (one tab of the World page), lets the client's size events settle and exports what is drawn."""
     if view == "installation":
+        previous_ready=a.RequirementsReady
+        a.RequirementsReady=lua.eval("function() return Evertally.RequirementsStatus().ready end")
         a.bridgeInstallation = lua.table(schemaVersion=1,kind="evertally-bridge-installation",bridgeVersion="0.9.9",createdAt=a.Now()) if tab in ("bridge", "ready") else None
         lua.execute('OpenMapAPI={RegisterMenuToggle=function() end}' if tab in ("openmap", "ready") else 'OpenMapAPI=nil')
         a.ShowRequirements()
         a.VerifyInstallation()
         lua.execute("PREVIEW_SETTLE()")
-        return to_py(lua.eval("PREVIEW_EXPORT")(a.requirementsWindow))
+        nodes=to_py(lua.eval("PREVIEW_EXPORT")(a.onboarding.window))
+        a.RequirementsReady=previous_ready
+        return nodes
     if view == "setup":   # the first-start setup, one step at a time
         step, _, group = (tab or "1").partition(":")
         a.OpenOnboarding(int(step))
         if group:
             lua.execute('C_CVar={GetCVar=function() return "1" end,SetCVar=function() end}')
-            editor = a.onboarding.pages[7].plates
+            editor = a.onboarding.pages[8].plates
             editor.providers.evertally.GetScript(editor.providers.evertally,"OnClick")()
             editor.group = group
             editor.Update()

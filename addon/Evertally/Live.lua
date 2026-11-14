@@ -16,8 +16,16 @@ local floor = math.floor
 
 local function settings() return A.db and A.db.settings end
 local function base(name) return (A.Text(name, 150) or ""):match("^[^-]+") or "" end
-local function myName() return A.Text(A.Call(UnitName, "player"), 80) or "" end
-local function isMe(sender) local b = base(sender):lower(); return b ~= "" and b == base(myName()):lower() end
+local function myName() return A.UnitPlayerName("player") or A.Text(A.Call(UnitName, "player"), 80) or "" end
+local function isMe(sender)
+    local b=base(sender):lower()
+    local first=A.Text(A.Call(UnitName,"player"),100)
+    if b=="" or (b~=base(myName()):lower() and b~=(first or ""):lower()) then return false end
+    local realm=(A.Text(sender,150) or ""):match("^[^%-]+%-(.+)$")
+    local own=A.Text(A.Call(GetRealmName),100)
+    if not realm or not own then return true end
+    return realm:lower():gsub("[%s%-]","")==own:lower():gsub("[%s%-]","")
+end
 local function clean(text, max) return A.SocialClean and A.SocialClean(text, max) or "" end
 local function count(t) local n = 0; for _ in pairs(t) do n = n + 1 end; return n end
 local function fields(message) local out = {}; for part in message:gmatch("[^|]+") do out[#out + 1] = part end; return out end

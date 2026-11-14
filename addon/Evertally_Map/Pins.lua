@@ -96,18 +96,19 @@ local function nameParts(name)
 end
 local function unitIdentity(unit)
     local guid = A.Text(A.Call(UnitGUID, unit), 100)
-    local name, realm = A.Call(UnitFullName, unit)
-    name = A.Text(name, 100) or A.Text(A.Call(UnitName, unit), 100)
+    local name, realm = A.UnitPlayerName(unit)
+    local first=A.Text(A.Call(UnitName,unit),100)
+    name = A.Text(name, 160) or first
     local mine, mineRealm = nameParts(name)
     realm = A.Text(realm, 100)
     if not realm or realm == "" then realm = mineRealm and mineRealm ~= "" and mineRealm or A.Text(A.Call(GetRealmName), 100) end
-    return {guid = guid, name = mine, realm = (realm or ""):lower():gsub("[%s%-]", "")}
+    return {guid = guid, name = mine, first=first and first:lower(), realm = (realm or ""):lower():gsub("[%s%-]", "")}
 end
 local function samePlayer(peer, identity)
     local peerGuid = A.Text(peer.guid, 100)
     if identity.guid and peerGuid then return identity.guid == peerGuid end
     local other, otherRealm = nameParts(peer.full or peer.name)
-    if not identity.name or other ~= identity.name then return false end
+    if not identity.name or (other ~= identity.name and other ~= identity.first) then return false end
     return not otherRealm or otherRealm == "" or identity.realm == otherRealm
 end
 local function groupUnits()
@@ -160,6 +161,19 @@ local function nativeWorldGroup(unit)
     end
     return false
 end
+local function nativeOpenMapPeer(peer,grouped)
+    local api,openMap=rawget(_G,"OpenMapAPI"),rawget(_G,"OpenMap")
+    if not api or A.Call(api.IsStitched)~=true then return false end
+    local mod=openMap and A.Call(openMap.GetModule,openMap,"worldmap")
+    local db=A.Field(mod,"db")
+    local enabled=grouped and A.Field(db,"group")==true or
+        (not grouped and ((A.Field(db,"friends")==true and A.Field(db,"guild")==true) or
+        (peer.channel=="WHISPER" and A.Field(db,"friends")==true) or (peer.channel=="GUILD" and A.Field(db,"guild")==true)))
+    if not enabled then return false end
+    local u,v=A.Call(A.Field(mod,"FriendPlace"),peer.full or peer.name)
+    -- A rough zone/badge is not a replacement for an exact live location.
+    return A.Number(u)~=nil and A.Number(v)~=nil
+end
 
 --- Everything that should be on the maps right now: {id = spec}.
 local function wanted()
@@ -175,7 +189,7 @@ local function wanted()
             icon = "dot", color = classColor(peer.class), map = peer.map, x = peer.x, y = peer.y, title = peer.name, edge = false,
             -- the game itself already draws the people of your group on the minimap
             skipMini = grouped,
-            skipWorld = grouped and nativeWorldGroup(unit),
+            skipWorld = (grouped and nativeWorldGroup(unit)) or nativeOpenMapPeer(peer,grouped),
             lines = {zoneName(peer.map) .. " · " .. age(peer.at), distance and (string.format("%d yd", math.floor(distance + 0.5))) or nil},
         }
         end

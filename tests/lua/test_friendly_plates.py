@@ -225,6 +225,17 @@ class FriendlyPlateTests(unittest.TestCase):
         self.assertFalse(f.shown)
         self.assertEqual(self.lua.globals().NAME.alpha, 0.75)
 
+    def test_activation_applies_range_and_preserves_later_explicit_shorter_choice(self):
+        self.lua.execute('''CVARS={nameplateShowFriendlyPlayers="0",nameplateShowOnlyNameForFriendlyPlayerUnits="0",nameplateMaxDistance="45",nameplatePlayerMaxDistance="40"}
+            C_CVar={GetCVar=function(k) return CVARS[k] end,SetCVar=function(k,v) CVARS[k]=v end}''')
+        self.a.db.settings.plateDistance=40
+        self.a.db.settings.plateGameLook=False
+        self.assertTrue(self.a.UseFriendlyPlateProvider("evertally"))
+        self.assertEqual(self.lua.globals().CVARS.nameplatePlayerMaxDistance,"60")
+        self.a.SetFriendlyPlateRange(25)
+        self.a.Dispatch("PLAYER_ENTERING_WORLD")
+        self.assertEqual(self.lua.globals().CVARS.nameplatePlayerMaxDistance,"25")
+
     def test_aura_rows_limits_sizes_stacks_and_disabled_scan(self):
         s=self.a.db.settings
         s.plateBuffs,s.plateDebuffs,s.plateAuraSize,s.plateAuraLimit=True,True,28,1

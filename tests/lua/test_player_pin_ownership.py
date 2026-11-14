@@ -38,6 +38,7 @@ class PlayerPinOwnershipTests(unittest.TestCase):
             if unit=="party1" then return "Bran","Fixture Realm" end
             return "Fixture Hero","Fixture Realm"
           end
+          UnitName=function(unit) local name=UnitFullName(unit);return name end
           UnitGUID=function(unit) return unit=="party1" and "Player-bran" or "Player-TEST-own" end
           MOD={db={group=true},ToWorld=function(map,x,y) return x,y end}
           OpenMap={GetModule=function(_,name) if name=="worldmap" then return MOD end end}
@@ -82,6 +83,42 @@ class PlayerPinOwnershipTests(unittest.TestCase):
         self.peer(name="Fixture Hero", full="Fixture Hero-Fixture Realm", guid="Player-other")
         self.m.Refresh()
         self.assertEqual(self.titles("world"), {"Fixture Hero"})
+
+    def test_forever_surnames_do_not_create_self_or_party_duplicates(self):
+        self.native_group()
+        self.lua.execute('''UnitName=function(unit)
+            if unit=="party1" then return "Bran","Nightcurse" end
+            return "Fixture","Hero"
+          end
+          UnitFullName=function(unit) return unit=="party1" and "Bran" or "Fixture","Fixture Realm" end''')
+        self.peer(name="Fixture Hero",full="Fixture Hero-Fixture Realm");self.m.Refresh()
+        self.assertEqual(self.titles("mini"),set());self.assertEqual(self.titles("world"),set())
+        self.peer(name="Bran Nightcurse",full="Bran Nightcurse-Fixture Realm");self.m.Refresh()
+        self.assertEqual(self.titles("mini"),set());self.assertEqual(self.titles("world"),set())
+
+    def test_live_beacon_ignores_own_forever_full_name_but_retains_another_realm(self):
+        self.lua.execute('UnitName=function() return "Dva","Blesky" end')
+        # Use the actual receiver, not this file's synthetic PEERS provider.
+        self.a.socialHandlers.L("PARTY","Dva Blesky-Fixture Realm","S|L|1429|300|400|7")
+        self.assertEqual(len(self.a.live.peers),0)
+        self.a.socialHandlers.L("PARTY","Dva Blesky-Other Realm","S|L|1429|300|400|7")
+        self.assertIsNotNone(self.a.live.peers["dva blesky"])
+
+    def test_openmap_precise_friend_dot_owns_world_but_not_minimap(self):
+        self.native_group()
+        self.lua.execute('''GetNumGroupMembers=function() return 0 end
+          MOD.db.friends=true;MOD.db.guild=true
+          MOD.FriendPlace=function(name) if name=="Mira-Fixture Realm" then return .3,.4 end end''')
+        self.peer(name="Mira",full="Mira-Fixture Realm");self.m.Refresh()
+        self.assertEqual(self.titles("world"),set());self.assertEqual(self.titles("mini"),{"Mira"})
+        self.lua.execute('MOD.FriendPlace=function() return nil,nil,1429 end');self.m.Refresh()
+        self.assertEqual(self.titles("world"),{"Mira"})
+
+    def test_openmap_shared_group_location_owns_marker_without_native_coordinates(self):
+        self.native_group()
+        self.lua.execute('C_Map.GetPlayerMapPosition=function() return nil end;MOD.FriendPlace=function() return .3,.4 end')
+        self.peer();self.m.Refresh()
+        self.assertEqual(self.titles("mini"),set());self.assertEqual(self.titles("world"),set())
 
     def test_same_name_on_another_realm_is_not_removed_as_self_or_group(self):
         self.native_group()

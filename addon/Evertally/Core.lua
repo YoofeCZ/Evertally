@@ -76,6 +76,7 @@ function A.On(event,fn)
 end
 function A.Dispatch(event,...)
     if A.RequirementsReady and not A.RequirementsReady() then
+        if event=="PLAYER_LOGIN" and A.CreateMinimapButton then A.CreateMinimapButton() end
         if (event=="PLAYER_ENTERING_WORLD" or event=="PLAYER_REGEN_ENABLED") and A.RequirementsMaybe then A.RequirementsMaybe() end
         return
     end

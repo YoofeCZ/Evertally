@@ -1375,9 +1375,11 @@ end
 function A.OpenUI()
     if not A.db then return end
     if A.RequirementsGuard and not A.RequirementsGuard() then if frame then frame:Hide() end;return end
+    if A.OnboardingClose then A.OnboardingClose() end
     if not frame then build() end
     frame:Show(); A.RefreshUI()
 end
+function A.HideUI() if frame then frame:Hide() end end
 
 --- Opens the window on one of its pages.
 function A.ShowView(view)
@@ -1402,7 +1404,7 @@ end
 function A.SetMinimapButton(show)
     if not A.db then return end
     A.db.settings.hideMinimap = not show
-    if minimapButton then minimapButton:SetShown(show and true or false) end
+    if minimapButton then minimapButton:SetShown(show or (A.RequirementsReady and not A.RequirementsReady())) end
 end
 --- Whether OpenMap is installed (it publishes OpenMapAPI when it loads).
 function A.OpenMapInstalled()
@@ -1447,7 +1449,7 @@ function A.CreateMinimapButton()
     b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     minimapButton = b
     placeMinimap()
-    b:SetShown(not A.db.settings.hideMinimap)
+    b:SetShown(not A.db.settings.hideMinimap or (A.RequirementsReady and not A.RequirementsReady()))
 end
 A.On("PLAYER_LOGIN", function() A.CreateMinimapButton() end)
 

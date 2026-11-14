@@ -78,7 +78,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertFalse(s.mapLayers.gather); self.assertTrue(s.mapLayers.trainer, "the other layers are left as they were")
         self.assertFalse(s.gatherTypes.ore); self.assertTrue(s.gatherTypes.herb)
         self.assertTrue(s.hideMinimap); self.assertAlmostEqual(self.a.GetUIScale(), 1.2)
-        self.assertEqual(s.onboarded, 4)
+        self.assertEqual(s.onboarded, 5)
 
     def test_nothing_changes_for_what_was_not_touched(self):
         s = self.a.db.settings
@@ -124,77 +124,78 @@ class OnboardingTests(unittest.TestCase):
         step, draft = self.a.OnboardingState()
         self.assertEqual(step, 1)
         pages = self.a.onboarding.pages
-        pages[1].languages["cs"].scripts.OnClick(pages[1].languages["cs"])
+        f.next.scripts.OnClick(f.next)
+        pages[2].languages["cs"].scripts.OnClick(pages[2].languages["cs"])
         self.assertEqual(str(self.a.db.settings.language), "cs", "the language is chosen at once, so the rest is read in it")
-        for expected in range(2, 10):
+        for expected in range(3, 10):
             f.next.scripts.OnClick(f.next)
             self.assertEqual(self.a.OnboardingState()[0], expected)
         self.assertEqual(str(f.next.text.text), self.a.L("setupFinish"), "the last step ends with Finish")
         f.back.scripts.OnClick(f.back)
         self.assertEqual(self.a.OnboardingState()[0], 8)
-        self.a.OnboardingGo(2)
-        pages[2].presets["recommended"].scripts.OnClick(pages[2].presets["recommended"])
+        self.a.OnboardingGo(3)
+        pages[3].presets["recommended"].scripts.OnClick(pages[3].presets["recommended"])
         self.a.OnboardingGo(9)
         f.next.scripts.OnClick(f.next)
         self.assertFalse(self.a.OnboardingShown())
-        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 4)
+        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 5)
 
-    def test_skipping_keeps_the_settings_and_does_not_ask_again(self):
+    def test_closing_keeps_the_settings_without_completing_setup(self):
         f = self.open()
         pages = self.a.onboarding.pages
-        self.a.OnboardingGo(2)
-        pages[2].presets["everything"].scripts.OnClick(pages[2].presets["everything"])
-        f.skip.scripts.OnClick(f.skip)
+        self.a.OnboardingGo(3)
+        pages[3].presets["everything"].scripts.OnClick(pages[3].presets["everything"])
+        f.close.scripts.OnClick(f.close)
         self.assertFalse(self.a.OnboardingShown())
         self.assertFalse(self.a.db.settings.web, "skipping applies nothing")
-        self.assertEqual(self.a.db.settings.onboarded, 4)
+        self.assertIsNone(self.a.db.settings.onboarded)
 
     def test_a_switch_that_needs_others_shows_what_it_switches_on(self):
         self.open()
         pages = self.a.onboarding.pages
-        self.a.OnboardingGo(3)
-        pages[3].liveWeb.scripts.OnClick(pages[3].liveWeb)
+        self.a.OnboardingGo(4)
+        pages[4].liveWeb.scripts.OnClick(pages[4].liveWeb)
         step, draft = self.a.OnboardingState()
         self.assertTrue(draft.liveWeb and draft.web and draft.scopes.own_track)
-        self.assertNotEqual(str(pages[3].needs.text), "", "it says what else is switched on")
-        self.a.OnboardingGo(2)
-        self.assertFalse(pages[2].scopes["own_track"].enabled, "and the route cannot be switched off while the live position needs it")
-        pages[2].web.scripts.OnClick(pages[2].web)
+        self.assertNotEqual(str(pages[4].needs.text), "", "it says what else is switched on")
+        self.a.OnboardingGo(3)
+        self.assertFalse(pages[3].scopes["own_track"].enabled, "and the route cannot be switched off while the live position needs it")
+        pages[3].web.scripts.OnClick(pages[3].web)
         step, draft = self.a.OnboardingState()
         self.assertFalse(draft.web or draft.liveWeb, "switching the website off takes the live position on it with it")
 
     def test_the_map_step_says_openmap_is_the_map_and_sets_what_evertally_adds_to_it(self):
         self.open()
         pages = self.a.onboarding.pages
-        self.a.OnboardingGo(5)
-        self.assertEqual(str(pages[5].body.text), self.a.L("setupMapBodyNone"), "no OpenMap: the step says the map features need it")
+        self.a.OnboardingGo(6)
+        self.assertEqual(str(pages[6].body.text), self.a.L("setupMapBodyNone"), "no OpenMap: the step says the map features need it")
         self.lua.execute(OPENMAP)
-        self.a.OpenOnboarding(5)
-        self.assertEqual(str(pages[5].body.text), self.a.L("setupMapBodyOpenMap"))
-        self.assertEqual(sorted(str(k) for k in pages[5].kinds.keys()), sorted(KINDS))
-        ore = pages[5].kinds["ore"]
+        self.a.OpenOnboarding(6)
+        self.assertEqual(str(pages[6].body.text), self.a.L("setupMapBodyOpenMap"))
+        self.assertEqual(sorted(str(k) for k in pages[6].kinds.keys()), sorted(KINDS))
+        ore = pages[6].kinds["ore"]
         ore.scripts.OnClick(ore)
         self.assertFalse(self.a.OnboardingState()[1].kinds.ore, "a click takes that kind off")
-        pages[5].gather.scripts.OnClick(pages[5].gather)
+        pages[6].gather.scripts.OnClick(pages[6].gather)
         self.assertFalse(self.a.OnboardingState()[1].layers.gather)
-        pages[5].pins.scripts.OnClick(pages[5].pins)
+        pages[6].pins.scripts.OnClick(pages[6].pins)
         self.assertFalse(self.a.OnboardingState()[1].mapPins)
 
     def test_the_install_step_has_buttons_and_opens_the_requested_download_dialog(self):
         self.open()
         pages = self.a.onboarding.pages
-        self.a.OnboardingGo(8)
-        page = pages[8]
-        self.assertIsNone(page.app.link)
-        self.assertIsNone(page.openmap.link)
-        page.app.open.scripts.OnClick(page.app.open)
+        self.a.OnboardingGo(1)
+        page = pages[1]
+        self.assertIsNone(page.install.rows.bridge.link)
+        self.assertIsNone(page.install.rows.openmap.link)
+        page.install.rows.bridge.open.scripts.OnClick(page.install.rows.bridge.open)
         self.assertEqual(str(self.a.installationLinkWindow.address.url), "https://evertally.afstudio.dev/#sync")
-        page.openmap.open.scripts.OnClick(page.openmap.open)
+        page.install.rows.openmap.open.scripts.OnClick(page.install.rows.openmap.open)
         self.assertEqual(str(self.a.installationLinkWindow.address.url), "https://www.curseforge.com/wow/addons/openmap")
-        self.assertEqual(str(page.openmap.status.text), self.a.L("setupGetMissing"), "no OpenMap here: it says so")
+        self.assertEqual(str(page.install.rows.openmap.status.text), self.a.L("installMissing"), "no OpenMap here: it says so")
         self.lua.execute(OPENMAP)
-        self.a.OpenOnboarding(8)
-        self.assertEqual(str(page.openmap.status.text), self.a.L("setupGetInstalled"))
+        self.a.OpenOnboarding(1)
+        self.assertEqual(str(page.install.rows.openmap.status.text), self.a.L("installPresent"))
         link = self.a.installationLinkWindow.address
         link.scripts.OnEditFocusGained(link)   # (a click selects it all, ready for Ctrl+C)
         link.SetText(link, "typed over")
@@ -216,11 +217,18 @@ class OnboardingTests(unittest.TestCase):
 
     def test_it_does_not_open_for_someone_who_has_done_it(self):
         self.lua.execute("C_Timer={After=function(s,fn) fn() end}")
-        self.a.db.settings.onboarded = 4
+        self.a.db.settings.onboarded = 5
         self.a.Dispatch("PLAYER_ENTERING_WORLD")
         self.assertFalse(self.a.OnboardingShown())
         self.lua.execute('SlashCmdList.EVERTALLY("setup")')
         self.assertTrue(self.a.OnboardingShown(), "/etally setup opens it any time")
+
+    def test_delayed_automatic_open_does_not_reopen_a_manually_closed_setup(self):
+        self.lua.execute('C_Timer={After=function(_,fn) PENDING_SETUP=fn end}')
+        self.a.Dispatch("PLAYER_ENTERING_WORLD")
+        self.a.OpenOnboarding();self.a.OnboardingClose()
+        self.lua.globals().PENDING_SETUP()
+        self.assertFalse(self.a.OnboardingShown())
 
     def test_previous_setup_version_offers_the_new_nameplate_choices(self):
         self.lua.execute("C_Timer={After=function(s,fn) fn() end}")
@@ -236,8 +244,8 @@ class OnboardingTests(unittest.TestCase):
 
     def test_nameplate_choice_activates_before_live_controls_are_shown(self):
         self.plate_cvars()
-        self.a.OpenOnboarding(7)
-        editor = self.a.onboarding.pages[7].plates
+        self.a.OpenOnboarding(8)
+        editor = self.a.onboarding.pages[8].plates
         self.assertTrue(editor.choosing)
         self.assertFalse(editor.config.shown)
         editor.providers.evertally.scripts.OnClick(editor.providers.evertally)
@@ -254,8 +262,8 @@ class OnboardingTests(unittest.TestCase):
 
     def test_blizzard_choice_restores_native_names_and_preserves_custom_options(self):
         self.plate_cvars()
-        self.a.OpenOnboarding(7)
-        editor = self.a.onboarding.pages[7].plates
+        self.a.OpenOnboarding(8)
+        editor = self.a.onboarding.pages[8].plates
         editor.providers.evertally.scripts.OnClick(editor.providers.evertally)
         editor.controls.plateLogoSize.plus.scripts.OnClick(editor.controls.plateLogoSize.plus)
         editor.change.scripts.OnClick(editor.change)
@@ -267,8 +275,8 @@ class OnboardingTests(unittest.TestCase):
 
     def test_nameplate_choice_is_refused_in_combat_and_stays_on_choice_page(self):
         self.plate_cvars()
-        self.a.OpenOnboarding(7)
-        editor = self.a.onboarding.pages[7].plates
+        self.a.OpenOnboarding(8)
+        editor = self.a.onboarding.pages[8].plates
         self.lua.execute('InCombatLockdown=function() return true end')
         editor.providers.evertally.scripts.OnClick(editor.providers.evertally)
         self.assertEqual(self.lua.globals().CVAR_WRITES, 0)
@@ -277,8 +285,8 @@ class OnboardingTests(unittest.TestCase):
     def test_live_editor_bounds_fonts_and_saved_settings_are_shared(self):
         self.plate_cvars()
         self.a.db.settings.plateFontSize = 32
-        self.a.OpenOnboarding(7)
-        editor = self.a.onboarding.pages[7].plates
+        self.a.OpenOnboarding(8)
+        editor = self.a.onboarding.pages[8].plates
         editor.providers.evertally.scripts.OnClick(editor.providers.evertally)
         editor.controls.plateFontSize.plus.scripts.OnClick(editor.controls.plateFontSize.plus)
         editor.controls.plateFont.plus.scripts.OnClick(editor.controls.plateFont.plus)
@@ -289,7 +297,7 @@ class OnboardingTests(unittest.TestCase):
         page = self.a.settingsPage
         page.SelectSection(5)
         page.plates.controls.plateFontSize.minus.scripts.OnClick(page.plates.controls.plateFontSize.minus)
-        self.a.OpenOnboarding(7)
+        self.a.OpenOnboarding(8)
         self.assertEqual(str(editor.controls.plateFontSize.value.text), '31')
 
 

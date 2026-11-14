@@ -1,13 +1,13 @@
 local _, A = ...
 -- The setup: what a new player is asked on the first start (and anyone, any time, with /etally setup or the button in Settings), in
--- nine steps: language, the website, live position, sharing with other players, the map, the window, nameplates, what to install and a summary. Nothing is chosen for
+-- nine steps: required installation, language, website, live position, sharing, map, window, nameplates and summary. Nothing is chosen for
 -- the player: every switch that sends something anywhere starts off, the wizard only shows what the current choices are (a quick choice for
 -- the website sets the switches, and they stay visible). Nameplate choices are live; other choices apply at Finish.
-local VERSION = 4   -- required installation is verified before setup
+local VERSION = 5   -- required installation is the first page of this single window
 local W, H, HEADER, FOOTER, PAD = 720, 540, 58, 66, 28
 A.DOWNLOAD_URL = "https://evertally.afstudio.dev/#sync"                  -- the Download page of the website (the app for Windows)
 A.OPENMAP_URL = "https://www.curseforge.com/wow/addons/openmap"          -- OpenMap on CurseForge
-local STEPS = {"welcome", "website", "live", "sharing", "map", "window", "nameplates", "install", "summary"}
+local STEPS = {"install", "welcome", "website", "live", "sharing", "map", "window", "nameplates", "summary"}
 local SCOPES = {"world_facts", "own_runs", "own_character", "own_professions", "own_track"}
 local KINDS = {"herb", "ore", "fishing", "container"}
 local SCALES = {{"Small", 0.85}, {"Normal", 1}, {"Large", 1.2}}
@@ -158,6 +158,7 @@ function A.OnboardingPreset(d, name) if PRESETS[name] then PRESETS[name](d) end;
 
 --- Puts the choices into effect, with the functions the Settings page uses. Returns the notes about what could not be done.
 function A.OnboardingApply(d)
+    if A.RequirementsReady and not A.RequirementsReady() then return {"dependencies_required"} end
     local s = A.db.settings
     local notes = {}
     A.OnboardingNormalize(d)
@@ -248,7 +249,8 @@ local function refresh()
     local C = A.UIKit().C
     f.title:SetText(A.L("setupTitle")); f.counter:SetText(string.format(A.L("setupStepOf"), step, #STEPS))
     f.back:SetShown(step > 1); f.next.text:SetText(A.L(step == #STEPS and "setupFinish" or "setupNext")); f.back.text:SetText(A.L("setupBack"))
-    f.skip.text:SetText(A.L("setupSkip")); f.skip:SetShown(step < #STEPS)
+    local ready=not A.RequirementsReady or A.RequirementsReady()
+    f.next:SetEnabled(ready);f.next:SetAlpha(ready and 1 or 0.45)
     for i, dot in ipairs(f.dots) do
         local on = i == step
         A.UIKit().paint(dot, on and C.lilac or C.off, on and 1 or 0.6)
@@ -257,9 +259,10 @@ local function refresh()
     local page = pages[step]
     if page and page.refresh then page.refresh() end
 end
+A.RefreshOnboarding=refresh
 
 local function go(n)
-    step = math.max(1, math.min(#STEPS, n))
+    step = A.RequirementsReady and not A.RequirementsReady() and 1 or math.max(1, math.min(#STEPS, n))
     refresh()
 end
 
@@ -291,19 +294,19 @@ local function build()
     bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() f:StartMoving() end); bar:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
     f.title = kit.label(bar, 18, C.text); f.title:SetPoint("LEFT", PAD, 0)
-    local close = kit.Button(bar, nil, 30, "ghost", function() A.OnboardingSkip() end); close:SetPoint("RIGHT", -14, 0); close.text:SetText("x")
+    local close = kit.Button(bar, nil, 30, "ghost", function() A.OnboardingClose() end); close:SetPoint("RIGHT", -14, 0); close.text:SetText("x");f.close=close
     f.counter = kit.label(bar, 11, C.mist); f.counter:SetPoint("RIGHT", close, "LEFT", -16, 0); f.counter:SetJustifyH("RIGHT")
     f.body = CreateFrame("Frame", nil, f); f.body:SetPoint("TOPLEFT", PAD, -HEADER - 14); f.body:SetPoint("BOTTOMRIGHT", -PAD, FOOTER)
 
-    -- the footer: skip, the dots, back and next
+    -- No skip action: closing never marks setup complete or bypasses installation.
     local footer = CreateFrame("Frame", nil, f); footer:SetPoint("BOTTOMLEFT"); footer:SetPoint("BOTTOMRIGHT"); footer:SetHeight(FOOTER)
     local rule = footer:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("TOPLEFT"); rule:SetPoint("TOPRIGHT"); kit.paint(rule, C.line)
     f.next = kit.Button(footer, nil, 130, "primary", function()
+        if A.RequirementsReady and not A.RequirementsReady() then go(1);return end
         if step == #STEPS then A.OnboardingFinish() else go(step + 1) end
     end)
     f.next:SetPoint("RIGHT", -PAD, 0)
     f.back = kit.Button(footer, nil, 100, "ghost", function() go(step - 1) end); f.back:SetPoint("RIGHT", f.next, "LEFT", -8, 0)
-    f.skip = kit.Button(footer, nil, 150, "ghost", function() A.OnboardingSkip() end); f.skip:SetPoint("LEFT", PAD, 0)
     f.dots = {}
     for i = 1, #STEPS do
         local dot = footer:CreateTexture(nil, "ARTWORK"); dot:SetSize(8, 8)
@@ -313,7 +316,7 @@ local function build()
 
     -- 1: language
     do
-    local p = newPage(1, "setupWelcomeTitle", "setupWelcomeBody")
+    local p = newPage(2, "setupWelcomeTitle", "setupWelcomeBody")
     p.languageLabel = kit.label(p, 12, C.text); p.languageLabel:SetPoint("TOPLEFT", 0, -FIRST + 4)
     local cols = kit.Columns(p, {1, 1}, 12); cols:SetPoint("TOPLEFT", 0, -FIRST - 18); cols:SetPoint("TOPRIGHT", 0, -FIRST - 18); cols:SetHeight(58)
     p.languages = {}
@@ -333,7 +336,7 @@ local function build()
     end
     -- 2: the website
     do
-    local p = newPage(2, "setupWebTitle", "setupWebBody")
+    local p = newPage(3, "setupWebTitle", "setupWebBody")
     p.quickLabel = kit.label(p, 12, C.text); p.quickLabel:SetPoint("TOPLEFT", 0, -FIRST - 4)
     p.presets = {}
     local previous
@@ -364,7 +367,7 @@ local function build()
     end
     -- 3: live position
     do
-    local p = newPage(3, "setupLiveTitle", "setupLiveBody")
+    local p = newPage(4, "setupLiveTitle", "setupLiveBody")
     p.rows = {}
     for i, which in ipairs({"party", "guild", "friends"}) do
         local sw = kit.Switch(p, function(on) draft.live[which] = on; refresh() end, 40)
@@ -384,7 +387,7 @@ local function build()
     end
     -- 4: sharing with players
     do
-    local p = newPage(4, "setupShareTitle", "setupShareBody")
+    local p = newPage(5, "setupShareTitle", "setupShareBody")
     p.share = kit.Switch(p, function(on) draft.ingame = on; refresh() end, 40); place(p.share, FIRST, 40)
     p.group = kit.Switch(p, function(on) draft.group = on; refresh() end, 36); place(p.group, FIRST + 46, 36, 24)
     p.guild = kit.Switch(p, function(on) draft.guild = on; refresh() end, 36); place(p.guild, FIRST + 46 + 40, 36, 24)
@@ -400,7 +403,7 @@ local function build()
     end
     -- 5: the map (OpenMap's) and what Evertally adds to it
     do
-    local p = newPage(5, "setupMapTitle", function() return A.OpenMapInstalled() and "setupMapBodyOpenMap" or "setupMapBodyNone" end)
+    local p = newPage(6, "setupMapTitle", function() return A.OpenMapInstalled() and "setupMapBodyOpenMap" or "setupMapBodyNone" end)
     p.gather = kit.Switch(p, function(on) draft.layers.gather = on; refresh() end, 54); place(p.gather, FIRST, 54)
     p.kindsLabel = kit.label(p, 12, C.text); p.kindsLabel:SetPoint("TOPLEFT", 24, -FIRST - 66)
     p.kinds = {}
@@ -424,7 +427,7 @@ local function build()
     end
     -- 6: the window
     do
-    local p = newPage(6, "setupWindowTitle", "setupWindowBody")
+    local p = newPage(7, "setupWindowTitle", "setupWindowBody")
     p.minimap = kit.Switch(p, function(on) draft.minimap = on; refresh() end, 40); place(p.minimap, FIRST, 40)
     p.sizeLabel = kit.label(p, 12, C.text); p.sizeLabel:SetPoint("TOPLEFT", 0, -FIRST - 62)
     p.sizes = {}
@@ -444,7 +447,7 @@ local function build()
     end
     -- 7: explicit provider choice, then live customization. Only the other setup choices wait for Finish.
     do
-    local p = newPage(7, "setupPlatesTitle", "setupPlatesBody")
+    local p = newPage(8, "setupPlatesTitle", "setupPlatesBody")
     p.plates=A.BuildFriendlyPlateControls(p,{
         chooseFirst=true,
         changed=function() draft.plates=A.FriendlyPlateChoices();draft.friendlyPlates=A.FriendlyPlatesShown() end,
@@ -452,35 +455,18 @@ local function build()
     p.plates:SetPoint("TOPLEFT",0,-FIRST);p.plates:SetPoint("BOTTOMRIGHT",0,0)
     p.refresh=function() titles(p);p.plates.Update() end
     end
-    -- 8: installation actions; addresses are shown only in the requested copy dialog.
+    -- 1: mandatory installation. The same content is opened by every guarded entry.
     do
-    local p = newPage(8, "setupGetTitle", "setupGetBody")
-    local function block(y, titleKey, subKey, destination)
-        local block = {}
-        block.status = kit.label(p, 11, C.mist); block.status:SetPoint("TOPRIGHT", 0, -y - 2); block.status:SetJustifyH("RIGHT"); block.status:SetWidth(150)
-        block.title = kit.label(p, 14, C.text); block.title:SetPoint("TOPLEFT", 0, -y); block.title:SetPoint("TOPRIGHT", block.status, "TOPLEFT", -8, 2); block.title:SetWordWrap(false)
-        block.sub = kit.label(p, 11, C.mist); block.sub:SetPoint("TOPLEFT", 0, -y - 22); block.sub:SetPoint("TOPRIGHT", 0, -y - 22)
-        block.open=kit.Button(p,"installOpen_"..destination,210,"ghost",function() A.OpenInstallationLink(destination) end)
-        block.open:SetPoint("TOPLEFT",0,-y-62)
-        block.titleKey, block.subKey = titleKey, subKey
-        return block
+    local p = newPage(1, "setupGetTitle", "setupGetBody")
+    p.install=A.BuildInstallationControls(p);p.install:SetPoint("TOPLEFT",0,-72);p.install:SetPoint("BOTTOMRIGHT",0,0)
+    p.languages={}
+    for i,lang in ipairs({"en","cs"}) do
+        local choice=lang
+        local b=kit.Button(p,nil,32,"ghost",function() A.SetLanguage(choice);draft.language=choice;refresh() end)
+        b.text:SetText(lang:upper());b:SetHeight(24);b:SetPoint("TOPRIGHT",-(i-1)*38,0);p.languages[lang]=b
     end
-    p.app = block(FIRST, "setupGetApp", "setupGetAppSub", "bridge")
-    p.openmap = block(FIRST + 112, "setupGetOpenMap", "setupGetOpenMapSub", "openmap")
-    p.how = kit.label(p, 11, C.peach); p.how:SetPoint("TOPLEFT", 0, -FIRST - 232); p.how:SetPoint("TOPRIGHT", 0, -FIRST - 232)
-    p.verify=kit.Button(p,"installVerify",180,"primary",function() A.VerifyInstallation();A.ShowRequirements() end)
-    p.verify:SetPoint("TOPLEFT",0,-FIRST-270)
     p.refresh = function()
-        titles(p)
-        for _, b in ipairs({p.app, p.openmap}) do b.title:SetText(A.L(b.titleKey)); b.sub:SetText(A.L(b.subKey));b.open.text:SetText(A.L(b.open.localeKey)) end
-        -- (the app cannot be seen from the game; OpenMap can: its interface is there when it is installed and enabled)
-        local status=A.RequirementsStatus()
-        p.app.status:SetText(A.L(status.bridge and "installPresent" or "installMissing"))
-        local present = A.OpenMapInstalled()
-        p.openmap.status:SetText(A.L(present and "setupGetInstalled" or "setupGetMissing"))
-        p.openmap.status:SetTextColor(unpack(present and C.green or C.peach))
-        p.how:SetText(A.L("setupGetHow"))
-        p.verify.text:SetText(A.L("installVerify"))
+        titles(p);p.install.Update()
     end
     end
     -- 9: the summary
@@ -507,13 +493,13 @@ end
 --- Opens the setup on its first step, with the present choices.
 function A.OpenOnboarding(startStep)
     if not A.db then return end
-    if A.RequirementsGuard and not A.RequirementsGuard() then return end
     if not f then build() end
+    if A.HideUI then A.HideUI() end
     draft = A.OnboardingDraft()
-    pages[7].plates.choosing=true
+    A.onboarding.dismissed=false
+    pages[8].plates.choosing=true
     A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.web == true or A.db.settings.ingame == true or A.db.settings.mapPins == true
-    step = math.max(1, math.min(#STEPS, tonumber(startStep) or 1))
-    f:Show(); refresh()
+    f:Show();go(tonumber(startStep) or 1)
 end
 function A.OnboardingGo(n) go(n) end
 function A.OnboardingState() return step, draft end
@@ -533,12 +519,12 @@ function A.OnboardingFinish()
     return notes
 end
 
---- Closes without applying anything else (the language already chosen stays) and does not ask again by itself.
-function A.OnboardingSkip()
-    if A.db then A.db.settings.onboarded = VERSION end
-    if f then f:Hide() end
-    A.Print(A.L("setupSkipped"))
+--- Closing only hides the window. It does not complete setup or unlock the addon.
+function A.OnboardingClose()
+    if f then f:Hide();A.onboarding.dismissed=true end
+    if A.installationLinkWindow then A.installationLinkWindow:Hide() end
 end
+A.OnboardingSkip=A.OnboardingClose -- compatibility; no skip button is offered
 
 -- ---------------------------------------------------------------- when it opens by itself: once, a few seconds after the world is there, never in combat
 local offered, waiting = false, false
@@ -547,7 +533,7 @@ function A.OnboardingMaybe()
     if offered or not A.db or A.db.settings.onboarded == VERSION or type(CreateFrame) ~= "function" then return end
     if A.Call(InCombatLockdown) == true then waiting = true; return end
     offered = true
-    local function show() if A.db and A.db.settings.onboarded ~= VERSION then pcall(A.OpenOnboarding) end end
+    local function show() if A.db and A.db.settings.onboarded ~= VERSION and not A.onboarding.dismissed and not A.OnboardingShown() then pcall(A.OpenOnboarding) end end
     if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(5, show) else show() end
 end
 A.On("PLAYER_ENTERING_WORLD", function() A.OnboardingMaybe() end)

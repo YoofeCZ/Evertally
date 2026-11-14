@@ -336,7 +336,10 @@ A.On("NAME_PLATE_UNIT_ADDED",function(unit)
     if type(unit)=="string" then removed[unit]=nil end
     A.RefreshFriendlyPlates()
 end)
-A.On("PLAYER_ENTERING_WORLD",function() removed={};for _,state in pairs(states) do restore(state) end end)
+A.On("PLAYER_ENTERING_WORLD",function()
+    removed={};for _,state in pairs(states) do restore(state) end
+    A.EnsureFriendlyPlateRange()
+end)
 if C_Timer and type(C_Timer.NewTicker)=="function" then
     C_Timer.NewTicker(0.25,function() pcall(A.RefreshFriendlyPlates) end)
     C_Timer.NewTicker(0.1,function()

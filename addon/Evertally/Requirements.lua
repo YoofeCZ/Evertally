@@ -1,5 +1,5 @@
 local _,A=...
-local window,lastCheck
+local lastCheck,offered
 local linkWindow
 A.BRIDGE_MINIMUM="0.9.9"
 local installationLinks={bridge="https://evertally.afstudio.dev/#sync",openmap="https://www.curseforge.com/wow/addons/openmap"}
@@ -46,7 +46,7 @@ end
 function A.RequirementsReady() return A.RequirementsStatus().ready end
 function A.VerifyInstallation()
     lastCheck=A.RequirementsStatus()
-    if window and window.Refresh then window.Refresh() end
+    if A.RefreshOnboarding then A.RefreshOnboarding() end
     return lastCheck.ready,lastCheck
 end
 function A.RequirementsGuard()
@@ -55,69 +55,46 @@ function A.RequirementsGuard()
     return false
 end
 function A.ShowRequirements()
-    if not A.db or type(CreateFrame)~="function" then return end
-    if not window then
-        local k=A.UIKit();local C=k.C
-        window=CreateFrame("Frame","EvertallyInstallation",UIParent)
-        A.requirementsWindow=window
-        window:SetSize(720,540);window:SetPoint("CENTER");window:SetFrameStrata("DIALOG");window:SetClampedToScreen(true)
-        window:EnableMouse(true);window:SetMovable(true);window:RegisterForDrag("LeftButton")
-        window:SetScript("OnDragStart",function() window:StartMoving() end);window:SetScript("OnDragStop",function() window:StopMovingOrSizing() end)
-        A.NativeFrame(window,C)
-        window.title=k.label(window,22,C.gold);window.title:SetPoint("TOPLEFT",26,-22)
-        window.subtitle=k.label(window,12,C.text);window.subtitle:SetPoint("TOPLEFT",26,-60);window.subtitle:SetPoint("TOPRIGHT",-26,-60)
-        window.rows={}
-        for i,which in ipairs({"bridge","openmap"}) do
-            local top=112+(i-1)*112
-            local row={}
-            row.title=k.label(window,15,C.text);row.title:SetPoint("TOPLEFT",26,-top)
-            row.status=k.label(window,12,C.mist);row.status:SetPoint("TOPRIGHT",-26,-top);row.status:SetJustifyH("RIGHT")
-            row.body=k.label(window,11,C.mist);row.body:SetPoint("TOPLEFT",26,-top-27);row.body:SetPoint("TOPRIGHT",-26,-top-27)
-            local destination=which
-            row.open=k.Button(window,"installOpen_"..which,210,"ghost",function() A.OpenInstallationLink(destination) end)
-            row.open:SetPoint("TOPLEFT",26,-top-60)
-            window.rows[which]=row
-        end
-        window.help=k.label(window,11,C.mist);window.help:SetPoint("TOPLEFT",26,-346);window.help:SetPoint("TOPRIGHT",-26,-346)
-        window.result=k.label(window,12,C.peach);window.result:SetPoint("TOPLEFT",26,-415);window.result:SetPoint("TOPRIGHT",-26,-415)
-        window.verify=k.Button(window,"installVerify",170,"primary",A.VerifyInstallation);window.verify:SetPoint("BOTTOMLEFT",26,24)
-        window.reload=k.Button(window,"installReload",180,"ghost",function()
-            if A.Call(InCombatLockdown)==true then A.Print(A.L("markPlatesCombat"));return end
-            A.Call(ReloadUI)
-        end);window.reload:SetPoint("LEFT",window.verify,"RIGHT",10,0)
-        window.next=k.Button(window,"installContinue",140,"ghost",function()
-            if not A.VerifyInstallation() then return end
-            window:Hide()
-            if A.OpenOnboarding then A.OpenOnboarding() else A.OpenUI() end
-        end);window.next:SetPoint("BOTTOMRIGHT",-26,24)
-        window.close=k.Button(window,nil,28,"ghost",function() window:Hide() end);window.close.text:SetText("x");window.close:SetPoint("TOPRIGHT",-14,-14)
-        window.languages={}
-        for i,lang in ipairs({"en","cs"}) do
-            local choice=lang
-            local b=k.Button(window,nil,32,"ghost",function() A.SetLanguage(choice);window.Refresh() end)
-            b.text:SetText(lang:upper());b:SetHeight(24);b:SetPoint("TOPRIGHT",-58-(i-1)*38,-18)
-            window.languages[#window.languages+1]=b
-        end
-        function window.Refresh()
-            local status=A.RequirementsStatus()
-            window.title:SetText(A.L("installTitle"));window.subtitle:SetText(A.L("installSubtitle"));window.help:SetText(A.L("installHelp"))
-            for which,row in pairs(window.rows) do
-                local installed=status[which]
-                row.title:SetText(A.L("install_"..which));row.body:SetText(A.L("installBody_"..which))
-                row.open.text:SetText(A.L(row.open.localeKey))
-                row.status:SetText(A.L(installed and "installPresent" or "installMissing"));row.status:SetTextColor(unpack(installed and C.green or C.peach))
-            end
-            for _,b in ipairs({window.verify,window.reload,window.next}) do b.text:SetText(A.L(b.localeKey)) end
-            window.next:SetEnabled(status.ready);window.next:SetAlpha(status.ready and 1 or 0.45)
-            window.result:SetText(lastCheck and A.L(lastCheck.ready and "installSuccess" or "installFailed") or "")
-        end
-        if type(UISpecialFrames)=="table" then UISpecialFrames[#UISpecialFrames+1]="EvertallyInstallation" end
+    if A.OpenOnboarding then A.OpenOnboarding(1) end
+end
+-- Installation is content of the first setup page, never another top-level window.
+function A.BuildInstallationControls(parent)
+    local k=A.UIKit();local C=k.C
+    local panel=CreateFrame("Frame",nil,parent);panel.rows={}
+    A.installationPage=panel
+    for i,which in ipairs({"bridge","openmap"}) do
+        local top=(i-1)*100
+        local row={}
+        row.title=k.label(panel,14,C.text);row.title:SetPoint("TOPLEFT",0,-top)
+        row.status=k.label(panel,11,C.mist);row.status:SetPoint("TOPRIGHT",0,-top);row.status:SetJustifyH("RIGHT")
+        row.body=k.label(panel,11,C.mist);row.body:SetPoint("TOPLEFT",0,-top-23);row.body:SetPoint("TOPRIGHT",0,-top-23)
+        local destination=which
+        row.open=k.Button(panel,"installOpen_"..which,210,"ghost",function() A.OpenInstallationLink(destination) end)
+        row.open:SetPoint("TOPLEFT",0,-top-56)
+        panel.rows[which]=row
     end
-    window.Refresh();window:Show()
+    panel.help=k.label(panel,11,C.mist);panel.help:SetPoint("TOPLEFT",0,-198);panel.help:SetPoint("TOPRIGHT",0,-198)
+    panel.verify=k.Button(panel,"installVerify",170,"primary",A.VerifyInstallation);panel.verify:SetPoint("TOPLEFT",0,-244)
+    panel.reload=k.Button(panel,"installReload",180,"ghost",function()
+        if A.Call(InCombatLockdown)==true then A.Print(A.L("markPlatesCombat"));return end
+        A.Call(ReloadUI)
+    end);panel.reload:SetPoint("LEFT",panel.verify,"RIGHT",10,0)
+    panel.result=k.label(panel,11,C.peach);panel.result:SetPoint("TOPLEFT",0,-285);panel.result:SetPoint("TOPRIGHT",0,-285)
+    function panel.Update()
+        local status=A.RequirementsStatus()
+        for which,row in pairs(panel.rows) do
+            row.title:SetText(A.L("install_"..which));row.body:SetText(A.L("installBody_"..which));row.open.text:SetText(A.L(row.open.localeKey))
+            row.status:SetText(A.L(status[which] and "installPresent" or "installMissing"));row.status:SetTextColor(unpack(status[which] and C.green or C.peach))
+        end
+        panel.help:SetText(A.L("installHelp"));panel.verify.text:SetText(A.L("installVerify"));panel.reload.text:SetText(A.L("installReload"))
+        panel.result:SetText(lastCheck and A.L(lastCheck.ready and "installSuccess" or "installFailed") or "")
+    end
+    return panel
 end
 function A.RequirementsMaybe()
-    if not A.db or A.RequirementsReady() then return end
+    if offered or not A.db or A.RequirementsReady() then return end
     if A.Call(InCombatLockdown)==true then return end
+    offered=true
     A.ShowRequirements()
 end
 A.On("PLAYER_REGEN_ENABLED",A.RequirementsMaybe)
