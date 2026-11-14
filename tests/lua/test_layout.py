@@ -106,7 +106,7 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(scroll.GetVerticalScroll(scroll), 0)
         a.ShowView("settings")
         self.assertGreater(scroll.GetVerticalScroll(scroll), 0)
-        a.SetUISize(960, 620)
+        a.SetUISize(960, 730)
         lua.execute("PREVIEW_SETTLE()")
         self.assertEqual(scroll.maxScroll, 0)
         self.assertEqual(scroll.GetVerticalScroll(scroll), 0)

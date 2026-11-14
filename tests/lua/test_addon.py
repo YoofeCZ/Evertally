@@ -49,7 +49,7 @@ def runtime(record_globals=False, enforce_requirements=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "Gear.lua", "GearUI.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -671,7 +671,7 @@ class ReplayTests(unittest.TestCase):
             end
             return table.concat(views,",")
         end''')()
-        self.assertEqual(opened,"overview,journal,history,places,facts,professions,database,dungeons,recipes,talents,world,guides,community,social,rankings,webfacts,settings")
+        self.assertEqual(opened,"overview,journal,history,places,facts,professions,questguide,gear,training,database,dungeons,recipes,talents,world,guides,community,social,rankings,webfacts,settings")
         # Toggles in Settings change real settings, and language switching re-renders.
         self.lua.execute('''for _,b in ipairs(MOCKBUTTONS) do if b.localeKey=="web" and b.Update then b.scripts.OnClick(b) end end''')
         self.assertTrue(self.a.db.settings.web)

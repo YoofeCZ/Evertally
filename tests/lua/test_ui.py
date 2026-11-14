@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_addon import MOCK_UI_LUA, runtime  # noqa: E402
 
-VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
+VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
 
 
 def lst(table):
@@ -49,7 +49,7 @@ class WindowTests(unittest.TestCase):
         nav[view].scripts.OnClick(nav[view])
 
     def assert_clean(self):
-        for key in ("overview_page", "journal_page", "rankings_page", "social_page", "world_page", "ui_refresh"):
+        for key in ("overview_page", "journal_page", "rankings_page", "social_page", "world_page", "gear_page", "training_page", "questguide_page", "ui_refresh"):
             self.assertIsNone(self.a.errors[key], "%s: %s" % (key, self.a.lastUIError))
         self.assertIsNone(self.a.lastUIError)
 

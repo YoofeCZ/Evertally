@@ -2,7 +2,7 @@
 
 Herní deník, navigace, atlas a komunitní statistiky pro **World of Warcraft Forever**. Projekt spojuje addon ve hře, Windows aplikaci na pozadí a web.
 
-**Aktuální verze:** addon **0.9.28**, Windows Bridge **0.9.10**. Podrobnosti poslední změny: [VYDANI-0.9.28.md](VYDANI-0.9.28.md).
+**Aktuální verze:** addon **0.9.29**, Windows Bridge **0.9.10**. Podrobnosti poslední změny: [VYDANI-0.9.29.md](VYDANI-0.9.29.md).
 
 - [Web Evertally](https://evertally.afstudio.dev/)
 - [Addon na CurseForge](https://www.curseforge.com/wow/addons/evertally)
@@ -27,6 +27,9 @@ Podrobný návod, diagnostika a stav ověření jsou v [NAVOD.md](NAVOD.md).
 - **Dungeon Journal:** dungeony a raidy, bossové, loot, související questy, odměny a mapy.
 - **Databáze a návody:** questy, NPC, předměty, objekty, recepty a postupy přímo ve hře.
 - **Talenty:** plánování, ukládání, import a export profilů, doporučené buildy a zoom stromů. Plánovač sám neutratí skutečné talentové body.
+- **Výbava a odpad:** porovnání podle třídy a role, vysvětlení skóre, upozornění na upgrade a náhled prodeje se seznamem chráněných předmětů.
+- **Co se naučit:** dostupné a budoucí schopnosti, ranky, ceny, podmínky, schopnosti mazlíčka a navigace k trenérovi.
+- **Questový průvodce:** vlastní vypočtený postup podle postavy a questových řetězců, stav kroků, přeskočení, pokračování a navigace.
 - **Lidé a Armory:** pohled na výbavu, tašky, statistiky, talenty a profese se souhlasem druhého hráče; ve hře také questy a reputace. Každý hráč rozhoduje, co ukáže.
 - **Komunita a žebříčky:** fórum, sdílené výsledky a dostupné filtry podle instance, postavy, třídy a rasy. DPS/HPS se zobrazují tam, kde existuje odpovídající záznam.
 - **Jmenovky:** vlastní zobrazení spojenců, značky, logo, volitelné buffy, debuffy a lišty s nastavením a náhledem.

@@ -1,5 +1,12 @@
 # Použité cizí podklady a licence
 
+## Přibalená data herních modulů 0.9.29
+
+- **What's Training 11.4.7, tabulky pro Forever (`Classes/Camelot`)** — MIT. Normalizovaný katalog v `addon/Evertally/TrainingData.lua` používá pouze údaje o schopnostech, cenách a podmínkách; logika a rozhraní modulu jsou vlastní Evertally. Generátor je `tools/build_training_data.py`, původní licenční text je přiložen jako `addon/Evertally/TrainingData-LICENSE.txt`. Původní addon není runtime závislostí.
+- **QuestieDB pro Forever** — metadata questů a referenční souřadnice používané vlastními katalogy průvodce a trenérů; konkrétní verzi a podklady uvádějí generátory a `addon/Evertally/QuestGuideData-NOTICE.txt`. Zůstávají relevantní licenční podmínky a historické nejistoty QuestieDB popsané níže. Vlastní výpočet postupu nekopíruje cizí kurátorovaný průvodce.
+
+Kód ani texty Matty7500 Quest Guide/Quest Helper, GearQuest Forever nebo Widsith se do těchto modulů nepřebírají.
+
 Stav: 11. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform/`, `tools/`, `shared/`). Zdrojové soubory, ze kterých se data generují, jsou v `shared/sources/` včetně licenčních textů, kde je zdroj dodává.
 
 **Rozsah podkladů:** vedle faktických údajů projekt obsahuje také převzaté nebo odvozené databáze, textové tipy, knihovny a grafiku. Pouhé vlastnictví herního klienta samo o sobě neprokazuje oprávnění tyto soubory dál veřejně šířit. Práva a licenční podmínky je nutné posuzovat podle konkrétního zdroje a způsobu použití.

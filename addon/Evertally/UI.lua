@@ -23,6 +23,7 @@ local ICON = {
     peers = "Interface\\Icons\\INV_Misc_GroupNeedMore", settings = "Interface\\Icons\\INV_Misc_Gear_01",
     social = "Interface\\Icons\\INV_Misc_GroupNeedMore", webfacts = "Interface\\Icons\\Spell_Nature_FarSight", community = "Interface\\Icons\\INV_Misc_GroupLooking", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\Ability_Tracking", world = "Interface\\Icons\\Spell_Nature_FarSight",
     database = "Interface\\Icons\\INV_Misc_Book_11", dungeons = "Interface\\Icons\\INV_Misc_Key_13", guides = "Interface\\Icons\\INV_Misc_Note_01", recipes = "Interface\\Icons\\INV_Scroll_06", talents = "Interface\\Icons\\Ability_Marksmanship",
+    gear = "Interface\\Icons\\INV_Chest_Chain_04", training = "Interface\\Icons\\INV_Misc_Book_07", questguide = "Interface\\Icons\\INV_Misc_Map_01",
     quest = "Interface\\GossipFrame\\AvailableQuestIcon", questDone = "Interface\\GossipFrame\\ActiveQuestIcon",
     npc = "Interface\\Icons\\INV_Misc_Head_Human_01", vendor = "Interface\\Icons\\INV_Misc_Bag_10",
     item = "Interface\\Icons\\INV_Misc_Bag_08", profession = "Interface\\Icons\\Trade_Engineering",
@@ -34,7 +35,7 @@ local ICON = {
 -- (what you did: history; what the game has: the guide; who plays with you: people)
 local NAV = {
     {head = "navHistory", "overview", "journal", "history", "places", "facts", "professions"},
-    {head = "navGuide", "database", "dungeons", "recipes", "talents", "world", "guides"},
+    {head = "navGuide", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides"},
     {head = "navPeople", "community", "social", "rankings", "webfacts"},
     {"settings"},
 }
@@ -267,19 +268,22 @@ local function NewRow(parent)
     return r
 end
 
-local function ListView(parent, top, striped)
+local function ListView(parent, top, striped, wrappedRows)
     local scroll = ScrollArea(parent, top)
     scroll.striped = striped ~= false
+    scroll.wrappedRows = wrappedRows == true
     local rows, empty = {}, label(scroll, 12, C.mist)
     empty:SetPoint("TOPLEFT", 14, -40); empty:SetPoint("TOPRIGHT", -14, -40); empty:SetJustifyH("CENTER")
     function scroll.SetItems(items, emptyText)
         scroll.items, scroll.emptyText = items, emptyText
         local compact = (tonumber(scroll.child:GetWidth()) or 640) < 470
         scroll.compact = compact
+        scroll.drawWidth = tonumber(scroll.child:GetWidth()) or 640
         local y, stripe = 0, 0
         for i, item in ipairs(items) do
             local r = rows[i] or NewRow(scroll.child); rows[i] = r
             local heading = item.heading ~= nil
+            local rowStep = heading and HEAD_ROW or ROW
             r.heading = heading
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -y); r:SetPoint("TOPRIGHT", 0, -y)
             r:SetHeight((heading and HEAD_ROW or ROW) - (scroll.striped and not heading and 0 or 4))
@@ -314,9 +318,24 @@ local function ListView(parent, top, striped)
                 else r.tag:Hide() end
                 r.title:ClearAllPoints(); r.title:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 10, 1); r.title:SetPoint("TOPRIGHT", r, "TOPRIGHT", -reserve, -5)
                 r.sub:ClearAllPoints(); r.sub:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 10, 1); r.sub:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -reserve, 5)
+                if scroll.wrappedRows then
+                    -- Narrow catalogue cards keep their full names, requirements and prices on separate lines.
+                    r.chevron:Hide()
+                    r.icon:ClearAllPoints(); r.icon:SetPoint("TOPLEFT", 8, -9)
+                    local left = item.race and 70 or 44
+                    r.title:ClearAllPoints(); r.title:SetPoint("TOPLEFT", left, -7); r.title:SetPoint("TOPRIGHT", r, "TOPRIGHT", item.onClick and -25 or -10, -7)
+                    r.title:SetWordWrap(true)
+                    local titleH = math.max(15, tonumber(r.title:GetStringHeight()) or 15); r.title:SetHeight(titleH)
+                    r.sub:ClearAllPoints(); r.sub:SetPoint("TOPLEFT", left, -9-titleH); r.sub:SetPoint("TOPRIGHT", r, "TOPRIGHT", -10, -9-titleH); r.sub:SetWordWrap(true)
+                    local subH = item.sub and item.sub ~= "" and math.max(12, tonumber(r.sub:GetStringHeight()) or 12) or 0
+                    r.sub:SetHeight(math.max(1, subH)); r.sub:SetShown(subH > 0)
+                    r.right:ClearAllPoints(); r.right:SetPoint("TOPLEFT", left, -12-titleH-subH); r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -10, -12-titleH-subH); r.right:SetJustifyH("LEFT")
+                    local rightH = item.right and item.right ~= "" and 16 or 0; r.right:SetShown(rightH > 0); r.right:SetHeight(math.max(1, rightH))
+                    r.tag:Hide(); rowStep = math.max(44, titleH + subH + rightH + 21); r:SetHeight(rowStep - 4)
+                end
             end
             r:Show()
-            y = y + (heading and HEAD_ROW or ROW)
+            y = y + rowStep
         end
         for i = #items + 1, #rows do rows[i]:Hide() end
         scroll.child:SetHeight(math.max(1, y))
@@ -325,7 +344,7 @@ local function ListView(parent, top, striped)
     end
     -- the rows are laid out for the width they have: crossing the narrow limit draws them again
     scroll.onResize = function(width)
-        if scroll.items and ((tonumber(width) or 640) < 470) ~= scroll.compact then scroll.SetItems(scroll.items, scroll.emptyText) end
+        if scroll.items and (((tonumber(width) or 640) < 470) ~= scroll.compact or scroll.wrappedRows and math.abs((tonumber(width) or 640) - (scroll.drawWidth or 640)) > 1) then scroll.SetItems(scroll.items, scroll.emptyText) end
     end
     return scroll
 end
@@ -1331,6 +1350,9 @@ local function build()
     buildExternal("recipes", A.BuildRecipesPage, "recipes_page")
     buildExternal("talents", A.BuildTalentsPage, "talents_page")
     buildExternal("guides", A.BuildGuidesPage, "guides_page")
+    buildExternal("gear", A.BuildGearPage, "gear_page")
+    buildExternal("training", A.BuildTrainingPage, "training_page")
+    buildExternal("questguide", A.BuildQuestGuidePage, "questguide_page")
     if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyFrame" end
 
     -- the corner that resizes the window
@@ -1471,6 +1493,9 @@ local function slash(text)
     elseif text == "reset" then A.ResetUISize(); A.Print(A.L("windowReset"))
     elseif text == "setup" then
         if A.OpenOnboarding then A.OpenOnboarding() end
+    elseif text == "gear" then A.ShowView("gear")
+    elseif text == "train" or text == "training" then A.ShowView("training")
+    elseif text == "guide" or text == "questguide" then A.ShowView("questguide")
     elseif text == "map" then
         -- the map: OpenMap's (Evertally's layers are drawn on it)
         if type(ToggleWorldMap) == "function" then pcall(ToggleWorldMap) end

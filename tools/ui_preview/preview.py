@@ -30,7 +30,7 @@ from test_forever_traits import FOREVER_TRAITS  # noqa: E402
 CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 ICON_FILES = {}
-VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
+VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
 
 FIXTURE = r'''
 UnitName=function() return "Mardyx" end
@@ -434,7 +434,44 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
         viewer.wanted[900001], viewer.wanted[2503] = 1, 8
         a.SocialRefreshViewer()
         return to_py(lua.eval("PREVIEW_EXPORT")(viewer))
+    # Explicit synthetic gameplay fixtures exercise populated layouts. They are used only by this offline preview.
+    if view == "training":
+        lua.execute('''
+          Enum=Enum or {}; Enum.SpellBookSpellBank={Player=0,Pet=1}
+          C_SpellBook={IsSpellKnown=function(id) return id==635 or id==20154 end}
+          C_Spell={GetSpellInfo=function(id)
+            local names={[635]="Holy Light",[639]="Holy Light",[647]="Holy Light",[20271]="Judgement",[19740]="Blessing of Might",[19742]="Blessing of Wisdom",[853]="Hammer of Justice",[1022]="Blessing of Protection"}
+            return {name=names[id] or ("Schopnost #"..id),iconID=135920}
+          end,GetSpellSubtext=function() return "Rank 1" end}
+        ''')
+        a.Training.Invalidate(False)
+    if view == "gear":
+        lua.execute('''
+          PREVIEW_GEAR_ITEMS={
+            [900001]={name="Modelová kroužková zbroj",quality=1,loc="INVTYPE_CHEST",class=4,sub=3,stats={ITEM_MOD_STAMINA_SHORT=2}},
+            [900002]={name="Vylepšená modelová zbroj",quality=2,loc="INVTYPE_CHEST",class=4,sub=3,stats={ITEM_MOD_STAMINA_SHORT=8,ITEM_MOD_STRENGTH_SHORT=3}},
+            [900003]={name="Poškozený zub",quality=0,loc="",class=15,sub=0,stats={}},
+          }
+          GetInventoryItemLink=function(_,slot) if slot==5 then return "item:900001" end end
+          GetItemInfo=function(ref)
+            local id=tonumber(ref) or tonumber(tostring(ref):match("item:(%d+)"));local v=PREVIEW_GEAR_ITEMS[id]
+            if v then return v.name,"item:"..id,v.quality,10,1,"Armor","Mail",20,v.loc,132540,25,v.class,v.sub end
+          end
+          GetItemStats=function(ref) local id=tonumber(ref) or tonumber(tostring(ref):match("item:(%d+)"));return PREVIEW_GEAR_ITEMS[id] and PREVIEW_GEAR_ITEMS[id].stats end
+          IsEquippableItem=function(ref) local id=tonumber(ref) or tonumber(tostring(ref):match("item:(%d+)"));return PREVIEW_GEAR_ITEMS[id] and PREVIEW_GEAR_ITEMS[id].loc~="" end
+          NUM_BAG_SLOTS=0
+          C_Container={GetContainerNumSlots=function() return 2 end,
+            GetContainerItemInfo=function(_,slot) local id=slot==1 and 900002 or 900003;return {itemID=id,hyperlink="item:"..id,stackCount=slot==1 and 1 or 4,isLocked=false} end,
+            GetContainerItemQuestInfo=function() return {isQuestItem=false} end}
+          Evertally.Gear.cache={}
+        ''')
     a.ShowView(view)
+    if view == "gear" and tab:
+        a.gearPage.filter = tab
+        a.gearPage.Refresh()
+    if view == "training" and tab:
+        a.trainingPage.mode = tab
+        a.trainingPage.Refresh()
     lua.execute("PREVIEW_SETTLE()")
     if view == "settings" and tab:
         lua.execute('C_CVar={GetCVar=function() return "1" end,SetCVar=function() end}')
@@ -547,7 +584,7 @@ def main():
         if args.quest_id and view == "database": name += "-" + str(args.quest_id)
         page = out / f"{name}.html"
         page.write_text(render(nodes, sw, sh, args.debug), encoding="utf8")
-        bad = [k for k in ("ui_refresh", "overview_page", "journal_page", "rankings_page", "social_page", "world_page", "forum_page", "forum_compose") if a.errors[k]]
+        bad = [k for k in ("ui_refresh", "overview_page", "journal_page", "rankings_page", "social_page", "world_page", "forum_page", "forum_compose", "gear_page", "training_page", "questguide_page") if a.errors[k]]
         if bad or a.lastUIError:
             problems[name] = (bad, str(a.lastUIError))
         if not args.no_shots:
