@@ -282,7 +282,8 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
 
   const fail = (error: unknown) => setNotice(error instanceof ApiFailure ? error.message : s.routeLoadFailed);
   const refresh = () => setBump(value => value + 1);
-  const askLocation = async () => { try { await api("/api/locate", { method: "POST" }); setNotice(s.locateAsked); } catch (error) { fail(error); } };
+  const askAbout = async (target: { userId?: string; profileId?: string } = {}) => { try { await api("/api/locate", { method: "POST", body: JSON.stringify(target) }); setNotice(s.locateAsked); } catch (error) { fail(error); } };
+  const askLocation = () => askAbout();
   const changeSharing = async (key: keyof Sharing, value: boolean) => {
     const before = sharing;
     setSharingState(previous => ({ ...(previous ?? { friends: false, signedIn: false, public: false }), [key]: value }));
@@ -376,7 +377,7 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
       showPaths, setShowPaths, sharing, changeSharing, friends: friendsData, askFriend, answerFriend,
       gameFriends:(liveData.others??[]).filter(p=>(p.audience==="friends"||p.audience==="group")&&now-p.at<=30),
       user, layers, route, shownPaths, guilds, failed, notice, hours, setHours, character, setCharacter, picked, memberTrails, now,
-      liveCount:ownLive.length,refresh, askLocation, eraseRoute, membership, toggleMemberRoute, flyToLatest, where, circles, profiles, createGroup, joinGroup, groupAction, toggleCircleRoute, flyToPosition,
+      liveCount:ownLive.length,refresh, askLocation, askAbout, eraseRoute, membership, toggleMemberRoute, flyToLatest, where, circles, profiles, createGroup, joinGroup, groupAction, toggleCircleRoute, flyToPosition,
       placeOf: (position: { mapId: number; x: number; y: number }) => place(position.mapId, position.x, position.y), hasOrigin: Boolean(latestPlace),
       flyToMember: (member: Member) => { if (!member.position) return; const at = place(member.position.mapId, member.position.x, member.position.y); if (at) flyTo({ points: [at] }); },
     },
@@ -466,7 +467,7 @@ export function PeoplePanel({ panel, signIn, onRoute, onLayer }: { panel: People
                   ))}
                   {panel.friends?.friends.map(entry => (
                     <div key={`f:${entry.userId}`} className="pp-friend"><span><strong>{entry.name}</strong><small>{entry.live?(lang==="cs"?" · ŽIVĚ":" · LIVE"):entry.sharing?(lang==="cs"?" · Poloha se nepřenáší":" · Position is not streaming"):(lang==="cs"?" · Sdílení je vypnuté":" · Sharing is off")}</small></span>
-                      {entry.position&&<button type="button" className="btn btn-ghost btn-sm" onClick={()=>panel.flyToPosition(entry.position!)}>{s.guildFly}</button>}<button type="button" className="btn btn-ghost btn-sm danger" onClick={() => void panel.answerFriend(entry.userId, "remove")}>{s.friendRemove}</button></div>
+                      {entry.position&&<button type="button" className="btn btn-ghost btn-sm" onClick={()=>panel.flyToPosition(entry.position!)}>{s.guildFly}</button>}<button type="button" className="btn btn-ghost btn-sm" onClick={() => void panel.askAbout({ userId: entry.userId })}>{s.locateButton}</button><button type="button" className="btn btn-ghost btn-sm danger" onClick={() => void panel.answerFriend(entry.userId, "remove")}>{s.friendRemove}</button></div>
                   ))}
                   {panel.friends && !panel.friends.friends.length && !panel.friends.incoming.length && !panel.friends.outgoing.length && <p className="muted small">{s.friendNone}</p>}
                   <p className="fine-print">{s.friendNote}</p>

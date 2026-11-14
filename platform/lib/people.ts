@@ -260,6 +260,7 @@ export function releaseStatements(db: Db, userId: string): Stmt[] {
     db.prepare("DELETE FROM et_live_positions WHERE user_id=?").bind(userId),
     db.prepare("DELETE FROM et_last_positions WHERE user_id=?").bind(userId),
     db.prepare("DELETE FROM et_locate_requests WHERE user_id=?").bind(userId),
+    db.prepare("DELETE FROM et_locate_asks WHERE requester_id=?").bind(userId),
     db.prepare("DELETE FROM et_guild_members WHERE user_id=?").bind(userId),
     db.prepare("UPDATE et_guilds SET owner_user_id=NULL,owner_name=NULL,roster='[]',roster_at=NULL WHERE owner_user_id=?").bind(userId),
     db.prepare("DELETE FROM et_circle_members WHERE user_id=?").bind(userId),

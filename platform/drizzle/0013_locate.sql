@@ -14,3 +14,8 @@ CREATE TABLE IF NOT EXISTS et_locate_requests (
   user_id TEXT PRIMARY KEY NOT NULL,
   requested_at INTEGER NOT NULL
 );
+-- Who asked last, so one account cannot flood the database with requests for other players.
+CREATE TABLE IF NOT EXISTS et_locate_asks (
+  requester_id TEXT PRIMARY KEY NOT NULL,
+  asked_at INTEGER NOT NULL
+);

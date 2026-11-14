@@ -61,11 +61,3 @@ export async function deviceLive(device:Row,raw:unknown) {
   ]);
   return {accepted:Number(results[1].meta.changes??0),expiresAt:at+LIVE_TTL};
 }
-
-/** The website asks the player's app for one position. At most one request per half minute is written. */
-export async function requestLocate(userId:string){
-  const at=Math.floor(Date.now()/1000);
-  await getBinding().prepare("INSERT INTO et_locate_requests(user_id,requested_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET requested_at=excluded.requested_at WHERE excluded.requested_at>=et_locate_requests.requested_at+30")
-    .bind(userId,at).run();
-  return {requested:true};
-}

@@ -1,7 +1,7 @@
 "use client";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { hasKey, useI18n } from "@/lib/i18n";
-import { useApi } from "../api";
+import { ApiFailure, api, useApi } from "../api";
 import { CLASS_COLORS, CLASSES, RACES, completed, duration, factionOf } from "../data";
 import { CharacterIcons, fullName } from "../Identity";
 import type { Character, Run } from "../types";
@@ -110,6 +110,7 @@ export function CharacterView({ id }: { id: string }) {
           {guild && <a className="ch-link" href={guildHref(profile.realm, guild)}><Icon name="shield" size={15} /> {t("character.guildLink")}</a>}
           <a className="ch-link" href={`#armory/${encodeURIComponent(profile.id)}`}><Icon name="shield" size={15} /> {t("character.armory")}</a>
           <a className="ch-link" href={`#rankings/level?q=${encodeURIComponent(profile.name ?? "")}`}><Icon name="trophy" size={15} /> {t("character.inLeaderboard")}</a>
+          <AskLocation profileId={profile.id} lang={lang} />
         </Card>
       </div>
     </div>
@@ -142,4 +143,26 @@ function LevelChart({ levels }: { levels: { level: number; at: number }[] }) {
     </svg>
     <div className="ch-levels-axis"><span>{l0} · {day(t0)}</span><span>{l1} · {day(t1)}</span></div>
   </div>;
+}
+
+/** "Where are you?" for any character: the player's own sharing choice decides whether the app answers. */
+function AskLocation({ profileId, lang }: { profileId: string; lang: string }) {
+  const [note, setNote] = useState("");
+  const cs = lang === "cs";
+  const ask = async () => {
+    try {
+      await api("/api/locate", { method: "POST", body: JSON.stringify({ profileId }) });
+      setNote(cs ? "Žádost odeslána. Pokud hráč sdílí polohu a jeho aplikace běží, ukáže se na mapě během pár minut." : "Asked. If the player shares their position and their app is running, it shows on the map within a few minutes.");
+    } catch (error) {
+      const status = error instanceof ApiFailure ? error.status : 0;
+      setNote(status === 401 ? (cs ? "Pro žádost se přihlas." : "Sign in to ask.")
+        : status === 404 ? (cs ? "Tento hráč s tebou polohu nesdílí." : "This player does not share their position with you.")
+        : status === 429 ? (cs ? "Chvíli počkej, ptát se jde jednou za minutu." : "Wait a moment: you can ask once a minute.")
+        : (cs ? "Žádost se nepodařila." : "The request failed."));
+    }
+  };
+  return <>
+    <button type="button" className="ch-link" onClick={() => void ask()}><Icon name="shield" size={15} /> {cs ? "Kde je tento hráč?" : "Where is this player?"}</button>
+    {note && <p className="ch-empty" role="status">{note}</p>}
+  </>;
 }
