@@ -4,6 +4,7 @@ local _, A = ...
 -- writes from the website; without it, or once it is stale, nothing is added. Settings → Interface can turn it off.
 
 local index, indexedAt
+local LOGO = "|TInterface\\AddOns\\Evertally\\Media\\Logo:14|t"
 
 --- The same key for the website's realm text and the game's: no spaces, dashes or apostrophes, lower case.
 local function key(name, realm)
@@ -37,7 +38,7 @@ end
 
 --- The lines for one player: {left, right}. The first one is the place on the whole board.
 function A.RankingLines(p, data)
-    local lines = {{"Evertally", string.format(A.L("tipRank"), p.k, tonumber(data.total) or p.k)}}
+    local lines = {{LOGO .. " Evertally", string.format(A.L("tipRank"), p.k, tonumber(data.total) or p.k)}}
     if type(p.ck) == "number" then
         local class = p.c and A.ClassName and A.ClassName(p.c) or nil
         lines[#lines + 1] = {class and string.format(A.L("tipClassRankOf"), class) or A.L("tipClassRank"), "#" .. p.ck}
@@ -56,7 +57,14 @@ local function onUnit(tooltip)
     realm = A.Plain(realm)
     if type(realm) ~= "string" or realm == "" then realm = A.Call(GetNormalizedRealmName) or A.Call(GetRealmName) end
     local p, data = A.RankingFor(name, realm)
-    if not p then return end
+    if not p then
+        -- not on the public board, but known to run Evertally (they sent an Evertally message lately)
+        if A.IsEvertallyUser and A.IsEvertallyUser(name, realm) then
+            tooltip:AddLine(LOGO .. " " .. A.L("tipUser"), 1, 0.6, 0.12)
+            tooltip:Show()
+        end
+        return
+    end
     for i, line in ipairs(A.RankingLines(p, data)) do
         if i == 1 then tooltip:AddDoubleLine(line[1], line[2], 1, 0.6, 0.12, 1, 0.82, 0.4)
         else tooltip:AddDoubleLine(line[1], line[2], 0.75, 0.75, 0.75, 1, 1, 1) end

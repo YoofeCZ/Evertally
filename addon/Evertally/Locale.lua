@@ -1,5 +1,5 @@
 local _, A = ...
-A.version = "0.9.18"
+A.version = "0.9.19"
 A.locale = {
     en = {
         title = "Evertally", overview = "Overview", history = "Runs", facts = "Atlas", peers = "Sharing", settings = "Settings",
@@ -26,7 +26,7 @@ A.locale = {
         own_character = "My character (name, realm, level)", own_professions = "My professions",
         updatedTo = "Evertally was updated to %s.",
         rankTooltip = "Leaderboard in player tooltips (place, item level, runs; from the website)",
-        tipRank = "#%d of %d", tipClassRank = "Place in class", tipClassRankOf = "Place among %ss", tipItemLevel = "Item level", tipRuns = "Completed runs",
+        tipUser = "Uses Evertally", tipRank = "#%d of %d", tipClassRank = "Place in class", tipClassRankOf = "Place among %ss", tipItemLevel = "Item level", tipRuns = "Completed runs",
         leaderboard = "Show my characters in the public leaderboard on the website", leaderboardItemLevel = "…with item level (only the average of the gear)", leaderboardGuild = "…with guild name",
         own_track = "My route (private; guild sees it only if you confirm on the web)", guild_share = "My guild (member list for guild masters)", diagnostics = "Diagnostics", close = "Close",
         copyHint = "Ctrl+A, Ctrl+C. Only currently permitted own records are included. Copying does not upload anything.",
@@ -68,7 +68,7 @@ A.locale = {
         own_character = "Moje postava (jméno, realm, level)", own_professions = "Moje profese",
         updatedTo = "Evertally byl aktualizován na %s.",
         rankTooltip = "Žebříček v tooltipu hráčů (pořadí, item level, běhy; z webu)",
-        tipRank = "#%d z %d", tipClassRank = "Pořadí ve třídě", tipClassRankOf = "Pořadí ve třídě %s", tipItemLevel = "Item level", tipRuns = "Dokončené běhy",
+        tipUser = "Používá Evertally", tipRank = "#%d z %d", tipClassRank = "Pořadí ve třídě", tipClassRankOf = "Pořadí ve třídě %s", tipItemLevel = "Item level", tipRuns = "Dokončené běhy",
         leaderboard = "Ukázat mé postavy ve veřejném žebříčku na webu", leaderboardItemLevel = "…s item levelem (jen průměr výbavy)", leaderboardGuild = "…s názvem cechu",
         own_track = "Moje trasa (soukromá; cech ji uvidí, jen když to potvrdíš na webu)", guild_share = "Můj cech (seznam členů pro guildmastery)", diagnostics = "Diagnostika", close = "Zavřít",
         copyHint = "Ctrl+A a Ctrl+C. Export obsahuje jen aktuálně povolené vlastní záznamy. Samotné kopírování nic neodesílá.",

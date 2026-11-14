@@ -95,6 +95,9 @@ MOCK_UI_LUA = '''
         '''
 
 
+LOGO = "|TInterface\\AddOns\\Evertally\\Media\\Logo:14|t"
+
+
 class ReplayTests(unittest.TestCase):
     def setUp(self):
         self.lua,self.a=runtime()
@@ -377,13 +380,13 @@ class ReplayTests(unittest.TestCase):
 
     def test_tooltip_shows_the_place_class_place_item_level_and_runs(self):
         self.tooltip_world()
-        self.assertEqual(self.hover(), ["Evertally = #3 of 12", "Place among Druids = #1", "Item level = 62", "Completed runs = 4"])
+        self.assertEqual(self.hover(), [LOGO + " Evertally = #3 of 12", "Place among Druids = #1", "Item level = 62", "Completed runs = 4"])
         self.assertEqual(self.lua.globals().SHOWN, 1)
 
     def test_tooltip_matches_realms_written_differently_and_skips_empty_details(self):
         self.tooltip_world(realm="GolemAgg")
         self.lua.execute('GameTooltip.GetUnit=function() return "Brok","mouseover" end;UnitName=function() return "Brok","GolemAgg" end')
-        self.assertEqual(self.hover(), ["Evertally = #5 of 12", "Place among Warriors = #2"])
+        self.assertEqual(self.hover(), [LOGO + " Evertally = #5 of 12", "Place among Warriors = #2"])
 
     def test_tooltip_adds_nothing_when_stale_unknown_or_turned_off(self):
         self.tooltip_world(expires_in=-1)
@@ -397,6 +400,68 @@ class ReplayTests(unittest.TestCase):
         self.a.db.settings.rankTooltip = None
         self.lua.execute('EvertallyRankingData=nil')
         self.assertEqual(self.hover(), [], "no package at all")
+
+
+    def test_tooltip_names_an_evertally_user_who_is_not_on_the_board(self):
+        self.tooltip_world()
+        self.lua.execute('UnitName=function() return "Vexara",nil end;GameTooltip.GetUnit=function() return "Vexara","mouseover" end')
+        self.assertEqual(self.hover(), [])
+        self.a.NoteEvertallyUser("Vexara-Firemaw")
+        self.assertEqual(self.hover(), [LOGO + " Uses Evertally"])
+
+    def test_a_mark_can_be_any_game_icon_and_is_drawn_beside_a_name_only_nameplate(self):
+        self.assertTrue(self.a.SetMark("Other", "f135940"))
+        self.assertEqual(self.a.GetMark("Other-Fixture Realm"), "f135940")
+        for bad in ["f12x", "9", "-1", "f", "f0", "x135940", "f" + "9" * 12]:
+            self.assertFalse(self.a.SetMark("Other", bad), bad)
+        self.assertEqual(self.a.GetMark("Other"), "f135940", "a refused value leaves the mark as it was")
+        self.assertEqual(self.a.MarkMarkup("f135940", 12), "|T135940:12:12:0:0:64:64:5:59:5:59|t")
+        self.assertEqual(self.a.MarkMarkup(3, 14), "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:14|t")
+        self.lua.execute("""
+        C_Item={GetItemIconByID=function(id) if id==6948 then return 134414 end end}
+        C_Spell={GetSpellTexture=function(id) if id==2061 then return 135907 end end}
+        """)
+        choices = self.a.MarkChoices()
+        choices = [choices[i] for i in range(1, len(choices) + 1)]
+        self.assertEqual(choices, [1, 2, 3, 4, 5, 6, 7, 8, "f135907", "f134414"], "only icons the client has")
+        # a friendly player shown as a name only: the icons go beside the name text
+        self.lua.execute("""
+        local function region()
+          local r={shown=false}
+          for _,m in ipairs({"SetSize","SetTexture","SetTexCoord","EnableMouse","SetFrameStrata","SetFrameLevel"}) do r[m]=function() end end
+          function r:ClearAllPoints() self.point=nil end
+          function r:SetPoint(...) self.point={...} end
+          function r:Show() self.shown=true end
+          function r:Hide() self.shown=false end
+          function r:IsShown() return self.shown end
+          function r:CreateTexture() return region() end
+          return r
+        end
+        FRAMES={}
+        CreateFrame=function() local f=region(); table.insert(FRAMES,f); return f end
+        NAMETEXT={IsVisible=function() return true end}
+        C_NamePlate={GetNamePlates=function() return {{namePlateUnitToken="nameplate1",UnitFrame={name=NAMETEXT},IsVisible=function() return true end}} end}
+        UnitIsPlayer=function(u) return u=="nameplate1" end
+        UnitName=function(u) if u=="nameplate1" then return "Other","Fixture Realm" end return "Fixture Hero" end
+        """)
+        self.a.MarksRefresh()
+        lines = self.a.MarksDebug()
+        lines = [lines[i] for i in range(1, len(lines) + 1)]
+        self.assertIn("nametext=yes", lines[1])
+        self.assertEqual(lines[-1], "icons drawn 1")
+        self.assertTrue(self.lua.eval('FRAMES[1].point[1]=="LEFT" and FRAMES[1].point[2]==NAMETEXT and FRAMES[1].point[3]=="RIGHT"'), "right beside the name")
+
+    def test_players_on_the_public_board_count_as_evertally_users_and_marks_stay_small(self):
+        self.lua.execute("""
+        EvertallyRankingData={schemaVersion=1,kind="evertally-ranking",generatedAt=NOW-60,expiresAt=NOW+3600,total=1,truncated=false,
+          players={{n="Brok",r="Golemagg",k=1,ck=1,u=0}}}
+        GetNormalizedRealmName=function() return "Firemaw" end
+        """)
+        self.assertTrue(self.a.IsEvertallyUser("Brok", "Golemagg"))
+        self.assertFalse(self.a.IsEvertallyUser("Brok", None), "another realm, another player")
+        self.assertFalse(self.a.IsEvertallyUser("Nobody", "Golemagg"))
+        self.lua.execute('C_NamePlate={GetNamePlates=function() return {} end}')
+        self.assertIn("size 12", self.a.MarksDebug()[1], "smaller than a raid target icon by default")
 
     # ---- the public leaderboard choice (Publish.lua) ----
     def test_leaderboard_choice_is_off_and_travels_only_with_web_and_character(self):
