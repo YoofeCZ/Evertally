@@ -451,6 +451,30 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(lines[-1], "icons drawn 1")
         self.assertTrue(self.lua.eval('FRAMES[1].point[1]=="LEFT" and FRAMES[1].point[2]==NAMETEXT and FRAMES[1].point[3]=="RIGHT"'), "right beside the name")
 
+    def test_friendly_nameplates_are_turned_on_as_names_only_on_request_and_never_in_combat(self):
+        self.lua.execute("""
+        CVARS={nameplateShowFriendlyPlayers="0",nameplateShowOnlyNameForFriendlyPlayerUnits="0"}
+        C_CVar={GetCVar=function(n) return CVARS[n] end,SetCVar=function(n,v) CVARS[n]=v;return true end}
+        COMBAT=false;InCombatLockdown=function() return COMBAT end
+        CHAT={};DEFAULT_CHAT_FRAME={AddMessage=function(self,m) table.insert(CHAT,m) end}
+        """)
+        self.assertFalse(self.a.FriendlyPlatesShown())
+        # a mark while the plates are off: one hint, once
+        self.a.SetMark("Other", 3); self.a.SetMark("Another", 4)
+        hints = [m for m in self.lua.globals().CHAT.values() if "plates on" in m]
+        self.assertEqual(len(hints), 1)
+        self.lua.execute("COMBAT=true")
+        self.assertFalse(self.a.SetFriendlyPlates(True), "never during combat")
+        self.assertEqual(self.lua.globals().CVARS["nameplateShowFriendlyPlayers"], "0")
+        self.lua.execute("COMBAT=false")
+        self.a.MarkCommand("mark plates on")
+        cvars = self.lua.globals().CVARS
+        self.assertEqual((cvars["nameplateShowFriendlyPlayers"], cvars["nameplateShowOnlyNameForFriendlyPlayerUnits"]), ("1", "1"), "names only, as plain names look")
+        self.assertTrue(self.a.FriendlyPlatesShown())
+        self.a.MarkCommand("mark plates off")
+        self.assertEqual(cvars["nameplateShowFriendlyPlayers"], "0")
+        self.assertEqual(cvars["nameplateShowOnlyNameForFriendlyPlayerUnits"], "1", "the names-only choice stays as it was")
+
     def test_players_on_the_public_board_count_as_evertally_users_and_marks_stay_small(self):
         self.lua.execute("""
         EvertallyRankingData={schemaVersion=1,kind="evertally-ranking",generatedAt=NOW-60,expiresAt=NOW+3600,total=1,truncated=false,

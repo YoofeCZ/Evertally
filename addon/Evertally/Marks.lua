@@ -50,6 +50,7 @@ function A.SetMark(name, mark)
     else
         if not s.marks[k] and count(s.marks) >= MAX_MARKS then return false end
         s.marks[k] = mark
+        if A.MarkPlatesHint then A.MarkPlatesHint() end
     end
     if A.MarksRefresh then A.MarksRefresh() end
     return true
@@ -218,7 +219,8 @@ end
 function A.MarksDebug()
     local s = settings() or {}
     local list = plates()
-    local lines = {string.format("nameplates %d, logo %s, size %d", #list, s.markUsers ~= false and "on" or "off", size())}
+    local lines = {string.format("nameplates %d, logo %s, size %d, friendly plates %s (names only %s)", #list, s.markUsers ~= false and "on" or "off", size(),
+        tostring(A.PlateCVar and A.PlateCVar("nameplateShowFriendlyPlayers")), tostring(A.PlateCVar and A.PlateCVar("nameplateShowOnlyNameForFriendlyPlayerUnits")))}
     for i, plate in ipairs(list) do
         if i > 8 then lines[#lines + 1] = "..."; break end
         local token = plateToken(plate)
@@ -241,6 +243,40 @@ end
 A.On("NAME_PLATE_UNIT_ADDED", function() pcall(A.MarksRefresh) end)
 A.On("NAME_PLATE_UNIT_REMOVED", function() pcall(A.MarksRefresh) end)
 if C_Timer and type(C_Timer.NewTicker) == "function" then C_Timer.NewTicker(1, function() pcall(A.MarksRefresh) end) end
+
+-- ---------------------------------------------------------------- friendly nameplates
+-- With friendly player nameplates off (the game's default) the names above friendly players are drawn by the game
+-- itself and no addon can put anything beside them. Forever names the settings nameplateShowFriendlyPlayers and
+-- nameplateShowOnlyNameForFriendlyPlayerUnits (read from its client). Turning them on as "names only" keeps the look
+-- of plain names and gives the marks and the logo their place. Changed only on the player's request, out of combat.
+local FRIENDLY_PLATES, NAME_ONLY = "nameplateShowFriendlyPlayers", "nameplateShowOnlyNameForFriendlyPlayerUnits"
+local function cvar(name)
+    return A.Text(A.Call(C_CVar and C_CVar.GetCVar, name), 16) or A.Text(A.Call(GetCVar, name), 16)
+end
+local function setCVar(name, value)
+    if C_CVar and type(C_CVar.SetCVar) == "function" then A.Call(C_CVar.SetCVar, name, value) else A.Call(SetCVar, name, value) end
+    return cvar(name) == value
+end
+A.PlateCVar = cvar
+function A.FriendlyPlatesShown() return cvar(FRIENDLY_PLATES) == "1" end
+--- on: friendly player nameplates as names only; off: back to names drawn by the game. Returns true when it took effect.
+function A.SetFriendlyPlates(on)
+    if A.Call(InCombatLockdown) == true then A.Print(A.L("markPlatesCombat")); return false end
+    local done
+    if on then
+        if cvar(NAME_ONLY) ~= "1" then setCVar(NAME_ONLY, "1") end
+        done = setCVar(FRIENDLY_PLATES, "1")
+    else done = setCVar(FRIENDLY_PLATES, "0") end
+    if A.MarksRefresh then pcall(A.MarksRefresh) end
+    return done
+end
+local hinted = false
+--- Once a session: a mark or the logo has nowhere to go above heads while friendly nameplates are off.
+function A.MarkPlatesHint()
+    if hinted or A.FriendlyPlatesShown() then return end
+    hinted = true
+    A.Print(A.L("markPlatesHint"))
+end
 
 -- ---------------------------------------------------------------- picker
 --- A small grid of marks below `anchor`; a click stores the mark for `name` and calls done(). Parented to `parent`,
@@ -300,6 +336,11 @@ function A.MarkCommand(text)
     local size = rest:match("^size%s+(%d+)$")
     if size then s.markSize = A.Number(tonumber(size), 10, 32) or 12; A.MarksRefresh(); return end
     if rest == "debug" then A.MarksDebug(); return end
+    if rest == "plates on" or rest == "plates off" then
+        local on = rest == "plates on"
+        if A.SetFriendlyPlates(on) then A.Print(A.L(on and "markPlatesOn" or "markPlatesOff")) end
+        return
+    end
     -- any game icon: the icon of a spell or of an item, by its id
     local who, kind, id = rest:match("^(.-)%s*(spell)%s+(%d+)$")
     if not kind then who, kind, id = rest:match("^(.-)%s*(item)%s+(%d+)$") end
@@ -332,7 +373,7 @@ A.locale.en.markSet = "Mark %d set for %s. Only you can see it."
 A.locale.cs.markSet = "Značka %d nastavena hráči %s. Vidíš ji jen ty."
 A.locale.en.markCleared = "Mark removed from %s."
 A.locale.cs.markCleared = "Značka odebrána hráči %s."
-A.locale.en.markUsage = "Marks: /etally mark <1-8> (your target), /etally mark <name> <1-8>, any icon: /etally mark [name] spell|item <id>, 0 removes, /etally mark list, logo on|off, size 10-32, debug"
+A.locale.en.markUsage = "Marks: /etally mark <1-8> (your target), /etally mark <name> <1-8>, any icon: /etally mark [name] spell|item <id>, 0 removes, /etally mark list, logo on|off, plates on|off, size 10-32, debug"
 A.locale.en.markIconSet = "Mark %s set for %s. Only you can see it."
 A.locale.cs.markIconSet = "Značka %s nastavena hráči %s. Vidíš ji jen ty."
 A.locale.en.markNoIcon = "This client has no icon for that id."
@@ -340,8 +381,18 @@ A.locale.cs.markNoIcon = "Pro toto ID nemá klient ikonu."
 A.locale.en.markPick = "Pick a mark (only you see it)"
 A.locale.cs.markPick = "Vyber značku (vidíš ji jen ty)"
 A.locale.en.markRemove = "Remove"
+A.locale.en.markPlates = "Marks and the Evertally logo above friendly players (turns on their nameplates as names only)"
+A.locale.cs.markPlates = "Značky a logo Evertally nad spojenci (zapne jejich jmenovky jen se jménem)"
+A.locale.en.markPlatesHint = "Above heads, marks and the Evertally logo need friendly nameplates. Turn them on (names only): /etally mark plates on, or in Settings."
+A.locale.cs.markPlatesHint = "Nad hlavou potřebují značky a logo Evertally jmenovky spojenců. Zapni je (jen jména): /etally mark plates on, nebo v Nastavení."
+A.locale.en.markPlatesOn = "Friendly nameplates are on, as names only. Marks and the logo now sit beside the names."
+A.locale.cs.markPlatesOn = "Jmenovky spojenců jsou zapnuté, jen se jménem. Značky a logo jsou teď vedle jmen."
+A.locale.en.markPlatesOff = "Friendly nameplates are off; the game draws the names again."
+A.locale.cs.markPlatesOff = "Jmenovky spojenců jsou vypnuté; jména zase kreslí hra."
+A.locale.en.markPlatesCombat = "Not during combat. Try again afterwards."
+A.locale.cs.markPlatesCombat = "Ne během boje. Zkus to potom."
 A.locale.cs.markRemove = "Odebrat"
-A.locale.cs.markUsage = "Značky: /etally mark <1-8> (tvůj cíl), /etally mark <jméno> <1-8>, libovolná ikona: /etally mark [jméno] spell|item <id>, 0 odebere, /etally mark list, logo on|off, size 10-32, debug"
+A.locale.cs.markUsage = "Značky: /etally mark <1-8> (tvůj cíl), /etally mark <jméno> <1-8>, libovolná ikona: /etally mark [jméno] spell|item <id>, 0 odebere, /etally mark list, logo on|off, plates on|off, size 10-32, debug"
 A.locale.en.markList = "Your marks:"
 A.locale.cs.markList = "Tvoje značky:"
 A.locale.en.markNone = "No marks set yet."

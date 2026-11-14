@@ -1016,6 +1016,7 @@ local function buildSettings(page)
     end
     cy=cy-38
     place(Toggle(card,"rankTooltip",function() return s().rankTooltip~=false end,function(v) s().rankTooltip=v==true end))
+    place(Toggle(card,"markPlates",function() return A.FriendlyPlatesShown and A.FriendlyPlatesShown() end,function(v) if A.SetFriendlyPlates then A.SetFriendlyPlates(v) end end))
     place(Toggle(card,"minimap",function() return not s().hideMinimap end,function(v) s().hideMinimap=not v;if minimapButton then minimapButton:SetShown(v) end end))
 
     section("actionsSection")
