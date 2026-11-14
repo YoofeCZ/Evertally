@@ -1,53 +1,83 @@
-# Evertally — herní atlas a statistiky pro WoW Forever
+# Evertally
 
-Implementace 0.8.1 a původní zadání • 12. listopadu 2026
+Herní deník, navigace, atlas a komunitní statistiky pro **World of Warcraft Forever**. Projekt spojuje addon ve hře, Windows aplikaci na pozadí a web.
 
-Název: **Evertally**. Původní pracovní označení „Forever Atlas“ už používá jiný addon na CurseForge, proto bylo 2026-11-09 změněno; u názvu Evertally nenašlo vyhledávání na CurseForge, Wago, WoWInterface ani GitHubu žádný existující projekt (ochranná známka ověřená není).
+**Aktuální verze:** addon **0.9.28**, Windows Bridge **0.9.10**. Podrobnosti poslední změny: [VYDANI-0.9.28.md](VYDANI-0.9.28.md).
 
-**Samostatný addon sbírá herní pozorování, ukazuje vlastní historii a umožňuje porovnávání s dalšími uživateli addonu. Kdo se výslovně rozhodne přispívat na web, propojí své vlastní záznamy s komunitní databází a webovými žebříčky.**
+- [Web Evertally](https://evertally.afstudio.dev/)
+- [Addon na CurseForge](https://www.curseforge.com/wow/addons/evertally)
+- [Windows aplikace a propojení s webem](https://evertally.afstudio.dev/#sync)
+- [OpenMap na CurseForge](https://www.curseforge.com/wow/addons/openmap)
 
-Verze 0.8.0 spojuje nové herní okno, deník, přehled, žebříčky a sjednocené stránky profesí, míst, atlasu, komunity a nastavení. Do mapy OpenMap přidává místa sbírání s ikonami surovin, živé hráče, srazy, pingy a navigaci. Databáze a Dungeon Journal se načtou i bez OpenMap; stránka Mapa a cesty obsahuje plánování a mapové katalogy. Rozsáhlá webová databáze má 22 881 předmětů, z nichž 22 779 má doloženou ikonu. Windows Bridge běží vedle hodin a obsahuje pouze spojení, párování a Web sync. **Instalace a skutečný stav ověření jsou v [NAVOD.md](NAVOD.md)**; aktuální vydání shrnuje [VYDANI-0.8.1.md](VYDANI-0.8.1.md).
+## Instalace pro hráče
 
-Web běží na **https://evertally.afstudio.dev**. Skutečný most dne 11. 11. 2026 odesílal živou polohu a produkční databáze přijala bod starý tři sekundy. To potvrzuje tento přenos; neprokazuje průchod dungeonem, správnost každé šipky ani vzhled nových stránek ve WoW. Ověření herního rozhraní a ověření automatickými testy jsou vedená odděleně.
+**OpenMap i aplikace Evertally pro Windows jsou povinné.** První krok nastavení ověří obě instalace; bez ověření se nedá pokračovat. Webový účet, párování počítače a sdílení vlastních dat na web zůstávají volitelné.
 
-Přesná živá poloha má samostatná oprávnění: vlastní účet, potvrzený cech/skupiny, přátelé, přihlášení návštěvníci a veřejnost podle voleb majitele. Veřejné sdílení je výchozí vypnuté. Komunitní aktivita oblastí je samostatná anonymní statistika se třemi přispívajícími účty za 24 hodin; nejde o počet online hráčů. Referenční NPC piny jsou oddělené od hráčských pozorování.
+1. Nainstaluj a zapni OpenMap pro WoW Forever.
+2. Nainstaluj Windows aplikaci Evertally a nastav v ní složku hry.
+3. Nainstaluj addon Evertally a po přidání nových souborů úplně restartuj WoW.
+4. Ve hře otevři `/etally`, ověř instalaci a projdi nastavením.
 
-Níže uvedené dokumenty zachovávají původní produktové zadání. Popisují i cílové funkce, které ještě nejsou implementované; nejsou seznamem dokončených funkcí.
+Podrobný návod, diagnostika a stav ověření jsou v [NAVOD.md](NAVOD.md).
 
-## Dokumenty
+## Co projekt nabízí
 
-| Soubor | Obsah |
+- **Deník a přehled:** questy, loot, úrovně, navštívená místa, nedávná aktivita a historie postavy.
+- **Mapa a navigace:** vrstvy OpenMap, souvislá čára trasy, pěší a dopravní úseky, služby, instance a navigační nabídka po pravém kliknutí.
+- **Dungeon Journal:** dungeony a raidy, bossové, loot, související questy, odměny a mapy.
+- **Databáze a návody:** questy, NPC, předměty, objekty, recepty a postupy přímo ve hře.
+- **Talenty:** plánování, ukládání, import a export profilů, doporučené buildy a zoom stromů. Plánovač sám neutratí skutečné talentové body.
+- **Lidé a Armory:** pohled na výbavu, tašky, statistiky, talenty a profese se souhlasem druhého hráče; ve hře také questy a reputace. Každý hráč rozhoduje, co ukáže.
+- **Komunita a žebříčky:** fórum, sdílené výsledky a dostupné filtry podle instance, postavy, třídy a rasy. DPS/HPS se zobrazují tam, kde existuje odpovídající záznam.
+- **Jmenovky:** vlastní zobrazení spojenců, značky, logo, volitelné buffy, debuffy a lišty s nastavením a náhledem.
+- **Windows Bridge:** běží v oznamovací oblasti; zajišťuje párování, Web sync, aktualizace a přenos povolených dat.
+
+Jde o komunitní vzorek dat od uživatelů addonu, nikoli úplný přehled celého serveru. Záznam dungeonu, dokončení a úplné vyčištění nejsou totéž. Přesná živá poloha má vlastní oprávnění; historie a fórum používají odlišný způsob přenosu a mohou vyžadovat `/reload` nebo odhlášení.
+
+Automatické testy a skutečné ověření ve WoW jsou vedené odděleně. Omezení konkrétní verze popisují její poznámky k vydání.
+
+## Zdrojový kód
+
+| Složka | Obsah |
 | --- | --- |
-| [ZADANI.md](ZADANI.md) | Produkt, všechny herní oblasti, obrazovky, režimy použití a pravidla žebříčků |
-| [TECHNICKY_NAVRH.md](TECHNICKY_NAVRH.md) | Architektura, sběr dat, datový model, ingame protokol, webová synchronizace a API |
-| [PLAN_A_OVERENI.md](PLAN_A_OVERENI.md) | Etapy realizace, kritéria dokončení, herní ověření, výkonnostní cíle a rizika |
-| [ZDROJE.md](ZDROJE.md) | Ověřené podklady, existující konkurence a hranice dosavadního ověření |
+| `addon/` | Lua addon, exportní modul a integrace mapy |
+| `desktop/native/` | Aktuální Windows Bridge |
+| `sync/` | Synchronizace, aktualizace, práce s herními exporty a přenosy |
+| `platform/` | Webové rozhraní, API, schéma databáze a SQL migrace |
+| `installer/` | Skript instalátoru Inno Setup |
+| `tests/lua/` | Automatické testy Lua částí |
+| `tools/` | Generátory dat, balení a ověřovací nástroje |
 
-## Rozhodnutí, na kterých návrh stojí
+Repozitář obsahuje historii addonu i původně samostatného webového repozitáře. Jejich aktuální zdrojový kód je společně na větvi `main`; web je ve složce `platform/`.
 
-1. Webový účet, prohlížeč ani aplikace nejsou podmínkou běžného používání addonu.
-2. Výchozí nastavení neposílá vlastní data na web. Sdílení ve hře má vlastní přepínač a vysvětlení.
-3. Sdílení s ostatními addony funguje přes povolené herní zprávy. Rozsah závisí na dostupných spoluhráčích, přátelích a guildě.
-4. Přijatá ingame data se uchovávají odděleně od vlastních záznamů a automaticky se neodesílají na web.
-5. Web ukazuje komunitní vzorek, jeho stáří a původ. Neoznačuje jej za úplná data celého serveru.
-6. Web nabízí ruční import exportního souboru. Nativní aplikace navíc umí po spárování odesílat nové povolené záznamy; anonymní komunitní vzorek se do addonu načítá ručně přes JSON.
-7. Rasy a classy jsou filtry profilů a účastí v bězích. Čas dungeonu patří skupině; není osobním měřením výkonu dané classy či rasy.
-8. Záznam běhu, dokončení posledního bosse a úplné vyčištění mají odlišný význam a oddělené statistiky.
-9. Každý údaj nese verzi hry, původ, dostupnost a míru doložení. Nedostupný údaj není nula.
-10. Vývoj začíná ověřením API v konkrétním klientu. Zjištěná omezení nesmějí vést k obcházení chráněných dat.
+### Web
 
-## Jak to bude vypadat pro hráče
+Požaduje Node.js podle `platform/package.json`:
 
-| Hráč | Co dostane |
-| --- | --- |
-| Používá jen addon | Vlastní historii, časovače, herní atlas a dostupná data od uživatelů addonu |
-| Chce sdílet pouze ve hře | Totéž a porovnání povolených výsledků mezi online uživateli; jeho přijaté peer záznamy nejsou zdrojem webového exportu |
-| Povolí webový přenos | Navíc webový přehled a příspěvek vlastních vybraných dat do společné databáze |
-| Zveřejní profil postavy | Jeho schválené výsledky se objeví pod zvolenou postavou nebo přezdívkou v žebříčcích |
-| Pouze navštíví web | Může prohlížet veřejná data bez udělení přístupu k herním souborům |
+```powershell
+cd platform
+npm ci
+npm test
+npm run typecheck
+npm run dev -- --port 5173
+```
 
-## První vydání — původní produktový cíl
+Další konfigurace a migrace: [platform/README.md](platform/README.md), [platform/deploy/README.md](platform/deploy/README.md). Vzory konfigurace mají prázdné přihlašovací údaje. Skutečné klíče patří do ignorovaných místních souborů nebo do úložiště secrets hostingu.
 
-První použitelné vydání má zahrnout addon, osobní historii dungeonů a raidových setkání, ingame sdílení, webový import, profily, základní žebříčky a první sběrače questů, NPC, lootu a profesí. Širší atlas, ekonomika a analýzy následují po ověření kvality dat.
+### Windows aplikace
 
-Zadání zahrnuje celý cílový produkt. Rozdělení do etap určuje pořadí práce, nikoli vypuštění požadovaných oblastí.
+Požadavky na Rust a build jsou v [desktop/native/README.md](desktop/native/README.md) a [sync/README.md](sync/README.md). Projektové skripty [Build-Release.ps1](Build-Release.ps1) a [Build-Installer.ps1](Build-Installer.ps1) připravují aplikaci a instalátor.
+
+Generované herní assety, kopie zdrojových databází, místní databáze, přihlašovací údaje, zálohy a instalační binární soubory nejsou součástí tohoto Git repozitáře. Čistý checkout je automaticky nedoplní; pro některé generátory, mapy a distribuční buildy je nutné připravit příslušné podklady podle návodu a dokumentace nástrojů.
+
+## Dokumentace a licence
+
+- [Návod a ověření](NAVOD.md)
+- [Produktové zadání](ZADANI.md)
+- [Technický návrh](TECHNICKY_NAVRH.md)
+- [Původ dat a licence jednotlivých částí](THIRD_PARTY.md)
+- [Licence mapového modulu GPL-3.0](addon/Evertally_Map/LICENSE.txt)
+
+Původní zadání a technický návrh obsahují také cílové funkce; nejsou samy o sobě seznamem dokončených funkcí. Převzaté knihovny a datové podklady si zachovávají vlastní podmínky. Licenci jedné části nelze vztahovat na všechen obsah projektu.
+
+Evertally je fanouškovský projekt bez spojení s Blizzard Entertainment.

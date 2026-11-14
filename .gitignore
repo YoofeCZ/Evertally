@@ -1,5 +1,5 @@
 # Local state, credentials, generated assets, build output and backups stay out of history.
-/platform/
+/platform/output/
 /backups/
 /archive/
 /output/

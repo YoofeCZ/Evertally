@@ -1,0 +1,1 @@
+ALTER TABLE `atlas_observations` ADD `character_data` text;
