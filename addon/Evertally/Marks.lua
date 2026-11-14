@@ -158,6 +158,28 @@ local function nameRegion(plate)
     end)
     return ok and region or nil
 end
+-- The name of a friendly player's name-only plate in the look of the names the game draws itself (its normal font,
+-- larger, with a soft shadow instead of an outline). Only the font of that text changes; the original is kept and put
+-- back when the option is turned off. A plate the addon may not touch (in instances) is simply left alone.
+local styled = setmetatable({}, {__mode = "k"})
+local function gameFont()
+    local file = GameFontNormal and A.Call(GameFontNormal.GetFont, GameFontNormal)
+    return type(file) == "string" and file or "Fonts\\FRIZQT__.TTF"
+end
+local function styleName(region, on)
+    pcall(function()
+        if on then
+            if not styled[region] then styled[region] = {region:GetFont()} end
+            local s = A.db and A.db.settings
+            region:SetFont(gameFont(), A.Number(s and s.plateFontSize, 10, 24) or 15, "")
+            region:SetShadowColor(0, 0, 0, 1); region:SetShadowOffset(1, -1)
+        elseif styled[region] then
+            local f = styled[region]; styled[region] = nil
+            if f[1] then region:SetFont(f[1], f[2] or 12, f[3] or "") end
+        end
+    end)
+end
+A.StyleFriendlyName = styleName
 local function plateToken(plate)
     local ok, token = pcall(function() return plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit) end)
     return ok and A.Text(token, 40) or nil
@@ -205,6 +227,9 @@ function A.MarksRefresh()
             local token = plateToken(plate)
             if token then
                 local name = nameRegion(plate)
+                if name and A.Call(UnitIsPlayer, token) == true and A.Call(UnitIsUnit, token, "player") ~= true then
+                    styleName(name, s.plateGameLook ~= false and A.Call(UnitCanAttack, "player", token) ~= true)
+                end
                 pcall(draw, name or plate, token, 6, name ~= nil)
             end
         end
@@ -381,6 +406,8 @@ A.locale.cs.markNoIcon = "Pro toto ID nemá klient ikonu."
 A.locale.en.markPick = "Pick a mark (only you see it)"
 A.locale.cs.markPick = "Vyber značku (vidíš ji jen ty)"
 A.locale.en.markRemove = "Remove"
+A.locale.en.plateGameLook = "Friendly names on nameplates look like the game's own names"
+A.locale.cs.plateGameLook = "Jména spojenců na jmenovkách vypadají jako jména ze hry"
 A.locale.en.markPlates = "Marks and the Evertally logo above friendly players (turns on their nameplates as names only)"
 A.locale.cs.markPlates = "Značky a logo Evertally nad spojenci (zapne jejich jmenovky jen se jménem)"
 A.locale.en.markPlatesHint = "Above heads, marks and the Evertally logo need friendly nameplates. Turn them on (names only): /etally mark plates on, or in Settings."

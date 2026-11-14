@@ -450,6 +450,20 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("nametext=yes", lines[1])
         self.assertEqual(lines[-1], "icons drawn 1")
         self.assertTrue(self.lua.eval('FRAMES[1].point[1]=="LEFT" and FRAMES[1].point[2]==NAMETEXT and FRAMES[1].point[3]=="RIGHT"'), "right beside the name")
+        # the friendly name takes the look of the game's own names, and gets its font back when the option is off
+        self.lua.execute('''
+        NAMETEXT.font={"Fonts\\\\ARIALN.TTF",11,"OUTLINE"}
+        function NAMETEXT:GetFont() return self.font[1],self.font[2],self.font[3] end
+        function NAMETEXT:SetFont(f,s,o) self.font={f,s,o} end
+        function NAMETEXT:SetShadowColor() end
+        function NAMETEXT:SetShadowOffset() end
+        GameFontNormal={GetFont=function() return "Fonts\\\\FRIZQT__.TTF",12,"" end}
+        ''')
+        self.a.MarksRefresh()
+        self.assertEqual(self.lua.eval('NAMETEXT.font[1].."|"..NAMETEXT.font[2].."|"..NAMETEXT.font[3]'), "Fonts\\FRIZQT__.TTF|15|")
+        self.a.db.settings.plateGameLook = False
+        self.a.MarksRefresh()
+        self.assertEqual(self.lua.eval('NAMETEXT.font[1].."|"..NAMETEXT.font[2].."|"..NAMETEXT.font[3]'), "Fonts\\ARIALN.TTF|11|OUTLINE")
 
     def test_friendly_nameplates_are_turned_on_as_names_only_on_request_and_never_in_combat(self):
         self.lua.execute("""
