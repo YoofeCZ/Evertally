@@ -6,10 +6,11 @@ import { useMemo, useState, type PointerEvent as ReactPointerEvent } from "react
 import { clock, whenOf, type Chronicle, type Fight, type Member, type SpellRow } from "@/lib/chronicle";
 import { CLASS_COLORS, CLASSES } from "../data";
 import { IconChip, TypeIcon, classIconUrl } from "./ChronicleArt";
+import { Actions } from "./ChronicleActions";
 
 const T = {
   en: {
-    close: "Close", prev: "Previous fight", next: "Next fight", tabs: { overview: "Overview", spells: "Spells", group: "Group", graph: "Timeline" } as Record<string, string>,
+    close: "Close", prev: "Previous fight", next: "Next fight", tabs: { overview: "Overview", spells: "Spells", group: "Group", graph: "Timeline", actions: "Moves" } as Record<string, string>,
     kill: "Defeated", wipe: "Wiped", win: "Victory", loss: "Defeat", boss: "Boss fight", pvp: "Battleground", attempt: "attempt", players: "players",
     damage: "Damage done", healing: "Healing done", taken: "Damage taken", deaths: "Deaths", interrupts: "Interrupts", dispels: "Dispels", duration: "Duration",
     perSecond: "per second", ofGroup: "of the group's damage", score: "Score", kills: "Honorable kills", assists: "Assists", objectives: "Objectives", honor: "Honor",
@@ -18,7 +19,7 @@ const T = {
     series: { dmg: "Damage", heal: "Healing", taken: "Taken" } as Record<string, string>,
   },
   cs: {
-    close: "Zavřít", prev: "Předchozí souboj", next: "Další souboj", tabs: { overview: "Přehled", spells: "Kouzla", group: "Skupina", graph: "Průběh" } as Record<string, string>,
+    close: "Zavřít", prev: "Předchozí souboj", next: "Další souboj", tabs: { overview: "Přehled", spells: "Kouzla", group: "Skupina", graph: "Průběh", actions: "Tahy" } as Record<string, string>,
     kill: "Poražen", wipe: "Neúspěch", win: "Vítězství", loss: "Porážka", boss: "Souboj s bossem", pvp: "Bojiště", attempt: "pokus", players: "hráčů",
     damage: "Způsobené poškození", healing: "Léčení", taken: "Utržené poškození", deaths: "Smrti", interrupts: "Přerušení", dispels: "Rozptýlení", duration: "Trvání",
     perSecond: "za sekundu", ofGroup: "poškození skupiny", score: "Skóre", kills: "Čestná zabití", assists: "Asistence", objectives: "Cíle", honor: "Čest",
@@ -116,7 +117,11 @@ export function FightWindow({ fight, index, count, c, lang, time, onClose, onSte
   fight: Fight; index: number; count: number; c: Chronicle; lang: string; time: number; onClose: () => void; onStep: (delta: number) => void; onSeek: (t: number) => void;
 }) {
   const w = T[lang === "cs" ? "cs" : "en"];
-  const [tab, setTab] = useState<"overview" | "spells" | "group" | "graph">("overview");
+  type Tab = "overview" | "spells" | "group" | "graph" | "actions";
+  const [chosen, setTab] = useState<Tab>("overview");
+  const hasLog = (fight.log?.length ?? 0) > 0;
+  const tab: Tab = chosen === "actions" && !hasLog ? "overview" : chosen;
+  const tabs: Tab[] = ["overview", "spells", "group", "graph", ...(hasLog ? (["actions"] as Tab[]) : [])];
   const [spellKind, setSpellKind] = useState<"dealt" | "healed" | "took">("dealt");
   const [meter, setMeter] = useState<"dmg" | "heal" | "taken">("dmg");
   const [show, setShow] = useState({ dmg: true, heal: true, taken: true });
@@ -129,7 +134,7 @@ export function FightWindow({ fight, index, count, c, lang, time, onClose, onSte
   const sub = [fight.kind === "pvp" ? w.pvp : w.boss, fight.difficulty, fight.size ? `${fight.size} ${w.players}` : null, fight.attempt && fight.attempt > 1 ? `${w.attempt} ${fight.attempt}` : null].filter(Boolean).join(" · ");
   return (
     <div className="chr-scrim" onClick={onClose}>
-      <section className="chr-card chr-fight" role="dialog" aria-label={fight.name} onClick={event => event.stopPropagation()}>
+      <section className={`chr-card chr-fight${tab === "actions" ? " is-wide" : ""}`} role="dialog" aria-label={fight.name} onClick={event => event.stopPropagation()}>
         <header>
           <IconChip k={fight.kind === "pvp" ? "combat.pvp" : "combat.boss"} size={44} />
           <div className="chr-fight-title">
@@ -143,7 +148,7 @@ export function FightWindow({ fight, index, count, c, lang, time, onClose, onSte
             <button type="button" onClick={onClose} aria-label={w.close}>×</button>
           </div>
         </header>
-        <nav className="chr-tabs" role="tablist">{(["overview", "spells", "group", "graph"] as const).map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "is-on" : ""} onClick={() => setTab(id)}>{w.tabs[id]}</button>)}</nav>
+        <nav className="chr-tabs" role="tablist">{tabs.map(id => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "is-on" : ""} onClick={() => setTab(id)}>{w.tabs[id]}</button>)}</nav>
 
         <div className="chr-fight-body">
           {tab === "overview" && (
@@ -192,6 +197,7 @@ export function FightWindow({ fight, index, count, c, lang, time, onClose, onSte
               </>
             ) : <p className="chr-muted">{w.none}</p>
           )}
+          {tab === "actions" && <Actions key={fight.t} f={fight} local={local} lang={lang} onSeek={l => onSeek(fight.t + l)} />}
           {tab === "graph" && (
             <>
               <div className="chr-seg is-series">{(["dmg", "heal", "taken"] as const).map(k => <button key={k} type="button" className={show[k] ? "is-on" : ""} style={{ ["--s" as string]: SERIES_COLOR[k] }} onClick={() => setShow(p => ({ ...p, [k]: !p[k] }))}>{w.series[k]}</button>)}</div>

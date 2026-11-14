@@ -196,3 +196,38 @@ test("each moment has a sound or none, and a crowd of moments gives a few sounds
   assert.deepEqual(pickCues([]), []); assert.deepEqual(pickCues([e("emote")]), []);
   assert.ok(MAX_SOUND_SPEED >= 20 && MAX_SOUND_SPEED < 200, "no sounds at the fastest speeds");
 });
+
+import { LOG_KINDS } from "../lib/chronicle";
+
+test("every fight has a combat log, and everything the window shows is added up from it", () => {
+  const c = demoChronicle();
+  const dmg = LOG_KINDS.indexOf("dmg"), heal = LOG_KINDS.indexOf("heal"), death = LOG_KINDS.indexOf("death");
+  for (const f of c.fights!) {
+    const log = f.log!, actors = f.actors!, spells = f.spells!;
+    assert.ok(log.length > 200, `${f.name} has plenty of moves`);
+    assert.ok(log.every((l, i) => i === 0 || l[0] >= log[i - 1][0]), "in time order");
+    assert.ok(log.every(l => l[1] < actors.length && l[2] < actors.length && l[4] < spells.length), "every index points at something");
+    assert.deepEqual([...new Set(actors.map(a => a.side))].sort(), ["enemy", "me", "party"], "the character, a group and enemies");
+    const by = (pred: (l: (typeof log)[number]) => boolean) => log.filter(pred).reduce((a, l) => a + l[5], 0);
+    assert.equal(f.me.dmg, by(l => l[1] === 0 && l[3] === dmg)); assert.equal(f.me.heal, by(l => l[1] === 0 && l[3] === heal)); assert.equal(f.me.taken, by(l => l[2] === 0 && l[3] === dmg));
+    assert.equal(f.me.deaths, log.filter(l => l[3] === death && l[2] === 0).length);
+    for (const [i, a] of actors.entries()) if (a.side !== "enemy") { const m = f.group!.find(x => x.name === a.name)!; assert.equal(m.dmg, by(l => l[1] === i && l[3] === dmg)); assert.equal(m.heal, by(l => l[1] === i && l[3] === heal)); }
+  }
+  const boss = c.fights!.find(f => f.kind === "boss")!;
+  assert.ok(boss.me.interrupts! >= 1 && boss.log!.some(l => l[3] === LOG_KINDS.indexOf("interrupt")), "an interrupt is in the log");
+  assert.ok(boss.log!.filter(l => boss.actors![l[1]].side === "enemy" && l[3] === dmg).length > 20, "the enemy acts too");
+  assert.ok(boss.log!.filter(l => boss.actors![l[1]].side === "party" && l[3] === heal).length > 5, "so does the group");
+});
+
+test("a combat log with a wrong index or a wrong order is refused", () => {
+  const demo = demoChronicle();
+  const bad = (change: (f: NonNullable<typeof demo.fights>[number]) => void) => { const copy = JSON.parse(JSON.stringify(demo)) as typeof demo; change(copy.fights![0]); return parseChronicle(copy); };
+  assert.equal(bad(f => { f.log![3][1] = 99; }), null, "a fighter that is not there");
+  assert.equal(bad(f => { f.log![3][4] = 999; }), null, "a spell that is not there");
+  assert.equal(bad(f => { f.log![3][3] = 42; }), null, "a kind that does not exist");
+  assert.equal(bad(f => { f.log![5][0] = 0; }), null, "time going backwards");
+  assert.equal(bad(f => { f.log![2][6] = 2 as never; }), null);
+  assert.equal(bad(f => { f.log![2].pop(); }), null, "a short line");
+  assert.equal(bad(f => { delete f.spells; }), null, "a log without its spell names");
+  assert.ok(bad(f => { delete f.log; delete f.actors; delete f.spells; }), "a fight without a log is still fine (older recordings)");
+});
