@@ -49,7 +49,7 @@ def runtime(record_globals=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -450,7 +450,7 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("nametext=yes", lines[1])
         self.assertEqual(lines[-1], "icons drawn 1")
         self.assertTrue(self.lua.eval('FRAMES[1].point[1]=="LEFT" and FRAMES[1].point[2]==NAMETEXT and FRAMES[1].point[3]=="RIGHT"'), "right beside the name")
-        # the friendly name takes the look of the game's own names, and gets its font back when the option is off
+        # The new renderer never changes Blizzard's font, including when it cannot use a plate.
         self.lua.execute('''
         NAMETEXT.font={"Fonts\\\\ARIALN.TTF",11,"OUTLINE"}
         function NAMETEXT:GetFont() return self.font[1],self.font[2],self.font[3] end
@@ -460,7 +460,7 @@ class ReplayTests(unittest.TestCase):
         GameFontNormal={GetFont=function() return "Fonts\\\\FRIZQT__.TTF",12,"" end}
         ''')
         self.a.MarksRefresh()
-        self.assertEqual(self.lua.eval('NAMETEXT.font[1].."|"..NAMETEXT.font[2].."|"..NAMETEXT.font[3]'), "Fonts\\FRIZQT__.TTF|15|")
+        self.assertEqual(self.lua.eval('NAMETEXT.font[1].."|"..NAMETEXT.font[2].."|"..NAMETEXT.font[3]'), "Fonts\\ARIALN.TTF|11|OUTLINE")
         self.a.db.settings.plateGameLook = False
         self.a.MarksRefresh()
         self.assertEqual(self.lua.eval('NAMETEXT.font[1].."|"..NAMETEXT.font[2].."|"..NAMETEXT.font[3]'), "Fonts\\ARIALN.TTF|11|OUTLINE")

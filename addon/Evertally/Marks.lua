@@ -4,7 +4,7 @@ local _, A = ...
 --    or any game icon (of a spell or an item). It exists only on this computer: the player never sees it, and a mark
 --    somebody gave you is not visible to you. It is drawn smaller than a raid target icon (12 px unless changed).
 --  * a tiny Evertally logo for players who are known to run Evertally (they answered with an Evertally message).
--- Everything is drawn by frames of our own laid over the nameplates; nothing is written to Blizzard's frames.
+-- Icons use our own frames. FriendlyPlates.lua can replace the friendly name-only presentation.
 local MARKS = 8
 local TEXTURE = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
@@ -158,28 +158,6 @@ local function nameRegion(plate)
     end)
     return ok and region or nil
 end
--- The name of a friendly player's name-only plate in the look of the names the game draws itself (its normal font,
--- larger, with a soft shadow instead of an outline). Only the font of that text changes; the original is kept and put
--- back when the option is turned off. A plate the addon may not touch (in instances) is simply left alone.
-local styled = setmetatable({}, {__mode = "k"})
-local function gameFont()
-    local file = GameFontNormal and A.Call(GameFontNormal.GetFont, GameFontNormal)
-    return type(file) == "string" and file or "Fonts\\FRIZQT__.TTF"
-end
-local function styleName(region, on)
-    pcall(function()
-        if on then
-            if not styled[region] then styled[region] = {region:GetFont()} end
-            local s = A.db and A.db.settings
-            region:SetFont(gameFont(), A.Number(s and s.plateFontSize, 10, 24) or 15, "")
-            region:SetShadowColor(0, 0, 0, 1); region:SetShadowOffset(1, -1)
-        elseif styled[region] then
-            local f = styled[region]; styled[region] = nil
-            if f[1] then region:SetFont(f[1], f[2] or 12, f[3] or "") end
-        end
-    end)
-end
-A.StyleFriendlyName = styleName
 local function plateToken(plate)
     local ok, token = pcall(function() return plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit) end)
     return ok and A.Text(token, 40) or nil
@@ -187,6 +165,7 @@ end
 -- The frames of the target and of the group get the icons too (above the frame, outside it).
 local UNIT_FRAMES = {{"target", "TargetFrame"}, {"party1", "PartyMemberFrame1"}, {"party2", "PartyMemberFrame2"}, {"party3", "PartyMemberFrame3"}, {"party4", "PartyMemberFrame4"}}
 function A.MarksRefresh()
+    if A.RefreshFriendlyPlates then A.RefreshFriendlyPlates() end
     local s = settings()
     local used = 0
     if s then
@@ -225,11 +204,9 @@ function A.MarksRefresh()
         -- one plate that cannot be read (a protected one) never stops the others
         for _, plate in ipairs(plates()) do
             local token = plateToken(plate)
-            if token then
+            local disabled = s.plateGameLook==false and A.Call(UnitIsFriend,"player",token)==true
+            if token and not disabled and not (A.FriendlyPlateManaged and A.FriendlyPlateManaged(plate, token)) then
                 local name = nameRegion(plate)
-                if name and A.Call(UnitIsPlayer, token) == true and A.Call(UnitIsUnit, token, "player") ~= true then
-                    styleName(name, s.plateGameLook ~= false and A.Call(UnitCanAttack, "player", token) ~= true)
-                end
                 pcall(draw, name or plate, token, 6, name ~= nil)
             end
         end
@@ -289,8 +266,8 @@ function A.SetFriendlyPlates(on)
     if A.Call(InCombatLockdown) == true then A.Print(A.L("markPlatesCombat")); return false end
     local done
     if on then
-        if cvar(NAME_ONLY) ~= "1" then setCVar(NAME_ONLY, "1") end
-        done = setCVar(FRIENDLY_PLATES, "1")
+        local namesOnly=cvar(NAME_ONLY)=="1" or setCVar(NAME_ONLY,"1")
+        done = namesOnly and setCVar(FRIENDLY_PLATES, "1")
     else done = setCVar(FRIENDLY_PLATES, "0") end
     if A.MarksRefresh then pcall(A.MarksRefresh) end
     return done

@@ -84,13 +84,13 @@ class ContentPageTests(unittest.TestCase):
 
     def test_settings_categories_show_one_reading_page_and_toggles_keep_their_policy(self):
         page=self.page('settings')
-        self.assertEqual(len(page.settingCards),6)
-        for i in range(1,7):
+        self.assertEqual(len(page.settingCards),7)
+        for i in range(1,8):
             card=page.settingCards[i]
             self.assertGreater(card.h,40)
             page.categoryButtons[i].scripts.OnClick()
             self.assertEqual(page.selectedSection,i)
-            self.assertEqual([page.settingCards[j].shown for j in range(1,7)],[j==i for j in range(1,7)])
+            self.assertEqual([page.settingCards[j].shown for j in range(1,8)],[j==i for j in range(1,8)])
             self.assertGreaterEqual(page.scroll.child.h,card.h)
         buttons=self.lua.globals().MOCKBUTTONS
         toggles=[buttons[i] for i in range(1,len(buttons)+1) if buttons[i].get]

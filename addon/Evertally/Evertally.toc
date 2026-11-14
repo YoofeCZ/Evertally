@@ -4,7 +4,7 @@
 ## Notes: Own game observations, dungeon history and optional ingame sharing.
 ## Notes-csCZ: Vlastní herní pozorování, historie dungeonů a dobrovolné sdílení.
 ## Author: Evertally contributors
-## Version: 0.9.21
+## Version: 0.9.22
 ## OptionalDeps: Evertally_Export
 ## SavedVariables: EvertallyDB, EvertallyPeersDB
 Locale.lua
@@ -24,6 +24,7 @@ Social.lua
 Armory.lua
 Live.lua
 Marks.lua
+FriendlyPlates.lua
 Community.lua
 ForumData.lua
 CommunityData.lua

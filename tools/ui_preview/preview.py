@@ -394,7 +394,7 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
 
 WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 # pages with more than one state worth looking at: view -> the states
-STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
+STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8", "9"), "settings": ("names", "auras", "bars"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
 def capture(lua, a, view, tab=None, quest_id=None, destination=None):
@@ -418,6 +418,9 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
         return to_py(lua.eval("PREVIEW_EXPORT")(viewer))
     a.ShowView(view)
     lua.execute("PREVIEW_SETTLE()")
+    if view == "settings" and tab:
+        a.settingsPage.SelectSection(5)
+        a.settingsPage.plates.group = tab
     if view == "world" and a.worldBody is not None:
         a.worldBody.mode = tab or "map"
         a.map.RefreshWorld(a.worldBody)

@@ -78,7 +78,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertFalse(s.mapLayers.gather); self.assertTrue(s.mapLayers.trainer, "the other layers are left as they were")
         self.assertFalse(s.gatherTypes.ore); self.assertTrue(s.gatherTypes.herb)
         self.assertTrue(s.hideMinimap); self.assertAlmostEqual(self.a.GetUIScale(), 1.2)
-        self.assertEqual(s.onboarded, 1)
+        self.assertEqual(s.onboarded, 2)
 
     def test_nothing_changes_for_what_was_not_touched(self):
         s = self.a.db.settings
@@ -99,7 +99,8 @@ class OnboardingTests(unittest.TestCase):
     def test_the_summary_says_what_will_be_on(self):
         d = self.draft()
         lines = [str(x) for x in lst(self.a.OnboardingSummary(d))]
-        self.assertEqual(len(lines), 7)
+        self.assertEqual(len(lines), 8)
+        self.assertIn("nameplates", lines[7].lower())
         self.assertIn("off", lines[1].lower()); self.assertIn("nothing", lines[2])
         self.assertIn("not installed", lines[4], "no OpenMap: the summary says so")
         self.assertIn("Herbs", lines[5]); self.assertIn("Chests", lines[5])
@@ -125,18 +126,18 @@ class OnboardingTests(unittest.TestCase):
         pages = self.a.onboarding.pages
         pages[1].languages["cs"].scripts.OnClick(pages[1].languages["cs"])
         self.assertEqual(str(self.a.db.settings.language), "cs", "the language is chosen at once, so the rest is read in it")
-        for expected in range(2, 9):
+        for expected in range(2, 10):
             f.next.scripts.OnClick(f.next)
             self.assertEqual(self.a.OnboardingState()[0], expected)
         self.assertEqual(str(f.next.text.text), self.a.L("setupFinish"), "the last step ends with Finish")
         f.back.scripts.OnClick(f.back)
-        self.assertEqual(self.a.OnboardingState()[0], 7)
+        self.assertEqual(self.a.OnboardingState()[0], 8)
         self.a.OnboardingGo(2)
         pages[2].presets["recommended"].scripts.OnClick(pages[2].presets["recommended"])
-        self.a.OnboardingGo(8)
+        self.a.OnboardingGo(9)
         f.next.scripts.OnClick(f.next)
         self.assertFalse(self.a.OnboardingShown())
-        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 1)
+        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 2)
 
     def test_skipping_keeps_the_settings_and_does_not_ask_again(self):
         f = self.open()
@@ -146,7 +147,7 @@ class OnboardingTests(unittest.TestCase):
         f.skip.scripts.OnClick(f.skip)
         self.assertFalse(self.a.OnboardingShown())
         self.assertFalse(self.a.db.settings.web, "skipping applies nothing")
-        self.assertEqual(self.a.db.settings.onboarded, 1)
+        self.assertEqual(self.a.db.settings.onboarded, 2)
 
     def test_a_switch_that_needs_others_shows_what_it_switches_on(self):
         self.open()
@@ -182,13 +183,13 @@ class OnboardingTests(unittest.TestCase):
     def test_the_install_step_gives_the_addresses_of_the_app_and_of_openmap_to_copy(self):
         self.open()
         pages = self.a.onboarding.pages
-        self.a.OnboardingGo(7)
-        page = pages[7]
+        self.a.OnboardingGo(8)
+        page = pages[8]
         self.assertEqual(str(page.app.link.url), "https://evertally.afstudio.dev/#sync", "the Download page of the website")
         self.assertEqual(str(page.openmap.link.url), "https://www.curseforge.com/wow/addons/openmap")
         self.assertEqual(str(page.openmap.status.text), self.a.L("setupGetMissing"), "no OpenMap here: it says so")
         self.lua.execute(OPENMAP)
-        self.a.OpenOnboarding(7)
+        self.a.OpenOnboarding(8)
         self.assertEqual(str(page.openmap.status.text), self.a.L("setupGetInstalled"))
         link = page.openmap.link
         link.scripts.OnEditFocusGained(link)   # (a click selects it all, ready for Ctrl+C)
@@ -211,11 +212,106 @@ class OnboardingTests(unittest.TestCase):
 
     def test_it_does_not_open_for_someone_who_has_done_it(self):
         self.lua.execute("C_Timer={After=function(s,fn) fn() end}")
-        self.a.db.settings.onboarded = 1
+        self.a.db.settings.onboarded = 2
         self.a.Dispatch("PLAYER_ENTERING_WORLD")
         self.assertFalse(self.a.OnboardingShown())
         self.lua.execute('SlashCmdList.EVERTALLY("setup")')
         self.assertTrue(self.a.OnboardingShown(), "/etally setup opens it any time")
+
+    def test_previous_setup_version_offers_the_new_nameplate_choices(self):
+        self.lua.execute("C_Timer={After=function(s,fn) fn() end}")
+        self.a.db.settings.onboarded = 1
+        self.a.Dispatch("PLAYER_ENTERING_WORLD")
+        self.assertTrue(self.a.OnboardingShown())
+
+    def plate_cvars(self):
+        self.lua.execute('''
+            CVARS={nameplateShowFriendlyPlayers="0",nameplateShowOnlyNameForFriendlyPlayerUnits="0"}; CVAR_WRITES=0
+            C_CVar={GetCVar=function(k) return CVARS[k] end,SetCVar=function(k,v) CVARS[k]=v;CVAR_WRITES=CVAR_WRITES+1 end}
+        ''')
+
+    def test_nameplate_editor_keeps_every_choice_in_draft_until_finish(self):
+        self.plate_cvars()
+        self.a.db.settings.plateFontSize = 17
+        self.a.OpenOnboarding(7)
+        editor = self.a.onboarding.pages[7].plates
+        self.assertFalse(editor.enable.on)
+        self.assertEqual(str(editor.controls.plateFontSize.value.text), "17")
+        editor.enable.scripts.OnClick(editor.enable)
+        editor.controls.plateFontSize.plus.scripts.OnClick(editor.controls.plateFontSize.plus)
+        editor.controls.plateLogoSize.plus.scripts.OnClick(editor.controls.plateLogoSize.plus)
+        editor.tabs.auras.scripts.OnClick(editor.tabs.auras)
+        editor.controls.plateBuffs.scripts.OnClick(editor.controls.plateBuffs)
+        editor.tabs.bars.scripts.OnClick(editor.tabs.bars)
+        editor.controls.plateCast.scripts.OnClick(editor.controls.plateCast)
+        editor.controls.plateHealth.scripts.OnClick(editor.controls.plateHealth)
+        draft = self.a.OnboardingState()[1]
+        self.assertTrue(draft.friendlyPlates and draft.plates.plateGameLook)
+        self.assertEqual(draft.plates.plateFontSize, 18)
+        self.assertTrue(draft.plates.plateBuffs and draft.plates.plateCast and draft.plates.plateHealth)
+        self.assertEqual(self.a.db.settings.plateFontSize, 17)
+        self.assertIsNone(self.a.db.settings.plateBuffs)
+        self.assertEqual(self.lua.globals().CVAR_WRITES, 0)
+        self.a.OnboardingGo(9)
+        self.assertIn("18 px", str(self.a.onboarding.pages[9].lines[8].text))
+        self.assertEqual(lst(self.a.OnboardingFinish()), [])
+        self.assertEqual(self.lua.globals().CVARS.nameplateShowFriendlyPlayers, "1")
+        self.assertEqual(self.lua.globals().CVARS.nameplateShowOnlyNameForFriendlyPlayerUnits, "1")
+        self.assertEqual(self.a.db.settings.plateFontSize, 18)
+        self.assertTrue(self.a.db.settings.plateBuffs and self.a.db.settings.plateCast and self.a.db.settings.plateHealth)
+
+    def test_skip_discards_nameplate_draft_and_reopening_loads_saved_values(self):
+        self.plate_cvars()
+        self.a.OpenOnboarding(7)
+        editor = self.a.onboarding.pages[7].plates
+        editor.enable.scripts.OnClick(editor.enable)
+        editor.controls.markSize.plus.scripts.OnClick(editor.controls.markSize.plus)
+        self.a.OnboardingSkip()
+        self.assertEqual(self.lua.globals().CVAR_WRITES, 0)
+        self.assertIsNone(self.a.db.settings.markSize)
+        self.a.OpenOnboarding(7)
+        self.assertFalse(editor.enable.on)
+        self.assertEqual(str(editor.controls.markSize.value.text), "12")
+
+    def test_nameplate_apply_in_combat_reports_failure_without_writing_cvars(self):
+        self.plate_cvars()
+        self.a.OpenOnboarding(7)
+        editor = self.a.onboarding.pages[7].plates
+        editor.enable.scripts.OnClick(editor.enable)
+        self.lua.execute("InCombatLockdown=function() return true end")
+        self.assertEqual(lst(self.a.OnboardingFinish()), ["nameplates_unavailable"])
+        self.assertEqual(self.lua.globals().CVAR_WRITES, 0)
+        self.assertFalse(self.a.FriendlyPlatesShown())
+
+    def test_enable_reports_when_client_does_not_allow_names_only_mode(self):
+        self.plate_cvars()
+        self.lua.execute('C_CVar.SetCVar=function() CVAR_WRITES=CVAR_WRITES+1 end')
+        self.a.OpenOnboarding(7)
+        editor = self.a.onboarding.pages[7].plates
+        editor.enable.scripts.OnClick(editor.enable)
+        self.assertEqual(lst(self.a.OnboardingFinish()), ["nameplates_unavailable"])
+        self.assertEqual(self.lua.globals().CVARS.nameplateShowFriendlyPlayers, "0")
+
+    def test_editor_bounds_and_saved_settings_are_shared_with_setup(self):
+        self.plate_cvars()
+        self.a.db.settings.plateFontSize = 32
+        self.a.db.settings.plateAuraLimit = 1
+        self.a.OpenOnboarding(7)
+        editor = self.a.onboarding.pages[7].plates
+        editor.controls.plateFontSize.plus.scripts.OnClick(editor.controls.plateFontSize.plus)
+        editor.controls.plateAuraLimit.minus.scripts.OnClick(editor.controls.plateAuraLimit.minus)
+        self.assertEqual(self.a.OnboardingState()[1].plates.plateFontSize, 32)
+        self.assertEqual(self.a.OnboardingState()[1].plates.plateAuraLimit, 1)
+        self.a.OnboardingSkip()
+        self.a.ShowView("settings")
+        page = self.a.settingsPage
+        page.SelectSection(5)
+        page.plates.enable.scripts.OnClick(page.plates.enable)
+        page.plates.controls.plateFontSize.minus.scripts.OnClick(page.plates.controls.plateFontSize.minus)
+        self.assertTrue(self.a.FriendlyPlatesShown())
+        self.a.OpenOnboarding(7)
+        self.assertTrue(editor.enable.on)
+        self.assertEqual(str(editor.controls.plateFontSize.value.text), "31")
 
 
 if __name__ == "__main__":

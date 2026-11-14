@@ -1,13 +1,13 @@
 local _, A = ...
 -- The setup: what a new player is asked on the first start (and anyone, any time, with /etally setup or the button in Settings), in
--- eight steps: language, the website, live position, sharing with other players, the map, the window, what to install and a summary. Nothing is chosen for
+-- nine steps: language, the website, live position, sharing with other players, the map, the window, nameplates, what to install and a summary. Nothing is chosen for
 -- the player: every switch that sends something anywhere starts off, the wizard only shows what the current choices are (a quick choice for
 -- the website sets the switches, and they stay visible). Everything is applied at the end, with the same functions the Settings page uses.
-local VERSION = 1   -- raised when the setup asks something new, so everybody sees it once more
+local VERSION = 2   -- nameplates are a new choice, so existing players see the setup once more
 local W, H, HEADER, FOOTER, PAD = 720, 540, 58, 66, 28
 A.DOWNLOAD_URL = "https://evertally.afstudio.dev/#sync"                  -- the Download page of the website (the app for Windows)
 A.OPENMAP_URL = "https://www.curseforge.com/wow/addons/openmap"          -- OpenMap on CurseForge
-local STEPS = {"welcome", "website", "live", "sharing", "map", "window", "install", "summary"}
+local STEPS = {"welcome", "website", "live", "sharing", "map", "window", "nameplates", "install", "summary"}
 local SCOPES = {"world_facts", "own_runs", "own_character", "own_professions", "own_track"}
 local KINDS = {"herb", "ore", "fishing", "container"}
 local SCALES = {{"Small", 0.85}, {"Normal", 1}, {"Large", 1.2}}
@@ -46,6 +46,11 @@ local text = {
         setupWindowTitle = "The window", setupWindowBody = "How Evertally shows itself. You can open the window with /etally or the button at the minimap, and run this setup again with /etally setup.",
         setupSize = "Window size", setupSize_Small = "Small", setupSize_Normal = "Normal", setupSize_Large = "Large",
         -- 7
+        setupPlatesTitle = "Friendly nameplates",
+        setupPlatesBody = "Names in the game's style, with your marks and the Evertally logo. Set sizes and optional buffs, debuffs, health and cast bars here. Finish applies your choices.",
+        setupSumPlates = "Evertally nameplates: %s; names %d px, marks %d px, logo %d px",
+        setupNotePlates = "The game could not switch friendly nameplates. Outside combat, enable them in Settings → Nameplates.",
+        -- 8
         setupGetTitle = "What you need",
         setupGetBody = "Evertally works inside the game on its own. Two things from outside the game give you all of it.",
         setupGetApp = "Evertally app for Windows",
@@ -54,7 +59,7 @@ local text = {
         setupGetOpenMapSub = "The map Evertally works in: gathering places with their icons, people, meets, pings and your journeys. Free, on CurseForge:",
         setupGetInstalled = "installed", setupGetMissing = "not installed",
         setupGetHow = "The game cannot open links: click an address, press Ctrl+C and paste it into your browser.",
-        -- 8
+        -- 9
         setupSumTitle = "All set", setupSumBody = "This is what will be switched on. Finish applies it; you can change any of it later in Settings.",
         setupSumLanguage = "Language: %s", setupSumWeb = "Website: %s", setupSumLive = "Live position: %s", setupSumShare = "Sharing with players: %s", setupSumMap = "Map: %s", setupSumGather = "Gathering on the map: %s",
         setupSumPins = "people, meets and pings on the map: %s", setupSumOpenMap = "OpenMap", setupSumNoOpenMap = "OpenMap (not installed yet)", setupSumWindow = "Minimap button: %s, window size: %s", setupSumNothing = "nothing",
@@ -87,6 +92,10 @@ local text = {
         setupWhere = "Všechno tohle najdeš znovu na mapě: menu OpenMap, karta On the map, sekce Evertally. Každá jednotlivá surovina s obrázkem je v okně Evertally ve Svět, Sbírání.",
         setupWindowTitle = "Okno", setupWindowBody = "Jak se Evertally ukazuje. Okno otevřeš příkazem /etally nebo tlačítkem u minimapy a toto nastavení spustíš znovu příkazem /etally setup.",
         setupSize = "Velikost okna", setupSize_Small = "Malé", setupSize_Normal = "Normální", setupSize_Large = "Velké",
+        setupPlatesTitle = "Jmenovky spojenců",
+        setupPlatesBody = "Jména ve stylu hry s tvými značkami a logem Evertally. Tady upravíš velikosti i volitelné buffy, debuffy, zdraví a kouzlení. Volby použije až Dokončit.",
+        setupSumPlates = "Jmenovky Evertally: %s; jména %d px, značky %d px, logo %d px",
+        setupNotePlates = "Hra nedovolila přepnout jmenovky spojenců. Mimo boj je zapni v Nastavení → Jmenovky.",
         setupGetTitle = "Co potřebuješ",
         setupGetBody = "Evertally ve hře funguje samo. Dvě věci mimo hru z něj udělají celek.",
         setupGetApp = "Aplikace Evertally pro Windows",
@@ -128,6 +137,7 @@ function A.OnboardingDraft()
         mapPins = s.mapPins == nil and true or s.mapPins == true, layers = {gather = gather}, kinds = kinds,
         minimap = not s.hideMinimap, scale = A.GetUIScale and A.GetUIScale() or 1,
         publish = A.PublishChoice and A.PublishChoice().public == true,
+        plates = A.FriendlyPlateChoices(s), friendlyPlates = A.FriendlyPlatesShown(),
     }
     return draft
 end
@@ -178,6 +188,13 @@ function A.OnboardingApply(d)
     if A.map and A.map.RefreshLayerPins then A.map.RefreshLayerPins(true) end
     A.SetMinimapButton(d.minimap)
     if A.SetUIScale then A.SetUIScale(d.scale) end
+    if type(d.plates)=="table" then
+        local want=d.friendlyPlates==true
+        if A.FriendlyPlatesShown()~=want or (want and A.PlateCVar("nameplateShowOnlyNameForFriendlyPlayerUnits")~="1") then
+            if not A.SetFriendlyPlates(want) then notes[#notes+1]="nameplates_unavailable" end
+        end
+        A.ApplyFriendlyPlateChoices(d.plates)
+    end
     s.onboarded = VERSION
     A.Changed()
     return notes
@@ -210,6 +227,8 @@ function A.OnboardingSummary(d)
     for _, kind in ipairs(KINDS) do if d.kinds[kind] then kinds[#kinds + 1] = A.L("setupKind_" .. kind) end end
     lines[#lines + 1] = string.format(A.L("setupSumGather"), d.layers.gather and #kinds > 0 and (onOff(true) .. " (" .. table.concat(kinds, ", ") .. ")") or onOff(false))
     lines[#lines + 1] = string.format(A.L("setupSumWindow"), onOff(d.minimap), A.L("setupSize_" .. scaleName(d.scale)))
+    local plates=A.FriendlyPlateChoices(d.plates)
+    lines[#lines + 1] = string.format(A.L("setupSumPlates"),onOff(d.friendlyPlates and plates.plateGameLook),plates.plateFontSize,plates.markSize,plates.plateLogoSize)
     return lines
 end
 
@@ -423,9 +442,21 @@ local function build()
     end
 
     end
-    -- 7: what to install (the app from the website, OpenMap from CurseForge): the game cannot open a link, so each address is a field to copy
+    -- 7: the same nameplate editor as Settings, but all changes stay in the draft
     do
-    local p = newPage(7, "setupGetTitle", "setupGetBody")
+    local p = newPage(7, "setupPlatesTitle", "setupPlatesBody")
+    p.plates=A.BuildFriendlyPlateControls(p,{
+        get=function(key) return draft.plates[key] end,
+        set=function(key,value) draft.plates[key]=value end,
+        enabled=function() return draft.friendlyPlates end,
+        setEnabled=function(on) draft.friendlyPlates=on end,
+    })
+    p.plates:SetPoint("TOPLEFT",0,-FIRST);p.plates:SetPoint("TOPRIGHT",0,-FIRST)
+    p.refresh=function() titles(p);p.plates.Update() end
+    end
+    -- 8: what to install (the app from the website, OpenMap from CurseForge): the game cannot open a link, so each address is a field to copy
+    do
+    local p = newPage(8, "setupGetTitle", "setupGetBody")
     local function block(y, titleKey, subKey, url)
         local block = {}
         block.status = kit.label(p, 11, C.mist); block.status:SetPoint("TOPRIGHT", 0, -y - 2); block.status:SetJustifyH("RIGHT"); block.status:SetWidth(150)
@@ -449,15 +480,15 @@ local function build()
         p.how:SetText(A.L("setupGetHow"))
     end
     end
-    -- 8: the summary
+    -- 9: the summary
     do
-    local p = newPage(8, "setupSumTitle", "setupSumBody")
+    local p = newPage(9, "setupSumTitle", "setupSumBody")
     p.lines = {}
-    for i = 1, 7 do
-        local line = kit.label(p, 13, C.text); line:SetPoint("TOPLEFT", 0, -FIRST - (i - 1) * 30); line:SetPoint("TOPRIGHT", 0, -FIRST - (i - 1) * 30)
+    for i = 1, 8 do
+        local line = kit.label(p, 12, C.text); line:SetPoint("TOPLEFT", 0, -FIRST - (i - 1) * 28); line:SetPoint("TOPRIGHT", 0, -FIRST - (i - 1) * 28)
         p.lines[i] = line
     end
-    p.note = kit.label(p, 11, C.mist); p.note:SetPoint("TOPLEFT", 0, -FIRST - 7 * 30 - 6); p.note:SetPoint("TOPRIGHT", 0, -FIRST - 7 * 30 - 6)
+    p.note = kit.label(p, 11, C.mist); p.note:SetPoint("TOPLEFT", 0, -FIRST - 8 * 28 - 6); p.note:SetPoint("TOPRIGHT", 0, -FIRST - 8 * 28 - 6)
     p.refresh = function()
         titles(p)
         local lines = A.OnboardingSummary(draft)
@@ -489,7 +520,10 @@ function A.OnboardingFinish()
     local notes = A.OnboardingApply(draft)
     if f then f:Hide() end
     A.Print(A.L("setupDone"))
-    for _, note in ipairs(notes) do if note == "export_missing" then A.Print(A.L("setupNoteExport")) end end
+    for _, note in ipairs(notes) do
+        if note == "export_missing" then A.Print(A.L("setupNoteExport"))
+        elseif note == "nameplates_unavailable" then A.Print(A.L("setupNotePlates")) end
+    end
     return notes
 end
 
