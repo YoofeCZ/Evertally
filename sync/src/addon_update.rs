@@ -4,7 +4,9 @@
 //! The update is installed even while the game runs: WoW reads addon files only when it starts (measured: a running
 //! client holds none of them open), so the player just restarts the game. A /reload is not enough, because the
 //! client keeps the file list of each addon from its start.
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
+#[cfg(any(windows, test))]
+use anyhow::bail;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, fs, io::{Cursor, Read, Write}, path::{Component, Path, PathBuf}, time::{Duration, SystemTime, UNIX_EPOCH}};
@@ -98,7 +100,12 @@ fn safe_existing(path: &Path) -> Result<()> {
 }
 
 fn safe_ancestors(path: &Path) -> Result<()> {
-    for parent in path.ancestors() { if parent.exists() { safe_existing(parent)?; } }
+    for parent in path.ancestors() {
+        if parent.exists() { safe_existing(parent)?; }
+        // Linux and macOS: what lies above the game's `Interface` folder is the player's own layout (a symlinked
+        // games drive, `/home` -> `/var/home`, macOS `/var`). The guard covers the game tree it is meant for.
+        #[cfg(unix)] if parent.file_name().is_some_and(|name| name == "Interface") { break; }
+    }
     Ok(())
 }
 
@@ -137,7 +144,7 @@ fn game_running() -> Result<bool> {
         CloseHandle(snap);Ok(found)
     }
 }
-#[cfg(not(windows))] fn game_running()->Result<bool>{bail!("automatic installation supported on Windows only")}
+#[cfg(not(windows))] fn game_running()->Result<bool>{Ok(crate::game::game_running())}
 
 /// The version line of the bundle's main TOC, as the player sees it in the game.
 fn bundle_version(files: &[FileEntry]) -> Option<String> {
@@ -305,7 +312,10 @@ mod tests {
     use std::cell::Cell;
     struct Scratch(PathBuf);
     impl Scratch {
-        fn new()->Self {let path=std::env::temp_dir().join(format!("evertally-addon-update-test-{}-{}",std::process::id(),SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));fs::create_dir_all(path.join("Interface/AddOns/Evertally")).unwrap();Self(path)}
+        fn new()->Self {
+            // The counter keeps parallel tests apart: coarse clocks (macOS) hand out equal timestamps.
+            static NEXT: std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);
+            let path=std::env::temp_dir().join(format!("evertally-addon-update-test-{}-{}-{}",std::process::id(),SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),NEXT.fetch_add(1,std::sync::atomic::Ordering::SeqCst)));fs::create_dir_all(path.join("Interface/AddOns/Evertally")).unwrap();Self(path)}
         fn addons(&self)->PathBuf {self.0.join("Interface/AddOns")}
     }
     impl Drop for Scratch {fn drop(&mut self){if self.0.starts_with(std::env::temp_dir()) && self.0.file_name().is_some_and(|n|n.to_string_lossy().starts_with("evertally-addon-update-test-")){let _=fs::remove_dir_all(&self.0);}}}
@@ -426,6 +436,16 @@ mod tests {
         assert_eq!(fs::read(addons.join("Evertally/Evertally.toc")).unwrap(),b"old");
         assert_eq!(fs::read(addons.join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
         assert!(!work.join("journal.json").exists());
+    }
+    #[cfg(unix)]
+    #[test] fn symlinks_above_the_game_folder_are_allowed_but_not_inside_it(){
+        let (dir,files)=fixture();
+        let link=dir.0.with_file_name(format!("{}-link",dir.0.file_name().unwrap().to_string_lossy()));
+        std::os::unix::fs::symlink(&dir.0,&link).unwrap();
+        let lock=std::sync::Mutex::new(());
+        let result=install(&link.join("Interface/AddOns"),&files,&lock);
+        let _=fs::remove_file(&link);
+        assert!(result.is_ok(),"{result:?}");
     }
     #[test] fn rejects_existing_symlink_when_supported(){
         let (dir,files)=fixture();let link=dir.addons().join("Evertally/linked");

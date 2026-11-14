@@ -74,6 +74,8 @@ pub enum Outcome { Nothing, UpToDate, Started(String) }
 /// # Errors
 /// Network, verification or process-start failures; the caller shows and retries them.
 pub fn check(dir: &Path, config: &crate::config::Config, force: bool) -> Result<Outcome> {
+    // The published installer is a Windows setup; Linux and macOS builds are updated by installing a new package.
+    if !cfg!(windows) { return Ok(Outcome::Nothing); }
     let Some(current) = CURRENT.get().copied() else { return Ok(Outcome::Nothing) };
     let origin = config.server_origin()?;
     ensure!(origin.starts_with("https://"), "automatic updates require HTTPS");

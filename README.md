@@ -1,8 +1,8 @@
 # Evertally
 
-Herní deník, navigace, atlas a komunitní statistiky pro **World of Warcraft Forever**. Projekt spojuje addon ve hře, Windows aplikaci na pozadí a web.
+Herní deník, navigace, atlas a komunitní statistiky pro **World of Warcraft Forever**. Projekt spojuje addon ve hře, aplikaci na pozadí (Windows, macOS, Linux) a web.
 
-**Aktuální verze:** addon **0.9.29**, Windows Bridge **0.9.10**. Podrobnosti poslední změny: [VYDANI-0.9.29.md](VYDANI-0.9.29.md).
+**Aktuální verze:** addon **0.9.29**, Bridge **0.9.10**. Podrobnosti poslední změny: [VYDANI-0.9.29.md](VYDANI-0.9.29.md).
 
 - [Web Evertally](https://evertally.afstudio.dev/)
 - [Addon na CurseForge](https://www.curseforge.com/wow/addons/evertally)
@@ -33,7 +33,7 @@ Podrobný návod, diagnostika a stav ověření jsou v [NAVOD.md](NAVOD.md).
 - **Lidé a Armory:** pohled na výbavu, tašky, statistiky, talenty a profese se souhlasem druhého hráče; ve hře také questy a reputace. Každý hráč rozhoduje, co ukáže.
 - **Komunita a žebříčky:** fórum, sdílené výsledky a dostupné filtry podle instance, postavy, třídy a rasy. DPS/HPS se zobrazují tam, kde existuje odpovídající záznam.
 - **Jmenovky:** vlastní zobrazení spojenců, značky, logo, volitelné buffy, debuffy a lišty s nastavením a náhledem.
-- **Windows Bridge:** běží v oznamovací oblasti; zajišťuje párování, Web sync, aktualizace a přenos povolených dat.
+- **Bridge:** běží v oznamovací oblasti (Windows), v horní liště (macOS) nebo v systémové liště (Linux); zajišťuje párování, Web sync, aktualizace addonu a přenos povolených dat.
 
 Jde o komunitní vzorek dat od uživatelů addonu, nikoli úplný přehled celého serveru. Záznam dungeonu, dokončení a úplné vyčištění nejsou totéž. Přesná živá poloha má vlastní oprávnění; historie a fórum používají odlišný způsob přenosu a mohou vyžadovat `/reload` nebo odhlášení.
 
@@ -44,10 +44,10 @@ Automatické testy a skutečné ověření ve WoW jsou vedené odděleně. Omeze
 | Složka | Obsah |
 | --- | --- |
 | `addon/` | Lua addon, exportní modul a integrace mapy |
-| `desktop/native/` | Aktuální Windows Bridge |
+| `desktop/native/` | Aktuální Bridge (Windows, macOS, Linux) |
 | `sync/` | Synchronizace, aktualizace, práce s herními exporty a přenosy |
 | `platform/` | Webové rozhraní, API, schéma databáze a SQL migrace |
-| `installer/` | Skript instalátoru Inno Setup |
+| `installer/` | Instalátor Inno Setup (Windows), `.app` a `Info.plist` (macOS), `install.sh` (Linux) |
 | `tests/lua/` | Automatické testy Lua částí |
 | `tools/` | Generátory dat, balení a ověřovací nástroje |
 
@@ -67,9 +67,9 @@ npm run dev -- --port 5173
 
 Další konfigurace a migrace: [platform/README.md](platform/README.md), [platform/deploy/README.md](platform/deploy/README.md). Vzory konfigurace mají prázdné přihlašovací údaje. Skutečné klíče patří do ignorovaných místních souborů nebo do úložiště secrets hostingu.
 
-### Windows aplikace
+### Aplikace Bridge (Windows, macOS, Linux)
 
-Požadavky na Rust a build jsou v [desktop/native/README.md](desktop/native/README.md) a [sync/README.md](sync/README.md). Projektové skripty [Build-Release.ps1](Build-Release.ps1) a [Build-Installer.ps1](Build-Installer.ps1) připravují aplikaci a instalátor.
+Požadavky na Rust a build jsou v [desktop/native/README.md](desktop/native/README.md) a [sync/README.md](sync/README.md). Projektové skripty [Build-Release.ps1](Build-Release.ps1) a [Build-Installer.ps1](Build-Installer.ps1) připravují aplikaci a instalátor pro Windows, [Build-Release.sh](Build-Release.sh) balíček pro macOS (`Evertally.app` v `.zip`) a Linux (`.tar.gz` s `install.sh`). Co na Linuxu a macOS funguje a co zatím není ověřeno: [desktop/native/README.md](desktop/native/README.md#linux-a-macos).
 
 Generované herní assety, kopie zdrojových databází, místní databáze, přihlašovací údaje, zálohy a instalační binární soubory nejsou součástí tohoto Git repozitáře. Čistý checkout je automaticky nedoplní; pro některé generátory, mapy a distribuční buildy je nutné připravit příslušné podklady podle návodu a dokumentace nástrojů.
 

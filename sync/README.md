@@ -7,7 +7,7 @@ Synchronizační knihovna v Rustu a starší aplikace v systémové liště. Akt
 1. Najde instalace WoW (registr, běžné cesty, `wowPath` v konfiguraci) a hlídá složky `WTF/Account/*/SavedVariables`.
 2. Když hra zapíše `Evertally_Export.lua` (`/reload`, odhlášení), počká 3 s, než je soubor dopsaný, a přečte ho vlastním parserem. Parser jen převádí data na JSON a žádný Lua kód nespouští (`src/savedvars.rs`, stejná pravidla jako webový import).
 3. Pošle jen události, které ještě neodeslala (`state.json`, podle `producerId:consentEpoch`), v dávkách do 500 událostí a 900 KiB.
-4. Párování probíhá jako device flow: aplikace dostane kód, uživatel ho potvrdí na webu přes Discord a vybere oblasti dat. Token se ukládá do Správce pověření Windows.
+4. Párování probíhá jako device flow: aplikace dostane kód, uživatel ho potvrdí na webu přes Discord a vybere oblasti dat. Token se ukládá do Správce pověření Windows, Klíčenky macOS nebo Secret Service na Linuxu.
 
 Při výpadku sítě to zkusí znovu každých 5 minut. Když server export odmítne (vypnutý web export, odvolaný souhlas), čeká na další změnu souboru. Odpojení na webu znamená návrat do stavu „nespárováno“.
 
@@ -23,7 +23,10 @@ Při výpadku sítě to zkusí znovu každých 5 minut. Když server export odm�
 | `api.rs` | HTTP klient (`ureq`, rustls) pro `/api/device/*` |
 | `worker.rs` | Vlákno na pozadí: párování, hlídání, upload |
 | `ui.rs` | Ikona v liště a menu (`tray-icon`, `tao`) |
-| `platform.rs` | Jedna instance, jazyk Windows, autostart, úložiště tokenu |
+| `platform.rs` | Jedna instance, jazyk, autostart, úložiště tokenu (Windows, macOS, Linux) |
+| `game.rs` | Rozpoznání procesu hry podle cesty (`Wow.exe`, nativní macOS aplikace, Wine) |
+| `screen.rs` | Linux a macOS: snímek zóny okna hry pro živou polohu |
+| `shutdown.rs` | Povely mezi procesy: pojmenované eventy (Windows), signální soubory (macOS, Linux) |
 | `config.rs` | `config.json`, cesty, log |
 
 ## Build
