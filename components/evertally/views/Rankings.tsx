@@ -2,7 +2,7 @@
 import { useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { useI18n, type Key } from "@/lib/i18n";
 import { useApi } from "../api";
-import { CLASS_COLORS, CLASSES, RACES, duration, factionOf, type Faction } from "../data";
+import { CLASS_COLORS, CLASSES, FOREVER_CLASS_IDS, FOREVER_RACE_IDS, RACES, duration, factionOf, type Faction } from "../data";
 import { useDungeonArt } from "../db/store";
 import { CharacterIcons, CharacterName } from "../Identity";
 import { METRICS, needsInstance, parseRankingRoute, rankingHash, rankingQuery, type Metric, type RankingFilters, type RankingState } from "../rankingRoute";
@@ -59,6 +59,10 @@ export function RankingsView({ route }: { route: string }) {
   ];
 
   const entries = data?.entries ?? [];
+  // an empty filtered board is only "nobody matches" when the unfiltered board has somebody on it
+  const filtered = Boolean(state.q || Object.keys(filters).length);
+  const probe = useApi<Board>(data && !data.total && filtered ? `/api/leaderboards?metric=${metric === "level" ? "level" : "count"}` : null);
+  const nothingPublic = !filtered || probe.data?.total === 0;
   const pager = data && (state.page > 0 || data.hasMore) ? <Pager page={state.page} hasMore={data.hasMore} onPage={setPage} /> : null;
 
   return (
@@ -70,11 +74,11 @@ export function RankingsView({ route }: { route: string }) {
           </Pill>
           <Pill label={t("runs.class")} value={filters.classId ?? ""} onChange={value => setFilter("classId", value)}>
             <option value="">{t("runs.allClasses")}</option>
-            {Object.entries(CLASSES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            {FOREVER_CLASS_IDS.map(id => <option key={id} value={id}>{CLASSES[id]}</option>)}
           </Pill>
           <Pill label={t("runs.race")} value={filters.raceId ?? ""} onChange={value => setFilter("raceId", value)}>
             <option value="">{t("runs.allRaces")}</option>
-            {Object.entries(RACES).filter(([id]) => id !== "24" && id !== "26").map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            {FOREVER_RACE_IDS.map(id => <option key={id} value={id}>{RACES[id]}</option>)}
           </Pill>
           <Pill label={t("rankings.faction")} value={filters.faction ?? ""} onChange={value => setFilter("faction", value)}>
             <option value="">{t("rankings.allFactions")}</option>
@@ -117,7 +121,7 @@ export function RankingsView({ route }: { route: string }) {
               : waiting ? <MessageRow icon="map" title={t("rankings.pickInstanceTitle")}>{t("rankings.pickInstanceText")}</MessageRow>
               : !data ? <MessageRow icon="trophy" title={t("common.loading")} />
               : entries.length ? entries.map(entry => <Row key={entry.character.id} entry={entry} metric={metric} />)
-              : state.q || Object.keys(filters).length ? <MessageRow icon="search" title={t("rankings.noMatch")} />
+              : !nothingPublic ? <MessageRow icon="search" title={t("rankings.noMatch")} />
               : <MessageRow icon="trophy" title={metric === "level" ? t("rankings.noPublicTitle") : t("common.noData")}
                   action={metric === "level" ? <a className="lb-btn" href="#account"><Icon name="globe" size={14} /> {t("rankings.makePublic")}</a> : undefined}>
                   {metric === "level" ? t("rankings.noPublicText") : t("rankings.countEmpty")}

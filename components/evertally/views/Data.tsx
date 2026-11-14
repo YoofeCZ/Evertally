@@ -4,7 +4,7 @@ import { useI18n } from "@/lib/i18n";
 import { useApi } from "../api";
 import type { Run, User } from "../types";
 import { CLASSES, ConsoleWindow, Empty, Icon, RACES, RunTable, duration } from "../ui";
-import { filterRuns, summarizeRuns } from "../data";
+import { FOREVER_CLASS_IDS, FOREVER_RACE_IDS, filterRuns, summarizeRuns } from "../data";
 
 export function PageHead({ title, lead, children }: { title: string; lead: string; children?: React.ReactNode }) {
   return (
@@ -30,13 +30,13 @@ function Filters({ runs, value, onChange, extended = false, hideInstance = false
       <label className="field"><span>{t("runs.class")}</span>
         <select value={value.classId ?? ""} onChange={(e) => onChange("classId", e.target.value)}>
           <option value="">{t("runs.allClasses")}</option>
-          {Object.entries(CLASSES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          {FOREVER_CLASS_IDS.map((id) => <option key={id} value={id}>{CLASSES[id]}</option>)}
         </select>
       </label>
       <label className="field"><span>{t("runs.race")}</span>
         <select value={value.raceId ?? ""} onChange={(e) => onChange("raceId", e.target.value)}>
           <option value="">{t("runs.allRaces")}</option>
-          {Object.entries(RACES).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          {FOREVER_RACE_IDS.map((id) => <option key={id} value={id}>{RACES[id]}</option>)}
         </select>
       </label>
       {extended && <>

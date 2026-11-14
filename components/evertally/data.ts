@@ -3,6 +3,10 @@ import type { Run } from "./types";
 export const CLASSES: Record<number, string> = { 1: "Warrior", 2: "Paladin", 3: "Hunter", 4: "Rogue", 5: "Priest", 6: "Death Knight", 7: "Shaman", 8: "Mage", 9: "Warlock", 10: "Monk", 11: "Druid", 12: "Demon Hunter", 13: "Evoker" };
 export const RACES: Record<number, string> = { 1: "Human", 2: "Orc", 3: "Dwarf", 4: "Night Elf", 5: "Undead", 6: "Tauren", 7: "Gnome", 8: "Troll", 9: "Goblin", 10: "Blood Elf", 11: "Draenei", 22: "Worgen", 24: "Pandaren", 25: "Pandaren", 26: "Pandaren", 95: "High Order Skyborne", 96: "Windshaper Skyborne" };
 // 95/96 are the Skyborne races new in Forever (UnitRace ids, as in QuestieDB raceMaskById and AllTheThings).
+/** What WoW Forever can play: the nine classic classes, the eight classic races and the two Skyborne races
+ * (as counted by Raider.IO's Forever population page; the in-game leaderboard offers the same). Filters list only these. */
+export const FOREVER_CLASS_IDS = [1, 2, 3, 4, 5, 7, 8, 9, 11] as const;
+export const FOREVER_RACE_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 95, 96] as const;
 /** The class colours the game uses for names (RAID_CLASS_COLORS). */
 export const CLASS_COLORS: Record<number, string> = { 1: "#c79c6e", 2: "#f58cba", 3: "#abd473", 4: "#fff569", 5: "#ffffff", 6: "#c41f3b", 7: "#0070de", 8: "#69ccf0", 9: "#9482c9", 10: "#00ff96", 11: "#ff7d0a", 12: "#a330c9", 13: "#33937f" };
 
