@@ -9,7 +9,8 @@ local popup, queue, viewer, page = nil, {}, nil, nil
 local FONT = "Fonts\\ARIALN.TTF"
 
 local function plain(text) return (tostring(A.Plain(text) or ""):gsub("|", "||")) end
-local function base(name) return (A.Text(name, 150) or ""):match("^[^-]+") or "?" end
+-- A character name has no dash and no space; Forever names the sender of addon messages "Name Realm", others "Name-Realm".
+local function base(name) return (A.Text(name, 150) or ""):match("^[^%-%s]+") or "?" end
 local function money(copper)
     copper = math.floor(A.Number(copper, 0) or 0)
     local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
@@ -570,7 +571,7 @@ local MAX_ROSTER = 120
 -- those who already showed you something. Clicking a row puts the name into the request.
 local function rosterRows()
     local rows, seen = {}, {}
-    local myName = A.Text(A.Call(UnitName, "player"), 80)
+    local myName = base(A.Text(A.Call(UnitName, "player"), 80) or "")
     local function add(order, name, class, whyKey, level, zone)
         name = A.Text(name, 120)
         if not name or seen[base(name):lower()] or base(name) == myName or #rows >= MAX_ROSTER then return end
@@ -625,31 +626,60 @@ A.SocialRoster = rosterRows   -- read by the tests and the layout preview
 
 -- ---------------------------------------------------------------- everybody, in categories
 -- The People tab: friends, players who share a live position (they run Evertally), your group, players you are connected
--- with through Evertally (they showed you something, proposed a trade or a meet, or you asked them) and players known
--- to run Evertally. A click starts the navigation to the player when their position is known, otherwise it opens the
--- request form with the name filled in.
+-- with through Evertally (they showed you something, proposed a trade or a meet, or you asked them), players known to run
+-- Evertally and the ones on the website's public leaderboard. The buttons above the list pick what is shown; "All" puts
+-- every person under the first category that fits. A click starts the navigation to the player when their position is
+-- known, otherwise it opens the request form with the name filled in.
 local function markText(name)
     local mark = A.GetMark and A.GetMark(name)
     return mark and A.MarkMarkup and A.MarkMarkup(mark, 14) or nil
 end
-local function peopleRows()
+local function realmKey(realm) return (A.Text(realm, 100) or ""):gsub("[%s%-']", ""):lower() end
+-- every person goes under the first category of the chosen view that fits; the other facts stay as small labels
+local PEOPLE_VIEWS = {
+    all = {
+        {flags = {"friend"}, title = "peopleCatFriends"}, {flags = {"live"}, title = "peopleCatLive"}, {flags = {"group"}, title = "peopleCatGroup"},
+        {flags = {"linked"}, title = "peopleCatLinked"}, {flags = {"user", "web"}, title = "peopleCatUsers"}, {flags = {"guild"}, title = "peopleCatGuild"},
+        {flags = {"target"}, title = "peopleCatTarget"}, {flags = {"friendOff"}, title = "peopleCatFriendsOff"},
+    },
+    evertally = {{flags = {"live"}, title = "peopleCatLive"}, {flags = {"linked", "user"}, title = "peopleCatSeen"}, {flags = {"web"}, title = "peopleCatWeb"}},
+    friends = {{flags = {"friend"}, title = "peopleCatFriends"}, {flags = {"friendOff"}, title = "peopleCatFriendsOff"}},
+    group = {{flags = {"group"}, title = "peopleCatGroup"}},
+    guild = {{flags = {"guild"}, title = "peopleCatGuild"}},
+}
+local PEOPLE_FILTERS = {"all", "evertally", "friends", "group", "guild"}
+A.PeopleFilters = PEOPLE_FILTERS
+local function peopleFilter()
+    local chosen = A.db and A.db.settings.peopleFilter
+    return PEOPLE_VIEWS[chosen] and chosen or "all"
+end
+local function fits(p, cat) for _, flag in ipairs(cat.flags) do if p.flags[flag] then return true end end return false end
+local USER_DAYS = 30
+--- The rows for the list and how many people each button shows. filter: one of PEOPLE_FILTERS; the saved choice when nil.
+local function peopleRows(filter)
+    filter = PEOPLE_VIEWS[filter] and filter or peopleFilter()
     local people, order = {}, {}
-    local function person(name)
+    local me = base(A.Text(A.Call(UnitName, "player"), 80) or ""):lower()
+    -- key: given for players of other realms from the website, where the same name on two realms is two people
+    local function person(name, key)
         name = A.Text(name, 120)
-        if not name or base(name) == "" then return nil end
-        local key = base(name):lower()
-        if key == (A.Text(A.Call(UnitName, "player"), 80) or ""):lower() then return nil end
+        if not name or base(name) == "?" then return nil end
+        if not key then
+            key = base(name):lower()
+            if key == me then return nil end
+        end
         local p = people[key]
         if not p then p = {name = name, flags = {}}; people[key] = p; order[#order + 1] = key end
         return p
     end
-    local function note(name, flag, class, level, zone)
-        local p = person(name)
-        if not p then return end
+    local function note(name, flag, class, level, zone, key)
+        local p = person(name, key)
+        if not p then return nil end
         p.flags[flag] = true
         p.class = p.class or class
         p.level = p.level or A.Number(level, 1, 200)
         if not p.zone and A.Text(zone, 80) and zone ~= "" then p.zone = zone end
+        return p
     end
     local function unitClass(unit) local _, _, id = A.Call(UnitClass, unit); return A.Number(id, 1, 100) end
     if A.Call(UnitExists, "target") == true and A.Call(UnitIsPlayer, "target") == true then
@@ -681,8 +711,31 @@ local function peopleRows()
     for _, m in ipairs(A.social.meets) do note(m.sender, "linked") end
     for _, o in pairs(A.social.outgoing) do note(o.target, "linked") end
     for _, s in ipairs(A.social.shown) do note(s.sender or s.name, "linked") end
-    -- known to run Evertally (any Evertally message from them in the last 30 days)
-    for name in pairs((A.db and A.db.settings.evertallyUsers) or {}) do note(name, "user") end
+    -- known to run Evertally: any Evertally message from them in the last 30 days
+    local now = A.Now()
+    for name, at in pairs((A.db and A.db.settings.evertallyUsers) or {}) do
+        if now - (tonumber(at) or 0) <= USER_DAYS * 86400 then note(name, "user") end
+    end
+    -- on the website's public leaderboard: they paired the Evertally app and chose to show the character there
+    -- (RankingData.lua, written by the app). A player of your realm is the same person as in game; other realms stay apart.
+    local board
+    if A.RankingIndex then board = select(2, A.RankingIndex()) end
+    if type(board) == "table" and type(board.players) == "table" then
+        local ownRealm = realmKey(A.Call(GetNormalizedRealmName) or A.Call(GetRealmName))
+        for _, w in ipairs(board.players) do
+            local name, realm = type(w) == "table" and A.Text(w.n, 80), type(w) == "table" and A.Text(w.r, 80)
+            if name and realm and not name:find("[%s%-]") then
+                local same = ownRealm ~= "" and realmKey(realm) == ownRealm
+                if not (same and name:lower() == me) then
+                    local p = note(same and name or (name .. "-" .. realm), "web", A.Number(w.c, 1, 100), w.l, nil, (not same) and (name:lower() .. "-" .. realmKey(realm)) or nil)
+                    if p then
+                        p.webRank = p.webRank or A.Number(w.k, 1, 1000000)
+                        if not same then p.realm = realm end
+                    end
+                end
+            end
+        end
+    end
     if A.Call(IsInGuild) == true then
         if A.Monotonic() - lastRosterAsk > 60 then
             lastRosterAsk = A.Monotonic()
@@ -694,23 +747,28 @@ local function peopleRows()
             if ok and online == true then note(name, "guild", CLASS_ID[classFile], level, zone) end
         end
     end
-    -- every person goes under the first category that fits; the other facts stay as small labels
-    local CATS = {
-        {flag = "friend", title = "peopleCatFriends"}, {flag = "live", title = "peopleCatLive"}, {flag = "group", title = "peopleCatGroup"},
-        {flag = "linked", title = "peopleCatLinked"}, {flag = "user", title = "peopleCatUsers"}, {flag = "guild", title = "peopleCatGuild"},
-        {flag = "target", title = "peopleCatTarget"}, {flag = "friendOff", title = "peopleCatFriendsOff"},
-    }
+    -- how many people each button shows
+    local counts = {}
+    for name, view in pairs(PEOPLE_VIEWS) do
+        local n = 0
+        for _, key in ipairs(order) do
+            for _, cat in ipairs(view) do if fits(people[key], cat) then n = n + 1; break end end
+        end
+        counts[name] = n
+    end
+    local cats = PEOPLE_VIEWS[filter]
     local buckets = {}
     for _, key in ipairs(order) do
         local p = people[key]
-        for _, cat in ipairs(CATS) do
-            if p.flags[cat.flag] then buckets[cat.flag] = buckets[cat.flag] or {}; table.insert(buckets[cat.flag], p); break end
+        for i, cat in ipairs(cats) do
+            if fits(p, cat) then buckets[i] = buckets[i] or {}; table.insert(buckets[i], p); break end
         end
     end
     local rows = {}
-    -- pings stay on top: a place somebody marked on the map
+    -- pings stay on top of "All": a place somebody marked on the map
     local pings = A.LivePings()
-    if #pings > 0 then
+    counts.pings = #pings
+    if filter == "all" and #pings > 0 then
         rows[#rows + 1] = {heading = A.L("peopleCatPings"), right = tostring(#pings)}
         for _, g in ipairs(pings) do
             local ping = g
@@ -721,29 +779,38 @@ local function peopleRows()
                 end}
         end
     end
-    for _, cat in ipairs(CATS) do
-        local list = buckets[cat.flag]
+    for i, cat in ipairs(cats) do
+        local list = buckets[i]
         if list and #list > 0 then
-            table.sort(list, function(a, b) return base(a.name):lower() < base(b.name):lower() end)
+            local mine = {}
+            for _, flag in ipairs(cat.flags) do mine[flag] = true end
+            -- the website's players in their board order, everybody else by name
+            table.sort(list, function(a, b)
+                local x, y = mine.web and (a.webRank or 1e9) or 0, mine.web and (b.webRank or 1e9) or 0
+                if x ~= y then return x < y end
+                return base(a.name):lower() < base(b.name):lower()
+            end)
             rows[#rows + 1] = {heading = A.L(cat.title), right = tostring(#list)}
             for _, p in ipairs(list) do
                 local who = p.name
-                local live = A.LivePeer(who)
+                local live = (not p.realm) and A.LivePeer(base(who)) or nil
                 local distance = live and A.map and A.map.DistanceTo and A.map.DistanceTo(live.map, live.x, live.y)
                 local bits = {}
                 if p.level then bits[#bits + 1] = A.L("level") .. " " .. p.level end
                 local zone = live and live.map and zoneName(live.map) or p.zone
                 if zone then bits[#bits + 1] = plain(zone) end
+                if p.realm then bits[#bits + 1] = plain(p.realm) end
                 for _, flag in ipairs({"friend", "group", "guild", "user", "linked"}) do
-                    if p.flags[flag] and flag ~= cat.flag and not (flag == "user" and p.flags.live) then bits[#bits + 1] = A.L("peopleFlag_" .. flag) end
+                    if p.flags[flag] and not mine[flag] and not (flag == "user" and p.flags.live) then bits[#bits + 1] = A.L("peopleFlag_" .. flag) end
                 end
-                if #bits == 0 then bits[1] = A.L(cat.flag == "friendOff" and "peopleOffline" or "peopleNoPosition") end
+                if p.flags.web then bits[#bits + 1] = string.format(A.L("peopleFlag_web"), p.webRank or 0) end
+                if #bits == 0 then bits[1] = A.L(mine.friendOff and "peopleOffline" or "peopleNoPosition") end
                 local mark = markText(who)
                 local row = {title = plain(base(who)), sub = table.concat(bits, "  ·  "), class = p.class, icon = K().ICON.peers,
                     titleColor = p.class and K().classColor(p.class) or nil,
                     right = (mark and (mark .. "  ") or "") .. (distance and (math.floor(distance + 0.5) .. " yd") or "")}
-                if p.flags.live or p.flags.user or p.flags.linked then row.tag, row.tagColor = "EVERTALLY", K().C.lilac end
-                if cat.flag == "friendOff" then row.titleColor = {0.55, 0.52, 0.5}
+                if p.flags.live or p.flags.user or p.flags.linked or p.flags.web then row.tag, row.tagColor = "EVERTALLY", K().C.lilac end
+                if mine.friendOff then row.titleColor = {0.55, 0.52, 0.5}
                 elseif live then row.onClick = function() navigate(live.name) end
                 else row.onClick = function()
                     if page and page.name then page.name:SetText(who) end
@@ -753,7 +820,7 @@ local function peopleRows()
             end
         end
     end
-    return rows
+    return rows, counts
 end
 A.SocialPeople = peopleRows   -- read by the tests and the layout preview
 
@@ -823,6 +890,11 @@ function A.BuildSocialPage(host, k)
     page.stopNav = k.Button(leaf, "socialStopNav", 190, "ghost", function() A.StopNavigation(); A.Print(A.L("navStopped")) end); page.stopNav:SetPoint("LEFT", page.ping, "RIGHT", 10, 0)
     page.liveState = k.label(leaf, 12, C.green); page.liveState:SetPoint("TOPRIGHT", -16, -22); page.liveState:SetJustifyH("RIGHT")
     page.liveNote = k.label(leaf, 11, muted); page.liveNote:SetPoint("TOPLEFT", 16, -56); page.liveNote:SetPoint("TOPRIGHT", -16, -56); page.liveNote:SetHeight(34)
+    -- which people to show: all of them, players using Evertally, friends, group or guild (remembered)
+    page.filterChips = {}
+    for _, key in ipairs(PEOPLE_FILTERS) do
+        page.filterChips[key] = k.Chip(leaf, function() A.db.settings.peopleFilter = key; A.RefreshUI() end)
+    end
     -- meets
     page.meetTitle = k.label(leaf, 13, heading); page.meetTitle:SetPoint("TOPLEFT", 16, -14)
     page.meetHelp = k.label(leaf, 11, muted); page.meetHelp:SetPoint("TOPLEFT", 16, -38); page.meetHelp:SetPoint("TOPRIGHT", -16, -38); page.meetHelp:SetHeight(34)
@@ -852,7 +924,23 @@ function A.BuildSocialPage(host, k)
         for key, chip in pairs(page.tabs) do chip.SetLabel(A.L("socialTab_" .. key)); chip.SetOn(mode == key) end
         page.cols:SetShown(mode == "ask"); page.cols.Layout()
         page.secondaryLeaf:SetShown(mode ~= "ask")
-        page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",10,-(mode=="proposals" and 12 or mode=="meets" and 214 or mode=="privacy" and 90 or 96));page.list:SetPoint("BOTTOMRIGHT",page.secondaryLeaf,"BOTTOMRIGHT",-10,10)
+        -- the category buttons wrap onto a second line in a narrow window; the list starts below them
+        local peopleList, peopleCounts
+        local liveTop = 96
+        if mode == "live" then
+            peopleList, peopleCounts = peopleRows()
+            local x, y, width = 16, -94, math.max(200, (tonumber(page.secondaryLeaf:GetWidth()) or 640) - 32)
+            for _, key in ipairs(PEOPLE_FILTERS) do
+                local chip = page.filterChips[key]
+                chip.SetLabel(A.L("peopleFilter_" .. key) .. "  " .. tostring(peopleCounts[key] or 0)); chip.SetOn(peopleFilter() == key)
+                local w = tonumber(chip:GetWidth()) or 80
+                if x > 16 and x - 16 + w > width then x, y = 16, y - 28 end
+                chip:ClearAllPoints(); chip:SetPoint("TOPLEFT", page.secondaryLeaf, "TOPLEFT", x, y); x = x + w + 6
+            end
+            liveTop = -y + 30
+        end
+        for _, chip in pairs(page.filterChips) do chip:SetShown(mode == "live") end
+        page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",10,-(mode=="proposals" and 12 or mode=="meets" and 214 or mode=="privacy" and 90 or liveTop));page.list:SetPoint("BOTTOMRIGHT",page.secondaryLeaf,"BOTTOMRIGHT",-10,10)
         local webReady = A.DefaultLookKinds():find("w", 1, true) ~= nil
         for key, chip in pairs(page.kindButtons) do
             chip.SetLabel(A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", g = "socialGold", w = "socialWeb"})[key]))
@@ -895,7 +983,9 @@ function A.BuildSocialPage(host, k)
             local markup = currentMark and A.MarkMarkup and A.MarkMarkup(currentMark, 14)
             page.markButton.text:SetText(A.L("markButton") .. (markup and ("  " .. markup) or ""))
             page.viewList.SetItems(viewRows(), A.L("socialNoViews"))
-        elseif mode == "live" then page.list.SetItems(peopleRows(), A.L("peopleNone"))
+        elseif mode == "live" then
+            local filter = peopleFilter()
+            page.list.SetItems(peopleList, A.L(filter == "all" and "peopleNone" or filter == "evertally" and "peopleNoneEvertally" or "peopleNoneFilter"))
         elseif mode == "proposals" then page.list.SetItems(proposalRows(), A.L("socialNoProposals"))
         elseif mode == "meets" then page.list.SetItems(meetRows(), A.L("socialNoMeets"))
         else page.list.SetItems(privacyRows(), A.L("socialNoShown")) end
@@ -922,7 +1012,11 @@ local text = {
     en = {
         waypointSet = "Waypoint set: %s", socialAsk = "Ask to look at a player", socialTarget = "Use my target", socialInv = "Gear and bags", socialProf = "Professions", socialGold = "Gold", socialSend = "Send request",
         peopleCatFriends = "Friends online", peopleCatFriendsOff = "Friends offline", peopleCatLive = "Sharing their position (Evertally)", peopleCatGroup = "Group / raid",
-        peopleCatLinked = "Connected through Evertally", peopleCatUsers = "Evertally players", peopleCatGuild = "Guild online", peopleCatTarget = "Your target", peopleCatPings = "Pings on the map",
+        peopleCatLinked = "Connected through Evertally", peopleCatUsers = "Using Evertally", peopleCatGuild = "Guild online", peopleCatTarget = "Your target", peopleCatPings = "Pings on the map",
+        peopleCatSeen = "Met in game (last 30 days)", peopleCatWeb = "On the website's public leaderboard", peopleFlag_web = "web #%d",
+        peopleFilter_all = "All", peopleFilter_evertally = "Evertally", peopleFilter_friends = "Friends", peopleFilter_group = "Group", peopleFilter_guild = "Guild",
+        peopleNoneFilter = "Nobody in this category right now.",
+        peopleNoneEvertally = "No Evertally player known yet. A player appears here once their addon talks to yours in game (group, guild, friends), or once they show their character on the website's leaderboard through the Evertally app.",
         peopleFlag_friend = "friend", peopleFlag_group = "group", peopleFlag_guild = "guild", peopleFlag_user = "Evertally", peopleFlag_linked = "connected", peopleOffline = "offline", peopleNoPosition = "position unknown",
         peopleNone = "Nobody here yet. Friends, group, guild and everybody you meet through Evertally appear in categories.", peopleNoPositionChat = "%s does not share a position. Ask to look at them or for a meet instead.",
         socialTab_ask = "Look", socialTab_proposals = "Trades", socialTab_meets = "Meets", socialTab_privacy = "Privacy",
@@ -955,7 +1049,11 @@ local text = {
     cs = {
         waypointSet = "Waypoint nastaven: %s", socialAsk = "Požádat o pohled do hráče", socialTarget = "Můj cíl", socialInv = "Výbava a tašky", socialProf = "Profese", socialGold = "Zlato", socialSend = "Odeslat žádost",
         peopleCatFriends = "Přátelé online", peopleCatFriendsOff = "Přátelé offline", peopleCatLive = "Sdílejí polohu (Evertally)", peopleCatGroup = "Skupina / raid",
-        peopleCatLinked = "Spojení přes Evertally", peopleCatUsers = "Hráči s Evertally", peopleCatGuild = "Cech online", peopleCatTarget = "Tvůj cíl", peopleCatPings = "Pingy na mapě",
+        peopleCatLinked = "Spojení přes Evertally", peopleCatUsers = "Používají Evertally", peopleCatGuild = "Cech online", peopleCatTarget = "Tvůj cíl", peopleCatPings = "Pingy na mapě",
+        peopleCatSeen = "Potkaní ve hře (30 dní)", peopleCatWeb = "Na veřejném žebříčku webu", peopleFlag_web = "web #%d",
+        peopleFilter_all = "Vše", peopleFilter_evertally = "Evertally", peopleFilter_friends = "Přátelé", peopleFilter_group = "Skupina", peopleFilter_guild = "Cech",
+        peopleNoneFilter = "V této kategorii teď nikdo není.",
+        peopleNoneEvertally = "Zatím neznáš žádného hráče s Evertally. Objeví se tu, jakmile si jeho addon ve hře vymění zprávu s tvým (skupina, cech, přátelé), nebo když přes aplikaci Evertally ukáže postavu na žebříčku webu.",
         peopleFlag_friend = "přítel", peopleFlag_group = "skupina", peopleFlag_guild = "cech", peopleFlag_user = "Evertally", peopleFlag_linked = "spojen", peopleOffline = "offline", peopleNoPosition = "poloha neznámá",
         peopleNone = "Zatím tu nikdo není. Přátelé, skupina, cech a všichni, koho potkáš přes Evertally, se objeví v kategoriích.", peopleNoPositionChat = "%s nesdílí polohu. Požádej ho o pohled nebo mu pošli sraz.",
         socialTab_ask = "Pohled", socialTab_proposals = "Výměny", socialTab_meets = "Srazy", socialTab_privacy = "Soukromí",

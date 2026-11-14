@@ -1,8 +1,8 @@
 local _, A = ...
 -- Personal/shared observations. Unknown measurements never become zero damage or a realm score.
 local text = {
- en={rankings="Leaderboard",sub_rankings="Your retained runs and players who shared with you. Personal observations, not a realm-wide competitive ranking.",rankModeRuns="Completions",rankModeLevel="Level",rankModeFastest="Best time",rankModeDungeons="Instances",rankModeDps="DPS",rankModeHeals="HPS",rankModeHistory="Run history",rankYou="You are #%d of %d",rankYouAlone="Local records only. Other players appear after sharing.",rankNoRuns="No completed timed run recorded.",rankRuns="%d completed",rankLevel="Level %s",rankPlayers="%d players",rankNoData="No matching records.",rankSelf="you",rankReceived="received",rankAll="All",rankParty="Dungeons",rankRaid="Raids",rankClass="Class",rankRace="Race",rankBack="< Leaderboard",rankUnrecorded="Not recorded",rankCombat="Combat measurements",rankActive="Combat time",rankCovered="Observation time",rankDamage="Damage",rankHealing="Effective healing",rankOverheal="Overhealing",rankTaken="Damage taken",rankDeaths="Deaths",rankBosses="Bosses",rankGroup="Group size",rankDuration="Run duration",rankStatus="Status",rankFinished="Completion evidence",rankRoster="Players in this run",rankPartial="Partial coverage · excluded from DPS/HPS rankings",rankObserved="Observed coverage · local measurements",rankUnavailable="Combat data unavailable · excluded from DPS/HPS rankings",rankScope="Group totals; rates below belong to individual players.",rankRateNote="DPS/HPS use recorded combat seconds. Different instances and incomplete observations are not directly comparable.",rankNoHistory="No retained runs for this player and filter.",rankReference="Reference entry · no observed run",rankCompleted="completed",rankInterrupted="interrupted",rankManual="manually ended",rankVisiting="visiting",rankUnknown="Unknown",rankNoBosses="No individual boss events recorded.",rankPersonal="Personal/shared record · no verified competitive score",rankFilterHint="Choose category, class, race and instance; click a player or run for details."},
- cs={rankings="Žebříček",sub_rankings="Tvoje uložené běhy a hráči, kteří s tebou sdíleli. Osobní záznamy, ne soutěžní žebříček celého serveru.",rankModeRuns="Dokončení",rankModeLevel="Úroveň",rankModeFastest="Nejlepší čas",rankModeDungeons="Instance",rankModeDps="DPS",rankModeHeals="HPS",rankModeHistory="Běhy",rankYou="Jsi #%d z %d",rankYouAlone="Jen místní záznamy. Další hráči se objeví po sdílení.",rankNoRuns="Žádný dokončený běh se zaznamenaným časem.",rankRuns="dokončeno: %d",rankLevel="Úroveň %s",rankPlayers="Hráčů: %d",rankNoData="Žádné odpovídající záznamy.",rankSelf="ty",rankReceived="přijato",rankAll="Vše",rankParty="Dungeony",rankRaid="Raidy",rankClass="Třída",rankRace="Rasa",rankBack="< Žebříček",rankUnrecorded="Nezaznamenáno",rankCombat="Bojové statistiky",rankActive="Čas v boji",rankCovered="Doba pozorování",rankDamage="Poškození",rankHealing="Účinné léčení",rankOverheal="Přeléčení",rankTaken="Přijaté poškození",rankDeaths="Úmrtí",rankBosses="Bossové",rankGroup="Velikost skupiny",rankDuration="Doba běhu",rankStatus="Stav",rankFinished="Doklad dokončení",rankRoster="Hráči v tomto běhu",rankPartial="Částečné pokrytí · neřadí se podle DPS/HPS",rankObserved="Pozorované pokrytí · místní měření",rankUnavailable="Bojová data nejsou dostupná · neřadí se podle DPS/HPS",rankScope="Součty patří celé skupině; hodnoty níže jednotlivým hráčům.",rankRateNote="DPS/HPS používají zaznamenaný čas v boji. Různé instance a neúplná měření nelze přímo porovnávat.",rankNoHistory="Pro hráče a zvolený filtr nejsou uložené běhy.",rankReference="Referenční položka · bez zaznamenaného běhu",rankCompleted="dokončeno",rankInterrupted="přerušeno",rankManual="ručně ukončeno",rankVisiting="návštěva",rankUnknown="Neznámé",rankNoBosses="Jednotliví bossové nebyli zaznamenáni.",rankPersonal="Osobní/sdílený záznam · bez ověřeného soutěžního skóre",rankFilterHint="Vyber kategorii, třídu, rasu a instanci; kliknutím otevřeš hráče nebo běh."},
+ en={rankings="Leaderboard",sub_rankings="Your retained runs, players who shared with you in game and the website's public leaderboard (through the Evertally app). Personal observations, not a realm-wide competitive ranking.",rankModeRuns="Completions",rankModeLevel="Level",rankModeFastest="Best time",rankModeDungeons="Instances",rankModeDps="DPS",rankModeHeals="HPS",rankModeHistory="Run history",rankYou="You are #%d of %d",rankYouAlone="Local records only. Other players appear after sharing.",rankNoRuns="No completed timed run recorded.",rankRuns="%d completed",rankLevel="Level %s",rankPlayers="%d players",rankNoData="No matching records.",rankSelf="you",rankReceived="received",rankAll="All",rankParty="Dungeons",rankRaid="Raids",rankClass="Class",rankRace="Race",rankBack="< Leaderboard",rankUnrecorded="Not recorded",rankCombat="Combat measurements",rankActive="Combat time",rankCovered="Observation time",rankDamage="Damage",rankHealing="Effective healing",rankOverheal="Overhealing",rankTaken="Damage taken",rankDeaths="Deaths",rankBosses="Bosses",rankGroup="Group size",rankDuration="Run duration",rankStatus="Status",rankFinished="Completion evidence",rankRoster="Players in this run",rankPartial="Partial coverage · excluded from DPS/HPS rankings",rankObserved="Observed coverage · local measurements",rankUnavailable="Combat data unavailable · excluded from DPS/HPS rankings",rankScope="Group totals; rates below belong to individual players.",rankRateNote="DPS/HPS use recorded combat seconds. Different instances and incomplete observations are not directly comparable.",rankNoHistory="No retained runs for this player and filter.",rankReference="Reference entry · no observed run",rankCompleted="completed",rankInterrupted="interrupted",rankManual="manually ended",rankVisiting="visiting",rankUnknown="Unknown",rankNoBosses="No individual boss events recorded.",rankPersonal="Personal/shared record · no verified competitive score",rankFilterHint="Choose category, class, race and instance; click a player or run for details."},
+ cs={rankings="Žebříček",sub_rankings="Tvoje uložené běhy, hráči, kteří s tebou sdíleli ve hře, a veřejný žebříček webu (přes aplikaci Evertally). Osobní záznamy, ne soutěžní žebříček celého serveru.",rankModeRuns="Dokončení",rankModeLevel="Úroveň",rankModeFastest="Nejlepší čas",rankModeDungeons="Instance",rankModeDps="DPS",rankModeHeals="HPS",rankModeHistory="Běhy",rankYou="Jsi #%d z %d",rankYouAlone="Jen místní záznamy. Další hráči se objeví po sdílení.",rankNoRuns="Žádný dokončený běh se zaznamenaným časem.",rankRuns="dokončeno: %d",rankLevel="Úroveň %s",rankPlayers="Hráčů: %d",rankNoData="Žádné odpovídající záznamy.",rankSelf="ty",rankReceived="přijato",rankAll="Vše",rankParty="Dungeony",rankRaid="Raidy",rankClass="Třída",rankRace="Rasa",rankBack="< Žebříček",rankUnrecorded="Nezaznamenáno",rankCombat="Bojové statistiky",rankActive="Čas v boji",rankCovered="Doba pozorování",rankDamage="Poškození",rankHealing="Účinné léčení",rankOverheal="Přeléčení",rankTaken="Přijaté poškození",rankDeaths="Úmrtí",rankBosses="Bossové",rankGroup="Velikost skupiny",rankDuration="Doba běhu",rankStatus="Stav",rankFinished="Doklad dokončení",rankRoster="Hráči v tomto běhu",rankPartial="Částečné pokrytí · neřadí se podle DPS/HPS",rankObserved="Pozorované pokrytí · místní měření",rankUnavailable="Bojová data nejsou dostupná · neřadí se podle DPS/HPS",rankScope="Součty patří celé skupině; hodnoty níže jednotlivým hráčům.",rankRateNote="DPS/HPS používají zaznamenaný čas v boji. Různé instance a neúplná měření nelze přímo porovnávat.",rankNoHistory="Pro hráče a zvolený filtr nejsou uložené běhy.",rankReference="Referenční položka · bez zaznamenaného běhu",rankCompleted="dokončeno",rankInterrupted="přerušeno",rankManual="ručně ukončeno",rankVisiting="návštěva",rankUnknown="Neznámé",rankNoBosses="Jednotliví bossové nebyli zaznamenáni.",rankPersonal="Osobní/sdílený záznam · bez ověřeného soutěžního skóre",rankFilterHint="Vyber kategorii, třídu, rasu a instanci; kliknutím otevřeš hráče nebo běh."},
 }
 for lang,entries in pairs(text) do for key,value in pairs(entries) do A.locale[lang][key]=value end end
 A.locale.en.rankObservedGroup="observed in your group"
@@ -24,6 +24,8 @@ A.locale.en.rankClear="Clear";A.locale.cs.rankClear="Vymazat"
 A.locale.en.rankColumns="RANK / CHARACTER";A.locale.cs.rankColumns="POŘADÍ / POSTAVA"
 A.locale.en.rankResult="RESULT";A.locale.cs.rankResult="VÝSLEDEK"
 A.locale.en.rankNoMatches="No locally available players match.";A.locale.cs.rankNoMatches="Žádný místně dostupný hráč neodpovídá."
+A.locale.en.rankWeb="website #%d";A.locale.cs.rankWeb="web #%d"
+A.locale.en.rankWebDetail="On the website's public leaderboard as #%d. Their runs stay on the website; only the summary comes to the game.";A.locale.cs.rankWebDetail="Na veřejném žebříčku webu jako #%d. Běhy zůstávají na webu; do hry přichází jen souhrn."
 local CS_LOWER={["Á"]="á",["Č"]="č",["Ď"]="ď",["É"]="é",["Ě"]="ě",["Í"]="í",["Ň"]="ň",["Ó"]="ó",["Ř"]="ř",["Š"]="š",["Ť"]="ť",["Ú"]="ú",["Ů"]="ů",["Ý"]="ý",["Ž"]="ž"}
 local function fold(value)
  local s=tostring(A.Plain(value) or ""):gsub("[A-Z]",function(c)return string.char(c:byte()+32) end)
@@ -88,6 +90,27 @@ local function players(dungeon,filters)
   local key=tostring(peer.producerId)..":"..(peer.character and peer.character.id or sender)
   if not seen[key] then seen[key]=true;list[#list+1]={key=key,name=peer.character and peer.character.name or sender,character=peer.character,runs=peer.runs or {},receivedAt=peer.receivedAt,level=peer.character and peer.character.level,summaryCompleted=num(peer.completedRuns)} end
  end
+ -- The website's public leaderboard (RankingData.lua, written by the Evertally app): players who paired the app and chose
+ -- to show the character. Only a summary arrives (level, completed runs), so they rank by runs and level, not by times.
+ local board;if A.RankingIndex then board=select(2,A.RankingIndex()) end
+ if type(board)=="table" and type(board.players)=="table" then
+  local function realmKey(r) return (A.Text(r,100) or ""):gsub("[%s%-']",""):lower() end
+  local ownRealm=me and me.realm
+  local listed={}
+  for _,e in ipairs(list) do local c=e.character;local name=c and A.Text(c.name,100) or A.Text(e.name,100)
+   local short=name and name:match("^[^%-%s]+")
+   if short then listed[short:lower().."|"..realmKey(c and c.realm or ownRealm)]=true end
+  end
+  for _,w in ipairs(board.players) do
+   local name,realm=type(w)=="table" and A.Text(w.n,80),type(w)=="table" and A.Text(w.r,80)
+   local k=name and realm and not name:find("[%s%-]") and (name:lower().."|"..realmKey(realm))
+   if k and not listed[k] then
+    listed[k]=true
+    local c={name=name,realm=realm,classId=A.Number(w.c,1,100),raceId=A.Number(w.x,1,100),level=A.Number(w.l,1,100)}
+    list[#list+1]={key="web:"..k,name=name,character=c,runs={},web=true,webRank=A.Number(w.k,1,1000000),level=c.level,summaryCompleted=num(w.u) or 0}
+   end
+  end
+ end
  -- Native meter/combat-log actors are useful even if they do not run this addon.
  -- Keep them distinct from shared profiles and never create an actor from group totals.
  local knownGuids,observed={},{ }
@@ -139,7 +162,7 @@ end
 function A.RankingRows(kit,mode,dungeon,filters)
  local list,rows=players(dungeon,filters),{}
  local query=fold(((filters and filters.query) or ""):match("^%s*(.-)%s*$"))
- local function source(e) return e.own and A.L("rankSelf") or e.observed and A.L("rankObservedGroup") or (A.L("rankReceived").." "..kit.stamp(e.receivedAt)) end
+ local function source(e) return e.own and A.L("rankSelf") or e.observed and A.L("rankObservedGroup") or e.web and string.format(A.L("rankWeb"),e.webRank or 0) or (A.L("rankReceived").." "..kit.stamp(e.receivedAt)) end
  local function row(e,value,fraction,run) return {key=e.key,name=e.name,character=e.character,own=e.own,valueText=value,fraction=fraction,entry=e,run=run,sub=kit.identityText(e.character).." · "..source(e)} end
  if mode=="runs" or mode=="level" then
   local field=mode=="runs" and "completed" or "level"
@@ -289,7 +312,8 @@ function A.BuildRankingsPage(page,kit)
    for _,run in ipairs(runs) do local captured=run
     entries[#entries+1]={text=kit.plain(run.name or "?").." · "..(num(run.durationMs) and kit.duration(run.durationMs) or A.L("rankUnrecorded")).." · "..kit.stamp(run.startedAt),icon=run.instanceType=="raid" and kit.ICON.raid or kit.ICON.run,onClick=function()page.selection={run=captured,character=entry.character};A.RefreshUI()end}
    end
-   if #runs==0 then entries[#entries+1]={text=A.L("rankNoHistory")} end
+   if entry.web then entries[#entries+1]={text=string.format(A.L("rankWebDetail"),entry.webRank or 0)}
+   elseif #runs==0 then entries[#entries+1]={text=A.L("rankNoHistory")} end
    spec={key="player:"..entry.key,title=kit.plain(entry.name),subtitle=A.L("rankPersonal"),entries=entries}
   end
   table.insert(spec.entries,1,{text=A.L("rankBack"),onClick=function()page.selection=nil;A.RefreshUI()end});page.document.Set(spec);return true

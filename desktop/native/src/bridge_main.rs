@@ -195,6 +195,27 @@ impl ConnectionSettings {
                     if ui.add_enabled(ready,egui::Button::new(self.t("Cancel pairing", "Zrušit párování"))).clicked() { self.send(Action::CancelPair); }
                 });
             } else {
+                if !paired {
+                    // The first thing a new player sees after the installer: what to do, in order.
+                    ui.add_space(10.0);
+                    ui.label(RichText::new(self.t("How to start", "Jak začít")).strong().size(16.0));
+                    for step in [
+                        self.t(
+                            "1. Click Pair this PC. The website opens: sign in with Discord and approve the code.",
+                            "1. Klikni na Spárovat tento počítač. Otevře se web: přihlas se přes Discord a potvrď kód.",
+                        ),
+                        self.t(
+                            "2. In the game open Evertally > Settings and turn on \"Prepare own data for the website\". To be seen by other players, also turn on \"Show my characters in the public leaderboard on the website\".",
+                            "2. Ve hře otevři Evertally > Nastavení a zapni „Připravovat vlastní data pro web“. Aby tě viděli ostatní hráči, zapni i „Ukázat mé postavy ve veřejném žebříčku na webu“.",
+                        ),
+                        self.t(
+                            "3. Play. After /reload or logging out, this bridge uploads new records by itself.",
+                            "3. Hraj. Po /reload nebo odhlášení most sám nahraje nové záznamy.",
+                        ),
+                    ] {
+                        ui.label(step);
+                    }
+                }
                 ui.add_space(10.0);
                 ui.horizontal_wrapped(|ui| {
                     if paired {

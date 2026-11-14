@@ -212,6 +212,35 @@ class WindowTests(unittest.TestCase):
         self.open_view("overview"); self.open_view("rankings")
         self.assert_clean()
 
+    def test_the_leaderboard_includes_the_websites_public_board_once_per_player(self):
+        self.peers()
+        # Bran shared in game and is on the website too; you (Fixture Hero) are on the website as well
+        self.lua.execute('''
+        Evertally.peerDB.peers.Bran.character.realm="Fixture Realm"
+        EvertallyRankingData={schemaVersion=1,kind="evertally-ranking",generatedAt=NOW-60,expiresAt=NOW+3600,total=4,truncated=false,
+          players={{n="Aerin",r="Firemaw",k=1,u=9,l=60,c=11,x=4},{n="Bran",r="FixtureRealm",k=2,u=7,l=33,c=8,x=1},
+                   {n="Fixture",r="Fixture Realm",k=3,u=2,l=20,c=2,x=1},{n="Kesh",r="Firemaw",k=4,u=0,l=12,c=1,x=2}}}
+        UnitFullName=function() return "Fixture","Fixture Realm" end
+        ''')
+        self.a.OpenUI()
+        kit = self.a.UIKit()
+        runs = lst(self.a.RankingRows(kit, "runs"))
+        self.assertEqual([str(r.name) for r in runs], ["Aerin", "Bran", "Fixture", "Mira", "Kesh"], "9, 7, 2, 1 and 0 completed runs; nobody twice")
+        self.assertIn("website #1", str(runs[0].sub))
+        self.assertTrue(runs[2].own)
+        level = lst(self.a.RankingRows(kit, "level"))
+        self.assertEqual(str(level[0].name), "Aerin")
+        fastest = lst(self.a.RankingRows(kit, "fastest"))
+        self.assertNotIn("Aerin", [str(r.name) for r in fastest], "no times arrive from the website, so no best time")
+        self.lua.execute("EvertallyRankingData.expiresAt=NOW-1")
+        self.assertNotIn("Aerin", [str(r.name) for r in lst(self.a.RankingRows(kit, "runs"))], "a stale package is ignored")
+        self.lua.execute("EvertallyRankingData.expiresAt=NOW+3600")
+        self.open_view("rankings")
+        page = self.a.rankingsPage
+        page.selection = self.lua.table(key="web:aerin|firemaw")
+        self.open_view("overview"); self.open_view("rankings")
+        self.assert_clean()
+
     # ---- people and what they showed you ----
     def receive_view(self):
         self.a.SetWeb(True); self.a.OpenUI()
@@ -293,7 +322,7 @@ class WindowTests(unittest.TestCase):
         self.receive_view()
         self.a.NoteEvertallyUser("Nobody-Fixture Realm")
         self.open_view("social")
-        rows = self.a.SocialPeople()
+        rows = self.a.SocialPeople()[0]
         items = [rows[i] for i in range(1, len(rows) + 1)]
         headings = [str(r.heading) for r in items if r.heading is not None]
         self.assertIn(str(self.a.L("peopleCatLinked")), headings)   # somebody showed you something
@@ -303,6 +332,78 @@ class WindowTests(unittest.TestCase):
         linked.onClick()                                            # no live position: the request form opens with the name
         self.assertEqual(page.mode, "ask")
         self.assertNotEqual(str(page.name.GetText(page.name)), "")
+
+    # ---- People: category buttons, the website's players, one person per player ----
+    def people(self, view="all"):
+        rows, counts = self.a.SocialPeople(view)
+        items = lst(rows)
+        out, heading = [], None
+        for r in items:
+            if r.heading is not None: heading = str(r.heading)
+            else: out.append((heading, str(r.title), str(r.sub)))
+        return out, counts
+
+    def web_board(self):
+        self.lua.execute('''
+        GetNormalizedRealmName=function() return "FixtureRealm" end
+        EvertallyRankingData={schemaVersion=1,kind="evertally-ranking",generatedAt=NOW-60,expiresAt=NOW+3600,total=4,truncated=false,
+          players={{n="Fixture",r="Fixture Realm",k=1,u=3,l=20,c=2,x=1},{n="Aerin",r="Fixture Realm",k=2,u=4,l=60,c=11,x=4},
+                   {n="Mardyx",r="Valdren",k=3,u=0,l=13,c=8,x=7},{n="Mardyx",r="Warborn",k=4,u=0,l=6,c=1,x=1}}}
+        ''')
+
+    def test_people_include_the_websites_public_board_under_evertally(self):
+        self.web_board()
+        self.a.OpenUI(); self.open_view("social")
+        people, counts = self.people("evertally")
+        names = [(h, t) for h, t, _ in people]
+        web = str(self.a.L("peopleCatWeb"))
+        self.assertEqual(names, [(web, "Aerin"), (web, "Mardyx"), (web, "Mardyx")], "the board order; you are not on your own list; one name on two realms is two people")
+        self.assertIn("web #2", people[0][2])
+        self.assertIn("Valdren", people[1][2]); self.assertIn("Warborn", people[2][2])
+        self.assertEqual(counts.evertally, 3)
+        everybody, _ = self.people("all")
+        self.assertEqual({h for h, _, _ in everybody}, {str(self.a.L("peopleCatUsers"))}, "in All they sit under Using Evertally")
+        self.assertEqual(lst(self.a.SocialPeople("friends")[0]), [], "nobody else matches Friends")
+
+    def test_a_player_named_name_space_realm_is_the_same_person_as_in_the_group(self):
+        # WoW Forever names the sender of an addon message "Name Realm"; the group gives "Name"
+        self.lua.execute('''
+        UnitExists=function(u) return u=="party1" end
+        UnitFullName=function(u) if u=="party1" then return "Vexara",nil end return "Fixture Hero","Fixture Realm" end
+        UnitLevel=function() return 10 end
+        ''')
+        self.a.ReceiveMessage("Evtly1", "S|L|1411|470|660|9", "PARTY", "Vexara Nightcurse")
+        self.a.NoteEvertallyUser("Vexara Nightcurse")
+        self.a.OpenUI(); self.open_view("social")
+        people, counts = self.people("all")
+        self.assertEqual([(h, t) for h, t, _ in people], [(str(self.a.L("peopleCatLive")), "Vexara")], "one person, not two")
+        self.assertIn(str(self.a.L("peopleFlag_group")), people[0][2])
+        self.assertEqual((counts.all, counts.evertally, counts.group), (1, 1, 1))
+
+    def test_the_category_buttons_pick_what_the_list_shows_and_are_remembered(self):
+        self.web_board()
+        self.lua.execute('''
+        FRIENDS={{name="Thalia",level=42,connected=true,area="Stormwind City"},{name="Gone",level=10,connected=false}}
+        C_FriendList={GetNumFriends=function() return #FRIENDS end,GetFriendInfoByIndex=function(i) return FRIENDS[i] end}
+        ''')
+        self.a.OpenUI(); self.open_view("social")
+        page = self.a.social.page
+        chips = page.filterChips
+        self.assertEqual([str(self.a.PeopleFilters[i]) for i in range(1, 6)], ["all", "evertally", "friends", "group", "guild"])
+        self.assertTrue(chips.all.on and chips.all.shown)
+        self.assertEqual(str(chips.friends.text.GetText(chips.friends.text)), "Friends  2", "online and offline friends")
+        self.assertEqual(str(chips.evertally.text.GetText(chips.evertally.text)), "Evertally  3")
+        chips.friends.scripts.OnClick(chips.friends)
+        self.assertEqual(self.a.db.settings.peopleFilter, "friends")
+        self.assertTrue(chips.friends.on and not chips.all.on)
+        shown = [str(r.title) for r in lst(page.list["items"]) if r.heading is None]
+        self.assertEqual(shown, ["Thalia", "Gone"])
+        chips.guild.scripts.OnClick(chips.guild)
+        self.assertEqual(lst(page.list["items"]), [])
+        self.assertEqual(str(page.list.emptyText), str(self.a.L("peopleNoneFilter")))
+        page.tabs.privacy.scripts.OnClick(page.tabs.privacy)
+        self.assertFalse(chips.all.shown, "the buttons belong to the People mode only")
+        self.assert_clean()
 
     # ---- captions, people nearby ----
     def test_every_button_that_has_a_locale_key_has_a_caption_on_every_page(self):

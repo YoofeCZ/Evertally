@@ -3,7 +3,7 @@
 ## Notes: Evertally inside OpenMap: gathering places, live players, meets, pings and navigation on the map and the minimap. Needs OpenMap; loads only when you turn it on in Evertally settings.
 ## Notes-csCZ: Evertally uvnitř OpenMap: místa sbírání, živí hráči, srazy, pingy a navigace na mapě a minimapě. Potřebuje OpenMap; načte se jen po zapnutí v nastavení Evertally.
 ## Author: Evertally contributors
-## Version: 0.9.25
+## Version: 0.9.26
 ## Dependencies: Evertally
 ## OptionalDeps: OpenMap, QuestieDB, ForeverDungeonJournal
 ## LoadOnDemand: 1

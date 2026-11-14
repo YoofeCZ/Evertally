@@ -51,8 +51,8 @@ english.GameFolderPrompt=World of Warcraft folder:
 czech.GameFolderPrompt=Složka World of Warcraft:
 english.BadGameFolder=Choose a folder containing Wow.exe or _forever_\Wow.exe, or turn off addon installation.
 czech.BadGameFolder=Vyber složku s Wow.exe nebo _forever_\Wow.exe, případně vypni instalaci addonů.
-english.StartBackground=Start Evertally Bridge in the Windows notification area
-czech.StartBackground=Spustit Evertally Bridge vedle hodin Windows
+english.StartBackground=Open Evertally and pair this PC with the website (the bridge starts by the clock)
+czech.StartBackground=Otevřít Evertally a spárovat počítač s webem (most se spustí vedle hodin)
 
 [Tasks]
 Name: "startwow"; Description: "{cm:StartWoW}"; GroupDescription: "Evertally:"; Flags: checkedonce
@@ -76,7 +76,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\EvertallyBackground.exe"; Tasks: startwow; Flags: nowait runhidden
-Filename: "{app}\Evertally.exe"; Description: "{cm:StartBackground}"; Flags: postinstall nowait skipifsilent
+; The first start shows the connection window with the steps to pair; it starts the tray bridge as well.
+Filename: "{app}\Evertally.exe"; Parameters: "--connection-settings"; Description: "{cm:StartBackground}"; Flags: postinstall nowait skipifsilent
 ; A silent update (the bridge updating itself) must leave the bridge running again: Setup closed it, and nobody clicks "Start" on the last page.
 Filename: "{app}\Evertally.exe"; Check: WizardSilent; Flags: nowait
 Filename: "{app}\EvertallyBackground.exe"; Check: SilentWithAutostart; Flags: nowait runhidden
