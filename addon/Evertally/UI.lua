@@ -1001,9 +1001,9 @@ local function buildSettings(page)
     local publishOff=function() return not (A.CanPublish and A.CanPublish()) end
     local publish=Toggle(card,"leaderboard",function() return A.PublishChoice and A.PublishChoice().public==true end,function(v) A.SetPublish("public",v) end)
     publish.disabled=publishOff;place(publish,40,18)
-    for _,field in ipairs({"itemLevel","guild"}) do
+    for _,field in ipairs({"itemLevel","guild","gear"}) do
         local which=field
-        local t=Toggle(card,which=="itemLevel" and "leaderboardItemLevel" or "leaderboardGuild",function() return A.PublishChoice and A.PublishChoice()[which]==true end,function(v) A.SetPublish(which,v) end)
+        local t=Toggle(card,which=="itemLevel" and "leaderboardItemLevel" or which=="guild" and "leaderboardGuild" or "leaderboardGear",function() return A.PublishChoice and A.PublishChoice()[which]==true end,function(v) A.SetPublish(which,v) end)
         t.disabled=function() return publishOff() or A.PublishChoice().public~=true end;place(t,62,18)
     end
     local liveWeb=Toggle(card,"liveWeb",function() return s().liveWeb==true end,function(v) s().liveWeb=v==true;if A.OpticalTick then A.OpticalTick() end end)
