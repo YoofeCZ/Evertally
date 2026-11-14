@@ -308,7 +308,7 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
   const [speed, setSpeed] = useState<number>(20);
   const [follow, setFollow] = useState(true);
   const [skipIdle, setSkipIdle] = useState(true);
-  const [panel, setPanel] = useState(true);
+  const [panel, setPanel] = useState(() => typeof window === "undefined" || window.innerWidth > 900);
   const [filters, setFilters] = useState<ReadonlySet<Category>>(new Set(CATEGORIES));
   const reduced = useMemo(() => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
 
@@ -316,7 +316,8 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
     if (!playing) return;
     let raf = 0, last = performance.now(), ui = 0;
     const tick = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      // wall-clock time: only a long pause (a hidden tab) is cut short, so a slow frame rate does not slow the playback
+      const dt = Math.min(0.5, (now - last) / 1000); last = now;
       const next = c.events[eventAt(c, timeRef.current) + 1];
       const rate = speed * (skipIdle && next && next.t - timeRef.current > 20 ? 4 : 1);
       timeRef.current = Math.min(c.duration, timeRef.current + dt * rate);
