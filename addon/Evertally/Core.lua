@@ -228,6 +228,9 @@ function A.Initialize()
     end
     if A.RestoreRun then A.RestoreRun() end
     A.Print(A.L("loaded"))
+    -- Evertally Sync installs updates while the game runs; after the restart, say once that the new version is here.
+    if s.lastVersion and s.lastVersion ~= A.version then A.Print(string.format(A.L("updatedTo"), A.version)) end
+    s.lastVersion = A.version
 end
 
 if type(CreateFrame)=="function" then

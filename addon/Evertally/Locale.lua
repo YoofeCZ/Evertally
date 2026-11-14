@@ -1,5 +1,5 @@
 local _, A = ...
-A.version = "0.9.17"
+A.version = "0.9.18"
 A.locale = {
     en = {
         title = "Evertally", overview = "Overview", history = "Runs", facts = "Atlas", peers = "Sharing", settings = "Settings",
@@ -24,6 +24,7 @@ A.locale = {
         unranked = "Times are personal measurements. Rulesets have not been verified in the live client; competitive records remain disabled.",
         scopes = "Website data scopes", world_facts = "World: quests, NPCs, loot", own_runs = "My dungeon and raid runs",
         own_character = "My character (name, realm, level)", own_professions = "My professions",
+        updatedTo = "Evertally was updated to %s.",
         rankTooltip = "Leaderboard in player tooltips (place, item level, runs; from the website)",
         tipRank = "#%d of %d", tipClassRank = "Place in class", tipClassRankOf = "Place among %ss", tipItemLevel = "Item level", tipRuns = "Completed runs",
         leaderboard = "Show my characters in the public leaderboard on the website", leaderboardItemLevel = "…with item level (only the average of the gear)", leaderboardGuild = "…with guild name",
@@ -65,6 +66,7 @@ A.locale = {
         unranked = "Časy jsou osobní měření. Rulesety dosud nebyly ověřené v živém klientu; soutěžní rekordy nejsou zapnuté.",
         scopes = "Datové oblasti pro web", world_facts = "Svět: questy, NPC, loot", own_runs = "Moje běhy v dungeonech a raidech",
         own_character = "Moje postava (jméno, realm, level)", own_professions = "Moje profese",
+        updatedTo = "Evertally byl aktualizován na %s.",
         rankTooltip = "Žebříček v tooltipu hráčů (pořadí, item level, běhy; z webu)",
         tipRank = "#%d z %d", tipClassRank = "Pořadí ve třídě", tipClassRankOf = "Pořadí ve třídě %s", tipItemLevel = "Item level", tipRuns = "Dokončené běhy",
         leaderboard = "Ukázat mé postavy ve veřejném žebříčku na webu", leaderboardItemLevel = "…s item levelem (jen průměr výbavy)", leaderboardGuild = "…s názvem cechu",

@@ -1,6 +1,9 @@
 //! Safe background installation of the published add-on bundle.
 //! Downloads never use device credentials; WoW's live SavedVariables and the
-//! generated ForumData.lua are outside the update payload.
+//! files the bridge writes itself (forum, community facts, leaderboard) are never replaced by the bundle.
+//! The update is installed even while the game runs: WoW reads addon files only when it starts (measured: a running
+//! client holds none of them open), so the player just restarts the game. A /reload is not enough, because the
+//! client keeps the file list of each addon from its start.
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -20,7 +23,24 @@ struct Addon { file: String, bytes: u64, sha256: String }
 #[derive(Serialize, Deserialize)]
 struct Journal { staging: String, backup: String, existed: Vec<bool> }
 
-struct FileEntry { relative: PathBuf, data: Vec<u8> }
+/// `keep_existing`: a file the bridge writes itself; the bundle's copy is only a placeholder for a tree that lacks it.
+struct FileEntry { relative: PathBuf, data: Vec<u8>, keep_existing: bool }
+
+const BRIDGE_OWNED: [&str; 3] = ["evertally/forumdata.lua", "evertally/communitydata.lua", "evertally/rankingdata.lua"];
+
+/// What one installation did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Applied { UpToDate, Updated }
+
+/// What the bridge tells the player after a check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Status {
+    UpToDate,
+    /// A new version was installed; `restart` while the game that has the old one loaded is still running.
+    Updated { version: Option<String>, restart: bool },
+    /// The game kept the folders from being swapped; the next try comes soon.
+    Waiting,
+}
 
 pub(crate) fn read_url(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
     let mut response=agent.get(url).header("Cache-Control", "no-cache").call()?;
@@ -62,9 +82,9 @@ fn unpack(bytes: &[u8]) -> Result<Vec<FileEntry>> {
         ensure!(total<=MAX_TOTAL,"archive exceeds expanded size limit");
         let mut data=Vec::new();file.by_ref().take(MAX_FILE+1).read_to_end(&mut data)?;
         ensure!(data.len() as u64 == file.size(), "invalid archive file size");
-        // Bridge-owned dynamic forum snapshot must never be replaced by the bundle.
-        if key=="evertally/forumdata.lua" || key=="evertally/communitydata.lua" { continue; }
-        entries.push(FileEntry{relative:path,data});
+        // Files the bridge writes itself are never replaced by the bundle; its copy only fills a tree that lacks them.
+        let keep_existing=BRIDGE_OWNED.contains(&key.as_str());
+        entries.push(FileEntry{relative:path,data,keep_existing});
     }
     for root in ROOTS { ensure!(names.contains(&format!("{0}/{0}.toc",root.to_ascii_lowercase())), "missing addon manifest"); }
     Ok(entries)
@@ -95,6 +115,7 @@ fn copy_tree(from: &Path,to: &Path) -> Result<()> {
 fn matches_installed(addons: &Path, files: &[FileEntry]) -> bool {
     files.iter().all(|entry| {
         let path=addons.join(&entry.relative);
+        if entry.keep_existing {return safe_ancestors(&path).is_ok() && path.is_file();}
         safe_ancestors(&path).is_ok() && fs::metadata(&path).is_ok_and(|m|m.is_file() && m.len()==entry.data.len() as u64) && fs::read(path).is_ok_and(|b|b==entry.data)
     })
 }
@@ -117,6 +138,14 @@ fn game_running() -> Result<bool> {
     }
 }
 #[cfg(not(windows))] fn game_running()->Result<bool>{bail!("automatic installation supported on Windows only")}
+
+/// The version line of the bundle's main TOC, as the player sees it in the game.
+fn bundle_version(files: &[FileEntry]) -> Option<String> {
+    let toc=files.iter().find(|e|e.relative==Path::new("Evertally").join("Evertally.toc"))?;
+    let text=std::str::from_utf8(&toc.data).ok()?;
+    let version=text.lines().find_map(|line|line.trim().strip_prefix("## Version:"))?.trim();
+    (!version.is_empty() && version.len()<=32 && version.chars().all(|c|c.is_ascii_alphanumeric()||matches!(c,'.'|'-'|'_'))).then(||version.to_owned())
+}
 
 pub(crate) fn roots(config: &crate::config::Config)->Vec<PathBuf>{
     let mut out=Vec::new();
@@ -151,32 +180,34 @@ fn recover(addons: &Path, work: &Path)->Result<()> {
     restore(addons,work,&journal)
 }
 
-fn install_with_game_check(addons: &Path, files: &[FileEntry], forum_lock: &std::sync::Mutex<()>, game: impl Fn()->Result<bool>) -> Result<bool> {
+fn install_with(addons: &Path, files: &[FileEntry], forum_lock: &std::sync::Mutex<()>, before_swap: impl Fn(&str)->Result<()>) -> Result<Applied> {
     safe_ancestors(addons)?;
     let work=addons.parent().context("invalid addons directory")?.join("EvertallyUpdateBackups");
     if work.exists(){safe_ancestors(&work)?;} else {fs::create_dir(&work)?;}
-    if !work.join("journal.json").exists() && matches_installed(addons,files) {return Ok(true);}
-    if game()? { return Ok(false); }
+    if !work.join("journal.json").exists() && matches_installed(addons,files) {return Ok(Applied::UpToDate);}
     let _guard=forum_lock.lock().map_err(|_|anyhow::anyhow!("forum lock unavailable"))?;
     recover(addons,&work)?;
-    if matches_installed(addons,files){return Ok(true);}
+    if matches_installed(addons,files){return Ok(Applied::UpToDate);}
     let id=SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     let journal=Journal{staging:format!("stage-{id}"),backup:format!("backup-{id}"),existed:ROOTS.iter().map(|r|addons.join(r).exists()).collect()};
     let stage=work.join(&journal.staging);let backup=work.join(&journal.backup);
     fs::create_dir(&stage)?;fs::create_dir(&backup)?;
     for root in ROOTS {let live=addons.join(root);let target=stage.join(root);if live.exists(){copy_tree(&live,&target)?;}else{fs::create_dir(&target)?;}}
-    for entry in files {let target=stage.join(&entry.relative);fs::create_dir_all(target.parent().context("invalid file")?)?;fs::write(target,&entry.data)?;}
-    // Game might have launched while staging; no live file has been changed yet.
-    if game()? {return Ok(false);}
+    for entry in files {
+        let target=stage.join(&entry.relative);
+        if entry.keep_existing && target.is_file() {continue;}
+        fs::create_dir_all(target.parent().context("invalid file")?)?;fs::write(target,&entry.data)?;
+    }
     let j=work.join("journal.json");let mut f=fs::File::create(&j)?;serde_json::to_writer(&mut f,&journal)?;f.flush()?;f.sync_all()?;
-    let result=(||->Result<()> {for root in ROOTS {ensure!(!game()?,"game started during update");let live=addons.join(root);if live.exists(){fs::rename(&live,backup.join(root))?;}fs::rename(stage.join(root),live)?;}Ok(())})();
+    // Three folder renames per root; any failure (a folder held by another program) puts every root back.
+    let result=(||->Result<()> {for root in ROOTS {before_swap(root)?;let live=addons.join(root);if live.exists(){fs::rename(&live,backup.join(root))?;}fs::rename(stage.join(root),live)?;}Ok(())})();
     if let Err(err)=result {restore(addons,&work,&journal).context("rollback failed")?;return Err(err);}
     fs::remove_file(j)?;
-    Ok(true)
+    Ok(Applied::Updated)
 }
 
-fn install(addons: &Path, files: &[FileEntry], forum_lock: &std::sync::Mutex<()>) -> Result<bool> {
-    install_with_game_check(addons,files,forum_lock,game_running)
+fn install(addons: &Path, files: &[FileEntry], forum_lock: &std::sync::Mutex<()>) -> Result<Applied> {
+    install_with(addons,files,forum_lock,|_|Ok(()))
 }
 
 fn valid_bundle(data: &[u8], addon: &Addon)->bool {
@@ -184,19 +215,22 @@ fn valid_bundle(data: &[u8], addon: &Addon)->bool {
 }
 
 /// Keep one verified bundle in memory so a running game does not redownload it each poll.
-pub struct Updater { cached: Option<(String, Vec<FileEntry>)>, cache_file: PathBuf, pending: HashSet<PathBuf> }
+/// `restart_for`: the version installed while the game ran; the player is told to restart until the game closes.
+pub struct Updater { cached: Option<(String, Vec<FileEntry>)>, cache_file: PathBuf, restart_for: Option<Option<String>> }
 
 impl Updater {
-#[must_use] pub fn new(cache_dir: &Path)->Self {Self{cached:None,cache_file:cache_dir.join("addon-update-cache.zip"),pending:HashSet::new()}}
-/// One cycle. No game data is touched; only already-installed Evertally trees are updated.
-pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::Mutex<()>) -> Result<Option<bool>> {
+#[must_use] pub fn new(cache_dir: &Path)->Self {Self{cached:None,cache_file:cache_dir.join("addon-update-cache.zip"),restart_for:None}}
+/// One cycle. No game data is touched; only already-installed Evertally trees are updated, also while the game runs.
+///
+/// # Errors
+/// Network failures, a bundle that fails its checks, and an installation that fails while the game is not running.
+pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::Mutex<()>) -> Result<Option<Status>> {
     let addons=roots(config);if addons.is_empty(){return Ok(None);}
     let origin=config.server_origin()?;ensure!(origin.starts_with("https://"),"automatic updates require HTTPS");
     let agent:ureq::Agent=ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(25))).max_redirects(0).build().into();
     let manifest:Manifest=serde_json::from_slice(&read_url(&agent,&format!("{origin}/downloads/manifest.json"),65536)?)?;
     ensure!(manifest.addon.file=="Evertally.zip" && manifest.addon.bytes>0 && manifest.addon.bytes<=MAX_ARCHIVE && manifest.addon.sha256.len()==64 && manifest.addon.sha256.bytes().all(|b|b.is_ascii_hexdigit()),"invalid addon manifest");
     if self.cached.as_ref().is_none_or(|(hash,_)| !hash.eq_ignore_ascii_case(&manifest.addon.sha256)) {
-        self.pending.clear();
         let valid=|data:&[u8]| valid_bundle(data,&manifest.addon);
         let cache=fs::symlink_metadata(&self.cache_file).ok().filter(|m|m.is_file() && m.len()<=MAX_ARCHIVE)
             .and_then(|_|fs::read(&self.cache_file).ok()).filter(|data|valid(data));
@@ -215,12 +249,25 @@ pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::
         self.cached=Some((manifest.addon.sha256,unpack(&data)?));
     }
     let files=&self.cached.as_ref().context("missing verified bundle")?.1;
-    let mut ready=true;
+    let running=game_running().unwrap_or(false);
+    if !running {self.restart_for=None;}
+    let mut updated=false;
     for dir in addons {
-        if self.pending.contains(&dir) && game_running()? {ready=false;continue;}
-        if install(&dir,files,forum_lock)? {self.pending.remove(&dir);}else{self.pending.insert(dir);ready=false;}
+        match install(&dir,files,forum_lock) {
+            Ok(Applied::Updated)=>updated=true,
+            Ok(Applied::UpToDate)=>{}
+            // Something held the folders while the game ran: everything was put back; try again soon, or once it closes.
+            Err(_) if running=>return Ok(Some(Status::Waiting)),
+            Err(error)=>return Err(error),
+        }
     }
-    Ok(Some(ready))
+    let version=bundle_version(files);
+    if updated && running {self.restart_for=Some(version.clone());}
+    Ok(Some(match &self.restart_for {
+        Some(installed)=>Status::Updated{version:installed.clone(),restart:true},
+        None if updated=>Status::Updated{version,restart:false},
+        None=>Status::UpToDate,
+    }))
 }
 }
 
@@ -239,7 +286,7 @@ mod tests {
         for r in ROOTS {let d=addons.join(r);fs::create_dir_all(&d).unwrap();fs::write(d.join(format!("{r}.toc")),"old").unwrap();}
         fs::write(addons.join("Evertally/ForumData.lua"),"user-forum").unwrap();
         fs::write(addons.join("Evertally/personal.txt"),"user-file").unwrap();
-        let entries=ROOTS.iter().map(|r|FileEntry{relative:PathBuf::from(r).join(format!("{r}.toc")),data:b"new".to_vec()}).collect();
+        let entries=ROOTS.iter().map(|r|FileEntry{relative:PathBuf::from(r).join(format!("{r}.toc")),data:b"new".to_vec(),keep_existing:false}).collect();
         (dir,entries)
     }
     #[test] fn rejects_path_traversal_and_non_addon_files(){
@@ -252,7 +299,8 @@ mod tests {
             for r in ROOTS {w.start_file(format!("{r}/{r}.toc"),opts).unwrap();w.write_all(b"toc").unwrap();}
             w.start_file("Evertally/ForumData.lua",opts).unwrap();w.write_all(b"replacement").unwrap();w.finish().unwrap();
         }
-        let out=unpack(&data.into_inner()).unwrap();assert_eq!(out.len(),3);
+        let out=unpack(&data.into_inner()).unwrap();assert_eq!(out.len(),4);
+        assert!(out.iter().any(|e|e.keep_existing && e.relative==Path::new("Evertally").join("ForumData.lua")),"the forum file is only a placeholder");
     }
     #[test] fn rejects_case_insensitive_duplicates(){
         let mut data=Cursor::new(Vec::new());{
@@ -268,7 +316,9 @@ mod tests {
         if !path.exists(){return;}
         let entries=unpack(&fs::read(path).unwrap()).unwrap();
         assert!(entries.len()>20);
-        assert!(!entries.iter().any(|entry|entry.relative.to_string_lossy().replace('\\',"/").eq_ignore_ascii_case("Evertally/ForumData.lua")));
+        for name in ["ForumData.lua","CommunityData.lua","RankingData.lua"] {
+            assert!(entries.iter().filter(|e|e.relative.file_name().is_some_and(|n|n.eq_ignore_ascii_case(name))).all(|e|e.keep_existing),"{name} is bridge-owned");
+        }
     }
     #[test] fn checksum_and_size_are_verified(){
         let data=b"verified";let addon=Addon{file:"Evertally.zip".into(),bytes:data.len() as u64,sha256:format!("{:x}",Sha256::digest(data))};
@@ -277,7 +327,7 @@ mod tests {
     }
     #[test] fn install_preserves_forum_and_unknown_files_and_backups(){
         let (dir,files)=fixture();let lock=std::sync::Mutex::new(());
-        assert!(install_with_game_check(&dir.addons(),&files,&lock,||Ok(false)).unwrap());
+        assert_eq!(install(&dir.addons(),&files,&lock).unwrap(),Applied::Updated);
         for r in ROOTS {assert_eq!(fs::read(dir.addons().join(r).join(format!("{r}.toc"))).unwrap(),b"new");}
         assert_eq!(fs::read(dir.addons().join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
         assert_eq!(fs::read(dir.addons().join("Evertally/personal.txt")).unwrap(),b"user-file");
@@ -286,14 +336,28 @@ mod tests {
         assert_eq!(fs::read(backup.path().join("Evertally/Evertally.toc")).unwrap(),b"old");
         assert!(!work.join("journal.json").exists());
     }
-    #[test] fn leaves_existing_installation_unchanged_while_game_runs(){
+    #[test] fn a_second_install_of_the_same_bundle_changes_nothing(){
         let (dir,files)=fixture();let lock=std::sync::Mutex::new(());
-        assert!(!install_with_game_check(&dir.addons(),&files,&lock,||Ok(true)).unwrap());
-        assert_eq!(fs::read(dir.addons().join("Evertally/Evertally.toc")).unwrap(),b"old");
+        assert_eq!(install(&dir.addons(),&files,&lock).unwrap(),Applied::Updated);
+        assert_eq!(install(&dir.addons(),&files,&lock).unwrap(),Applied::UpToDate);
     }
-    #[test] fn rollback_restores_all_roots_when_game_starts_mid_swap(){
-        let (dir,files)=fixture();let lock=std::sync::Mutex::new(());let checks=Cell::new(0);
-        let result=install_with_game_check(&dir.addons(),&files,&lock,||{checks.set(checks.get()+1);Ok(checks.get()>=4)});
+    #[test] fn bridge_files_are_kept_and_only_filled_in_when_missing(){
+        let (dir,mut files)=fixture();let lock=std::sync::Mutex::new(());
+        files.push(FileEntry{relative:PathBuf::from("Evertally/ForumData.lua"),data:b"placeholder".to_vec(),keep_existing:true});
+        files.push(FileEntry{relative:PathBuf::from("Evertally/RankingData.lua"),data:b"placeholder".to_vec(),keep_existing:true});
+        install(&dir.addons(),&files,&lock).unwrap();
+        assert_eq!(fs::read(dir.addons().join("Evertally/ForumData.lua")).unwrap(),b"user-forum","written by the bridge, kept");
+        assert_eq!(fs::read(dir.addons().join("Evertally/RankingData.lua")).unwrap(),b"placeholder","missing, filled in");
+    }
+    #[test] fn the_version_comes_from_the_main_toc(){
+        let files=vec![FileEntry{relative:PathBuf::from("Evertally/Evertally.toc"),data:b"## Interface: 11507\n## Version: 0.9.18\n".to_vec(),keep_existing:false}];
+        assert_eq!(bundle_version(&files).as_deref(),Some("0.9.18"));
+        let odd=vec![FileEntry{relative:PathBuf::from("Evertally/Evertally.toc"),data:b"## Version: |cffff0000x\n".to_vec(),keep_existing:false}];
+        assert_eq!(bundle_version(&odd),None);
+    }
+    #[test] fn rollback_restores_all_roots_when_a_swap_fails(){
+        let (dir,files)=fixture();let lock=std::sync::Mutex::new(());let swaps=Cell::new(0);
+        let result=install_with(&dir.addons(),&files,&lock,|_|{swaps.set(swaps.get()+1);if swaps.get()>=2 {bail!("folder held by another program")} Ok(())});
         assert!(result.is_err());
         for r in ROOTS {assert_eq!(fs::read(dir.addons().join(r).join(format!("{r}.toc"))).unwrap(),b"old");}
         assert_eq!(fs::read(dir.addons().join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
@@ -317,7 +381,7 @@ mod tests {
         #[cfg(unix)] let made=std::os::unix::fs::symlink(dir.0.join("Interface"),&link);
         #[cfg(not(any(unix,windows)))] let made=Err(std::io::Error::other("unsupported"));
         if let Err(err)=made {eprintln!("Symlink test skipped: {err}");return;}
-        let lock=std::sync::Mutex::new(());assert!(install_with_game_check(&dir.addons(),&files,&lock,||Ok(false)).is_err());let _=fs::remove_dir(&link);
+        let lock=std::sync::Mutex::new(());assert!(install(&dir.addons(),&files,&lock).is_err());let _=fs::remove_dir(&link);
     }
     #[test] #[ignore = "read-only integration check against the public distribution server"]
     fn public_manifest_and_archive_verify_and_unpack(){

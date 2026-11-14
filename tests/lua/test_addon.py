@@ -323,6 +323,18 @@ class ReplayTests(unittest.TestCase):
             self.lua.globals().CLOCK+=0.3
             self.a.PumpSync()
 
+    def test_after_an_update_the_new_version_is_announced_once(self):
+        self.lua.execute('CHAT={};DEFAULT_CHAT_FRAME={AddMessage=function(self,m) table.insert(CHAT,m) end}')
+        said = lambda: [m for m in self.lua.globals().CHAT.values() if "0.9" in m or "updated" in m.lower()]
+        self.a.Initialize()   # the same version as before: nothing
+        self.assertEqual(said(), [])
+        self.a.db.settings.lastVersion = "0.9.1"
+        self.a.Initialize()   # the bridge installed a new version and the game restarted
+        self.assertEqual(said(), [f"|cffd8b66aEvertally:|r Evertally was updated to {self.a.version}."])
+        self.lua.execute('CHAT={}')
+        self.a.Initialize()
+        self.assertEqual(said(), [], "only once")
+
     def test_default_off_and_enabling_is_not_retroactive(self):
         self.a.Record("quest.turned_in",self.lua.table_from({"questId":182}))
         self.assertFalse(self.lua.globals().EvertallyExportDB.enabled)

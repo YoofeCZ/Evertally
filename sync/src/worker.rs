@@ -186,8 +186,17 @@ impl Worker {
                     _=>None,
                 };
                 let message=match result {
-                    Ok(Some(true))=>if cs {"Addon je aktuální"}else{"Addon is up to date"}.to_owned(),
-                    Ok(Some(false))=>{wait=Duration::from_secs(30);if cs {"Aktualizace addonu čeká na zavření WoW"}else{"Addon update waits for WoW to close"}.to_owned()},
+                    Ok(Some(crate::addon_update::Status::UpToDate))=>if cs {"Addon je aktuální"}else{"Addon is up to date"}.to_owned(),
+                    Ok(Some(crate::addon_update::Status::Updated{version,restart}))=>{
+                        let version=version.map(|v|format!(" {v}")).unwrap_or_default();
+                        match (restart,cs) {
+                            (true,true)=>format!("Addon aktualizován na{version}: restartuj WoW (/reload nestačí)"),
+                            (true,false)=>format!("Addon updated to{version}: restart WoW (/reload is not enough)"),
+                            (false,true)=>format!("Addon aktualizován na{version}"),
+                            (false,false)=>format!("Addon updated to{version}"),
+                        }
+                    }
+                    Ok(Some(crate::addon_update::Status::Waiting))=>{wait=Duration::from_secs(30);if cs {"Aktualizace addonu čeká na zavření WoW"}else{"Addon update waits for WoW to close"}.to_owned()},
                     Ok(None)=>String::new(),
                     Err(error)=>{wait=Duration::from_secs(60);format!("{}: {error}",if cs {"Aktualizace addonu selhala"}else{"Addon update failed"})},
                 };
