@@ -394,13 +394,20 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
 
 WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 # pages with more than one state worth looking at: view -> the states
-STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8", "9"), "settings": ("names", "auras", "bars"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
+STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "7:names", "7:icons", "7:position", "7:auras", "7:bars", "8", "9"), "settings": ("names", "icons", "auras", "bars", "position"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
 def capture(lua, a, view, tab=None, quest_id=None, destination=None):
     """Opens one page (one tab of the World page), lets the client's size events settle and exports what is drawn."""
     if view == "setup":   # the first-start setup, one step at a time
-        a.OpenOnboarding(int(tab or 1))
+        step, _, group = (tab or "1").partition(":")
+        a.OpenOnboarding(int(step))
+        if group:
+            lua.execute('C_CVar={GetCVar=function() return "1" end,SetCVar=function() end}')
+            editor = a.onboarding.pages[7].plates
+            editor.providers.evertally.GetScript(editor.providers.evertally,"OnClick")()
+            editor.group = group
+            editor.Update()
         win = a.onboarding.window
         lua.execute("PREVIEW_SETTLE()")
         return to_py(lua.eval("PREVIEW_EXPORT")(win))
@@ -419,7 +426,11 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
     a.ShowView(view)
     lua.execute("PREVIEW_SETTLE()")
     if view == "settings" and tab:
+        lua.execute('C_CVar={GetCVar=function() return "1" end,SetCVar=function() end}')
+        a.db.settings.plateGameLook = True
         a.settingsPage.SelectSection(5)
+        editor = a.settingsPage.plates
+        editor.providers.evertally.GetScript(editor.providers.evertally,"OnClick")()
         a.settingsPage.plates.group = tab
     if view == "world" and a.worldBody is not None:
         a.worldBody.mode = tab or "map"
@@ -520,7 +531,7 @@ def main():
             scenes.append((view, None))
     for view, tab in scenes:
         nodes = capture(lua, a, view, tab, args.quest_id if view == "database" else None, args.destination)
-        name = f"{view}{'-' + tab if tab else ''}-{ww}x{wh}{'-openmap' if args.openmap else ''}"
+        name = f"{view}{'-' + tab.replace(':', '-') if tab else ''}-{ww}x{wh}{'-openmap' if args.openmap else ''}"
         if args.language != "en": name += "-" + args.language
         if args.quest_id and view == "database": name += "-" + str(args.quest_id)
         page = out / f"{name}.html"

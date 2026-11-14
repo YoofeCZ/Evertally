@@ -945,87 +945,7 @@ local function SectionTitle(parent, key, y)
     return fs
 end
 
--- The same editor works on saved settings and on a setup draft. The caller owns
--- every mutation, including the native nameplate switch; opening it changes nothing.
-function A.BuildFriendlyPlateControls(parent, options)
-    local kit=A.UIKit()
-    local editor=CreateFrame("Frame",nil,parent)
-    editor.controls,editor.tabs,editor.groups={},{},{}
-    editor.group="names"
-    local ink=parent.parchment and kit.ParchmentText.ink or C.text
-    local function changed() editor.Update();if options.changed then options.changed() end end
-    local function switch(container,key,callback)
-        local b=kit.Switch(container,callback,44)
-        b.title:SetFont(fontPath(),11,"");b.title:SetWordWrap(true)
-        b.track:ClearAllPoints();b.track:SetPoint("LEFT",4,0)
-        b.title:ClearAllPoints();b.title:SetPoint("LEFT",44,0);b.title:SetPoint("RIGHT",-4,0)
-        return b
-    end
-    editor.enable=switch(editor,"plateGameLook",function(on)
-        if options.setEnabled(on)~=false then options.set("plateGameLook",on) end
-        changed()
-    end)
-    editor.enable:SetPoint("TOPLEFT");editor.enable:SetPoint("TOPRIGHT")
-    local tabs=kit.Columns(editor,{1,1,1},6);tabs:SetPoint("TOPLEFT",0,-48);tabs:SetPoint("TOPRIGHT",0,-48);tabs:SetHeight(28)
-    for i,group in ipairs({"names","auras","bars"}) do
-        local key=group
-        local panel=CreateFrame("Frame",nil,editor);panel:SetPoint("TOPLEFT",0,-82);panel:SetPoint("TOPRIGHT",0,-82)
-        editor.groups[key]={frame=panel,rows={}}
-        local button=Button(tabs.cells[i],nil,100,"ghost",function() editor.group=key;editor.Update() end)
-        button:ClearAllPoints();button:SetAllPoints(tabs.cells[i]);button.text:SetWordWrap(true)
-        editor.tabs[key]=button
-    end
-    for _,definition in ipairs(A.FriendlyPlateOptions) do
-        local option=definition
-        local group=editor.groups[option.group]
-        local row
-        if option.min then
-            row=CreateFrame("Frame",nil,group.frame)
-            row.title=label(row,11,ink);row.title:SetPoint("LEFT",4,0);row.title:SetPoint("RIGHT",-110,0);row.title:SetWordWrap(true)
-            row.value=label(row,12,ink);row.value:SetPoint("RIGHT",-32,0);row.value:SetWidth(42);row.value:SetJustifyH("CENTER")
-            local function change(delta)
-                local current=A.Number(options.get(option.key),option.min,option.max) or option.default
-                options.set(option.key,math.max(option.min,math.min(option.max,current+delta)));changed()
-            end
-            row.minus=Button(row,nil,28,"ghost",function() change(-option.step) end);row.minus:SetPoint("RIGHT",-76,0);row.minus.text:SetText("−");row.minus:SetHeight(28)
-            row.plus=Button(row,nil,28,"ghost",function() change(option.step) end);row.plus:SetPoint("RIGHT",0,0);row.plus.text:SetText("+");row.plus:SetHeight(28)
-            row.Update=function() row.title:SetText(A.L(option.key));row.value:SetText(tostring(options.get(option.key))) end
-        else
-            row=switch(group.frame,option.key,function(on) options.set(option.key,on);changed() end)
-            row.Update=function()
-                row.title:SetText(A.L(option.key));row.Set(options.get(option.key)==true,true)
-                row.title:SetTextColor(unpack(C.text))
-            end
-        end
-        row:SetHeight(44);group.rows[#group.rows+1]=row;editor.controls[option.key]=row
-    end
-    function editor.Update()
-        editor.enable.title:SetText(A.L("plateGameLook"));editor.enable.Set(options.enabled() and options.get("plateGameLook")~=false,true);editor.enable.title:SetTextColor(unpack(C.text))
-        for group,button in pairs(editor.tabs) do button.text:SetText(A.L("plateTab_"..group));button.text:SetTextColor(unpack(editor.group==group and C.gold or C.text)) end
-        for _,control in pairs(editor.controls) do control.Update() end
-        editor.Layout()
-    end
-    function editor.Layout()
-        local width=editor:GetWidth() or 0
-        local columns=width>=520 and 2 or 1
-        local gap=10
-        local cell=(width-gap*(columns-1))/columns
-        for key,group in pairs(editor.groups) do
-            group.frame:SetShown(key==editor.group)
-            for i,row in ipairs(group.rows) do
-                row:ClearAllPoints();row:SetPoint("TOPLEFT",((i-1)%columns)*(cell+gap),-math.floor((i-1)/columns)*46);row:SetWidth(math.max(1,cell))
-            end
-            local height=math.ceil(#group.rows/columns)*46
-            group.frame:SetHeight(height)
-            if key==editor.group then
-                local total=82+height
-                if editor:GetHeight()~=total then editor:SetHeight(total);if options.resized then options.resized(total) end end
-            end
-        end
-    end
-    editor:SetScript("OnSizeChanged",function() editor.Layout() end)
-    return editor
-end
+-- The shared live nameplate editor is built in NameplateUI.lua.
 
 local function buildSettings(page)
     A.settingsPage=page
@@ -1102,19 +1022,8 @@ local function buildSettings(page)
     place(Toggle(card,"minimap",function() return not s().hideMinimap end,function(v) s().hideMinimap=not v;if minimapButton then minimapButton:SetShown(v) end end))
 
     section("nameplatesSection")
-    page.plateHint=note(84)
-    local plateCard=card
-    local plateTop=-cy
-    page.plates=A.BuildFriendlyPlateControls(card,{
-        get=function(key) return A.FriendlyPlateChoices(s())[key] end,
-        set=function(key,value) s()[key]=value;A.FriendlyPlatesChanged() end,
-        enabled=A.FriendlyPlatesShown,setEnabled=A.SetFriendlyPlates,
-        resized=function(height)
-            plateCard:SetHeight(plateTop+height+12)
-            if page.settingCards[page.selectedSection]==plateCard then body:SetHeight(plateCard:GetHeight());scroll.UpdateThumb() end
-        end,
-    })
-    place(page.plates,266)
+    page.plates=A.BuildFriendlyPlateControls(book.paper)
+    page.plates:SetPoint("TOPLEFT",12,-12);page.plates:SetPoint("BOTTOMRIGHT",-12,12);page.plates:Hide()
 
     section("actionsSection")
     page.actions={
@@ -1132,6 +1041,8 @@ local function buildSettings(page)
     function page.SelectSection(index)
         page.selectedSection=index
         for i,panel in ipairs(page.settingCards) do panel:SetShown(i==index) end
+        scroll:SetShown(index~=5);page.plates:SetShown(index==5)
+        if index==5 then page.plates.Update() end
         body:SetHeight(page.settingCards[index]:GetHeight())
         scroll:SetVerticalScroll(0);scroll.UpdateThumb()
     end
@@ -1141,7 +1052,6 @@ local function buildSettings(page)
         for _,fs in ipairs(page.sections) do fs:SetText(A.L(fs.localeKey)) end
         for _,b in ipairs(page.actions) do b.text:SetText(A.L(b.localeKey)) end
         page.plates.Update()
-        page.plateHint:SetText(A.L("plateHelp"))
         page.webHint:SetText(A.L("webHint"));page.webLiveHint:SetText(A.L("pageLiveWebHint"));page.liveHint:SetText(A.L("liveHint"));page.actionHint:SetText(A.L("pageActionHint"))
         page.langLabel:SetText(A.L("language"));for _,b in ipairs(page.langButtons) do b.text:SetTextColor(unpack(b.lang==s().language and C.lilac or C.mist)) end
         page.diag:SetText(A.Diagnostics());scroll.UpdateThumb()

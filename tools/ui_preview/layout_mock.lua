@@ -295,7 +295,7 @@ local function describe(o, clipIn, alphaIn, out, order)
             node.gradient = {g[1], {g[2].r, g[2].g, g[2].b, g[2].a or 1}, {g[3].r, g[3].g, g[3].b, g[3].a or 1}}
         end
     elseif o._kind == "FontString" then
-        node.text, node.size, node.color, node.justify, node.wrap, node.fontPath = plainText(o._text) ~= "" and o._text or "", o._fontSize, o._color, o._justify, o._wrap, o._fontPath
+        node.text, node.size, node.color, node.justify, node.wrap, node.fontPath = plainText(o._text) ~= "" and o._text or "", o._fontSize * effScale(o), o._color, o._justify, o._wrap, o._fontPath
     else
         node.template, node.text, node.name, node.hasClick = o._template, o._text, o._name, o._scripts.OnClick ~= nil
         local caption = rawget(o, "text")   -- the add-on's own buttons keep their caption as .text (a FontString)

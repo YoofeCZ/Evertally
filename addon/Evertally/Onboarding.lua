@@ -2,8 +2,8 @@ local _, A = ...
 -- The setup: what a new player is asked on the first start (and anyone, any time, with /etally setup or the button in Settings), in
 -- nine steps: language, the website, live position, sharing with other players, the map, the window, nameplates, what to install and a summary. Nothing is chosen for
 -- the player: every switch that sends something anywhere starts off, the wizard only shows what the current choices are (a quick choice for
--- the website sets the switches, and they stay visible). Everything is applied at the end, with the same functions the Settings page uses.
-local VERSION = 2   -- nameplates are a new choice, so existing players see the setup once more
+-- the website sets the switches, and they stay visible). Nameplate choices are live; other choices apply at Finish.
+local VERSION = 3   -- provider choice and nameplate changes now activate immediately
 local W, H, HEADER, FOOTER, PAD = 720, 540, 58, 66, 28
 A.DOWNLOAD_URL = "https://evertally.afstudio.dev/#sync"                  -- the Download page of the website (the app for Windows)
 A.OPENMAP_URL = "https://www.curseforge.com/wow/addons/openmap"          -- OpenMap on CurseForge
@@ -47,7 +47,7 @@ local text = {
         setupSize = "Window size", setupSize_Small = "Small", setupSize_Normal = "Normal", setupSize_Large = "Large",
         -- 7
         setupPlatesTitle = "Friendly nameplates",
-        setupPlatesBody = "Names in the game's style, with your marks and the Evertally logo. Set sizes and optional buffs, debuffs, health and cast bars here. Finish applies your choices.",
+        setupPlatesBody = "Choose Blizzard or Evertally (recommended, close to the original look). Activate it, then adjust it with a live preview. Nameplate changes apply immediately.",
         setupSumPlates = "Evertally nameplates: %s; names %d px, marks %d px, logo %d px",
         setupNotePlates = "The game could not switch friendly nameplates. Outside combat, enable them in Settings → Nameplates.",
         -- 8
@@ -60,7 +60,7 @@ local text = {
         setupGetInstalled = "installed", setupGetMissing = "not installed",
         setupGetHow = "The game cannot open links: click an address, press Ctrl+C and paste it into your browser.",
         -- 9
-        setupSumTitle = "All set", setupSumBody = "This is what will be switched on. Finish applies it; you can change any of it later in Settings.",
+        setupSumTitle = "All set", setupSumBody = "Nameplate changes already apply. Finish confirms the other choices below; you can change everything in Settings.",
         setupSumLanguage = "Language: %s", setupSumWeb = "Website: %s", setupSumLive = "Live position: %s", setupSumShare = "Sharing with players: %s", setupSumMap = "Map: %s", setupSumGather = "Gathering on the map: %s",
         setupSumPins = "people, meets and pings on the map: %s", setupSumOpenMap = "OpenMap", setupSumNoOpenMap = "OpenMap (not installed yet)", setupSumWindow = "Minimap button: %s, window size: %s", setupSumNothing = "nothing",
         setupSumGuild = "guild", setupSumGroup = "party / raid", setupSumFriends = "friends", setupSumSite = "website",
@@ -93,7 +93,7 @@ local text = {
         setupWindowTitle = "Okno", setupWindowBody = "Jak se Evertally ukazuje. Okno otevřeš příkazem /etally nebo tlačítkem u minimapy a toto nastavení spustíš znovu příkazem /etally setup.",
         setupSize = "Velikost okna", setupSize_Small = "Malé", setupSize_Normal = "Normální", setupSize_Large = "Velké",
         setupPlatesTitle = "Jmenovky spojenců",
-        setupPlatesBody = "Jména ve stylu hry s tvými značkami a logem Evertally. Tady upravíš velikosti i volitelné buffy, debuffy, zdraví a kouzlení. Volby použije až Dokončit.",
+        setupPlatesBody = "Vyber Blizzard nebo Evertally (doporučujeme, podobné originálu). Po zapnutí upravíš vzhled se živým náhledem. Volba i úpravy jmenovek platí ihned.",
         setupSumPlates = "Jmenovky Evertally: %s; jména %d px, značky %d px, logo %d px",
         setupNotePlates = "Hra nedovolila přepnout jmenovky spojenců. Mimo boj je zapni v Nastavení → Jmenovky.",
         setupGetTitle = "Co potřebuješ",
@@ -104,7 +104,7 @@ local text = {
         setupGetOpenMapSub = "Mapa, ve které Evertally pracuje: místa sbírání s ikonami, lidé, srazy, pingy a tvoje cesty. Zdarma, na CurseForge:",
         setupGetInstalled = "nainstalováno", setupGetMissing = "není nainstalováno",
         setupGetHow = "Hra neumí otevřít odkaz: klikni na adresu, stiskni Ctrl+C a vlož ji do prohlížeče.",
-        setupSumTitle = "Hotovo", setupSumBody = "Tohle se zapne. Dokončit to použije; cokoli můžeš později změnit v Nastavení.",
+        setupSumTitle = "Hotovo", setupSumBody = "Změny jmenovek už platí. Dokončit potvrdí ostatní volby níže; všechno můžeš později změnit v Nastavení.",
         setupSumLanguage = "Jazyk: %s", setupSumWeb = "Web: %s", setupSumLive = "Živá poloha: %s", setupSumShare = "Sdílení s hráči: %s", setupSumMap = "Mapa: %s", setupSumGather = "Sbírání na mapě: %s",
         setupSumPins = "lidé, srazy a pingy na mapě: %s", setupSumOpenMap = "OpenMap", setupSumNoOpenMap = "OpenMap (zatím není nainstalovaná)", setupSumWindow = "Tlačítko u minimapy: %s, velikost okna: %s", setupSumNothing = "nic",
         setupSumGuild = "cech", setupSumGroup = "parta / raid", setupSumFriends = "přátelé", setupSumSite = "web",
@@ -442,16 +442,14 @@ local function build()
     end
 
     end
-    -- 7: the same nameplate editor as Settings, but all changes stay in the draft
+    -- 7: explicit provider choice, then live customization. Only the other setup choices wait for Finish.
     do
     local p = newPage(7, "setupPlatesTitle", "setupPlatesBody")
     p.plates=A.BuildFriendlyPlateControls(p,{
-        get=function(key) return draft.plates[key] end,
-        set=function(key,value) draft.plates[key]=value end,
-        enabled=function() return draft.friendlyPlates end,
-        setEnabled=function(on) draft.friendlyPlates=on end,
+        chooseFirst=true,
+        changed=function() draft.plates=A.FriendlyPlateChoices();draft.friendlyPlates=A.FriendlyPlatesShown() end,
     })
-    p.plates:SetPoint("TOPLEFT",0,-FIRST);p.plates:SetPoint("TOPRIGHT",0,-FIRST)
+    p.plates:SetPoint("TOPLEFT",0,-FIRST);p.plates:SetPoint("BOTTOMRIGHT",0,0)
     p.refresh=function() titles(p);p.plates.Update() end
     end
     -- 8: what to install (the app from the website, OpenMap from CurseForge): the game cannot open a link, so each address is a field to copy
@@ -506,6 +504,7 @@ function A.OpenOnboarding(startStep)
     if not A.db then return end
     if not f then build() end
     draft = A.OnboardingDraft()
+    pages[7].plates.choosing=true
     A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.web == true or A.db.settings.ingame == true or A.db.settings.mapPins == true
     step = math.max(1, math.min(#STEPS, tonumber(startStep) or 1))
     f:Show(); refresh()

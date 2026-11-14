@@ -1,6 +1,24 @@
 local _, A = ...
 -- UI-only identity assets. Never adds fields to saved/exported observations.
 local UNKNOWN = "Interface\\Icons\\INV_Misc_QuestionMark"
+-- Forever's second UnitName return is a surname. Keep realm handling separate.
+function A.UnitPlayerName(unit)
+    local first,second=A.Call(UnitName,unit)
+    first=A.Text(first,100);second=A.Text(second,100)
+    if not first then return nil end
+    local interface=A.Game().interface or 0
+    local forever=interface>=16000 and interface<20000
+    local complete=A.Text(A.Call(GetUnitName,unit,false),160)
+    if forever then
+        if not complete then
+            complete=first
+            if second and second~="" and first:sub(-#second)~=second then complete=first.." "..second end
+        end
+        return complete,A.Text(A.Call(GetRealmName),100)
+    end
+    local _,realm=A.Call(UnitFullName,unit)
+    return complete or first,A.Text(realm,100) or second
+end
 local classes = {
     [1]={"WARRIOR", "Warrior", "Válečník", {0.78,0.61,0.43}, {0,0.25,0,0.25}},
     [2]={"PALADIN", "Paladin", "Paladin", {0.96,0.55,0.73}, {0,0.25,0.5,0.75}},

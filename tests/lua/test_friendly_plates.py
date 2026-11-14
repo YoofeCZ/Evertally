@@ -20,6 +20,8 @@ function region(parent)
     function r:ClearAllPoints() self.point=nil end
     function r:SetAllPoints() end
     function r:SetSize(w,h) self.width=w;self.height=h end
+    function r:SetWidth(w) self.width=w end
+    function r:SetHeight(h) self.height=h end
     function r:SetScale(v) self.scale=v end
     function r:SetText(v) self.text=v end
     function r:GetText() return self.text end
@@ -31,6 +33,7 @@ function region(parent)
     function r:GetTextColor() return unpack(self.color) end
     function r:SetTextColor(...) self.color={...} end
     function r:SetWordWrap() end
+    function r:SetJustifyH() end
     function r:SetTexture(v) self.texture=v end
     function r:SetTexCoord(...) self.crop={...} end
     function r:SetColorTexture(...) self.fill={...} end
@@ -58,7 +61,7 @@ UnitIsPlayer=function(u) return u=="nameplate1" and PLAYER end
 UnitIsUnit=function(u,v) return v=="player" and SELF end
 UnitIsFriend=function() return FRIENDLY end
 UnitCanAttack=function() return not FRIENDLY end
-UnitName=function() return UNIT_NAME,"Fixture Realm" end
+UnitName=function() return UNIT_NAME,UNIT_SURNAME end
 UnitHealth=function() return 60 end
 UnitHealthMax=function() return 100 end
 UnitCastingInfo=function() if CASTING then return "Healing Touch",nil,135913,98000,104000 end end
@@ -155,6 +158,54 @@ class FriendlyPlateTests(unittest.TestCase):
         self.assertFalse(f.shown)
         self.assertEqual(self.lua.globals().NAME.alpha, 0.75)
         self.assertEqual(self.lua.eval('#FRAMES'), 3, "no fallback icon holder after the feature is disabled")
+
+    def test_forever_surname_is_displayed_once_and_not_used_as_realm(self):
+        self.lua.execute('UNIT_SURNAME="Nightcurse"; GetRealmName=function() return "Actual Realm" end')
+        f = self.render()
+        self.assertEqual(f.name.text, "Friend Nightcurse")
+        self.assertEqual(self.a.UnitPlayerName("nameplate1"), ("Friend Nightcurse", "Actual Realm"))
+        self.lua.execute('GetUnitName=function() return "Friend Nightcurse" end')
+        self.render()
+        self.assertEqual(f.name.text, "Friend Nightcurse")
+
+    def test_font_outline_shadow_and_offsets_update_world_renderer(self):
+        s = self.a.db.settings
+        self.a.SetMark("Friend", 8)
+        self.a.NoteEvertallyUser("Friend")
+        f = self.render()
+        s.plateFont, s.plateOutline, s.plateShadow = "arial", "outline", False
+        s.plateOffsetY, s.plateMarkY, s.plateLogoX = 22, -9, 12
+        self.a.FriendlyPlatesChanged()
+        self.assertEqual(f.name.font[1], "Fonts\\ARIALN.TTF")
+        self.assertEqual(f.name.font[3], "OUTLINE")
+        self.assertEqual((f.name.shadowOffset[1],f.name.shadowOffset[2]), (0,0))
+        self.assertEqual(f.point[5], 22)
+        self.assertEqual(f.mark.point[5], -9)
+
+    def test_preview_reuses_world_layout_and_never_mutes_any_native_name(self):
+        self.lua.execute('PARENT=region()')
+        state = self.a.CreateFriendlyPlatePreview(self.lua.globals().PARENT)
+        self.a.db.settings.plateFont = "morpheus"
+        self.a.db.settings.plateBuffs = True
+        state.Update()
+        self.assertEqual(state.frame.name.font[1], "Fonts\\MORPHEUS.TTF")
+        self.assertTrue(state.frame.mark.shown)
+        self.assertEqual(len(state.buffs), 1)
+        self.assertEqual(self.lua.globals().NAME.alpha, 0.75)
+
+    def test_distance_uses_both_player_and_global_limits_and_reads_client_clamp(self):
+        self.lua.execute('''
+            RANGE={nameplateMaxDistance="45",nameplatePlayerMaxDistance="40"}
+            C_CVar={GetCVar=function(k) return RANGE[k] end,SetCVar=function(k,v) RANGE[k]=tostring(math.min(60,tonumber(v))) end}
+            InCombatLockdown=function() return false end
+        ''')
+        self.a.SetFriendlyPlateOption("plateDistance", 100)
+        self.assertEqual(self.a.db.settings.plateDistance, 60)
+        self.assertEqual(self.lua.globals().RANGE.nameplateMaxDistance, "60")
+        self.assertEqual(self.lua.globals().RANGE.nameplatePlayerMaxDistance, "60")
+        self.lua.execute('InCombatLockdown=function() return true end')
+        self.a.SetFriendlyPlateOption("plateDistance", 30)
+        self.assertEqual(self.lua.globals().RANGE.nameplatePlayerMaxDistance, "60")
 
     def test_hidden_self_enemy_npc_and_forbidden_plates_are_not_replaced(self):
         for flag in ["FORBIDDEN", "SELF"]:

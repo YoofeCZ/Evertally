@@ -260,6 +260,21 @@ local function setCVar(name, value)
     return cvar(name) == value
 end
 A.PlateCVar = cvar
+function A.SetFriendlyPlateRange(value)
+    value=A.Number(value,20,100)
+    if not value or A.Call(InCombatLockdown)==true then A.Print(A.L("markPlatesCombat"));return false end
+    local accepted
+    for _,name in ipairs({"nameplateMaxDistance","nameplatePlayerMaxDistance"}) do
+        if cvar(name) then
+            setCVar(name,tostring(value))
+            local actual=A.Number(tonumber(cvar(name)),1,1000)
+            if actual then accepted=accepted and math.min(accepted,actual) or actual end
+        end
+    end
+    if not accepted then return false end
+    settings().plateDistance=accepted;A.Changed()
+    return true
+end
 function A.FriendlyPlatesShown() return cvar(FRIENDLY_PLATES) == "1" end
 --- on: friendly player nameplates as names only; off: back to names drawn by the game. Returns true when it took effect.
 function A.SetFriendlyPlates(on)
