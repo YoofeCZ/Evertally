@@ -17,6 +17,8 @@ pub struct Snapshot {
     pub at: u64,
     pub server: String,
     pub state: UiState,
+    #[serde(default)]
+    pub update_status: String,
 }
 
 pub fn now() -> u64 {
@@ -30,6 +32,7 @@ pub fn publish(path: &Path, server: &str, state: &UiState) -> std::io::Result<()
         at: now(),
         server: server.to_owned(),
         state: state.clone(),
+        update_status: crate::app_update::status(),
     })?;
     let temp = path.with_extension("json.tmp");
     std::fs::write(&temp, bytes)?;
@@ -105,9 +108,14 @@ mod tests {
         );
         assert!(read(&path, at + 16).is_none());
         assert!(read(&path, at.saturating_sub(3)).is_none());
-        let value: serde_json::Value =
+        let mut value: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert!(value["state"].get("token").is_none());
+        assert!(value["updateStatus"].is_string());
+        assert!(value["state"].get("updateStatus").is_none());
+        value.as_object_mut().unwrap().remove("updateStatus");
+        std::fs::write(&path,serde_json::to_vec(&value).unwrap()).unwrap();
+        assert_eq!(read(&path,at).unwrap().update_status, "", "older bridge snapshots remain readable");
         std::fs::remove_file(path).unwrap();
     }
 }

@@ -242,11 +242,13 @@ impl Worker {
                     dirty.insert(path);
                     settle_at = Some(Instant::now() + SETTLE);
                 }
-                Ok(Command::AddonStatus(message)) => { self.log(&message);self.show(message); }
+                // Update status has its own tray row and bridge snapshot field.
+                // It must never overwrite the actual pairing/synchronization state.
+                Ok(Command::AddonStatus(message)) => { self.log(&message); }
                 Ok(Command::CheckUpdate) => {
                     crate::app_update::request_check();let _=update_trigger.send(());
                     let text=if crate::platform::prefers_czech() {"Kontroluji aktualizace…"}else{"Checking for updates…"};
-                    crate::app_update::set_status(text.to_owned());self.show(text.to_owned());
+                    crate::app_update::set_status(text.to_owned());
                 }
                 Ok(Command::SyncNow) => {
                     self.refresh_watch();
@@ -819,6 +821,7 @@ mod tests {
         let states = Arc::new(Mutex::new(Vec::new()));
         let observed = states.clone();
         let (tx, rx) = mpsc::channel();
+        tx.send(Command::AddonStatus("Addon updated to 0.9.22".into())).expect("queue update status");
         tx.send(Command::Quit).expect("queue quit");
         let config = Config {
             server: "https://unpaired-native-start-test.invalid".to_owned(),
@@ -845,5 +848,6 @@ mod tests {
                 .iter()
                 .all(|state| !state.paired && state.pairing_code.is_none())
         );
+        assert!(states.iter().all(|state|state.status!="Addon updated to 0.9.22"),"update notifications must not replace synchronization state");
     }
 }

@@ -220,6 +220,17 @@ pub struct Updater { cached: Option<(String, Vec<FileEntry>)>, cache_file: PathB
 
 impl Updater {
 #[must_use] pub fn new(cache_dir: &Path)->Self {Self{cached:None,cache_file:cache_dir.join("addon-update-cache.zip"),restart_for:None}}
+// A manual install can already match the new bundle. A pending restart must then
+// name that verified version, not the version an earlier check installed.
+fn completed_status(&mut self, running: bool, updated: bool, version: Option<String>) -> Status {
+    if !running {self.restart_for=None;}
+    else if updated || self.restart_for.is_some() {self.restart_for=Some(version.clone());}
+    match &self.restart_for {
+        Some(installed)=>Status::Updated{version:installed.clone(),restart:true},
+        None if updated=>Status::Updated{version,restart:false},
+        None=>Status::UpToDate,
+    }
+}
 /// One cycle. No game data is touched; only already-installed Evertally trees are updated, also while the game runs.
 ///
 /// # Errors
@@ -262,12 +273,7 @@ pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::
         }
     }
     let version=bundle_version(files);
-    if updated && running {self.restart_for=Some(version.clone());}
-    Ok(Some(match &self.restart_for {
-        Some(installed)=>Status::Updated{version:installed.clone(),restart:true},
-        None if updated=>Status::Updated{version,restart:false},
-        None=>Status::UpToDate,
-    }))
+    Ok(Some(self.completed_status(running,updated,version)))
 }
 }
 
@@ -354,6 +360,18 @@ mod tests {
         assert_eq!(bundle_version(&files).as_deref(),Some("0.9.18"));
         let odd=vec![FileEntry{relative:PathBuf::from("Evertally/Evertally.toc"),data:b"## Version: |cffff0000x\n".to_vec(),keep_existing:false}];
         assert_eq!(bundle_version(&odd),None);
+    }
+    #[test] fn pending_restart_tracks_an_already_installed_newer_bundle(){
+        let mut updater=Updater::new(Path::new("unused"));
+        updater.completed_status(true,true,Some("0.9.19".into()));
+        assert_eq!(updater.completed_status(true,false,Some("0.9.22".into())),
+            Status::Updated{version:Some("0.9.22".into()),restart:true});
+    }
+    #[test] fn pending_restart_clears_after_the_game_closes(){
+        let mut updater=Updater::new(Path::new("unused"));
+        updater.completed_status(true,true,Some("0.9.22".into()));
+        assert_eq!(updater.completed_status(false,false,Some("0.9.22".into())),Status::UpToDate);
+        assert_eq!(updater.completed_status(true,false,Some("0.9.22".into())),Status::UpToDate);
     }
     #[test] fn rollback_restores_all_roots_when_a_swap_fails(){
         let (dir,files)=fixture();let lock=std::sync::Mutex::new(());let swaps=Cell::new(0);

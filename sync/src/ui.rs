@@ -38,7 +38,7 @@ pub fn run(
     let status = MenuItem::new(texts.starting, false, None);
     let sync = MenuItem::new(texts.sync_now, true, None);
     let version = MenuItem::new(
-        format!("Evertally {}", crate::app_update::current_version().unwrap_or("?")),
+        format!("Evertally Bridge {}", crate::app_update::current_version().unwrap_or("?")),
         false,
         None,
     );

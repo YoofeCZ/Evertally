@@ -180,6 +180,9 @@ impl ConnectionSettings {
             ui.label(RichText::new(if paired {self.t("This PC is paired", "Tento počítač je spárovaný")} else if code.is_some() {self.t("Pair this PC", "Spárovat tento počítač")} else {self.t("This PC is not paired", "Tento počítač není spárovaný")}).size(22.0));
             ui.add_space(9.0);
             ui.label(state.map_or(self.t("Starting the background bridge…", "Spouštím most na pozadí…"),|s|s.status.as_str()));
+            if let Some(snapshot)=self.snapshot.as_ref().filter(|s|!s.update_status.is_empty()) {
+                ui.label(RichText::new(&snapshot.update_status).color(Color32::from_rgb(187,180,205)));
+            }
             if let Some(status)=state.and_then(|s|s.live_status.as_deref()){ui.label(RichText::new(status).color(Color32::from_rgb(143,213,175)));}
             if let Some(code)=code {
                 ui.add_space(8.0);
@@ -404,6 +407,7 @@ fn run() -> Result<(), String> {
                 app.snapshot = Some(Snapshot {
                     at: bridge::now(),
                     server: config::DEFAULT_SERVER.to_owned(),
+                    update_status: if cs {"Aplikace i addon jsou aktuální"}else{"App and addon are up to date"}.to_owned(),
                     state: evertally_sync::worker::UiState {
                         live_status: (page == "paired").then(|| {
                             if cs {
