@@ -1,13 +1,13 @@
 // A recorded journey ("kronika") and everything the player needs to replay it. Pure functions, no browser and no server:
 // the recording is one file that is played back entirely in the visitor's browser.
 
-export type EventKind = "quest" | "kill" | "loot" | "money" | "level" | "skill" | "zone" | "death" | "dungeon" | "travel";
+export type EventKind = "quest" | "kill" | "loot" | "money" | "level" | "skill" | "zone" | "death" | "dungeon" | "travel" | "boss" | "group" | "emote";
 /** The groups shown as filter chips next to the list of moments. */
 export type Category = "quests" | "combat" | "loot" | "professions" | "travel" | "character";
 export const CATEGORIES: readonly Category[] = ["quests", "combat", "loot", "professions", "travel", "character"];
 const CATEGORY_OF: Record<EventKind, Category> = {
   quest: "quests", kill: "combat", death: "combat", loot: "loot", money: "loot", skill: "professions",
-  zone: "travel", travel: "travel", dungeon: "travel", level: "character",
+  zone: "travel", travel: "travel", dungeon: "travel", level: "character", boss: "combat", group: "character", emote: "character",
 };
 export const categoryOf = (kind: EventKind): Category => CATEGORY_OF[kind];
 
@@ -16,7 +16,7 @@ export type ChronicleEvent = {
   t: number; k: EventKind;
   /** Short text shown in the list and above the character. */
   text: string;
-  /** quest: accept | done | turnin; dungeon: enter | leave; travel: flight | hearth | portal. */
+  /** quest: accept | done | turnin | abandon; dungeon: enter | leave; boss: kill | wipe; group: join | leave; travel: flight | hearth | portal. */
   a?: string;
   /** Quantity (loot), copper (money, may be negative), new level (level), skill value (skill). */
   n?: number; max?: number;
@@ -26,7 +26,15 @@ export type ChronicleEvent = {
   q?: number;
   /** Where it happened: index into `zones` and the position 0 to 1 inside that zone. */
   zone?: number; x?: number; y?: number;
+  /** boss: seconds the fight lasted (n is the number of the attempt). */
+  d?: number;
+  /** A line of detail under the text (for example the damage of a fight, or the difficulty of a dungeon). */
+  detail?: string;
 };
+/** What the character sheet showed from `t` on. */
+export type StatSnapshot = { t: number; ilvl?: number; attrs?: [name: string, value: number][]; enh?: [name: string, value: string][] };
+/** One play session: from journey time `t` on, the clock of the day is `at` (unix seconds). */
+export type Session = { t: number; at: number };
 /** One position sample: seconds, index into `zones`, x and y from 0 to 1 inside the zone. */
 export type PathPoint = [t: number, zone: number, x: number, y: number];
 export type Chronicle = {
@@ -40,6 +48,11 @@ export type Chronicle = {
   zones: string[];
   path: PathPoint[];
   events: ChronicleEvent[];
+  /** The days played. Without it the whole recording is one session starting at `startedAt`. */
+  sessions?: Session[];
+  stats?: StatSnapshot[];
+  /** Skills known at the start: name to [value, maximum]. */
+  skills0?: Record<string, [number, number]>;
 };
 
 export const MAX_EVENTS = 200_000;
@@ -70,8 +83,28 @@ export function parseChronicle(raw: unknown): Chronicle | null {
     if (!e || !finite(e.t) || e.t < last || e.t > c.duration + 1 || !KINDS.has(e.k) || !short(e.text)) return null;
     if ((e.a !== undefined && !short(e.a, 24)) || (e.n !== undefined && !finite(e.n)) || (e.max !== undefined && !finite(e.max)) || (e.xp !== undefined && !finite(e.xp)) || (e.q !== undefined && !(Number.isInteger(e.q) && e.q >= 0 && e.q <= 5))) return null;
     if (e.zone !== undefined && !(Number.isInteger(e.zone) && e.zone >= 0 && e.zone < zones)) return null;
+    if ((e.d !== undefined && !(finite(e.d) && e.d >= 0)) || (e.detail !== undefined && !short(e.detail, 300))) return null;
     if ((e.x !== undefined && !unit(e.x)) || (e.y !== undefined && !unit(e.y))) return null;
     last = e.t;
+  }
+  if (c.sessions !== undefined) {
+    if (!Array.isArray(c.sessions) || c.sessions.length > 100_000) return null;
+    let at = -Infinity;
+    for (const x of c.sessions) { if (!x || !finite(x.t) || !finite(x.at) || x.t < at) return null; at = x.t; }
+  }
+  if (c.stats !== undefined) {
+    if (!Array.isArray(c.stats) || c.stats.length > 100_000) return null;
+    let at = -Infinity;
+    for (const x of c.stats) {
+      if (!x || !finite(x.t) || x.t < at || (x.ilvl !== undefined && !finite(x.ilvl))) return null;
+      at = x.t;
+      if (x.attrs !== undefined && (!Array.isArray(x.attrs) || x.attrs.length > 40 || !x.attrs.every(a => Array.isArray(a) && short(a[0], 40) && finite(a[1])))) return null;
+      if (x.enh !== undefined && (!Array.isArray(x.enh) || x.enh.length > 40 || !x.enh.every(a => Array.isArray(a) && short(a[0], 40) && short(a[1], 60)))) return null;
+    }
+  }
+  if (c.skills0 !== undefined) {
+    const entries = c.skills0 && typeof c.skills0 === "object" ? Object.entries(c.skills0) : null;
+    if (!entries || entries.length > 100 || !entries.every(([k, v]) => short(k, 40) && Array.isArray(v) && finite(v[0]) && finite(v[1]))) return null;
   }
   return c as Chronicle;
 }
@@ -129,6 +162,7 @@ export function buildIndex(c: Chronicle): Index {
   const seen = new Set<number>();
   if (c.path.length) seen.add(c.path[0][1]);
   let now = ZERO(c.character.level);
+  now.skills = { ...(c.skills0 ?? {}) };
   now.places = seen.size;
   for (const e of c.events) {
     const next = { ...now };
@@ -149,6 +183,7 @@ export function totalsAt(index: Index, t: number): Totals {
   const n = upper(index.c.events, t, e => e.t);
   if (n > 0) return index.totals[n - 1];
   const zero = ZERO(index.c.character.level);
+  zero.skills = { ...(index.c.skills0 ?? {}) };
   zero.places = index.c.path.length ? 1 : 0;
   return zero;
 }
@@ -178,6 +213,99 @@ export function moneyText(copper: number): string {
   const v = Math.abs(Math.trunc(copper));
   const g = Math.floor(v / 10000), s = Math.floor((v % 10000) / 100), c = v % 100;
   return `${sign}${g ? `${g}g ` : ""}${g || s ? `${s}s ` : ""}${c}c`;
+}
+
+// ---- types of moments, days, dungeons and the character sheet --------------------------------------------------
+/** The finer kind of a moment, what the filter panel switches on and off. */
+export function typeKey(e: ChronicleEvent): string {
+  switch (e.k) {
+    case "quest": return e.a === "accept" ? "quest.accept" : e.a === "abandon" ? "quest.abandon" : "quest.turnin";
+    case "kill": return "combat.kill";
+    case "death": return "combat.death";
+    case "boss": return "combat.boss";
+    case "loot": return "loot.item";
+    case "money": return "loot.money";
+    case "skill": return "prof.skill";
+    case "zone": return "travel.zone";
+    case "travel": return "travel.flight";
+    case "dungeon": return "travel.instance";
+    case "level": return "char.level";
+    case "group": return "char.group";
+    default: return "char.emote";
+  }
+}
+export const TYPE_KEYS: Record<Category, string[]> = {
+  quests: ["quest.accept", "quest.turnin", "quest.abandon"], combat: ["combat.kill", "combat.death", "combat.boss"], loot: ["loot.item", "loot.money"],
+  professions: ["prof.skill"], travel: ["travel.flight", "travel.instance", "travel.zone"], character: ["char.level", "char.group", "char.emote"],
+};
+export const ALL_TYPES: string[] = Object.values(TYPE_KEYS).flat();
+export function countByType(c: Chronicle): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const e of c.events) { const k = typeKey(e); out[k] = (out[k] ?? 0) + 1; }
+  return out;
+}
+/** Whether a moment passes a filter: its type is on and, for loot, the item is of the chosen quality or better. */
+export const passes = (e: ChronicleEvent, types: ReadonlySet<string>, minQuality: number): boolean => types.has(typeKey(e)) && (e.k !== "loot" || (e.q ?? 1) >= minQuality);
+
+export function sessionAt(c: Chronicle, t: number): number {
+  const s = c.sessions;
+  return s?.length ? Math.max(0, upper(s, t, x => x.t) - 1) : 0;
+}
+/** The clock of the day (unix seconds) at journey time `t`. */
+export function whenOf(c: Chronicle, t: number): number {
+  const s = c.sessions;
+  if (!s?.length) return c.startedAt + t;
+  const x = s[sessionAt(c, t)];
+  return x.at + (t - x.t);
+}
+export type Day = { key: string; from: number; to: number; events: number };
+/** The days played, oldest first: the stretch of journey time of each and how much happened in it. */
+export function daysOf(c: Chronicle): Day[] {
+  const s = c.sessions?.length ? c.sessions : [{ t: 0, at: c.startedAt }];
+  const days = new Map<string, Day>();
+  s.forEach((x, i) => {
+    const end = s[i + 1]?.t ?? c.duration;
+    const d = new Date(x.at * 1000);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const n = eventsBetween(c, x.t - 1e-6, end).length;
+    const now = days.get(key);
+    if (now) { now.from = Math.min(now.from, x.t); now.to = Math.max(now.to, end); now.events += n; } else days.set(key, { key, from: x.t, to: end, events: n });
+  });
+  return [...days.values()].sort((a, b) => a.from - b.from);
+}
+
+export type Instance = { name: string; detail?: string; from: number; to: number | null; zone?: number };
+/** The dungeon and raid visits: from the moment of entering to the moment of leaving (open when the recording ends inside). */
+export function instances(c: Chronicle): Instance[] {
+  const out: Instance[] = [];
+  for (const e of c.events) {
+    if (e.k !== "dungeon") continue;
+    if (e.a === "enter") out.push({ name: e.text, detail: e.detail, from: e.t, to: null, zone: e.zone });
+    else if (e.a === "leave") { const last = out[out.length - 1]; if (last && last.to === null) last.to = e.t; }
+  }
+  return out;
+}
+export function instanceAt(list: readonly Instance[], t: number): Instance | null {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const x = list[i];
+    if (x.from <= t) return x.to === null || t < x.to ? x : null;
+  }
+  return null;
+}
+export type InstanceSummary = { kills: number; deaths: number; items: number; copper: number; bosses: ChronicleEvent[] };
+export function instanceSummary(c: Chronicle, inst: Instance, t: number): InstanceSummary {
+  const out: InstanceSummary = { kills: 0, deaths: 0, items: 0, copper: 0, bosses: [] };
+  for (const e of eventsBetween(c, inst.from - 1e-6, Math.min(t, inst.to ?? t))) {
+    if (e.k === "kill") out.kills++; else if (e.k === "death") out.deaths++; else if (e.k === "loot") out.items += e.n ?? 1;
+    else if (e.k === "money") out.copper += e.n ?? 0; else if (e.k === "boss") out.bosses.push(e);
+  }
+  return out;
+}
+export function statsAt(c: Chronicle, t: number): StatSnapshot | null {
+  const s = c.stats;
+  if (!s?.length) return null;
+  const i = upper(s, t, x => x.t) - 1;
+  return s[Math.max(0, i)];
 }
 
 // ---- demo recording ---------------------------------------------------------------------------------------------
@@ -256,12 +384,51 @@ export function demoChronicle(seed = 7): Chronicle {
       t += 6;
     }
   });
+  // a dungeon at the end: a group, trash, a wipe on the second boss and then the kill
+  const last = LEGS.length - 1, ex = 0.14, ey = 0.86;
+  const wait = (seconds: number) => { for (let i = 0; i < seconds / 2; i++) { t += 2; path.push([t, last, Math.round((ex + (rand() - 0.5) * 0.01) * 1e4) / 1e4, Math.round((ey + (rand() - 0.5) * 0.01) * 1e4) / 1e4]); } };
+  const spot = { zone: last, x: ex, y: ey };
+  t += 20; // the way to the dungeon is not recorded: the character is simply there afterwards
+  push({ t, k: "group", a: "join", text: "Joined a group of 5", ...spot });
+  push({ t: t + 1, k: "dungeon", a: "enter", text: "Blackfathom Deeps", detail: "Dungeon · Normal", ...spot });
+  const trash = ["Blackfathom Tide Priestess", "Aku'mai Snapjaw", "Twilight Aquamancer", "Murkshallow Soothsayer", "Blindlight Murloc"];
+  const boss: [string, number][] = [["Ghamoo-ra", 5], ["Lady Sarevess", 7], ["Twilight Lord Kelris", 9]];
+  boss.forEach(([name, size], bi) => {
+    for (let k = 0; k < 9; k++) {
+      wait(8);
+      const xp = 90 + level * 3; xpTotal += xp;
+      push({ t, k: "kill", text: trash[Math.floor(rand() * trash.length)], xp, ...spot });
+      if (rand() < 0.5) push({ t: t + 1, k: "loot", text: LOOT[Math.floor(rand() * LOOT.length)][0], n: 1, q: 1, ...spot });
+      if (rand() < 0.6) push({ t: t + 1.2, k: "money", text: "Money", n: 30 + Math.floor(rand() * 120), ...spot });
+    }
+    wait(20);
+    if (bi === 1) {
+      push({ t, k: "boss", a: "wipe", text: name, n: 1, d: 74, detail: `Dealt ${(11 + rand() * 3).toFixed(1)}M of the ${size}-player group's damage, took 6.2M`, ...spot });
+      push({ t: t + 1, k: "death", text: "You died", ...spot });
+      wait(40);
+    }
+    push({ t, k: "boss", a: "kill", text: name, n: bi === 1 ? 2 : 1, d: 150 + bi * 40, detail: `Group of ${size}, ${(2.1 + bi * 0.6).toFixed(1)}M damage in total`, ...spot });
+    xpTotal += 300; push({ t: t + 0.5, k: "loot", text: ["Fang of Ghamoo-ra", "Sarevess's Mantle", "Kelris's Blade"][bi], n: 1, q: 3, ...spot });
+    if (xpTotal >= need(level)) { xpTotal -= need(level); level++; push({ t: t + 1, k: "level", text: `Reached level ${level}`, n: level, ...spot }); }
+    if (bi === 2) push({ t: t + 2, k: "emote", text: "You cheer", ...spot });
+  });
+  push({ t: t + 3, k: "dungeon", a: "leave", text: "Blackfathom Deeps", ...spot });
+  push({ t: t + 4, k: "group", a: "leave", text: "Left the group", ...spot });
+  wait(10);
+  push({ t: 400, k: "quest", a: "abandon", text: "The Zoram Strand", zone: 1, x: 0.4, y: 0.7 });
   events.sort((a, b) => a.t - b.t);
   const duration = Math.ceil(t + 8);
+  const days = [0, 0.22, 0.5, 0.78].map((f, i) => ({ t: Math.round(duration * f), at: 1_794_300_000 - (3 - i) * 86_400 + i * 3_600 }));
+  const stats = [{ t: 0, level: 14 }, ...events.filter(e => e.k === "level").map(e => ({ t: e.t, level: e.n ?? 15 }))].map(({ t: at, level: l }) => ({
+    t: at, ilvl: 8 + l * 3,
+    attrs: [["Strength", 30 + l * 2], ["Agility", 34 + l * 2], ["Stamina", 36 + l * 3], ["Intellect", 38 + l * 2], ["Spirit", 32 + l * 2]] as [string, number][],
+    enh: [["Critical Strike", `${(3 + l * 0.15).toFixed(1)}%`], ["Haste", `${(1.5 + l * 0.05).toFixed(1)}%`], ["Mastery", `${(2 + l * 0.12).toFixed(1)}%`]] as [string, string][],
+  }));
   return {
     v: 1,
     character: { name: "Demo Wanderer", classId: 11, race: "Night Elf", faction: "Alliance", realm: "Demo", guild: "Evertally", level: 14 },
-    startedAt: 1_794_300_000, duration, zones, path, events,
+    startedAt: days[0].at, duration, zones, path, events, sessions: days, stats,
+    skills0: { Herbalism: [41, 150], Skinning: [88, 150], Mining: [57, 150], Cooking: [75, 150], Fishing: [54, 150] },
   };
 }
 

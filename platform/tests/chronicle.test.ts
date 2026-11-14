@@ -75,3 +75,55 @@ test("the demo recording is valid, repeatable and long enough to be worth playin
   assert.ok(a.events.some(e => e.k === "level") && a.events.some(e => e.k === "quest" && e.a === "accept") && a.events.some(e => e.k === "skill"));
   assert.notDeepEqual(demoChronicle(8).path, a.path, "another seed is another journey");
 });
+
+import { ALL_TYPES, countByType, daysOf, instanceAt, instanceSummary, instances, passes, sessionAt, statsAt, typeKey, whenOf } from "../lib/chronicle";
+
+test("every moment has exactly one type, and the filter honours type and item quality", () => {
+  const c = demoChronicle();
+  const counts = countByType(c);
+  assert.equal(Object.values(counts).reduce((a, b) => a + b, 0), c.events.length);
+  assert.ok(Object.keys(counts).every(k => ALL_TYPES.includes(k)), "no type outside the known list");
+  const all = new Set(ALL_TYPES);
+  const poor = { t: 1, k: "loot" as const, text: "Rag", q: 0 }, rare = { t: 1, k: "loot" as const, text: "Blade", q: 3 };
+  assert.equal(passes(poor, all, 2), false); assert.equal(passes(rare, all, 2), true); assert.equal(passes(poor, all, 0), true);
+  assert.equal(passes({ t: 1, k: "kill", text: "Wolf" }, new Set(["quest.accept"]), 0), false, "a type that is off is hidden");
+  assert.equal(typeKey({ t: 0, k: "quest", a: "abandon", text: "x" }), "quest.abandon");
+});
+
+test("the days played and the clock of the day follow the sessions", () => {
+  const c: Chronicle = { ...small(), duration: 300, path: [[0, 0, 0.1, 0.1]], events: [{ t: 10, k: "kill", text: "a" }, { t: 150, k: "kill", text: "b" }, { t: 250, k: "kill", text: "c" }], sessions: [{ t: 0, at: 1_699_963_200 }, { t: 100, at: 1_699_963_200 + 86_400 * 2 }, { t: 200, at: 1_699_963_200 + 86_400 * 2 + 3600 }] };
+  assert.equal(sessionAt(c, 99), 0); assert.equal(sessionAt(c, 100), 1); assert.equal(sessionAt(c, 999), 2);
+  assert.equal(whenOf(c, 50), 1_699_963_250); assert.equal(whenOf(c, 130), 1_699_963_200 + 86_400 * 2 + 30);
+  const days = daysOf(c);
+  assert.equal(days.length, 2, "two sessions on the same day are one day");
+  assert.deepEqual(days.map(d => [d.from, d.to, d.events]), [[0, 100, 1], [100, 300, 2]]);
+  assert.equal(whenOf(small(), 7), 1007, "without sessions the recording starts at startedAt");
+});
+
+test("a dungeon visit is summed up with its attempts on the bosses", () => {
+  const c = demoChronicle();
+  const list = instances(c);
+  assert.equal(list.length, 1); assert.equal(list[0].name, "Blackfathom Deeps"); assert.ok(list[0].to !== null);
+  assert.equal(instanceAt(list, list[0].from - 5), null); assert.equal(instanceAt(list, list[0].from + 5)?.name, "Blackfathom Deeps"); assert.equal(instanceAt(list, list[0].to! + 5), null);
+  const done = instanceSummary(c, list[0], c.duration);
+  assert.equal(done.bosses.filter(b => b.a === "kill").length, 3); assert.equal(done.bosses.filter(b => b.a === "wipe").length, 1);
+  assert.ok(done.kills > 20 && done.deaths >= 1 && done.items > 5);
+  const early = instanceSummary(c, list[0], list[0].from + 30);
+  assert.ok(early.kills < done.kills && early.bosses.length === 0, "only what happened by then");
+});
+
+test("the character sheet is the latest snapshot at or before the moment", () => {
+  const c: Chronicle = { ...small(), stats: [{ t: 0, ilvl: 10 }, { t: 50, ilvl: 20 }] };
+  assert.equal(statsAt(c, 49)?.ilvl, 10); assert.equal(statsAt(c, 50)?.ilvl, 20); assert.equal(statsAt(c, -1)?.ilvl, 10);
+  assert.equal(statsAt(small(), 5), null);
+});
+
+test("the new parts of a recording are checked as strictly as the old ones", () => {
+  const c = small();
+  assert.ok(parseChronicle({ ...c, sessions: [{ t: 0, at: 1 }, { t: 10, at: 2 }], stats: [{ t: 0, ilvl: 5, attrs: [["Strength", 3]], enh: [["Haste", "2%"]] }], skills0: { Fishing: [5, 150] } }));
+  assert.equal(parseChronicle({ ...c, sessions: [{ t: 10, at: 1 }, { t: 5, at: 2 }] }), null, "sessions in time order");
+  assert.equal(parseChronicle({ ...c, stats: [{ t: 0, attrs: [["Strength", "many"]] }] }), null);
+  assert.equal(parseChronicle({ ...c, skills0: { Fishing: [5] } }), null);
+  assert.equal(parseChronicle({ ...c, events: [{ t: 1, k: "boss", text: "x", d: -3 }] }), null, "a negative fight time");
+  assert.equal(parseChronicle({ ...c, events: [{ t: 1, k: "boss", text: "x", detail: "y".repeat(400) }] }), null);
+});
