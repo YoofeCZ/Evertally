@@ -23,6 +23,9 @@ Stav: 11. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform
 | Shortest Path Forever → `walk.bin` (terén) | GPL-3.0-or-later | maska průchodnosti kontinentů (0 zablokováno, 1 země, 2 voda) z terénních dat v GatherLite (`plugins/routes/navigation/vendor/Nav`, vlastní bake klienta od SPF), zmenšená na 16yardové buňky; z ní se hledají cesty po terénu na webu | `tools/build_walkmask.py` → `platform/public/media/world/walk.bin` |
 | QuestieDB (čtení za běhu) | GPL-3.0 | Databázová karta a vrstvy služeb v okně Evertally čtou nainstalovaný addon QuestieDB přes jeho veřejné rozhraní (`LibQuestieDB`: `Npc`, `Quest`, `Item`, zónové tabulky). Nic z jeho dat ani kódu se nekopíruje do Evertally. | `addon/Evertally_Map/WorldDb.lua`, `WorldDbPage.lua` |
 | Shortest Path Forever → `addon/Evertally_Map/Data.lua` | GPL-3.0 | tytéž cestovní údaje jako na webu, převedené do Lua pro navigaci ve hře | `tools/build_map_lua.py` |
+| Index itemů webu → `platform/lib/item-levels.data.ts` | stejný původ jako index itemů (WoW Classic Item Caches, viz výše) | item level a příznak obouruční zbraně pro průměrný item level v žebříčku (jen čísla, žádné texty) | `tools/build_item_levels.py` |
+| ID ras Skyborne (95 High Order, 96 Windshaper) | fakta; ověřeno ve dvou nainstalovaných addonech: QuestieDB (`raceMaskById`, GPL-3.0) a AllTheThings (`ReferenceDB`) | jména a frakce dvou nových ras Forever na webu | `platform/components/evertally/data.ts` |
+| Emblémy ras 95 a 96 | vlastní kresba Evertally (křídlo v barvě frakce), ne herní umění | ikona rasy u postav Skyborne na webu | `tools/make_skyborne_icons.py` → `platform/public/media/identity/races/95.png`, `96.png` |
 
 ## Co se úmyslně nepoužívá
 
