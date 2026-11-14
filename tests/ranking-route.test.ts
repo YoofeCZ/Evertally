@@ -60,3 +60,25 @@ test("the instances board keeps class, race, faction and dungeon/raid but never 
   assert.equal(rankingHash({ ...state, metric: "level" }), "rankings/level?class=4&faction=horde");
   assert.equal(rankingHash({ ...state, metric: "time" }), "rankings/time?class=4&faction=horde&type=raid");
 });
+
+test("the guilds board keeps only the faction and the search; guild addresses round-trip", async () => {
+  const { guildHref, parseGuildRoute } = await import("../components/evertally/rankingRoute");
+  const state = parseRankingRoute("guilds?class=4&race=2&faction=horde&type=raid&q=dawn&page=2");
+  assert.deepEqual(state, { metric: "guilds", filters: { faction: "horde" }, q: "dawn", page: 1 });
+  assert.equal(rankingHash(state), "rankings/guilds?faction=horde&q=dawn&page=2");
+  const href = guildHref("Golem Agg", "Dawn / Watch");
+  assert.equal(href, "#guild/Golem%20Agg/Dawn%20%2F%20Watch");
+  assert.deepEqual(parseGuildRoute(href.slice("#guild/".length)), { realm: "Golem Agg", name: "Dawn / Watch" });
+  assert.equal(parseGuildRoute("Test"), null, "a realm without a name is no guild");
+});
+
+test("a realm filter round-trips on every board and refuses markup; statistics keep only faction and realm", () => {
+  const level = parseRankingRoute("level?realm=Golem%20Agg&class=1");
+  assert.deepEqual(level.filters, { classId: "1", realm: "Golem Agg" });
+  assert.equal(rankingHash(level), "rankings/level?class=1&realm=Golem+Agg");
+  assert.equal(new URLSearchParams(rankingQuery(level)).get("realm"), "Golem Agg");
+  assert.equal(parseRankingRoute("level?realm=%3Cscript%3E").filters.realm, undefined);
+  assert.equal(parseRankingRoute("guilds?realm=Firemaw&class=2").filters.realm, "Firemaw");
+  const stats = parseRankingRoute("stats?realm=Firemaw&faction=horde&class=2&type=raid");
+  assert.deepEqual(stats, { metric: "stats", filters: { faction: "horde", realm: "Firemaw" }, q: "", page: 0 });
+});

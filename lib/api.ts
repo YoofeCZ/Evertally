@@ -14,7 +14,7 @@ import { createMeet, listMeets, meetInput, meetPatch, respondToMeet, rsvpInput, 
 import { eraseMyTrail, guildOverview, guildTrail, myTrail, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
 import { armoryOverview } from "./armory";
 import { createThread, createPost, deleteForumPost, editForumPost, editPostInput, moderateForumThread, moderateThreadInput, isForumAdmin, deviceForum, getThread, listForum, myForumCharacters, postInput, threadInput } from "./forum";
-import { createGrant, deleteMyData, getAtlas, getLeaderboards, getRankingPackage, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
+import { createGrant, deleteMyData, getAtlas, getGuilds, getLeaderboards, getRankingPackage, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
 
 export const VERSION = "0.9.0";
 export const json = (value: unknown, status = 200) =>
@@ -59,8 +59,8 @@ const grantInput = z.object({ producerId: z.string().min(1).max(180), consentEpo
   .strict().refine((v) => v.since <= Math.floor(Date.now() / 1000) + 300, "The period cannot start in the future.");
 const uploadInput = z.object({ grantId: z.string().uuid(), export: z.unknown() }).strict();
 // Any of the three may change at once; item level and guild only show while the character is public.
-const visibilityInput = z.object({ public: z.boolean().optional(), showItemLevel: z.boolean().optional(), showGuild: z.boolean().optional() }).strict()
-  .refine(v => v.public !== undefined || v.showItemLevel !== undefined || v.showGuild !== undefined, "Nothing to change.");
+const visibilityInput = z.object({ public: z.boolean().optional(), showItemLevel: z.boolean().optional(), showGuild: z.boolean().optional(), showGear: z.boolean().optional() }).strict()
+  .refine(v => v.public !== undefined || v.showItemLevel !== undefined || v.showGuild !== undefined || v.showGear !== undefined, "Nothing to change.");
 const deviceStartInput = z.object({ name: z.string().max(200).optional() }).strict();
 const devicePollInput = z.object({ deviceCode: z.string().min(10).max(100) }).strict();
 const deviceApproveInput = z.object({ userCode: z.string().min(8).max(12), scopes: z.array(z.enum(SCOPES)).max(SCOPES.length), approve: z.boolean() }).strict();
@@ -134,6 +134,8 @@ export async function handleApi(request: Request, operation: string, id?: string
     if (operation === "forum") return json(await listForum(getBinding() as unknown as PeopleDb, user?.id ?? null, { category: params.get("category") ?? undefined, page: Number(params.get("page")) || 0, q: params.get("q") ?? undefined }, await forumAdmin()));
     if (operation === "forum-thread" && id) return json(await getThread(getBinding() as unknown as PeopleDb, id, user?.id ?? null, await forumAdmin()));
     if (operation === "leaderboards") return json(await getLeaderboards(params));
+    // public guilds: only what members of public characters chose to show
+    if (operation === "guilds") return json(await getGuilds(params));
     // the public leaderboard for the in-game tooltip, fetched by Evertally Sync without credentials
     if (operation === "ranking-package") return json(await getRankingPackage());
     if (operation === "runs" && !params.has("mine")) return json({ runs: await getRuns(), countingUnit: "participation" });

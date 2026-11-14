@@ -99,7 +99,7 @@ function Item({ id, count, label, item }: { id: number; count?: number; label?: 
   </a>;
 }
 
-function Gear({ entry, lang }: { entry: Entry; lang: Lang }) {
+export function Gear({ entry, lang }: { entry: { armory: Pick<Entry["armory"], "equipped"> }; lang: Lang }) {
   const { t } = useI18n();
   const item = useItems();
   const bySlot = new Map(entry.armory.equipped.map(e => [e.slot, e.itemId]));
@@ -113,14 +113,14 @@ function Gear({ entry, lang }: { entry: Entry; lang: Lang }) {
   })}</div>;
 }
 
-function Stats({ entry, lang }: { entry: Entry; lang: Lang }) {
+export function Stats({ entry, lang }: { entry: { armory: Pick<Entry["armory"], "stats"> }; lang: Lang }) {
   const { t, num } = useI18n();
   const rows = Object.keys(STATS.en).filter(key => entry.armory.stats[key] !== undefined);
   if (!rows.length) return <p className="fine-print">{t("armory.noStats")}</p>;
   return <table className="data-table"><tbody>{rows.map(key => <tr key={key}><td>{STATS[lang][key]}</td><td className="mono">{num(entry.armory.stats[key])}</td></tr>)}</tbody></table>;
 }
 
-function Talents({ entry }: { entry: Entry }) {
+export function Talents({ entry }: { entry: { armory: Pick<Entry["armory"], "talents"> } }) {
   const { t } = useI18n();
   if (!entry.armory.talents.length) return <p className="fine-print">{t("armory.noTalents")}</p>;
   return <div className="armory-trees">{entry.armory.talents.map((tree, index) => <section key={`${tree.name}${index}`} className="record-detail">

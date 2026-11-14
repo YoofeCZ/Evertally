@@ -85,11 +85,11 @@ export function AccountView({ user, signIn, onChanged }: { user: User | null; si
               </button>
               {p.public && <div className="profile-extras" role="group" aria-label={t("account.rankingExtras")}>
                 <span>{t("account.rankingExtras")}</span>
-                {(["showItemLevel", "showGuild"] as const).map((key) => (
+                {(["showItemLevel", "showGuild", "showGear"] as const).map((key) => (
                   <label key={key} className="check">
                     <input type="checkbox" checked={Boolean(p[key])} disabled={busy}
                       onChange={(event) => void act(() => api(`/api/profiles/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ [key]: event.target.checked }) }))} />
-                    <span>{t(key === "showItemLevel" ? "account.showItemLevel" : "account.showGuild")}<small>{t(key === "showItemLevel" ? "account.showItemLevelHelp" : "account.showGuildHelp")}</small></span>
+                    <span>{t(key === "showItemLevel" ? "account.showItemLevel" : key === "showGuild" ? "account.showGuild" : "account.showGear")}<small>{t(key === "showItemLevel" ? "account.showItemLevelHelp" : key === "showGuild" ? "account.showGuildHelp" : "account.showGearHelp")}</small></span>
                   </label>
                 ))}
               </div>}

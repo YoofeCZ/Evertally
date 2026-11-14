@@ -8,8 +8,11 @@ import { atlasEntities } from "./atlas";
 import { PUBLIC_PROFILE_ACCESS_SQL } from "./profiles";
 import { applyGuildSnapshots, pruneTracks, releaseStatements, type Db as PeopleDb, type GuildSnapshot } from "./people";
 import { applyPublishChoices, type PublishChoice } from "./publish";
-import { instanceSummary, publicRankingObservations, rankingExtras, rankingPackage, rankObservedRuns, rankPublicLevels, RUN_OBSERVATION_ORDER, withRankingExtras } from "./run-rankings";
+import { instanceSummary, publicRankingObservations, rankingExtras, rankingPackage, rankObservedRuns, rankPublicLevels, realmSummary, RUN_OBSERVATION_ORDER, statistics, withRankingExtras } from "./run-rankings";
 import { projectRunActors } from "./run-combat";
+import { guildBoard, guildDetail, hallOfFame, publicBossKills, raidProgress } from "./guilds";
+import { rolesFor, specOf } from "./spec";
+import { publicGear } from "./public-gear";
 import type { Run, RunCombat, RunMember } from "../components/evertally/types";
 
 type Row=Record<string,unknown>;
@@ -23,7 +26,7 @@ const nullableNum=(v:unknown)=>typeof v==="number"?v:null;
 const nullableText=(v:unknown)=>typeof v==="string"?v:null;
 
 export function serializeGrant(row:Row){return {id:String(row.id),producerId:String(row.producer_id),consentEpoch:Number(row.consent_epoch),since:Number(row.since),scopes:decode<Scope[]>(row.scopes,[]),revokedAt:nullableNum(row.revoked_at),createdAt:Number(row.created_at)};}
-export function serializeProfile(row:Row){return {id:String(row.id),name:nullableText(row.name),realm:nullableText(row.realm),classId:nullableNum(row.class_id),raceId:nullableNum(row.race_id),level:nullableNum(row.level),public:bool(row.public),showItemLevel:bool(row.show_item_level),showGuild:bool(row.show_guild),lastSeen:Number(row.last_seen)};}
+export function serializeProfile(row:Row){return {id:String(row.id),name:nullableText(row.name),realm:nullableText(row.realm),classId:nullableNum(row.class_id),raceId:nullableNum(row.race_id),level:nullableNum(row.level),public:bool(row.public),showItemLevel:bool(row.show_item_level),showGuild:bool(row.show_guild),showGear:bool(row.show_gear),lastSeen:Number(row.last_seen)};}
 
 export async function createGrant(userId:string,input:{producerId:string;consentEpoch:number;since:number;scopes:Scope[]}){
   const existing=await first("SELECT * FROM atlas_grants WHERE user_id=? AND producer_id=? AND consent_epoch=?",[userId,input.producerId,input.consentEpoch]);
@@ -86,9 +89,9 @@ export async function uploadEvents(userId:string,grantId:string,raw:unknown){
       profileRows.push({id:profileId,userId,producerId:event.producerId,characterKey:c.id,name:c.name??null,realm:c.realm??null,classId:c.classId??null,raceId:c.raceId??null,level:c.level??null,lastSeen:event.observedAt,observationId:eventId});
     }
     if(event.kind==="track.path")hasTracks=true;
-    if(event.kind==="character.publish"&&profileId){const p=event.payload as {public:boolean;showItemLevel?:boolean;showGuild?:boolean;chosenAt?:number};
+    if(event.kind==="character.publish"&&profileId){const p=event.payload as {public:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;chosenAt?:number};
       // the moment of the choice decides, never later than the observation itself
-      publishChoices.push({profileId,observedAt:Math.min(p.chosenAt??event.observedAt,event.observedAt),public:p.public,showItemLevel:p.showItemLevel,showGuild:p.showGuild});}
+      publishChoices.push({profileId,observedAt:Math.min(p.chosenAt??event.observedAt,event.observedAt),public:p.public,showItemLevel:p.showItemLevel,showGuild:p.showGuild,showGear:p.showGear});}
     if(event.kind==="guild.snapshot"&&profileId&&event.character?.name){
       const p=event.payload as {guildName?:string;rankIndex?:number;roster?:GuildSnapshot["roster"]};
       guildSnapshots.push({profileId,name:event.character.name,realm:event.character.realm??event.game.realm,observedAt:event.observedAt,guildName:p.guildName,rankIndex:p.rankIndex,roster:p.roster});
@@ -118,14 +121,15 @@ export async function meData(userId:string){
   return {grants:grants.map(serializeGrant),profiles:profiles.map(serializeProfile),eventCount:Number(count?.count??0),runCount:runs.length};
 }
 
-export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean}){
+export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean}){
   const existing=await first("SELECT * FROM atlas_profiles WHERE id=? AND user_id=?",[id,userId]);if(!existing)throw new ApiError("not_found","Character not found.",404);
-  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;visibilityAt?:number}={visibilityAt:now()};
+  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;visibilityAt?:number}={visibilityAt:now()};
   if(change.public!==undefined)set.public=change.public;
   if(change.showItemLevel!==undefined)set.showItemLevel=change.showItemLevel;
   if(change.showGuild!==undefined)set.showGuild=change.showGuild;
+  if(change.showGear!==undefined)set.showGear=change.showGear;
   await getDb().update(profileTable).set(set).where(eq(profileTable.id,id));
-  return serializeProfile({...existing,...(set.public!==undefined?{public:set.public}:{}),...(set.showItemLevel!==undefined?{show_item_level:set.showItemLevel}:{}),...(set.showGuild!==undefined?{show_guild:set.showGuild}:{})});
+  return serializeProfile({...existing,...(set.public!==undefined?{public:set.public}:{}),...(set.showItemLevel!==undefined?{show_item_level:set.showItemLevel}:{}),...(set.showGuild!==undefined?{show_guild:set.showGuild}:{}),...(set.showGear!==undefined?{show_gear:set.showGear}:{})});
 }
 
 export async function deleteMyData(userId:string){const db=getBinding();await db.batch([
@@ -172,13 +176,25 @@ export async function profileHistory(id:string,userId?:string){
   // the character page: what the leaderboard shows of it (its place, and the details its player chose to show)
   const people=getBinding() as unknown as PeopleDb;
   const extras=(await rankingExtras(people,[id])).get(id)??{};
-  let ranks:{overall:number|null;total:number;class:number|null;classTotal:number}|null=null;
+  let ranks:{overall:number|null;total:number;class:number|null;classTotal:number;realm:number|null;realmTotal:number}|null=null;
   if(profile.public&&profile.name){
     const place=async(extra:Record<string,string>)=>{const board=await rankPublicLevels(people,new URLSearchParams({q:profile.name!,...extra}));return {rank:board.entries.find(e=>e.character.id===id)?.rank??null,total:board.sampleSize};};
-    const [overall,inClass]=await Promise.all([place({}),profile.classId?place({classId:String(profile.classId)}):Promise.resolve({rank:null,total:0})]);
-    ranks={overall:overall.rank,total:overall.total,class:inClass.rank,classTotal:inClass.total};
+    const [overall,inClass,inRealm]=await Promise.all([place({}),profile.classId?place({classId:String(profile.classId)}):Promise.resolve({rank:null,total:0}),profile.realm?place({realm:profile.realm}):Promise.resolve({rank:null,total:0})]);
+    ranks={overall:overall.rank,total:overall.total,class:inClass.rank,classTotal:inClass.total,realm:inRealm.rank,realmTotal:inRealm.total};
   }
-  return {profile,zones:rows.map(r=>({mapId:r.mapId,mapName:r.mapName,visits:r.visits,lastVisited:r.lastVisited})),runs,...extras,ranks};
+  // raid progress from the successful boss fights of a public character
+  const progress=profile.public?raidProgress((await publicBossKills(people,[id])).get(id)??[]):[];
+  // gear, stats and talents only where the player turned them on for this public character (or for the owner)
+  const armory=(profile.public&&bool(row.show_gear))||owner?await publicGear(people,id):null;
+  const spec=armory?specOf(armory.talents):null;
+  // when each level was first reached, by the day (the hour would tell when the player plays)
+  const levelRows=profile.public||owner?await all(`SELECT CAST(json_extract(o.payload,'$.level') AS INTEGER) AS level,MIN(o.observed_at) AS at
+    FROM atlas_observations o JOIN atlas_grants g ON g.id=o.grant_id AND g.user_id=o.user_id AND g.producer_id=o.producer_id
+    WHERE o.profile_id=? AND o.kind IN ('character.level','character.snapshot') AND o.scope='own_character' AND g.revoked_at IS NULL
+    AND EXISTS(SELECT 1 FROM json_each(g.scopes) WHERE value='own_character') AND json_extract(o.payload,'$.level') IS NOT NULL
+    GROUP BY level ORDER BY level ASC LIMIT 200`,[id]):[];
+  const levels=levelRows.map(r=>({level:Number(r.level),at:Math.floor(Number(r.at)/86400)*86400})).filter(r=>r.level>0&&r.at>0);
+  return {profile,zones:rows.map(r=>({mapId:r.mapId,mapName:r.mapName,visits:r.visits,lastVisited:r.lastVisited})),runs,...extras,ranks,progress,levels,...(armory?{armory}:{}),...(spec?{spec:{...spec,roles:rolesFor(profile.classId,spec)}}:{})};
 }
 
 export async function statusData(){
@@ -191,10 +207,22 @@ export async function statusData(){
   return {totalEvents:Number(events?.count??0),totalCharacters:Number(events?.characters??0),totalRuns:runs.length,latestAt:nullableNum(events?.latest)};
 }
 
+/** The guild board, or one guild when `name` (and `realm`) are given. */
+export async function getGuilds(params:URLSearchParams){
+  const db=getBinding() as unknown as PeopleDb;const runs=await getRuns(undefined,true) as Run[];
+  const name=(params.get("name")??"").trim().slice(0,48);
+  if(!name)return guildBoard(db,runs,params);
+  const guild=await guildDetail(db,runs,(params.get("realm")??"").trim().slice(0,80),name);
+  if(!guild)throw new ApiError("not_found","Nobody shows this guild publicly.",404);
+  return guild;
+}
 export async function getRankingPackage(){return rankingPackage(getBinding() as unknown as PeopleDb,await getRuns(undefined,true) as Run[]);}
 
 export async function getLeaderboards(params:URLSearchParams){
   if(params.get("metric")==="level") return rankPublicLevels(getBinding() as unknown as PeopleDb,params);
+  if(params.get("metric")==="realms") return realmSummary(getBinding() as unknown as PeopleDb);
+  if(params.get("metric")==="fame") return hallOfFame(getBinding() as unknown as PeopleDb,await getRuns(undefined,true) as Run[],params);
+  if(params.get("metric")==="stats") return statistics(getBinding() as unknown as PeopleDb,await getRuns(undefined,true) as Run[],params);
   if(params.get("metric")==="instances") return instanceSummary(await getRuns(undefined,true) as Run[],params);
   return withRankingExtras(getBinding() as unknown as PeopleDb,rankObservedRuns(await getRuns(undefined,true) as Run[],params));
 }

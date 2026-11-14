@@ -8,6 +8,7 @@ import { AccountView, LinkView } from "./views/Account";
 import { RunsView } from "./views/Data";
 import { RankingsView } from "./views/Rankings";
 import { CharacterView } from "./views/Character";
+import { GuildView } from "./views/Guild";
 import { Overview } from "./views/Overview";
 import { SyncView } from "./views/Sync";
 import { ProfessionsView } from "./views/Professions";
@@ -16,7 +17,7 @@ import { ForumView } from "./views/Forum";
 import { DatabaseView } from "./db/Database";
 import { MapView } from "./db/MapView";
 
-const NAV: { id: Exclude<View, "link" | "character">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
+const NAV: { id: Exclude<View, "link" | "character" | "guild">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
   { id: "overview", key: "nav.overview" }, { id: "runs", key: "nav.runs" }, { id: "rankings", key: "nav.rankings" },
   { id: "atlas", key: "nav.atlas" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
 ];
@@ -39,7 +40,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   // `#atlas/durotar?focus=npc:3139`, `#database/items/19019`: the first segment is the view, the rest belongs to it.
   const head = hash.split(/[/?]/)[0];
   const route = hash.slice(head.length).replace(/^\//, "");
-  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : NAV.some((n) => n.id === head) ? head as View : "overview";
+  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : head === "guild" ? "guild" : NAV.some((n) => n.id === head) ? head as View : "overview";
   const authError = useSyncExternalStore(subscribeNever, () => new URLSearchParams(window.location.search).get("auth_error"), () => null);
   const [dismissed, setDismissed] = useState(false);
   const [version, setVersion] = useState(0);
@@ -88,7 +89,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
         <button className="wordmark" onClick={() => go("overview")} aria-label="Evertally"><Logo /> <span>Evertally</span></button>
         <nav className="nav" aria-label="Main">
           {NAV.map((item) => (
-            <button key={item.id} className={view === item.id ? "on" : ""} aria-current={view === item.id ? "page" : undefined} onClick={() => go(item.id)}>{t(item.key)}</button>
+            <button key={item.id} className={view === item.id || (item.id === "rankings" && (view === "guild" || view === "character")) ? "on" : ""} aria-current={view === item.id ? "page" : undefined} onClick={() => go(item.id)}>{t(item.key)}</button>
           ))}
         </nav>
         <form className="top-search" role="search" onSubmit={(event) => { event.preventDefault(); searchCharacters(String(new FormData(event.currentTarget).get("q") ?? "")); }}>
@@ -124,6 +125,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
         {view === "runs" && <RunsView user={user} />}
         {view === "rankings" && <RankingsView route={route} user={user} />}
         {view === "character" && <CharacterView id={decodeURIComponent(route.split("?")[0])} />}
+        {view === "guild" && <GuildView route={route} />}
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
         {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}

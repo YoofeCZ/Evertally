@@ -7,19 +7,28 @@ import { CharacterIcons, fullName } from "../Identity";
 import type { Character, Run } from "../types";
 import { Icon } from "../ui";
 import { FactionMark } from "./Rankings";
+import { RaidProgressCard } from "./Guild";
+import { guildHref } from "../rankingRoute";
+import type { RaidProgress } from "@/lib/guilds";
+import type { PublicGear } from "@/lib/public-gear";
+import { Gear, Stats, Talents } from "./Armory";
 
 type Page = {
   profile: Character & { public: boolean; lastSeen?: number };
   zones: { mapId: number; mapName?: string; visits: number; lastVisited?: number }[];
   runs: Run[];
   itemLevel?: number; guild?: string;
-  ranks: { overall: number | null; total: number; class: number | null; classTotal: number } | null;
+  ranks: { overall: number | null; total: number; class: number | null; classTotal: number; realm?: number | null; realmTotal?: number } | null;
+  progress?: RaidProgress[];
+  armory?: PublicGear;
+  spec?: { name: string; points: string; roles: ("tank" | "healer" | "dps")[] };
+  levels?: { level: number; at: number }[];
 };
 const ART = "/media/dungeons/blackrock-depths.jpg";
 
 /** A character's own page in the shape of a Raider.IO profile: banner, the numbers that rank it, its runs and places. */
 export function CharacterView({ id }: { id: string }) {
-  const { t, num, date } = useI18n();
+  const { t, num, date, lang } = useI18n();
   const page = useApi<Page>(id ? `/api/profiles/${encodeURIComponent(id)}` : null);
   if (!id || page.error) return <div className="page-column lb ch">
     <div className="lb-message ch-missing"><span className="lb-message-icon"><Icon name="lock" size={20} /></span>
@@ -28,7 +37,7 @@ export function CharacterView({ id }: { id: string }) {
   </div>;
   if (!page.data) return <div className="page-column lb ch"><p className="lb-count">{t("common.loading")}</p></div>;
 
-  const { profile, zones, runs, itemLevel, guild, ranks } = page.data;
+  const { profile, zones, runs, itemLevel, guild, ranks, progress = [], armory, spec, levels = [] } = page.data;
   const color = CLASS_COLORS[profile.classId ?? 0];
   const className = CLASSES[profile.classId ?? 0];
   const finished = runs.filter(completed);
@@ -53,14 +62,15 @@ export function CharacterView({ id }: { id: string }) {
         <CharacterIcons character={profile} size={56} />
         <div className="ch-name">
           <h1>{fullName(profile) || t("common.private")}</h1>
-          {guild && <span className="lb-guild">&lsaquo;{guild}&rsaquo;</span>}
-          <p>{[profile.level ? t("character.level", { level: profile.level }) : null, RACES[profile.raceId ?? 0], className].filter(Boolean).join(" · ")}
+          {guild && <a className="lb-guild" href={guildHref(profile.realm, guild)}>&lsaquo;{guild}&rsaquo;</a>}
+          <p>{[profile.level ? t("character.level", { level: profile.level }) : null, RACES[profile.raceId ?? 0], spec ? `${spec.name} ${className ?? ""}`.trim() : className, spec?.points, ...(spec?.roles ?? []).map(role => t(`role.${role}`))].filter(Boolean).join(" · ")}
             <FactionMark faction={factionOf(profile.raceId)} /></p>
         </div>
       </div>
       <div className="ch-stats">
         {itemLevel != null && <Stat label={t("character.ilvl")} value={num(itemLevel)} />}
         {ranks && <Stat label={t("character.rank")} value={ranks.overall ? `#${num(ranks.overall)}` : "—"} sub={t("character.of", { total: num(ranks.total) })} />}
+        {ranks && profile.realm && ranks.realmTotal ? <Stat label={t("character.realmRank", { realm: profile.realm })} value={ranks.realm ? `#${num(ranks.realm)}` : "—"} sub={t("character.of", { total: num(ranks.realmTotal) })} /> : null}
         {ranks && className && <Stat label={t("character.classRank", { class: className })} value={ranks.class ? `#${num(ranks.class)}` : "—"} sub={t("character.of", { total: num(ranks.classTotal) })} />}
         <Stat label={t("character.completions")} value={num(finished.length)} />
       </div>
@@ -69,6 +79,12 @@ export function CharacterView({ id }: { id: string }) {
 
     <div className="ch-grid">
       <div>
+        {armory && <Card title={`${t("character.gear")} · ${date(armory.observedAt)}`}>
+          <div className="ch-gear"><Gear entry={{ armory }} lang={lang} /></div>
+        </Card>}
+        {armory && armory.talents.length > 0 && <Card title={`${t("character.talents")} · ${armory.talents.map(tree => tree.spent).join("/")}`}>
+          <div className="ch-gear"><Talents entry={{ armory }} /></div>
+        </Card>}
         <Card title={t("character.bestTimes")}>
           {bestRows.length ? <table className="lb-table ch-table">
             <thead><tr><th>{t("character.instance")}</th><th className="num">{t("character.best")}</th><th className="num">{t("character.count")}</th><th className="num">{t("character.last")}</th></tr></thead>
@@ -83,11 +99,15 @@ export function CharacterView({ id }: { id: string }) {
         </Card>
       </div>
       <div>
+        <RaidProgressCard progress={progress} />
+        {levels.length > 1 && <Card title={t("character.levels")}><LevelChart levels={levels} /></Card>}
+        {armory && Object.keys(armory.stats).length > 0 && <Card title={t("character.stats")}><div className="ch-gear"><Stats entry={{ armory }} lang={lang} /></div></Card>}
         <Card title={`${t("character.zones")} · ${num(zones.length)}`}>
           {zones.length ? <ul className="ch-zones">{zones.slice(0, 14).map(zone => <li key={zone.mapId}><span>{zone.mapName || `#${zone.mapId}`}<small>{date(zone.lastVisited)}</small></span><b>{num(zone.visits)}×</b></li>)}</ul>
             : <p className="ch-empty">{t("character.noZones")}</p>}
         </Card>
         <Card title={t("character.more")}>
+          {guild && <a className="ch-link" href={guildHref(profile.realm, guild)}><Icon name="shield" size={15} /> {t("character.guildLink")}</a>}
           <a className="ch-link" href={`#armory/${encodeURIComponent(profile.id)}`}><Icon name="shield" size={15} /> {t("character.armory")}</a>
           <a className="ch-link" href={`#rankings/level?q=${encodeURIComponent(profile.name ?? "")}`}><Icon name="trophy" size={15} /> {t("character.inLeaderboard")}</a>
         </Card>
@@ -102,4 +122,24 @@ function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: st
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return <section className="ch-card"><h2>{title}</h2>{children}</section>;
+}
+
+/** When each level was first reached, as a line: time across, level up. Days only. */
+function LevelChart({ levels }: { levels: { level: number; at: number }[] }) {
+  const { t, lang } = useI18n();
+  // the day only: the hour would tell when the player plays
+  const day = (at: number) => new Intl.DateTimeFormat(lang === "cs" ? "cs-CZ" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(at * 1000));
+  const points = [...levels].sort((a, b) => a.level - b.level);
+  const W = 300, H = 120, P = 8;
+  const t0 = Math.min(...points.map(p => p.at)), t1 = Math.max(...points.map(p => p.at));
+  const l0 = points[0].level, l1 = points[points.length - 1].level;
+  const x = (at: number) => P + (t1 > t0 ? (at - t0) / (t1 - t0) : 1) * (W - 2 * P);
+  const y = (level: number) => H - P - (l1 > l0 ? (level - l0) / (l1 - l0) : 1) * (H - 2 * P);
+  return <div className="ch-levels">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("character.levels")}>
+      <polyline points={points.map(p => `${x(p.at)},${y(p.level)}`).join(" ")} />
+      {points.map(p => <circle key={p.level} cx={x(p.at)} cy={y(p.level)} r={2.6}><title>{t("character.levelReached", { level: p.level, date: day(p.at) })}</title></circle>)}
+    </svg>
+    <div className="ch-levels-axis"><span>{l0} · {day(t0)}</span><span>{l1} · {day(t1)}</span></div>
+  </div>;
 }

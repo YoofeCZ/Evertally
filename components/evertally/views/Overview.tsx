@@ -2,6 +2,8 @@
 import type { CSSProperties, FormEvent, ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 import type { InstanceSummary } from "@/lib/run-rankings";
+import type { GuildSummary } from "@/lib/guilds";
+import { guildHref } from "../rankingRoute";
 import { useApi } from "../api";
 import { CLASS_COLORS, CLASSES, factionOf } from "../data";
 import { useDungeonArt } from "../db/store";
@@ -26,6 +28,8 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
   const instances = useApi<{ instances: InstanceSummary[] }>("/api/leaderboards?metric=instances");
   const runs = useApi<{ runs: Run[] }>("/api/runs");
   const atlas = useApi<{ entities: Entity[] }>("/api/atlas");
+  const guilds = useApi<{ guilds: GuildSummary[] }>("/api/guilds");
+  const topGuilds = guilds.data?.guilds.slice(0, 5) ?? [];
   const art = useDungeonArt();
 
   const top = board.data?.entries.slice(0, 8) ?? [];
@@ -96,6 +100,13 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
               <i><b style={{ width: `${count / most * 100}%`, background: CLASS_COLORS[id] }} /></i>
               <em>{num(count)}</em>
             </li>)}</ul> : <p className="ch-empty">{t("common.noData")}</p>}
+          </Card>
+          <Card title={t("home.topGuilds")} more={<a href="#rankings/guilds">{t("home.allGuilds")} →</a>}>
+            {topGuilds.length ? <ul className="home-guilds">{topGuilds.map(g => <li key={`${g.realm}|${g.name}`}>
+              <b>{g.rank}.</b>
+              <span><a className="lb-guild" href={guildHref(g.realm, g.name)}>{g.name}</a><small>{[g.realm, t("rankings.membersShort", { count: num(g.members) })].filter(Boolean).join(" · ")}</small></span>
+              <em title={t("guild.bosses")}>{num(g.bosses)}</em>
+            </li>)}</ul> : <p className="ch-empty">{guilds.loading ? t("common.loading") : t("rankings.noGuildsText")}</p>}
           </Card>
           <Card title={t("home.joinTitle")}>
             <ol className="home-steps">
