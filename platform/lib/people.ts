@@ -118,6 +118,14 @@ export async function ownLive(db:Db,userId:string) {
   return profiles.results.flatMap(p=>{const position=positions.get(String(p.id));return position?[{profileId:String(p.id),name:typeof p.name==="string"?p.name:null,classId:typeof p.class_id==="number"?p.class_id:null,...position}]:[];});
 }
 
+/** The last place each character of the account was seen (sent on an event, not live). */
+export async function ownLast(db:Db,userId:string) {
+  const rows=await db.prepare(`SELECT l.profile_id,l.observed_at,l.map_id,l.x,l.y,p.name,p.class_id FROM et_last_positions l
+    JOIN atlas_profiles p ON p.id=l.profile_id AND p.user_id=l.user_id
+    WHERE l.user_id=? AND EXISTS(SELECT 1 FROM atlas_grants g WHERE g.user_id=l.user_id AND g.producer_id=p.producer_id AND ${GRANT_OK(["own_track"])})`).bind(userId).all();
+  return rows.results.map(r=>({profileId:String(r.profile_id),name:typeof r.name==="string"?r.name:null,classId:typeof r.class_id==="number"?r.class_id:null,mapId:Number(r.map_id),x:Number(r.x),y:Number(r.y),at:Number(r.observed_at)}));
+}
+
 export async function myTrail(db: Db, userId: string, options: { profileId?: string; since: number }) {
   const rows = await db.prepare(`SELECT o.id,o.profile_id,o.payload FROM atlas_observations o
     JOIN atlas_grants g ON g.id=o.grant_id AND g.user_id=o.user_id
@@ -250,6 +258,8 @@ export function releaseStatements(db: Db, userId: string): Stmt[] {
   return [
     db.prepare("DELETE FROM et_game_connections WHERE user_id=?").bind(userId),
     db.prepare("DELETE FROM et_live_positions WHERE user_id=?").bind(userId),
+    db.prepare("DELETE FROM et_last_positions WHERE user_id=?").bind(userId),
+    db.prepare("DELETE FROM et_locate_requests WHERE user_id=?").bind(userId),
     db.prepare("DELETE FROM et_guild_members WHERE user_id=?").bind(userId),
     db.prepare("UPDATE et_guilds SET owner_user_id=NULL,owner_name=NULL,roster='[]',roster_at=NULL WHERE owner_user_id=?").bind(userId),
     db.prepare("DELETE FROM et_circle_members WHERE user_id=?").bind(userId),

@@ -17,6 +17,10 @@ use crate::wow;
 
 /// `WoW` rewrites the file in several steps; wait for it to settle before reading.
 const SETTLE: Duration = Duration::from_secs(3);
+/// Every stored live sample rewrites several database rows, and the free hosting tier allows only 100k writes a day.
+const LIVE_EVERY: Duration = Duration::from_secs(10);
+/// A position is sent only on an event (first sample, another map, the website asked) and otherwise this often.
+const LIVE_HEARTBEAT: Duration = Duration::from_mins(5);
 /// Catch-up and retry interval when nothing happens.
 const TICK: Duration = Duration::from_mins(5);
 /// How often the forum is exchanged with the website while the app runs (a save of the game's files triggers it at once).
@@ -76,6 +80,10 @@ pub struct Worker {
     live_poll: Instant,
     forum_poll: Instant,
     live_sent: Option<(String, u64)>,
+    /// The character and map of the last position sent, and when: what decides whether the next one says anything new.
+    live_last: Option<(String, u32, Instant)>,
+    /// The website asked where the player is; the next readable position is sent at once.
+    locate: bool,
     live_status: Option<String>,
     /// Who plays, learned from the exported file: what a live marker is resolved against.
     identity: crate::optical::Identity,
@@ -118,6 +126,8 @@ impl Worker {
             live_poll: Instant::now() - Duration::from_secs(5),
             forum_poll: Instant::now() - FORUM_EVERY,
             live_sent: None,
+            live_last: None,
+            locate: false,
             live_status: None,
             identity: crate::optical::Identity::default(),
             marker_fresh: crate::optical::Freshness::default(),
@@ -232,7 +242,7 @@ impl Worker {
         let mut settle_at: Option<Instant> = None;
         let mut last_rescan = Instant::now();
         loop {
-            if self.token.is_some() && self.live_poll.elapsed() >= Duration::from_secs(2) {
+            if self.token.is_some() && self.live_poll.elapsed() >= LIVE_EVERY {
                 self.live_step();
                 self.live_poll = Instant::now();
             }
@@ -277,6 +287,7 @@ impl Worker {
                     self.token = None;
                     self.live_status = None;
                     self.live_sent = None;
+                    self.live_last = None;
                     self.log("disconnected by user");
                     self.show(self.texts.not_paired.to_owned());
                 }
@@ -329,6 +340,11 @@ impl Worker {
                 return;
             }
         };
+        // The website asked where the player is: read the marker and send one position now.
+        if answer["locate"].as_bool() == Some(true) && !self.locate {
+            self.locate = true;
+            self.live_poll = Instant::now() - LIVE_EVERY;
+        }
         if !outbox.is_empty() {
             self.log(&format!(
                 "forum: sent {} written in game, accepted {}, already known {}, refused {}",
@@ -365,8 +381,20 @@ impl Worker {
                 if self.live_sent.as_ref() == Some(&(character.clone(), packet.t)) {
                     return;
                 }
+                // Every stored position costs the server several written rows, so only something new is sent.
+                let due = self.locate
+                    || self.live_last.as_ref().is_none_or(|(who, map, at)| {
+                        *who != character || *map != packet.m || at.elapsed() >= LIVE_HEARTBEAT
+                    });
+                if !due {
+                    return;
+                }
                 match self.client.live(&token, &packet) {
-                    Ok(result) => self.record_live_result(character, packet.t, &result),
+                    Ok(result) => {
+                        self.live_last = Some((character.clone(), packet.m, Instant::now()));
+                        self.locate = false;
+                        self.record_live_result(character, packet.t, &result)
+                    }
                     Err(ApiError::Server { status: 401, .. }) => {
                         self.token = None;
                         self.tokens.clear();
@@ -419,6 +447,7 @@ impl Worker {
             self.client = Client::new(origin);
             self.state = UploadState::default();
             self.live_sent = None;
+            self.live_last = None;
             let _ = self.state.save(&self.paths.state);
         }
         self.config = config;

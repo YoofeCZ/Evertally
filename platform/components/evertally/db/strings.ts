@@ -58,7 +58,7 @@ const en = {
   // my route and guild
   myRoute: "My route", peopleSignIn: "Sign in to see your own route and your guild on the map.", peopleSignInButton: "Sign in",
   routeRange: "Period", range24: "24 hours", range7: "7 days", range30: "30 days", allCharacters: "All characters", refresh: "Refresh",
-  routeSummary: "{paths} stretches · {points} points", routeLast: "last seen {when}", routeLatest: "Show latest position", routeTruncated: "Only the newest stretches are shown.",
+  routeSummary: "{paths} stretches · {points} points", routeLast: "last seen {when}", routeLatest: "Show latest position", locateButton: "Where are you?", locateAsked: "Asked. The app answers within a few minutes if it is running and WoW is visible in the top-left corner of the screen.", routeTruncated: "Only the newest stretches are shown.",
   routeEmpty: "Turn on Website export, My character and My route in the addon, then run the paired Evertally Bridge. Live position updates while WoW is in the foreground. Route history uploads after /reload or logout.",
   routePrivate: "Only you see this route. It is kept for 30 days.", routeErase: "Delete my route", routeEraseAsk: "Delete all recorded route points? This cannot be undone.", routeErased: "Route deleted.", showPaths: "Show walked paths (turn off to see only the players)",
   playersLayer: "Players online", shareTab: "Who sees me", shareHeading: "Who can see my live position",
@@ -164,7 +164,7 @@ const cs: { [K in keyof typeof en]: (typeof en)[K] extends string ? string : { c
   // moje trasa a cech
   myRoute: "Moje trasa", peopleSignIn: "Přihlas se a uvidíš na mapě svoji trasu a svůj cech.", peopleSignInButton: "Přihlásit",
   routeRange: "Období", range24: "24 hodin", range7: "7 dní", range30: "30 dní", allCharacters: "Všechny postavy", refresh: "Obnovit",
-  routeSummary: "{paths} úseků · {points} bodů", routeLast: "naposledy {when}", routeLatest: "Ukázat poslední polohu", routeTruncated: "Zobrazují se jen nejnovější úseky.",
+  routeSummary: "{paths} úseků · {points} bodů", routeLast: "naposledy {when}", routeLatest: "Ukázat poslední polohu", locateButton: "Kde jsi?", locateAsked: "Žádost odeslána. Aplikace odpoví do pár minut, pokud běží a WoW je vidět v levém horním rohu obrazovky.", routeTruncated: "Zobrazují se jen nejnovější úseky.",
   routeEmpty: "V addonu zapni Webový export, Moji postavu a Moji trasu a spusť spárovaný Evertally Bridge. Živá poloha se přenáší, když je WoW v popředí. Historie trasy se nahraje po /reload nebo odhlášení.",
   routePrivate: "Tuhle trasu vidíš jen ty. Uchovává se 30 dní.", routeErase: "Smazat moji trasu", routeEraseAsk: "Smazat všechny zaznamenané body trasy? Nejde to vrátit.", routeErased: "Trasa smazána.", showPaths: "Zobrazit cesty, kudy se šlo (vypni a uvidíš jen hráče)",
   playersLayer: "Hráči online", shareTab: "Kdo mě vidí", shareHeading: "Kdo smí vidět moji živou polohu",

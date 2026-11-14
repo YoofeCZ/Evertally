@@ -5,8 +5,8 @@ import { discordConfigured, getSessionUser } from "./auth";
 import { SCOPES } from "./contracts";
 import { approvePairing, describePairing, deviceFromRequest, deviceUpload, listDevices, pollPairing, revokeDevice, startDevicePairing } from "./devices";
 import { ApiError } from "./policy";
-import {deviceLive} from "./live";
-import {ownLive} from "./people";
+import {deviceLive,requestLocate} from "./live";
+import {ownLast,ownLive} from "./people";
 import { getBinding } from "@/db";
 import { circleAction, circlesOverview, circleTrail, createCircle, joinCircle } from "./circles";
 import { answerFriend, getSharing, listFriends, requestFriend, setSharing, visiblePlayers } from "./sharing";
@@ -183,8 +183,9 @@ export async function handleApi(request: Request, operation: string, id?: string
       for(const circle of circles.circles)for(const member of circle.members)add(member.profileId,member.position);
       // what other accounts chose to show to friends, to signed-in visitors or to everyone
       const others=await visiblePlayers(db,user.id);
-      return json({own,peers:[...peers].map(([profileId,position])=>({profileId,...position})),others});
+      return json({own,last:await ownLast(db,user.id),peers:[...peers].map(([profileId,position])=>({profileId,...position})),others});
     }
+    if(operation==="locate"&&request.method==="POST")return json(await requestLocate(user.id));
     const hours = (fallback: number, max: number) => Math.min(Math.max(1, Number(params.get("hours")) || fallback), max);
     if (operation === "track" && request.method === "GET") return json(await myTrail(people(), user.id, { profileId: params.get("profile") || undefined, since: Math.floor(Date.now() / 1000) - hours(24, 720) * 3600 }));
     if (operation === "track") return json(await eraseMyTrail(people(), user.id, params.get("profile") || undefined));

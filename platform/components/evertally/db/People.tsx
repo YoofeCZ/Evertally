@@ -70,7 +70,7 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
   const [guilds, setGuilds] = useState<Guild[] | null>(null);
   const [circles, setCircles] = useState<Circle[] | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [liveData,setLiveData]=useState<{own:LivePoint[];peers:LivePoint[];others?:LivePoint[]}>({own:[],peers:[]});
+  const [liveData,setLiveData]=useState<{own:LivePoint[];peers:LivePoint[];others?:LivePoint[];last?:LivePoint[]}>({own:[],peers:[]});
   const [sharing, setSharingState] = useState<Sharing | null>(null);
   const [friendsData, setFriendsData] = useState<FriendsData | null>(null);
   const [failed, setFailed] = useState(false);
@@ -125,12 +125,12 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
           const data=await api<{players:LivePoint[]}>("/api/public-live");
           if(live)setLiveData({own:[],peers:[],others:data.players});
         }else{
-          const data=await api<{own:LivePoint[];peers:LivePoint[];others?:LivePoint[]}>("/api/live");
+          const data=await api<{own:LivePoint[];peers:LivePoint[];others?:LivePoint[];last?:LivePoint[]}>("/api/live");
           if(live){setLiveData(data);setLiveTrails(previous=>extendLive(previous,data.own));setOwnWho(previous=>{let next=previous;for(const p of data.own){const known=previous[p.profileId];if(!known||known.name!==(p.name??null)||known.classId!==(p.classId??null)){if(next===previous)next={...previous};next[p.profileId]={name:p.name??null,classId:p.classId??null};}}return next;});}
         }
       }catch{/* saved history remains usable offline; old live samples expire below */}finally{busy=false;}
     };
-    void update();const timer=setInterval(()=>void update(),signedIn?3000:5000);return()=>{live=false;clearInterval(timer);};
+    void update();const timer=setInterval(()=>void update(),signedIn?20000:30000);return()=>{live=false;clearInterval(timer);};
   },[wantRoute,wantGuild,wantPlayers,signedIn,user?.id]);
   const ownLive=useMemo(()=>signedIn?liveData.own.filter(p=>now-p.at<=30&&(!character||p.profileId===character)).sort((a,b)=>b.at-a.at):[],[liveData,now,character,signedIn]);
   // Refresh shared map data while the page is visible. This updates changes uploaded by other
@@ -239,13 +239,20 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
         const saved = known.get(key);
         if (tail && (!saved || tail.fix[0] >= saved.at)) known.set(key, { mapId: tail.mapId, x: tail.fix[1], y: tail.fix[2], at: tail.fix[0] });
       }
+      // the place the app sent on an event (zone change, /reload, "Where are you?"), not a live feed
+      for (const l of liveData.last ?? []) {
+        if (character && l.profileId !== character) continue;
+        const saved = known.get(l.profileId);
+        if (!saved || l.at >= saved.at) known.set(l.profileId, { mapId: l.mapId, x: l.x, y: l.y, at: l.at });
+      }
       for (const [key, here] of known) {
         if (ownLive.some(p => p.profileId === key)) continue;
         const at = place(here.mapId, here.x, here.y);
         if (!at) continue;
         const who = route?.characters.find(entry => entry.id === key);
-        const name = who?.name ?? ownWho[key]?.name ?? null;
-        const classId = who?.classId ?? ownWho[key]?.classId ?? null;
+        const sent = liveData.last?.find(l => l.profileId === key);
+        const name = who?.name ?? ownWho[key]?.name ?? sent?.name ?? null;
+        const classId = who?.classId ?? ownWho[key]?.classId ?? sent?.classId ?? null;
         out.push({ id: `me:${key}`, u: at[0], v: at[1], label: name ?? s.guildYou, sub: `${where(here.mapId)} · ${ago(here.at, now, lang, s.agoNow)}`, color: classColor(classId), self: true });
       }
     }
@@ -275,6 +282,7 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
 
   const fail = (error: unknown) => setNotice(error instanceof ApiFailure ? error.message : s.routeLoadFailed);
   const refresh = () => setBump(value => value + 1);
+  const askLocation = async () => { try { await api("/api/locate", { method: "POST" }); setNotice(s.locateAsked); } catch (error) { fail(error); } };
   const changeSharing = async (key: keyof Sharing, value: boolean) => {
     const before = sharing;
     setSharingState(previous => ({ ...(previous ?? { friends: false, signedIn: false, public: false }), [key]: value }));
@@ -335,9 +343,13 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
       const tail = lastFix(segments);
       if (tail && (!best || tail.fix[0] >= best.at)) best = { label: route?.characters.find(entry => entry.id === key)?.name ?? ownWho[key]?.name ?? s.guildYou, mapId: tail.mapId, x: tail.fix[1], y: tail.fix[2], at: tail.fix[0] };
     }
+    for (const l of liveData.last ?? []) {
+      if (character && l.profileId !== character) continue;
+      if (!best || l.at >= best.at) best = { label: l.name ?? s.guildYou, mapId: l.mapId, x: l.x, y: l.y, at: l.at };
+    }
     const at = best && place(best.mapId, best.x, best.y);
     return best && at ? { label: best.label, u: at[0], v: at[1] } : null;
-  }, [newest, place, route, s.guildYou, ownLive, liveTrails, character, ownWho]);
+  }, [newest, place, route, s.guildYou, ownLive, liveTrails, liveData, character, ownWho]);
   /** Everyone of a guild or group (value "guild:ID" / "circle:ID") whose position is known, with the account's own last position. */
   const positionsFor = useCallback((audience: string) => {
     const [kind, id] = audience.split(":");
@@ -364,7 +376,7 @@ export function usePeople({ user, layers, world, zoneName, flyTo }: {
       showPaths, setShowPaths, sharing, changeSharing, friends: friendsData, askFriend, answerFriend,
       gameFriends:(liveData.others??[]).filter(p=>(p.audience==="friends"||p.audience==="group")&&now-p.at<=30),
       user, layers, route, shownPaths, guilds, failed, notice, hours, setHours, character, setCharacter, picked, memberTrails, now,
-      liveCount:ownLive.length,refresh, eraseRoute, membership, toggleMemberRoute, flyToLatest, where, circles, profiles, createGroup, joinGroup, groupAction, toggleCircleRoute, flyToPosition,
+      liveCount:ownLive.length,refresh, askLocation, eraseRoute, membership, toggleMemberRoute, flyToLatest, where, circles, profiles, createGroup, joinGroup, groupAction, toggleCircleRoute, flyToPosition,
       placeOf: (position: { mapId: number; x: number; y: number }) => place(position.mapId, position.x, position.y), hasOrigin: Boolean(latestPlace),
       flyToMember: (member: Member) => { if (!member.position) return; const at = place(member.position.mapId, member.position.x, member.position.y); if (at) flyTo({ points: [at] }); },
     },
@@ -486,6 +498,7 @@ export function PeoplePanel({ panel, signIn, onRoute, onLayer }: { panel: People
                       {route?.truncated && <p className="muted small">{s.routeTruncated}</p>}
                       <div className="btn-row">
                         <button type="button" className="btn btn-ghost btn-sm" onClick={panel.flyToLatest}>{s.routeLatest}</button>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void panel.askLocation()}>{s.locateButton}</button>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={panel.refresh}>{s.refresh}</button>
                         <button type="button" className="btn btn-ghost btn-sm danger" onClick={() => void panel.eraseRoute()}><Icon name="trash" size={13} /> {s.routeErase}</button>
                       </div>

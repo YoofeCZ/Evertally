@@ -335,5 +335,7 @@ export async function deviceForum(db: Db, userId: string, raw: unknown) {
   const input = deviceForumInput.safeParse(raw);
   if (!input.success) throw new ApiError("invalid_request", "Invalid forum request.", 400);
   const report = await applyOutbox(db, userId, input.data.outbox);
-  return { ...report, ...await addonSnapshot(db) };
+  // the website asked "where are you?": the app answers with one position instead of sending them all the time
+  const locate = (await db.prepare("SELECT 1 AS yes FROM et_locate_requests WHERE user_id=?").bind(userId).first()) !== null;
+  return { ...report, ...await addonSnapshot(db), locate };
 }
