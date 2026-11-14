@@ -118,3 +118,44 @@ A.SendArmorySnapshot = function() lastSent = -1e9; send() end
 A.On("PLAYER_LOGIN", function() later() end)
 A.On("PLAYER_EQUIPMENT_CHANGED", function() later() end)
 A.On("CHARACTER_POINTS_CHANGED", function() later() end)
+
+--- The quest log as the game shows it (Forever: C_QuestLog): {id, level, done, title, objectives={{have, need, text}}}.
+--- Headers and hidden entries are skipped; quests under a collapsed header are not listed (nothing is expanded for this).
+function A.CollectQuests(limit)
+    local out = {}
+    if not C_QuestLog or type(C_QuestLog.GetNumQuestLogEntries) ~= "function" or type(C_QuestLog.GetInfo) ~= "function" then return out end
+    local shown = A.Number(A.Call(C_QuestLog.GetNumQuestLogEntries), 0, 300) or 0
+    for index = 1, shown do
+        local info = A.Call(C_QuestLog.GetInfo, index)
+        local id = type(info) == "table" and A.Number(A.Field(info, "questID"), 1, 100000000)
+        if id and A.Field(info, "isHeader") ~= true and A.Field(info, "isHidden") ~= true and #out < (limit or 35) then
+            local objectives = {}
+            local list = type(C_QuestLog.GetQuestObjectives) == "function" and A.Call(C_QuestLog.GetQuestObjectives, id) or nil
+            for _, o in ipairs(type(list) == "table" and list or {}) do
+                if type(o) == "table" and #objectives < 6 then
+                    objectives[#objectives + 1] = {A.Number(A.Field(o, "numFulfilled"), 0, 100000) or 0, A.Number(A.Field(o, "numRequired"), 0, 100000) or 0, A.Text(A.Field(o, "text"), 80) or ""}
+                end
+            end
+            local done = type(C_QuestLog.IsComplete) == "function" and A.Call(C_QuestLog.IsComplete, id) == true
+            out[#out + 1] = {id = id, level = A.Number(A.Field(info, "level"), 0, 200) or 0, done = done, title = A.Text(A.Field(info, "title"), 120) or ("#" .. id), objectives = objectives}
+        end
+    end
+    return out
+end
+
+--- Reputations as the game lists them (Forever: C_Reputation): {id, name, reaction 1-8, standing, min, max}. Headers without
+--- their own reputation are skipped; factions under a collapsed header are not listed.
+function A.CollectReputations(limit)
+    local out = {}
+    if not C_Reputation or type(C_Reputation.GetNumFactions) ~= "function" or type(C_Reputation.GetFactionDataByIndex) ~= "function" then return out end
+    for index = 1, A.Number(A.Call(C_Reputation.GetNumFactions), 0, 400) or 0 do
+        local f = A.Call(C_Reputation.GetFactionDataByIndex, index)
+        local id = type(f) == "table" and A.Number(A.Field(f, "factionID"), 1, 1000000)
+        if id and (A.Field(f, "isHeader") ~= true or A.Field(f, "isHeaderWithRep") == true) and #out < (limit or 60) then
+            out[#out + 1] = {id = id, name = A.Text(A.Field(f, "name"), 60) or ("#" .. id), reaction = A.Number(A.Field(f, "reaction"), 1, 8) or 4,
+                standing = A.Number(A.Field(f, "currentStanding"), -100000, 1000000) or 0,
+                min = A.Number(A.Field(f, "currentReactionThreshold"), -100000, 1000000) or 0, max = A.Number(A.Field(f, "nextReactionThreshold"), -100000, 1000000) or 0}
+        end
+    end
+    return out
+end

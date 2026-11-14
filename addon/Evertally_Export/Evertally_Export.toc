@@ -3,6 +3,6 @@
 ## IconTexture: Interface\AddOns\Evertally\Media\Logo
 ## Group: Evertally
 ## Notes: Separate optional export storage. No network access.
-## Version: 0.9.27
+## Version: 0.9.28
 ## SavedVariables: EvertallyExportDB
 Export.lua

@@ -93,13 +93,13 @@ local function ensurePopup()
     if popup then return popup end
     local k = K()
     local f = CreateFrame("Frame", "EvertallySocialPopup", UIParent)
-    f:SetSize(440, 360); f:SetPoint("TOP", UIParent, "TOP", 0, -130); f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
+    f:SetSize(440, 400); f:SetPoint("TOP", UIParent, "TOP", 0, -130); f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
     A.NativeFrame(f, k.C)
     f.title = k.label(f, 15, k.C.gold); f.title:SetPoint("TOPLEFT", 18, -16); f.title:SetWidth(404)
     f.body = k.label(f, 12, k.C.mist); f.body:SetPoint("TOPLEFT", 18, -46); f.body:SetWidth(404); f.body:SetJustifyV("TOP")
     f.checks, f.buttons = {}, {}
-    for i = 1, 6 do
-        local b = k.Button(f, nil, 404, "ghost", function() end); b:SetPoint("TOPLEFT", 18, -122 - (i - 1) * 32); b:Hide(); f.checks[i] = b
+    for i = 1, 8 do
+        local b = k.Button(f, nil, 404, "ghost", function() end); b:SetPoint("TOPLEFT", 18, -110 - (i - 1) * 28); b:SetHeight(26); b:Hide(); f.checks[i] = b
     end
     for i = 1, 4 do f.buttons[i] = k.Button(f, nil, 98, i == 1 and "primary" or "ghost", function() end); f.buttons[i]:Hide() end
     popup = f
@@ -121,7 +121,7 @@ function A.SocialShowPopup(spec)
         else
             layoutItems(f, {})
             f.body:SetPoint("TOPLEFT", 18, -46); f.body:SetText(spec.body or "")
-            f:SetHeight(360)
+            f:SetHeight(400)
         end
         local selected = {}
         for i, b in ipairs(f.checks) do
@@ -234,15 +234,15 @@ if C_Timer and type(C_Timer.NewTicker) == "function" then C_Timer.NewTicker(0.5,
 -- ---------------------------------------------------------------- reactions to what happens
 local function kindsText(kinds)
     local out = {}
-    for _, key in ipairs({"i", "s", "t", "p", "g", "w"}) do
-        if kinds:find(key, 1, true) then out[#out + 1] = A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", g = "socialGold", w = "socialWeb"})[key]) end
+    for _, key in ipairs({"i", "s", "t", "p", "q", "r", "g", "w"}) do
+        if kinds:find(key, 1, true) then out[#out + 1] = A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", q = "socialQuests", r = "socialRep", g = "socialGold", w = "socialWeb"})[key]) end
     end
     return table.concat(out, ", ")
 end
 local function askPopup(request)
     local checks = {}
-    local keys = {"i", "s", "t", "p", "g", "w"}
-    local labels = {i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", g = "socialGold", w = "socialWebAsk"}
+    local keys = {"i", "s", "t", "p", "q", "r", "g", "w"}
+    local labels = {i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", q = "socialQuests", r = "socialRep", g = "socialGold", w = "socialWebAsk"}
     for _, key in ipairs(keys) do
         -- gold and the website copy are never ticked for you
         if request.kinds:find(key, 1, true) then checks[#checks + 1] = {key = key, label = A.L(labels[key]), on = key ~= "g" and key ~= "w"} end
@@ -357,7 +357,7 @@ function openViewer(view)
             f.pointChip:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
             f.tabs = {}
             local previous
-            for _, mode in ipairs({"equipped", "stats", "talents", "bags", "professions", "gold"}) do
+            for _, mode in ipairs({"equipped", "stats", "talents", "bags", "professions", "quests", "reputation", "gold"}) do
                 local chip = k.Chip(f, function() f.mode = mode; A.SocialRefreshViewer() end)
                 if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", 18, -66) end
                 f.tabs[mode] = chip; previous = chip
@@ -388,6 +388,13 @@ function openViewer(view)
         viewer:Show(); A.SocialRefreshViewer()
     end)
     if not ok then A.errors.social_viewer = (A.errors.social_viewer or 0) + 1; A.lastUIError = tostring(err) end
+end
+
+-- the game's own words for a standing (Hated ... Exalted), in the client's language
+local STANDINGS = {"Hated", "Hostile", "Unfriendly", "Neutral", "Friendly", "Honored", "Revered", "Exalted"}
+local function standingName(reaction)
+    reaction = A.Number(reaction, 1, 8) or 4
+    return A.Text(rawget(_G, "FACTION_STANDING_LABEL" .. reaction), 30) or STANDINGS[reaction]
 end
 
 local function cycle(map, id, stack)
@@ -457,6 +464,25 @@ function A.SocialRefreshViewer()
             rows[#rows + 1] = {title = p.name ~= "" and p.name or ("#" .. p.id), sub = string.format(A.L("viewRecipes"), #p.recipes), icon = k.ICON.profession, right = string.format("%s/%s", p.skill or "?", p.max or "?")}
         end
         f.list.SetItems(rows, A.L("viewNoProf"))
+    elseif f.mode == "quests" then
+        local rows = {}
+        for _, q in ipairs(v.quests or {}) do
+            local bits = {}
+            for _, o in ipairs(q.objectives) do bits[#bits + 1] = o[2] > 0 and string.format("%d/%d %s", o[1], o[2], plain(o[3])) or plain(o[3]) end
+            local done = q.done or (#q.objectives > 0 and (function() for _, o in ipairs(q.objectives) do if o[1] < o[2] then return false end end return true end)())
+            rows[#rows + 1] = {title = string.format("[%d] %s", q.level, plain(q.title)), sub = done and A.L("viewQuestDone") or (#bits > 0 and table.concat(bits, "  ·  ") or A.L("viewQuestNoGoals")),
+                icon = done and k.ICON.one or k.ICON.quest, tag = done and A.Upper(A.L("viewQuestReady")) or nil, tagColor = k.C.green}
+        end
+        f.list.SetItems(rows, A.L("viewNoQuests"))
+    elseif f.mode == "reputation" then
+        local rows = {}
+        for _, r in ipairs(v.reputations or {}) do
+            local span = (r.max or 0) - (r.min or 0)
+            local into = (r.standing or 0) - (r.min or 0)
+            rows[#rows + 1] = {title = plain(r.name), sub = standingName(r.reaction) .. (span > 0 and string.format("  ·  %d/%d", into, span) or ""), icon = k.ICON.community or k.ICON.peers,
+                right = standingName(r.reaction)}
+        end
+        f.list.SetItems(rows, A.L("viewNoRep"))
     else
         f.list.SetItems({{title = v.gold and money(v.gold) or A.L("viewNoGold"), sub = A.L("socialGold"), icon = k.ICON.vendor}}, A.L("noData"))
     end
@@ -858,9 +884,9 @@ function A.BuildSocialPage(host, k)
         if name then page.name:SetText(name..((A.Text(realm,80) or "")~="" and ("-"..A.Text(realm,80)) or ""))end
     end);page.target:SetPoint("TOPLEFT",80,-77)
     page.permissionTitle=k.label(form,12,heading);page.permissionTitle:SetPoint("TOPLEFT",14,-117)
-    page.kinds={i=true,s=true,t=true,p=true,g=false,w=A.DefaultLookKinds():find("w",1,true)~=nil};page.kindButtons={}
+    page.kinds={i=true,s=true,t=true,p=true,q=true,r=true,g=false,w=A.DefaultLookKinds():find("w",1,true)~=nil};page.kindButtons={}
     local last
-    for n,key in ipairs({"i","s","t","p","g","w"})do
+    for n,key in ipairs({"i","s","t","p","q","r","g","w"})do
         local chip=k.Chip(form,function()page.kinds[key]=not page.kinds[key];A.RefreshUI()end)
         if n==5 then chip:SetPoint("TOPLEFT",14,-167)elseif last then chip:SetPoint("LEFT",last,"RIGHT",5,0)else chip:SetPoint("TOPLEFT",14,-141)end
         page.kindButtons[key]=chip;last=chip
@@ -872,7 +898,7 @@ function A.BuildSocialPage(host, k)
         if who~="" and A.OpenMarkPicker then A.OpenMarkPicker(form,page.markButton,who,function() A.RefreshUI() end) end
     end);page.markButton:SetPoint("TOPLEFT",204,-77)
     page.sendRequest=k.Button(form,"socialSend",180,"primary",function()
-        local chosen="";for _,key in ipairs({"i","s","t","p","g","w"})do if page.kinds[key]then chosen=chosen..key end end
+        local chosen="";for _,key in ipairs({"i","s","t","p","q","r","g","w"})do if page.kinds[key]then chosen=chosen..key end end
         local ok,err=A.RequestInspect(page.name:GetText() or "",chosen)
         page.status:SetText(ok and string.format(A.L("socialWaiting"),plain(base(page.name:GetText() or ""))) or A.L("socialErr_"..tostring(err)));A.RefreshUI()
     end);page.sendRequest:SetPoint("BOTTOMLEFT",14,13)
@@ -943,7 +969,7 @@ function A.BuildSocialPage(host, k)
         page.list:ClearAllPoints();page.list:SetPoint("TOPLEFT",page.secondaryLeaf,"TOPLEFT",10,-(mode=="proposals" and 12 or mode=="meets" and 214 or mode=="privacy" and 90 or liveTop));page.list:SetPoint("BOTTOMRIGHT",page.secondaryLeaf,"BOTTOMRIGHT",-10,10)
         local webReady = A.DefaultLookKinds():find("w", 1, true) ~= nil
         for key, chip in pairs(page.kindButtons) do
-            chip.SetLabel(A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", g = "socialGold", w = "socialWeb"})[key]))
+            chip.SetLabel(A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", q = "socialQuests", r = "socialRep", g = "socialGold", w = "socialWeb"})[key]))
             chip.SetOn(page.kinds[key] and (key ~= "w" or webReady)); chip:SetShown(key ~= "w" or webReady)
         end
         page.rosterTitle:SetText(A.L("socialRoster")); page.formTitle:SetText(A.L("socialAsk")); page.viewsTitle:SetText(A.L("socialViewsTitle"))
@@ -1033,7 +1059,8 @@ local text = {
         socialAllowOnce = "Allow once", socialAllowAlways = "Always", socialStats = "Stats", socialTalents = "Talents", socialWeb = "Keep on their website",
         socialWebAsk = "They may keep this on their Evertally website", socialTrustedTitle = "Allowed for good:", socialRevoke = "Revoke", socialRevoked = "revoked",
         socialPermissionNote = "They choose what to show. Gold is separate.",
-        viewTab_stats = "Stats", viewTab_talents = "Talents", viewNoStats = "No stats shown.", viewNoTalents = "No talents shown.", viewTalentPoints = "%d talents with points",
+        viewTab_stats = "Stats", viewTab_talents = "Talents", viewTab_quests = "Quests", viewTab_reputation = "Reputation", socialQuests = "Quests", socialRep = "Reputation",
+        viewNoQuests = "No quests shown, or the quest log is empty.", viewNoRep = "No reputations shown.", viewQuestDone = "All objectives done: ready to turn in.", viewQuestReady = "done", viewQuestNoGoals = "No objectives to count.", viewNoStats = "No stats shown.", viewNoTalents = "No talents shown.", viewTalentPoints = "%d talents with points",
         viewTitle = "%s", viewReceived = "received %s", viewTab_equipped = "Equipped", viewTab_bags = "Bags", viewTab_professions = "Professions", viewTab_gold = "Gold",
         viewPointInfo = "Point at an item: click it and it blinks green in their open bags.", viewPoint = "Show mode", viewPointed = "Showing %s to %s", viewPointHint = "SHOW MODE is on: click an item and it blinks green in THEIR open bags (any bag addon) and they get a chat message. Click \"Show mode\" again to go back to choosing wanted items.",
         viewWant = "WANT", viewOffer = "OFFER", viewMyOffer = "My offer (my bags)", viewGoldOffer = "Gold I offer", viewNote = "Note", viewSend = "Send proposal", viewSent = "Proposal sent to %s.",
@@ -1070,7 +1097,8 @@ local text = {
         socialAllowOnce = "Jednou", socialAllowAlways = "Vždy", socialStats = "Statistiky", socialTalents = "Talenty", socialWeb = "Nechat na jejich webu",
         socialWebAsk = "Smí si to nechat na webu Evertally", socialTrustedTitle = "Povoleno trvale:", socialRevoke = "Odvolat", socialRevoked = "odvoláno",
         socialPermissionNote = "Hráč rozhodne, co ukáže. Zlato se žádá zvlášť.",
-        viewTab_stats = "Statistiky", viewTab_talents = "Talenty", viewNoStats = "Statistiky neukázal.", viewNoTalents = "Talenty neukázal.", viewTalentPoints = "Talentů s body: %d",
+        viewTab_stats = "Statistiky", viewTab_talents = "Talenty", viewTab_quests = "Questy", viewTab_reputation = "Reputace", socialQuests = "Questy", socialRep = "Reputace",
+        viewNoQuests = "Questy neukázal, nebo má prázdný quest log.", viewNoRep = "Reputace neukázal.", viewQuestDone = "Všechny úkoly splněné: připraveno k odevzdání.", viewQuestReady = "hotovo", viewQuestNoGoals = "Žádné úkoly k počítání.", viewNoStats = "Statistiky neukázal.", viewNoTalents = "Talenty neukázal.", viewTalentPoints = "Talentů s body: %d",
         viewTitle = "%s", viewReceived = "přijato %s", viewTab_equipped = "Nasazené", viewTab_bags = "Tašky", viewTab_professions = "Profese", viewTab_gold = "Zlato",
         viewPointInfo = "Ukaž předmět: klikni na něj a v jeho otevřených taškách zableská zeleně.", viewPoint = "Ukazovat", viewPointed = "Ukazuji %s hráči %s", viewPointHint = "REŽIM UKAZOVÁNÍ je zapnutý: klikni na předmět a v JEHO otevřených taškách (i v addonech na tašky) zableská zeleně a přijde mu zpráva do chatu. Dalším klikem na \"Ukazovat\" se vrátíš k výběru chtěných předmětů.",
         viewWant = "CHCI", viewOffer = "NABÍZÍM", viewMyOffer = "Moje nabídka (moje tašky)", viewGoldOffer = "Zlato, které nabízím", viewNote = "Poznámka", viewSend = "Poslat návrh", viewSent = "Návrh odeslán hráči %s.",

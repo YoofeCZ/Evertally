@@ -999,6 +999,59 @@ class SocialTests(unittest.TestCase):
         self.deliver(self.A, self.B, "Fixture Hero-Fixture Realm")
         return ident
 
+    def quest_log(self, lua):
+        # the quest log as Forever's C_QuestLog gives it: a header, two quests (one finished), a hidden quest; and reputations
+        lua.execute("""
+        LOG={{title="Elwynn Forest",questID=0,level=0,isHeader=true},
+             {title="Kobold Camp Cleanup",questID=7,level=7,isHeader=false},
+             {title="Wolves Across the Border",questID=33,level=6,isHeader=false},
+             {title="Hidden bookkeeping",questID=9999,level=1,isHeader=false,isHidden=true}}
+        OBJ={[7]={{text="Kobold Vermin slain: 4/10",numFulfilled=4,numRequired=10,finished=false}},
+             [33]={{text="Tough Wolf Meat: 8/8",numFulfilled=8,numRequired=8,finished=true}}}
+        C_QuestLog={GetNumQuestLogEntries=function() return #LOG,3 end,GetInfo=function(i) return LOG[i] end,
+            GetQuestObjectives=function(id) return OBJ[id] or {} end,IsComplete=function(id) return id==33 end}
+        C_Reputation={GetNumFactions=function() return 3 end,GetFactionDataByIndex=function(i) return ({
+            {factionID=1118,name="Classic",isHeader=true,isHeaderWithRep=false},
+            {factionID=72,name="Stormwind",reaction=5,currentStanding=4200,currentReactionThreshold=3000,nextReactionThreshold=9000,isHeader=false},
+            {factionID=47,name="Ironforge",reaction=4,currentStanding=0,currentReactionThreshold=0,nextReactionThreshold=3000,isHeader=false}})[i] end}
+        """)
+
+    def test_inspect_shows_quests_with_objectives_and_reputations_when_allowed(self):
+        self.quest_log(self.lua_b)
+        ident = self.ask("qr")
+        self.assertEqual(self.b.SocialRequests()[ident].kinds, "qr")
+        ok, state = self.b.AnswerRequest(ident, "qr")
+        self.assertEqual((ok, state), (True, "allowed"))
+        self.deliver(self.B, self.A, "Other-Fixture Realm")
+        view = self.a.social.views[1]
+        quests = [view.quests[i] for i in range(1, len(view.quests) + 1)]
+        self.assertEqual([(q.id, q.level, q.done, str(q.title)) for q in quests],
+                         [(7, 7, False, "Kobold Camp Cleanup"), (33, 6, True, "Wolves Across the Border")], "no header, no hidden quest")
+        self.assertEqual([quests[0].objectives[1][i] for i in (1, 2)], [4, 10])
+        self.assertIn("Kobold Vermin slain", str(quests[0].objectives[1][3]))
+        reps = [view.reputations[i] for i in range(1, len(view.reputations) + 1)]
+        self.assertEqual([(r.id, str(r.name), r.reaction, r.standing, r.min, r.max) for r in reps],
+                         [(72, "Stormwind", 5, 4200, 3000, 9000), (47, "Ironforge", 4, 0, 0, 3000)], "a header without its own reputation is skipped")
+        self.assertEqual(len(view.equipped), 0, "gear was not asked for")
+
+    def test_quests_and_reputations_stay_out_unless_ticked_and_never_reach_the_website(self):
+        self.quest_log(self.lua_b)
+        self.a.SetWeb(True)
+        ident = self.ask("iqrw")
+        self.b.AnswerRequest(ident, "iw")   # the player shows the gear and lets the asker keep it, but not quests or reputations
+        self.deliver(self.B, self.A, "Other-Fixture Realm")
+        view = self.a.social.views[1]
+        self.assertEqual(len(view.quests), 0); self.assertEqual(len(view.reputations), 0)
+        self.a.social.outgoing = self.lua_a.table()
+        self.lua_a.execute("EvertallyExportDB.events={}")
+        ident = self.ask("qrw")
+        self.b.AnswerRequest(ident, "qrw")
+        self.deliver(self.B, self.A, "Other-Fixture Realm")
+        copies = [e for e in self.lua_a.globals().EvertallyExportDB.events.values() if e.kind == "armory.view"]
+        self.assertTrue(copies, "the website copy is still recorded")
+        self.assertNotIn("q", str(copies[-1].payload.kinds)); self.assertNotIn("r", str(copies[-1].payload.kinds))
+        self.assertEqual(self.a.DefaultLookKinds(), "istpqrw", "a new request asks for quests and reputations too")
+
     def test_inspect_waits_for_consent_and_sends_only_what_was_allowed(self):
         ident = self.ask("ipg")
         incoming = self.b.SocialRequests()[ident]

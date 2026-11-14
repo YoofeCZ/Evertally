@@ -10,7 +10,9 @@ local _, A = ...
 local CHUNK,MAX_PARTS,MAX_PAYLOAD=200,60,12000
 local REQUEST_TTL,OUTGOING_TTL,ASSEMBLY_TTL,COOLDOWN,SPAM_GAP=120,90,30,45,20
 local MAX_VIEWS,MAX_PROPOSALS,MAX_MEETS,MAX_INCOMING=8,30,20,3
-local KIND_ORDER={"i","s","t","p","g","w"} -- gear+bags, stats, talents, professions, gold, keep-on-website flag
+-- gear+bags, stats, talents, professions, quests, reputations, gold, keep-on-website flag. An older addon ignores the letters it
+-- does not know, so it simply answers without quests or reputations.
+local KIND_ORDER={"i","s","t","p","q","r","g","w"}
 local S={incoming={},outgoing={},views={},proposals={},meets={},shown={},cooldown={},lastSeen={},assembling={},listeners={},deferred={}}
 A.social=S
 A.socialHandlers={} -- message types owned by other files (Live.lua: L, E, P), called as fn(channel, sender, message)
@@ -129,6 +131,21 @@ local function talentsLine()
     end
     return table.concat(trees,"~")
 end
+-- id:level:done:title:have*need*text,...  for every quest of the log
+local function questsLine()
+    local out={}
+    for _,q in ipairs(A.CollectQuests and A.CollectQuests() or {}) do
+        local objectives={};for _,o in ipairs(q.objectives) do objectives[#objectives+1]=string.format("%d*%d*%s",o[1],o[2],field(o[3])) end
+        out[#out+1]=string.format("%d:%d:%d:%s:%s",q.id,q.level,q.done and 1 or 0,field(q.title),table.concat(objectives,","))
+    end
+    return table.concat(out,"~")
+end
+-- id:reaction:standing:min:max:name for every listed faction
+local function reputationsLine()
+    local out={}
+    for _,f in ipairs(A.CollectReputations and A.CollectReputations() or {}) do out[#out+1]=string.format("%d:%d:%d:%d:%d:%s",f.id,f.reaction,f.standing,f.min,f.max,field(f.name)) end
+    return table.concat(out,"~")
+end
 local function inspectPayload(kinds)
     local parts={"I1"}
     if kinds:find("i",1,true) or kinds:find("s",1,true) or kinds:find("t",1,true) or kinds:find("p",1,true) then
@@ -143,11 +160,13 @@ local function inspectPayload(kinds)
     if kinds:find("s",1,true) then parts[#parts+1]="S="..statsLine() end
     if kinds:find("t",1,true) then parts[#parts+1]="T="..talentsLine() end
     if kinds:find("g",1,true) then parts[#parts+1]="G="..string.format("%d",A.Number(A.Call(GetMoney),0,1e12) or 0) end
+    if kinds:find("q",1,true) then parts[#parts+1]="Q="..questsLine() end
+    if kinds:find("r",1,true) then parts[#parts+1]="R="..reputationsLine() end
     if kinds:find("p",1,true) then parts[#parts+1]="P="..ownProfessions(MAX_PAYLOAD-#table.concat(parts,";")-200) end
     return table.concat(parts,";")
 end
 local function parseInspect(text)
-    local out={equipped={},bags={},professions={},stats={},talents={}}
+    local out={equipped={},bags={},professions={},stats={},talents={},quests={},reputations={}}
     local statKeys={};for _,key in ipairs(A.ArmoryStatKeys or {}) do statKeys[key]=true end
     for chunk in text:gmatch("[^;]+") do
         local tag,value=chunk:match("^(%u)=(.*)$")
@@ -182,6 +201,26 @@ local function parseInspect(text)
                 if id>=1 and id<=10000000 and n>=1 and n<=100000 and #out.bags<400 then out.bags[#out.bags+1]={id,n} end
             end
         elseif tag=="G" then out.gold=A.Number(tonumber(value),0,1e12)
+        elseif tag=="Q" then
+            for entry in value:gmatch("[^~]+") do
+                local id,level,done,title,list=entry:match("^(%d+):(%d+):([01]):([^:]*):(.*)$")
+                id=tonumber(id)
+                if id and id>=1 and id<=100000000 and #out.quests<40 then
+                    local objectives={}
+                    for have,need,text in list:gmatch("(%d+)%*(%d+)%*([^,]*)") do
+                        if #objectives<6 then objectives[#objectives+1]={A.Number(tonumber(have),0,100000) or 0,A.Number(tonumber(need),0,100000) or 0,clean(text,40)} end
+                    end
+                    out.quests[#out.quests+1]={id=id,level=A.Number(tonumber(level),0,200) or 0,done=done=="1",title=clean(title,40),objectives=objectives}
+                end
+            end
+        elseif tag=="R" then
+            for entry in value:gmatch("[^~]+") do
+                local id,reaction,standing,low,high,name=entry:match("^(%d+):(%d+):(%-?%d+):(%-?%d+):(%-?%d+):(.*)$")
+                id=tonumber(id)
+                if id and id>=1 and id<=1000000 and #out.reputations<60 then
+                    out.reputations[#out.reputations+1]={id=id,reaction=A.Number(tonumber(reaction),1,8) or 4,standing=tonumber(standing),min=tonumber(low),max=tonumber(high),name=clean(name,40)}
+                end
+            end
         elseif tag=="P" then
             for entry in value:gmatch("[^~]+") do
                 local pid,skill,max,name,recipes=entry:match("^(%d+):(%-?%d+):(%-?%d+):([^:]*):(.*)$")
@@ -231,9 +270,9 @@ end
 --- The kinds a request starts with: everything but gold, plus keeping it on the website when that export is on.
 function A.DefaultLookKinds()
     local web=A.db and A.db.settings.web==true and A.db.settings.scopes and A.db.settings.scopes.own_character==true
-    return "istp"..(web and "w" or "")
+    return "istpqr"..(web and "w" or "")
 end
---- Asks `target` ("Name" or "Name-Realm") to show `kinds`: letters i (gear and bags), s (stats), t (talents), p (professions),
+--- Asks `target` ("Name" or "Name-Realm") to show `kinds`: letters i (gear and bags), s (stats), t (talents), p (professions), q (quests), r (reputations),
 --- g (gold) and w (the asker may keep it on their Evertally website). "w" alone is not a request.
 function A.RequestInspect(target,kinds)
     target=clean(target,80);kinds=kindsOnly(kinds or A.DefaultLookKinds())
@@ -350,13 +389,13 @@ local function forwardArmory(view,data)
     for _,e in ipairs(data.equipped) do equipped[#equipped+1]={slot=e[1],itemId=e[2]} end
     for _,e in ipairs(data.bags) do bags[#bags+1]={itemId=e[1],count=e[2]} end
     for _,p in ipairs(data.professions) do professions[#professions+1]={id=p.id,name=p.name,skill=p.skill,max=p.max} end
-    local kinds=(kindsOnly(view.kinds):gsub("[gw]",""))
+    local kinds=(kindsOnly(view.kinds):gsub("[gwqr]",""))
     A.Record("armory.view",{subject={name=name,realm=realm,classId=header.classId,raceId=header.raceId,level=header.level},mode=view.mode or "once",kinds=kinds,
         equipped=equipped,bags=bags,stats=data.stats,talents=data.talents,professions=professions},"api_snapshot",nil,true)
 end
 local function storeView(entry,text)
     local data=parseInspect(text)
-    local view={id=entry.id,sender=entry.target,kinds=entry.kinds,at=A.Now(),mode=entry.mode,header=data.header,equipped=data.equipped,bags=data.bags,gold=data.gold,professions=data.professions,stats=data.stats,talents=data.talents}
+    local view={id=entry.id,sender=entry.target,kinds=entry.kinds,at=A.Now(),mode=entry.mode,header=data.header,equipped=data.equipped,bags=data.bags,gold=data.gold,professions=data.professions,stats=data.stats,talents=data.talents,quests=data.quests,reputations=data.reputations}
     table.insert(S.views,1,view);while #S.views>MAX_VIEWS do table.remove(S.views) end
     entry.status="done";forwardArmory(view,data);emit("view",view)
 end

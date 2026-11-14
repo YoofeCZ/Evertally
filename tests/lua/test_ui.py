@@ -274,6 +274,27 @@ class WindowTests(unittest.TestCase):
         self.assertFalse(viewer.grid.shown); self.assertTrue(viewer.list.shown)
         self.assertIsNone(self.a.errors.social_viewer)
 
+    def test_the_viewer_lists_quests_with_progress_and_reputations_with_standing(self):
+        self.a.SetWeb(True); self.a.OpenUI()
+        ok, ident = self.a.RequestInspect("Other-Fixture Realm", "qr")
+        self.a.ReceiveMessage("Evtly1", "S|A|%s|qr|1" % ident, "WHISPER", "Other-Fixture Realm")
+        self.a.ReceiveMessage("Evtly1", "S|D|%s|1|1|I1;Q=7:7:0:Kobold Camp Cleanup:4*10*Kobold Vermin slain 4/10~33:6:1:Wolves Across the Border:8*8*Tough Wolf Meat 8/8;"
+                              "R=72:5:4200:3000:9000:Stormwind~47:4:0:0:3000:Ironforge" % ident, "WHISPER", "Other-Fixture Realm")
+        viewer = self.lua.globals().EvertallyViewFrame
+        self.assertIsNone(self.a.errors.social_viewer, self.a.lastUIError)
+        viewer.tabs.quests.scripts.OnClick(viewer.tabs.quests)
+        rows = lst(viewer.list["items"])
+        self.assertEqual([str(r.title) for r in rows], ["[7] Kobold Camp Cleanup", "[6] Wolves Across the Border"])
+        self.assertIn("4/10", str(rows[0].sub))
+        self.assertEqual(str(rows[1].sub), str(self.a.L("viewQuestDone")), "every objective done: ready to turn in")
+        self.assertTrue(viewer.list.shown and not viewer.grid.shown)
+        viewer.tabs.reputation.scripts.OnClick(viewer.tabs.reputation)
+        rows = lst(viewer.list["items"])
+        self.assertEqual([str(r.title) for r in rows], ["Stormwind", "Ironforge"])
+        self.assertEqual(str(rows[0].right), "Friendly")
+        self.assertIn("1200/6000", str(rows[0].sub), "standing within the current level")
+        self.assertIsNone(self.a.errors.social_viewer, self.a.lastUIError)
+
     def test_the_viewer_filters_by_name_sorts_and_groups_bags(self):
         self.a.SetWeb(True); self.a.OpenUI()
         ok, ident = self.a.RequestInspect("Other-Fixture Realm", "ip")
