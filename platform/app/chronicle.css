@@ -413,3 +413,17 @@ kbd { padding: 2px 8px; border-radius: 6px; border: 1px solid var(--ring-strong)
   .chr-lanes { grid-template-columns: 96px 1fr; }
   .chr-log td:nth-child(4), .chr-log th:nth-child(4) { display: none; }
 }
+
+/* the start page: the account's own characters */
+.chr-pick { margin-bottom: 22px; padding: 22px 24px; border-radius: 16px; border: 1px solid var(--ring); background: rgba(255, 255, 255, .03); max-width: 720px; }
+.chr-pick h2 { margin: 18px 0 10px; font: 600 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--mist); }
+.chr-periods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.chr-periods > span { margin-right: 4px; color: var(--mist); font-size: 12.5px; }
+.chr-periods button { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ring-strong); background: none; color: var(--mist); font: 500 13px var(--sans); cursor: pointer; }
+.chr-periods button.is-on { color: var(--text); background: var(--violet); border-color: rgba(167, 139, 250, .55); }
+.chr-chars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.chr-chars li { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 12px; background: rgba(255, 255, 255, .05); }
+.chr-chars li > span:nth-child(2) { flex: 1; min-width: 0; }
+.chr-chars small { color: var(--mist); }
+.chr-char-icon { flex: none; width: 36px; height: 36px; border-radius: 50%; background: #14121c center / cover no-repeat; box-shadow: 0 0 0 2px #14121c; }
+.chr-sample { margin-left: auto; color: var(--mist); font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }

@@ -311,7 +311,7 @@ export function countByType(c: Chronicle): Record<string, number> {
   return out;
 }
 /** Whether a moment passes a filter: its type is on and, for loot, the item is of the chosen quality or better. */
-export const passes = (e: ChronicleEvent, types: ReadonlySet<string>, minQuality: number): boolean => types.has(typeKey(e)) && (e.k !== "loot" || (e.q ?? 1) >= minQuality);
+export const passes = (e: ChronicleEvent, types: ReadonlySet<string>, minQuality: number): boolean => types.has(typeKey(e)) && (e.k !== "loot" || e.q === undefined || e.q >= minQuality);
 
 export function sessionAt(c: Chronicle, t: number): number {
   const s = c.sessions;

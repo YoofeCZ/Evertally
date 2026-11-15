@@ -7,6 +7,8 @@ import { approvePairing, describePairing, deviceFromRequest, deviceUpload, listD
 import { ApiError } from "./policy";
 import {deviceLive} from "./live";
 import {requestLocate,searchLocatable} from "./locate";
+import {myChronicle} from "./chronicle-build";
+import {CHRONICLE_MAPS} from "./chronicle-maps";
 import {ownLast,ownLive} from "./people";
 import { getBinding } from "@/db";
 import { circleAction, circlesOverview, circleTrail, createCircle, joinCircle } from "./circles";
@@ -185,6 +187,11 @@ export async function handleApi(request: Request, operation: string, id?: string
       // what other accounts chose to show to friends, to signed-in visitors or to everyone
       const others=await visiblePlayers(db,user.id);
       return json({own,last:await ownLast(db,user.id),peers:[...peers].map(([profileId,position])=>({profileId,...position})),others});
+    }
+    if(operation==="chronicle"&&request.method==="GET"){
+      const result=await myChronicle(people(),user.id,params.get("profile")??"",Number(params.get("days"))||14,CHRONICLE_MAPS);
+      if(!result)throw new ApiError("not_found","This character is not yours.",404);
+      return json(result);
     }
     if(operation==="locate"&&request.method==="GET")return json({players:await searchLocatable(people(),user.id,params.get("q")??"")});
     if(operation==="locate"&&request.method==="POST")return json(await requestLocate(people(),user.id,await request.json().then((body:unknown)=>typeof body==="object"&&body?body as {profileId?:unknown;userId?:unknown}:{},()=>({}))));

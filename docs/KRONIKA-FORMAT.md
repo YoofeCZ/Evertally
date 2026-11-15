@@ -235,6 +235,13 @@ Bez logu se tyto součty berou z jiného zdroje (měřič); pak se záložka **T
 
 Doporučené je **nezakládat druhý záznam téhož**, ale složit Kroniku z existujících událostí a doplnit jen to, co chybí.
 
+**Web to pro vlastní postavy už dělá sám** (od 15. 11. 2026): `GET /api/chronicle?profile=…&days=7|14|30` skládá záznam z událostí, které server už
+má (`platform/lib/chronicle-build.ts`, `composeChronicle`), a stránka **Kronika** v menu ho přehraje. Čte jen to, co dovolují souhlasy
+majitele (trasa = „Moje trasa“, dungeony a bossové = „Moje běhy“, ostatní = „Moje postava“) a jen jeho vlastní postavy. Doba bez
+události delší než 5 minut ukončí sezení. Co server neukládá (zabití, peníze mimo odměny za quest, dovednosti, smrt, kvalita předmětu,
+souhrny po bossech), v záznamu **není** a nic se nedomýšlí; `loot` bez kvality se zobrazí bez ohledu na filtr kvality. Vynechané
+jsou i `fights[]`, protože server nemá číslování po soubojích. Soubor z addonu (bod 2) tedy **doplňuje** to, co web složí sám.
+
 | Z čeho | Na co | Pravidla |
 |---|---|---|
 | `track.path` | `path` | `zóna` = index klíče z [`kronika/mapy.json`](kronika/mapy.json) podle `mapId`; mapa bez klíče: úsek vynechat. Bod `[dt, x, y]` → `[t, zóna, x, y]`, kde `t` = čas bodu převedený podle bodu 5. Vzorky po 4 s jsou v pořádku (příklad v dokumentu používá 2 s, web interpoluje). |

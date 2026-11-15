@@ -18,9 +18,9 @@ import { ForumView } from "./views/Forum";
 import { DatabaseView } from "./db/Database";
 import { MapView } from "./db/MapView";
 
-const NAV: { id: Exclude<View, "link" | "character" | "guild">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
+const NAV: { id: Exclude<View, "link" | "character" | "guild">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.chronicle" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
   { id: "overview", key: "nav.overview" }, { id: "runs", key: "nav.runs" }, { id: "rankings", key: "nav.rankings" },
-  { id: "atlas", key: "nav.atlas" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
+  { id: "atlas", key: "nav.atlas" }, { id: "chronicle", key: "nav.chronicle" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
 ];
 
 /** The search in the top bar finds characters (and guilds shown on the board) in the leaderboard. */
@@ -127,7 +127,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
         {view === "rankings" && <RankingsView route={route} user={user} />}
         {view === "character" && <CharacterView id={decodeURIComponent(route.split("?")[0])} />}
         {view === "guild" && <GuildView route={route} />}
-        {view === "chronicle" && <ChronicleView route={route} />}
+        {view === "chronicle" && <ChronicleView route={route} user={user} signIn={signIn} />}
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
         {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}

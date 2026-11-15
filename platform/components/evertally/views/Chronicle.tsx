@@ -10,7 +10,9 @@ import {
   type Category, type Chronicle, type ChronicleEvent, type Day, type Instance,
 } from "@/lib/chronicle";
 import { CLASS_COLORS, CLASSES } from "../data";
-import { Icon } from "../ui";
+import { DiscordGlyph, Icon } from "../ui";
+import { api, useApi } from "../api";
+import type { User } from "../types";
 import { useMaps } from "../db/store";
 import type { MapDefinition } from "../world-map";
 import { FightWindow, num } from "./ChronicleFight";
@@ -27,7 +29,10 @@ const TEXT = {
   en: {
     of: "The journey of", toPlay: "to play", forHelp: "for shortcuts", helpTitle: "Keyboard",
     keys: [["Space", "Play / pause"], ["← →", "Back / forward 10 s (Shift: 60 s)"], ["F", "Follow the character"], ["M", "Show or hide the moments"], ["+  −", "Faster / slower"], ["Drag, wheel", "Move and zoom the map"], ["?", "This help"]] as [string, string][],
-    title: "Journey replay", lead: "Watch a whole journey again: where the character walked, what it fought, found and finished, on a timeline you can scrub.",
+    title: "Journey replay", heading: "Chronicle", lead: "Watch a journey again: where your character walked, what it finished and found, on a timeline you can scrub.",
+    signIn: "Sign in to replay the journeys of your characters.", chooseChar: "Your characters", period: "Period", periodDays: "days", composing: "Composing…", failed: "The journey could not be loaded.",
+    emptyTitle: "Nothing recorded for this period.", noChars: "No character has been sent to the website yet.", sample: "See a sample with generated data",
+    howto: "A journey is composed from what the addon records and the Bridge sends: your route (turn on “My route” in Account), zones, quests, loot, levels, dungeons and bosses.",
     demo: "Play the demo", open: "Open a recording", drop: "or drop a recording file here",
     note: "The addon does not write recordings yet. The demo is a generated journey, not a real player's. A real recording uses the same format.",
     bad: "This file is not a valid recording.", unreadable: "The file could not be read.", loading: "Loading maps…",
@@ -51,7 +56,10 @@ const TEXT = {
   cs: {
     of: "Cesta postavy", toPlay: "přehrát", forHelp: "zkratky", helpTitle: "Klávesy",
     keys: [["Mezerník", "Přehrát / pozastavit"], ["← →", "Zpět / vpřed o 10 s (Shift: 60 s)"], ["F", "Sledovat postavu"], ["M", "Zobrazit nebo skrýt momenty"], ["+  −", "Rychleji / pomaleji"], ["Tažení, kolečko", "Posun a přiblížení mapy"], ["?", "Tato nápověda"]] as [string, string][],
-    title: "Přehrání cesty", lead: "Podívej se znovu na celou cestu: kudy postava šla, s čím bojovala, co našla a dokončila, na časové ose, po které můžeš posouvat.",
+    title: "Přehrání cesty", heading: "Kronika", lead: "Podívej se znovu na cestu: kudy tvoje postava šla, co dokončila a našla, na časové ose, po které můžeš posouvat.",
+    signIn: "Přihlas se a přehraj si cesty svých postav.", chooseChar: "Tvoje postavy", period: "Období", periodDays: "dní", composing: "Skládám…", failed: "Cestu se nepodařilo načíst.",
+    emptyTitle: "Za toto období nic není zaznamenáno.", noChars: "Na web zatím nedorazila žádná postava.", sample: "Ukázka s vygenerovanými daty",
+    howto: "Cesta se skládá z toho, co addon zapisuje a Bridge posílá: tvoje trasa (zapni „Moje trasa“ v Účtu), zóny, questy, loot, úrovně, dungeony a bossové.",
     demo: "Přehrát ukázku", open: "Otevřít záznam", drop: "nebo sem přetáhni soubor se záznamem",
     note: "Addon záznamy zatím nezapisuje. Ukázka je vygenerovaná cesta, ne skutečného hráče. Skutečný záznam bude mít stejný formát.",
     bad: "Tento soubor není platný záznam.", unreadable: "Soubor se nepodařilo přečíst.", loading: "Načítám mapy…",
@@ -553,7 +561,7 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
   const totals = totalsAt(index, time);
   const pos = positionAt(c, time);
   const zoneName = pos ? nameOf(maps, c.zones[pos.zone], lang) : "";
-  const shown = useMemo(() => c.events.filter(e => filters.has(categoryOf(e.k)) && (e.k !== "loot" || (e.q ?? 1) >= minQ)), [c, filters, minQ]);
+  const shown = useMemo(() => c.events.filter(e => filters.has(categoryOf(e.k)) && (e.k !== "loot" || e.q === undefined || e.q >= minQ)), [c, filters, minQ]);
   const split = useMemo(() => { let n = 0; for (const e of shown) { if (e.t > time) break; n++; } return n; }, [shown, time]);
   const list = shown.slice(Math.max(0, split - 12), split + 6);
   const currentEvent = split > 0 ? shown[split - 1] : null;
@@ -564,7 +572,7 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
     const kills = new Map<string, number>(), items = new Map<string, { n: number; q: number; id?: number }>();
     for (const e of eventsBetween(c, time - 90, time)) {
       if (e.k === "kill") kills.set(e.text, (kills.get(e.text) ?? 0) + 1);
-      else if (e.k === "loot" && (e.q ?? 1) >= minQ) { const x = items.get(e.text); items.set(e.text, { n: (x?.n ?? 0) + (e.n ?? 1), q: e.q ?? 1, id: e.id }); }
+      else if (e.k === "loot" && (e.q === undefined || e.q >= minQ)) { const x = items.get(e.text); items.set(e.text, { n: (x?.n ?? 0) + (e.n ?? 1), q: e.q ?? 1, id: e.id }); }
     }
     return { kills: [...kills].sort((a, b) => b[1] - a[1]).slice(0, 8), items: [...items].slice(-8) };
   }, [c, time, minQ]);
@@ -775,15 +783,20 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
   );
 }
 
-/** The page: a start screen, or the player once a recording is chosen (`#chronicle/demo` starts the demo at once). */
-export function ChronicleView({ route }: { route: string }) {
-  const { lang } = useI18n();
+type CharacterRow = { id: string; name: string | null; classId: number | null; level: number | null };
+/** The page: the account's own characters to replay, or a recording file; `#chronicle/demo` plays a sample with generated data. */
+export function ChronicleView({ route, user, signIn }: { route: string; user: User | null; signIn: string | null }) {
+  const { lang, t } = useI18n();
   const w = TEXT[lang === "cs" ? "cs" : "en"];
   const maps = useMaps();
   const demoRequested = route.split("?")[0] === "demo";
   const [opened, setOpened] = useState<Chronicle | null>(null);
   const [problem, setProblem] = useState("");
   const [over, setOver] = useState(false);
+  const [days, setDays] = useState(14);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [empty, setEmpty] = useState(false);
+  const me = useApi<{ profiles?: CharacterRow[] }>(user ? "/api/me" : null);
   const demo = useMemo(() => (demoRequested ? demoChronicle() : null), [demoRequested]);
   const chronicle = opened ?? demo;
 
@@ -795,24 +808,57 @@ export function ChronicleView({ route }: { route: string }) {
       if (parsed) { setOpened(parsed); setProblem(""); } else setProblem(w.bad);
     } catch { setProblem(w.unreadable); }
   };
+  const load = async (profile: string) => {
+    setBusy(profile); setProblem(""); setEmpty(false);
+    try {
+      const data = await api<{ chronicle: unknown }>(`/api/chronicle?profile=${encodeURIComponent(profile)}&days=${days}`);
+      const parsed = data.chronicle ? parseChronicle(data.chronicle) : null;
+      if (parsed) setOpened(parsed); else setEmpty(true);
+    } catch { setProblem(w.failed); } finally { setBusy(null); }
+  };
 
   if (chronicle) {
     if (!maps.data) return <div className="chr-start"><p className="muted">{w.loading}</p></div>;
     return <Player key={chronicle.startedAt + chronicle.duration} c={chronicle} maps={maps.data} onBack={() => { setOpened(null); window.location.hash = "chronicle"; }} />;
   }
+  const characters = me.data?.profiles ?? [];
   return (
     <div className="chr-start page-column">
-      <h1>{w.title}</h1>
+      <h1>{w.heading}</h1>
       <p className="chr-lead">{w.lead}</p>
+      {!user ? (
+        <section className="chr-pick">
+          <p>{w.signIn}</p>
+          {!signIn ? <p className="notice error">{t("auth.discord_not_configured")}</p> : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
+        </section>
+      ) : (
+        <section className="chr-pick">
+          <div className="chr-periods" role="group" aria-label={w.period}>
+            <span>{w.period}</span>
+            {[7, 14, 30].map(n => <button key={n} type="button" className={days === n ? "is-on" : ""} aria-pressed={days === n} onClick={() => { setDays(n); setEmpty(false); }}>{n} {w.periodDays}</button>)}
+          </div>
+          <h2>{w.chooseChar}</h2>
+          {me.data && !characters.length && <p className="muted">{w.noChars}</p>}
+          <ul className="chr-chars">
+            {characters.map(c => (
+              <li key={c.id}>
+                <span className="chr-char-icon" style={c.classId ? { backgroundImage: `url(${classIconUrl(c.classId)})` } : undefined} aria-hidden="true" />
+                <span><b>{c.name ?? "?"}</b>{c.level ? <small> {w.level} {c.level}</small> : null}</span>
+                <button type="button" className="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => void load(c.id)}>{busy === c.id ? w.composing : w.play}</button>
+              </li>
+            ))}
+          </ul>
+          {empty && <div className="pp-notice" role="status"><b>{w.emptyTitle}</b><br />{w.howto}</div>}
+        </section>
+      )}
+      {problem && <p className="pp-notice" role="alert">{problem}</p>}
       <div className={`chr-drop${over ? " is-over" : ""}`}
         onDragOver={event => { event.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={event => { event.preventDefault(); setOver(false); void read(event.dataTransfer.files[0]); }}>
-        <a className="btn btn-primary" href="#chronicle/demo">{w.demo}</a>
         <label className="btn btn-ghost">{w.open}<input type="file" accept="application/json,.json" hidden onChange={event => void read(event.target.files?.[0])} /></label>
         <span className="muted small">{w.drop}</span>
+        <a className="chr-sample" href="#chronicle/demo">{w.sample}</a>
       </div>
-      {problem && <p className="pp-notice" role="alert">{problem}</p>}
-      <p className="muted small">{w.note}</p>
     </div>
   );
 }
