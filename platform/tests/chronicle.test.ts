@@ -262,3 +262,11 @@ test("the example files of the format specification are valid recordings", () =>
   assert.equal(f.me.dmg, log.filter(l => l[1] === 0 && l[3] === 0).reduce((a, l) => a + l[5], 0), "the example's totals really are the sum of its log");
   assert.equal(f.series!.dmg.reduce((a, b) => a + b, 0), f.me.dmg);
 });
+
+test("the table of map keys and uiMapIDs in the specification is the website's own catalogue", () => {
+  const manifest = JSON.parse(readFileSync("public/media/maps/manifest.json", "utf8")) as { maps: { key: string; nameEn: string; uiMapIds: number[] }[] };
+  const table = JSON.parse(readFileSync("../docs/kronika/mapy.json", "utf8")) as { maps: { key: string; name: string; uiMapIds: number[] }[] };
+  const want = manifest.maps.map(m => ({ key: m.key, name: m.nameEn, uiMapIds: [...m.uiMapIds].sort((a, b) => a - b) })).sort((a, b) => a.key.localeCompare(b.key));
+  assert.deepEqual(table.maps, want, "out of date: run `node scripts/write-chronicle-maps.mjs` in platform/");
+  assert.ok(table.maps.every(m => /^[a-z0-9][a-z0-9-]{0,79}$/.test(m.key)), "every key is a valid zone key of a recording");
+});

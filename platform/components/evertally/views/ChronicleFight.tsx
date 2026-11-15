@@ -120,8 +120,15 @@ export function FightWindow({ fight, index, count, c, lang, time, onClose, onSte
   type Tab = "overview" | "spells" | "group" | "graph" | "actions";
   const [chosen, setTab] = useState<Tab>("overview");
   const hasLog = (fight.log?.length ?? 0) > 0;
-  const tab: Tab = chosen === "actions" && !hasLog ? "overview" : chosen;
-  const tabs: Tab[] = ["overview", "spells", "group", "graph", ...(hasLog ? (["actions"] as Tab[]) : [])];
+  // only the tabs that have something to show: a recorder may not be able to read spells, the course of the fight or the log
+  const tabs: Tab[] = [
+    "overview",
+    ...(fight.me.dealt.length + fight.me.healed.length + fight.me.took.length > 0 ? (["spells"] as Tab[]) : []),
+    ...((fight.group?.length ?? 0) > 0 ? (["group"] as Tab[]) : []),
+    ...((fight.series?.dmg?.length ?? 0) > 0 ? (["graph"] as Tab[]) : []),
+    ...(hasLog ? (["actions"] as Tab[]) : []),
+  ];
+  const tab: Tab = tabs.includes(chosen) ? chosen : "overview";
   const [spellKind, setSpellKind] = useState<"dealt" | "healed" | "took">("dealt");
   const [meter, setMeter] = useState<"dmg" | "heal" | "taken">("dmg");
   const [show, setShow] = useState({ dmg: true, heal: true, taken: true });

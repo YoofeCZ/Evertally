@@ -1,0 +1,425 @@
+{
+ "note": "Generated from platform/public/media/maps/manifest.json by platform/scripts/write-chronicle-maps.mjs. Do not edit by hand.",
+ "maps": [
+  {
+   "key": "alterac-mountains",
+   "name": "Alterac Mountains",
+   "uiMapIds": [
+    1416
+   ]
+  },
+  {
+   "key": "alterac-valley",
+   "name": "Alterac Valley",
+   "uiMapIds": [
+    1459
+   ]
+  },
+  {
+   "key": "arathi-basin",
+   "name": "Arathi Basin",
+   "uiMapIds": [
+    1461
+   ]
+  },
+  {
+   "key": "arathi-highlands",
+   "name": "Arathi Highlands",
+   "uiMapIds": [
+    1417
+   ]
+  },
+  {
+   "key": "ashenvale",
+   "name": "Ashenvale",
+   "uiMapIds": [
+    1440
+   ]
+  },
+  {
+   "key": "azeroth",
+   "name": "Azeroth",
+   "uiMapIds": [
+    947
+   ]
+  },
+  {
+   "key": "azshara",
+   "name": "Azshara",
+   "uiMapIds": [
+    1447
+   ]
+  },
+  {
+   "key": "badlands",
+   "name": "Badlands",
+   "uiMapIds": [
+    1418
+   ]
+  },
+  {
+   "key": "blasted-lands",
+   "name": "Blasted Lands",
+   "uiMapIds": [
+    1419
+   ]
+  },
+  {
+   "key": "burning-steppes",
+   "name": "Burning Steppes",
+   "uiMapIds": [
+    1428
+   ]
+  },
+  {
+   "key": "darkshore",
+   "name": "Darkshore",
+   "uiMapIds": [
+    1439
+   ]
+  },
+  {
+   "key": "darkspear-islands",
+   "name": "Darkspear Islands",
+   "uiMapIds": [
+    2524
+   ]
+  },
+  {
+   "key": "darnassus",
+   "name": "Darnassus",
+   "uiMapIds": [
+    1457
+   ]
+  },
+  {
+   "key": "deadwind-pass",
+   "name": "Deadwind Pass",
+   "uiMapIds": [
+    1430
+   ]
+  },
+  {
+   "key": "desolace",
+   "name": "Desolace",
+   "uiMapIds": [
+    1443
+   ]
+  },
+  {
+   "key": "dun-morogh",
+   "name": "Dun Morogh",
+   "uiMapIds": [
+    1426
+   ]
+  },
+  {
+   "key": "durotar",
+   "name": "Durotar",
+   "uiMapIds": [
+    1411
+   ]
+  },
+  {
+   "key": "duskwood",
+   "name": "Duskwood",
+   "uiMapIds": [
+    1431
+   ]
+  },
+  {
+   "key": "dustwallow-marsh",
+   "name": "Dustwallow Marsh",
+   "uiMapIds": [
+    1445
+   ]
+  },
+  {
+   "key": "eastern-kingdoms",
+   "name": "Eastern Kingdoms",
+   "uiMapIds": [
+    1415
+   ]
+  },
+  {
+   "key": "eastern-kingdoms-1463",
+   "name": "Eastern Kingdoms",
+   "uiMapIds": [
+    1463
+   ]
+  },
+  {
+   "key": "eastern-plaguelands",
+   "name": "Eastern Plaguelands",
+   "uiMapIds": [
+    1423
+   ]
+  },
+  {
+   "key": "elwynn-forest",
+   "name": "Elwynn Forest",
+   "uiMapIds": [
+    1429
+   ]
+  },
+  {
+   "key": "felwood",
+   "name": "Felwood",
+   "uiMapIds": [
+    1448
+   ]
+  },
+  {
+   "key": "feralas",
+   "name": "Feralas",
+   "uiMapIds": [
+    1444
+   ]
+  },
+  {
+   "key": "hillsbrad-foothills",
+   "name": "Hillsbrad Foothills",
+   "uiMapIds": [
+    1424
+   ]
+  },
+  {
+   "key": "ironforge",
+   "name": "Ironforge",
+   "uiMapIds": [
+    1455
+   ]
+  },
+  {
+   "key": "kalimdor",
+   "name": "Kalimdor",
+   "uiMapIds": [
+    1414
+   ]
+  },
+  {
+   "key": "kalimdor-1464",
+   "name": "Kalimdor",
+   "uiMapIds": [
+    1464
+   ]
+  },
+  {
+   "key": "loch-modan",
+   "name": "Loch Modan",
+   "uiMapIds": [
+    1432
+   ]
+  },
+  {
+   "key": "moonglade",
+   "name": "Moonglade",
+   "uiMapIds": [
+    1450
+   ]
+  },
+  {
+   "key": "mount-hyjal",
+   "name": "Mount Hyjal",
+   "uiMapIds": [
+    2482
+   ]
+  },
+  {
+   "key": "mulgore",
+   "name": "Mulgore",
+   "uiMapIds": [
+    1412
+   ]
+  },
+  {
+   "key": "orgrimmar",
+   "name": "Orgrimmar",
+   "uiMapIds": [
+    1454
+   ]
+  },
+  {
+   "key": "redridge-mountains",
+   "name": "Redridge Mountains",
+   "uiMapIds": [
+    1433
+   ]
+  },
+  {
+   "key": "riverglades",
+   "name": "Riverglades",
+   "uiMapIds": [
+    2548
+   ]
+  },
+  {
+   "key": "searing-gorge",
+   "name": "Searing Gorge",
+   "uiMapIds": [
+    1427
+   ]
+  },
+  {
+   "key": "shen-dralas",
+   "name": "Shen'dralas",
+   "uiMapIds": [
+    2652
+   ]
+  },
+  {
+   "key": "silithus",
+   "name": "Silithus",
+   "uiMapIds": [
+    1451
+   ]
+  },
+  {
+   "key": "silverpine-forest",
+   "name": "Silverpine Forest",
+   "uiMapIds": [
+    1421
+   ]
+  },
+  {
+   "key": "stonetalon-mountains",
+   "name": "Stonetalon Mountains",
+   "uiMapIds": [
+    1442
+   ]
+  },
+  {
+   "key": "stormwind-city",
+   "name": "Stormwind City",
+   "uiMapIds": [
+    1453
+   ]
+  },
+  {
+   "key": "stranglethorn-vale",
+   "name": "Stranglethorn Vale",
+   "uiMapIds": [
+    1434
+   ]
+  },
+  {
+   "key": "swamp-of-sorrows",
+   "name": "Swamp of Sorrows",
+   "uiMapIds": [
+    1435
+   ]
+  },
+  {
+   "key": "tanaris",
+   "name": "Tanaris",
+   "uiMapIds": [
+    1446
+   ]
+  },
+  {
+   "key": "teldrassil",
+   "name": "Teldrassil",
+   "uiMapIds": [
+    1438
+   ]
+  },
+  {
+   "key": "the-barrens",
+   "name": "The Barrens",
+   "uiMapIds": [
+    1413
+   ]
+  },
+  {
+   "key": "the-hinterlands",
+   "name": "The Hinterlands",
+   "uiMapIds": [
+    1425
+   ]
+  },
+  {
+   "key": "thousand-needles",
+   "name": "Thousand Needles",
+   "uiMapIds": [
+    1441
+   ]
+  },
+  {
+   "key": "thunder-bluff",
+   "name": "Thunder Bluff",
+   "uiMapIds": [
+    1456
+   ]
+  },
+  {
+   "key": "tirisfal-glades",
+   "name": "Tirisfal Glades",
+   "uiMapIds": [
+    1420
+   ]
+  },
+  {
+   "key": "un-goro-crater",
+   "name": "Un'Goro Crater",
+   "uiMapIds": [
+    1449
+   ]
+  },
+  {
+   "key": "undercity",
+   "name": "Undercity",
+   "uiMapIds": [
+    1458
+   ]
+  },
+  {
+   "key": "warsong-gulch",
+   "name": "Warsong Gulch",
+   "uiMapIds": [
+    1460
+   ]
+  },
+  {
+   "key": "western-plaguelands",
+   "name": "Western Plaguelands",
+   "uiMapIds": [
+    1422
+   ]
+  },
+  {
+   "key": "westfall",
+   "name": "Westfall",
+   "uiMapIds": [
+    1436
+   ]
+  },
+  {
+   "key": "wetlands",
+   "name": "Wetlands",
+   "uiMapIds": [
+    1437
+   ]
+  },
+  {
+   "key": "winterspring",
+   "name": "Winterspring",
+   "uiMapIds": [
+    1452
+   ]
+  },
+  {
+   "key": "zephras-isle",
+   "name": "Zephras Isle",
+   "uiMapIds": [
+    2521
+   ]
+  },
+  {
+   "key": "zephras-isle-2665",
+   "name": "Zephras Isle",
+   "uiMapIds": [
+    2665
+   ]
+  }
+ ]
+}
