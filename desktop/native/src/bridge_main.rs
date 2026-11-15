@@ -124,7 +124,8 @@ impl ConnectionSettings {
             if self.sync_page { self.web_sync(ui); return; }
             ui.label(RichText::new(self.t("Connection settings", "Nastavení spojení")).size(20.0));
             ui.add_space(8.0);
-            ui.label(self.t("The bridge runs next to the Windows clock. Pairing and transfer status are on the Web sync tab.", "Most běží vedle hodin Windows. Párování a stav přenosu najdeš na kartě Web sync."));
+            let (place_en, place_cs) = tray_place();
+            ui.label(format!("{} {}", self.t(place_en, place_cs), self.t("Pairing and transfer status are on the Web sync tab.", "Párování a stav přenosu najdeš na kartě Web sync.")));
             ui.add_space(16.0);
             ui.label(self.t("Evertally website", "Web Evertally"));
             ui.add(egui::TextEdit::singleline(&mut self.server).desired_width(f32::INFINITY));
@@ -132,7 +133,8 @@ impl ConnectionSettings {
             ui.label(self.t("World of Warcraft folder", "Složka World of Warcraft"));
             let placeholder = self.t("Leave empty to detect automatically", "Prázdné pole = automatické hledání");
             ui.add(egui::TextEdit::singleline(&mut self.wow).hint_text(placeholder).desired_width(f32::INFINITY));
-            ui.weak(self.t("Choose the folder with Wow.exe or its parent containing _forever_.", "Zadej složku s Wow.exe nebo jejího rodiče obsahujícího _forever_."));
+            let (hint_en, hint_cs) = game_folder_hint();
+            ui.weak(self.t(hint_en, hint_cs));
             ui.add_space(12.0);
             let label = self.t("Start the bridge automatically with WoW", "Spouštět most automaticky s WoW");
             ui.checkbox(&mut self.autostart, label);
@@ -292,6 +294,37 @@ impl ConnectionSettings {
     }
 }
 
+/// What the WoW folder field expects, per operating system.
+fn game_folder_hint() -> (&'static str, &'static str) {
+    if cfg!(target_os = "macos") {
+        (
+            "Choose the folder with World of Warcraft.app (or Wow.exe under Wine) or its parent containing _forever_.",
+            "Zadej složku s World of Warcraft.app (nebo Wow.exe pod Wine) nebo jejího rodiče obsahujícího _forever_.",
+        )
+    } else if cfg!(windows) {
+        (
+            "Choose the folder with Wow.exe or its parent containing _forever_.",
+            "Zadej složku s Wow.exe nebo jejího rodiče obsahujícího _forever_.",
+        )
+    } else {
+        (
+            "Choose the folder with Wow.exe (inside the Wine prefix) or its parent containing _forever_.",
+            "Zadej složku s Wow.exe (uvnitř Wine prefixu) nebo jejího rodiče obsahujícího _forever_.",
+        )
+    }
+}
+
+/// Where the bridge's icon lives, per operating system.
+fn tray_place() -> (&'static str, &'static str) {
+    if cfg!(target_os = "macos") {
+        ("The bridge runs in the menu bar.", "Most běží v horní liště macOS.")
+    } else if cfg!(windows) {
+        ("The bridge runs next to the Windows clock.", "Most běží vedle hodin Windows.")
+    } else {
+        ("The bridge runs in the system tray.", "Most běží v systémové liště.")
+    }
+}
+
 fn scope_name(scope: &str, cs: bool) -> &str {
     match (scope, cs) {
         ("world_facts", true) => "Herní svět",
@@ -344,12 +377,28 @@ fn approval_url(server: &str, code: &str) -> Option<String> {
 fn validate(config: &Config) -> Result<(), String> {
     config.server_origin().map_err(|e| e.to_string())?;
     if let Some(path) = &config.wow_path
-        && !path.join("Wow.exe").is_file()
-        && !path.join("_forever_/Wow.exe").is_file()
+        && !holds_game(path)
+        && !holds_game(&path.join("_forever_"))
     {
-        return Err("Složka musí obsahovat Wow.exe nebo _forever_/Wow.exe.".into());
+        return Err("Složka musí obsahovat hru (Wow.exe nebo World of Warcraft.app), nebo její podsložku _forever_.".into());
     }
     Ok(())
+}
+
+/// Whether `dir` holds an entry of that name (a file, or a folder when `folder`), ignoring case: Linux file
+/// systems are case-sensitive, the game's are not.
+fn has_entry(dir: &std::path::Path, name: &str, folder: bool) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|entries| {
+        entries.flatten().any(|entry| {
+            entry.file_name().to_string_lossy().eq_ignore_ascii_case(name)
+                && if folder { entry.path().is_dir() } else { entry.path().is_file() }
+        })
+    })
+}
+
+/// The Windows / Wine client or the native macOS app is in this folder.
+fn holds_game(dir: &std::path::Path) -> bool {
+    has_entry(dir, "Wow.exe", false) || has_entry(dir, "World of Warcraft.app", true)
 }
 
 fn save_config(path: &std::path::Path, config: &Config) -> Result<(), String> {
@@ -544,6 +593,28 @@ mod tests {
         assert!(approval_url("https://evertally.afstudio.dev", "a&next=evil").is_none());
         assert!(approval_url("http://insecure.example", "TESTABCD").is_none());
     }
+    #[test]
+    fn game_folder_is_recognised_whatever_the_case_of_wow_exe() {
+        let root = std::env::temp_dir().join(format!("evertally-validate-test-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("_forever_")).unwrap();
+        std::fs::write(root.join("_forever_/WOW.EXE"), b"").unwrap();
+        let config = |path: PathBuf| Config { server: "https://evertally.afstudio.dev".into(), wow_path: Some(path) };
+        assert!(validate(&config(root.clone())).is_ok());
+        assert!(validate(&config(root.join("_forever_"))).is_ok());
+        assert!(validate(&config(root.join("missing"))).is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn the_native_macos_app_bundle_counts_as_the_game() {
+        let root = std::env::temp_dir().join(format!("evertally-validate-app-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("_forever_/World of Warcraft.app")).unwrap();
+        let config = |path: PathBuf| Config { server: "https://evertally.afstudio.dev".into(), wow_path: Some(path) };
+        assert!(validate(&config(root.clone())).is_ok());
+        assert!(validate(&config(root.join("_forever_"))).is_ok());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
     #[test]
     fn refuses_insecure_servers_and_non_game_paths() {
         assert!(

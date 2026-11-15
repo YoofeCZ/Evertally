@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { useI18n } from "@/lib/i18n";
 import {
   ALL_TYPES, CATEGORIES, TYPE_KEYS, buildIndex, categoryOf, clock, countByCategory, countByType, daysOf, demoChronicle, eventAt, eventsBetween, fightAt, fightProgress,
-  instanceAt, instanceSummary, instances, moneyText, parseChronicle, passes, pathWindow, positionAt, sessionAt, statsAt, totalsAt, typeKey, visits, whenOf,
+  instanceAt, instanceSummary, instances, journeyTimeOf, moneyText, parseChronicle, passes, pathWindow, positionAt, sessionAt, statsAt, totalsAt, typeKey, visits, whenOf,
   type Category, type Chronicle, type ChronicleEvent, type Day, type Instance,
 } from "@/lib/chronicle";
 import { CLASS_COLORS, CLASSES } from "../data";
@@ -29,10 +29,12 @@ const TEXT = {
   en: {
     of: "The journey of", toPlay: "to play", forHelp: "for shortcuts", helpTitle: "Keyboard",
     keys: [["Space", "Play / pause"], ["← →", "Back / forward 10 s (Shift: 60 s)"], ["F", "Follow the character"], ["M", "Show or hide the moments"], ["+  −", "Faster / slower"], ["Drag, wheel", "Move and zoom the map"], ["?", "This help"]] as [string, string][],
-    title: "Journey replay", heading: "Chronicle", lead: "Watch a journey again: where your character walked, what it finished and found, on a timeline you can scrub.",
-    signIn: "Sign in to replay the journeys of your characters.", chooseChar: "Your characters", period: "Period", periodDays: "days", composing: "Composing…", failed: "The journey could not be loaded.",
-    emptyTitle: "Nothing recorded for this period.", noChars: "No character has been sent to the website yet.", sample: "See a sample with generated data",
-    howto: "A journey is composed from what the addon records and the Bridge sends: your route (turn on “My route” in Account), zones, quests, loot, levels, dungeons and bosses.",
+    title: "Journey replay", heading: "Chronicle", lead: "Journeys that players chose to share: where the character walked, what it finished and found, on a timeline you can scrub.",
+    period: "Period", allTime: "All", periodDays: "days", composing: "Composing…", failed: "The journey could not be loaded.",
+    emptyTitle: "Nothing recorded for this period.", sample: "See a sample with generated data",
+    howto: "A journey is composed from what the addon records and the Bridge sends: the route, zones, quests, loot, levels, dungeons and bosses.",
+    publicHead: "Public chronicles", noPublic: "Nobody has shared a chronicle for this period yet. Players turn it on with “Share my chronicle” in the addon, or in Account on the website.",
+    privateTag: "not public", sessionsOf: ["session", "sessions"], eventsOf: "moments", whenPlayed: "Played", hours: "h", minutes: "min",
     demo: "Play the demo", open: "Open a recording", drop: "or drop a recording file here",
     note: "The addon does not write recordings yet. The demo is a generated journey, not a real player's. A real recording uses the same format.",
     bad: "This file is not a valid recording.", unreadable: "The file could not be read.", loading: "Loading maps…",
@@ -56,10 +58,12 @@ const TEXT = {
   cs: {
     of: "Cesta postavy", toPlay: "přehrát", forHelp: "zkratky", helpTitle: "Klávesy",
     keys: [["Mezerník", "Přehrát / pozastavit"], ["← →", "Zpět / vpřed o 10 s (Shift: 60 s)"], ["F", "Sledovat postavu"], ["M", "Zobrazit nebo skrýt momenty"], ["+  −", "Rychleji / pomaleji"], ["Tažení, kolečko", "Posun a přiblížení mapy"], ["?", "Tato nápověda"]] as [string, string][],
-    title: "Přehrání cesty", heading: "Kronika", lead: "Podívej se znovu na cestu: kudy tvoje postava šla, co dokončila a našla, na časové ose, po které můžeš posouvat.",
-    signIn: "Přihlas se a přehraj si cesty svých postav.", chooseChar: "Tvoje postavy", period: "Období", periodDays: "dní", composing: "Skládám…", failed: "Cestu se nepodařilo načíst.",
-    emptyTitle: "Za toto období nic není zaznamenáno.", noChars: "Na web zatím nedorazila žádná postava.", sample: "Ukázka s vygenerovanými daty",
-    howto: "Cesta se skládá z toho, co addon zapisuje a Bridge posílá: tvoje trasa (zapni „Moje trasa“ v Účtu), zóny, questy, loot, úrovně, dungeony a bossové.",
+    title: "Přehrání cesty", heading: "Kronika", lead: "Cesty, které hráči sami sdílejí: kudy postava šla, co dokončila a našla, na časové ose, po které můžeš posouvat.",
+    period: "Období", allTime: "Vše", periodDays: "dní", composing: "Skládám…", failed: "Cestu se nepodařilo načíst.",
+    emptyTitle: "Za toto období nic není zaznamenáno.", sample: "Ukázka s vygenerovanými daty",
+    howto: "Cesta se skládá z toho, co addon zapisuje a Bridge posílá: trasa, zóny, questy, loot, úrovně, dungeony a bossové.",
+    publicHead: "Veřejné kroniky", noPublic: "Za toto období zatím nikdo žádnou kroniku nesdílí. Hráč ji zapne volbou „Sdílet mou kroniku“ v addonu nebo v Účtu na webu.",
+    privateTag: "neveřejná", sessionsOf: ["hraní", "hraní"], eventsOf: "momentů", whenPlayed: "Hráno", hours: "h", minutes: "min",
     demo: "Přehrát ukázku", open: "Otevřít záznam", drop: "nebo sem přetáhni soubor se záznamem",
     note: "Addon záznamy zatím nezapisuje. Ukázka je vygenerovaná cesta, ne skutečného hráče. Skutečný záznam bude mít stejný formát.",
     bad: "Tento soubor není platný záznam.", unreadable: "Soubor se nepodařilo přečíst.", loading: "Načítám mapy…",
@@ -92,7 +96,7 @@ function popup(e: ChronicleEvent, w: Words): { text: string; color: string } {
     case "pvp": return { text: `${e.a === "win" ? w.victory : w.defeat}: ${e.text}`, color: e.a === "win" ? "#7be0a0" : COLORS.combat };
     case "loot": return { text: `${e.text}${e.n && e.n > 1 ? ` ×${e.n}` : ""}`, color: QUALITY[e.q ?? 1] };
     case "money": return { text: moneyText(e.n ?? 0), color: "#f2c04b" };
-    case "skill": return { text: `${e.text} ${e.n}/${e.max ?? e.n}`, color: COLORS.professions };
+    case "skill": return { text: `${e.text} ${e.max ? `${e.n}/${e.max}` : e.n}`, color: COLORS.professions };
     case "level": return { text: `${w.level} ${e.n}!`, color: COLORS.character };
     case "death": return { text: e.text, color: COLORS.combat };
     default: return { text: e.text, color: COLORS.travel };
@@ -326,53 +330,133 @@ function Stage({ c, maps, timeRef, props, onApi }: { c: Chronicle; maps: readonl
   return <canvas ref={canvas} className="chr-canvas" role="img" aria-label={c.character.name} />;
 }
 
-/** The bar at the bottom: zones and dungeons as stretches, the chosen moments as badges, how busy it was, and a playhead to drag. */
+/** The shortest stretch the timeline can be zoomed to, in seconds of the journey. */
+const MIN_VIEW = 20;
+/**
+ * The bar at the bottom: zones and dungeons as stretches, the chosen moments as badges, how busy it was, and a playhead to drag.
+ * It can be zoomed (wheel, pinch, + and −) and moved (shift + wheel, the bar below, or dragging it); the playback itself still runs over
+ * the whole journey, the zoom only decides how much of it is drawn.
+ */
 function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, lang }: {
   c: Chronicle; maps: readonly MapDefinition[]; time: number; dom: { from: number; to: number }; types: ReadonlySet<string>; minQ: number; instanceList: readonly Instance[]; onSeek: (t: number) => void; lang: string;
 }) {
-  const span = Math.max(1, dom.to - dom.from);
-  const runs = useMemo(() => visits(c).filter(r => r.to > dom.from && r.from < dom.to), [c, dom.from, dom.to]);
+  const domSpan = Math.max(1, dom.to - dom.from);
+  const [zoom, setZoom] = useState<{ from: number; to: number } | null>(null);
+  // the view is always inside the whole stretch; a changed stretch (another day picked) starts again from all of it
+  const view = useMemo(() => {
+    if (!zoom) return dom;
+    const span = clamp(zoom.to - zoom.from, Math.min(MIN_VIEW, domSpan), domSpan);
+    const from = clamp(zoom.from, dom.from, dom.to - span);
+    return { from, to: from + span };
+  }, [zoom, dom, domSpan]);
+  useEffect(() => { setZoom(null); }, [dom.from, dom.to]);
+  const span = Math.max(1, view.to - view.from);
+  const zoomed = domSpan / span > 1.02;
+  const runs = useMemo(() => visits(c).filter(r => r.to > view.from && r.from < view.to), [c, view.from, view.to]);
   const bars = useRef<HTMLCanvasElement>(null);
   const track = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const [hover, setHover] = useState<number | null>(null);
-  const pct = (t: number) => `${clamp(((t - dom.from) / span) * 100, 0, 100)}%`;
+  const pct = (t: number) => `${clamp(((t - view.from) / span) * 100, 0, 100)}%`;
+
+  /** Shows a stretch of the journey, or all of it when it is (nearly) the whole. */
+  const show = useCallback((from: number, to: number) => {
+    const length = clamp(to - from, Math.min(MIN_VIEW, domSpan), domSpan);
+    // remembered at once too: several wheel ticks can arrive before the next draw
+    if (length >= domSpan * 0.98) { live.current.view = dom; live.current.span = domSpan; setZoom(null); return; }
+    const start = clamp(from, dom.from, dom.to - length);
+    live.current.view = { from: start, to: start + length }; live.current.span = length;
+    setZoom({ from: start, to: start + length });
+  }, [dom, domSpan]);
+  const live = useRef({ view, span, show });
+  live.current = { view, span, show };
+  /** Zoom by `factor` (below 1 closer) keeping the moment at fraction `anchor` of the bar where it is. */
+  const zoomBy = useCallback((factor: number, anchor = 0.5) => {
+    const { view: v, span: sp, show: apply } = live.current;
+    const length = sp * factor, focus = v.from + sp * anchor;
+    apply(focus - length * anchor, focus + length * (1 - anchor));
+  }, []);
+  const panBy = useCallback((seconds: number) => { const { view: v, show: apply } = live.current; apply(v.from + seconds, v.to + seconds); }, []);
+
+  // wheel: zoom around the pointer; with shift (or sideways) it moves. Listened to by hand because React's wheel is passive.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const wheel = (event: WheelEvent) => {
+      const box = el.getBoundingClientRect();
+      if (!box.width) return;
+      event.preventDefault();
+      const sideways = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+      const delta = sideways ? (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY) : event.deltaY;
+      if (sideways) panBy((delta / box.width) * live.current.span);
+      else zoomBy(Math.exp(clamp(delta, -300, 300) * 0.0016), clamp((event.clientX - box.left) / box.width, 0, 1));
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, [zoomBy, panBy]);
+
+  // while it plays, the view turns the page when the playhead leaves it; a view the viewer moved away from the playhead is left alone
+  const lastTime = useRef(time);
+  useEffect(() => {
+    const was = lastTime.current;
+    lastTime.current = time;
+    if (!zoomed || time >= view.from && time <= view.to || !(was >= view.from && was <= view.to)) return;
+    show(time - span * 0.15, time + span * 0.85);
+  }, [time, zoomed, view.from, view.to, span, show]);
+
   const marks = useMemo(() => {
     const out: { t: number; key: string; label: string }[] = [];
     const gap = span / 240;
     const last: Record<string, number> = {};
-    for (const e of eventsBetween(c, dom.from, dom.to)) {
+    for (const e of eventsBetween(c, view.from, view.to)) {
       const key = typeKey(e);
       if (!hasIcon(key) || !passes(e, types, minQ) || e.t - (last[key] ?? -1e9) < gap) continue;
       last[key] = e.t; out.push({ t: e.t, key, label: e.text });
     }
     return out;
-  }, [c, dom.from, dom.to, span, types, minQ]);
-  const levels = useMemo(() => eventsBetween(c, dom.from, dom.to).filter(e => e.k === "level").map(e => ({ t: e.t, n: e.n ?? 0 })), [c, dom.from, dom.to]);
+  }, [c, view.from, view.to, span, types, minQ]);
+  const levels = useMemo(() => eventsBetween(c, view.from, view.to).filter(e => e.k === "level").map(e => ({ t: e.t, n: e.n ?? 0 })), [c, view.from, view.to]);
   useEffect(() => {
     const el = bars.current;
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return;
     const W = el.width = 600, H = el.height = 20, n = 200;
     const bins = new Array<number>(n).fill(0);
-    for (const e of eventsBetween(c, dom.from, dom.to)) bins[Math.min(n - 1, Math.floor(((e.t - dom.from) / span) * n))]++;
+    for (const e of eventsBetween(c, view.from, view.to)) bins[Math.min(n - 1, Math.floor(((e.t - view.from) / span) * n))]++;
     const peak = Math.max(1, ...bins);
     ctx.clearRect(0, 0, W, H);
     bins.forEach((v, i) => { if (!v) return; const h = Math.max(2, (v / peak) * H); ctx.fillStyle = "rgba(226,120,106,0.75)"; ctx.fillRect((i / n) * W, H - h, W / n - 0.6, h); });
-  }, [c, dom.from, span, dom.to]);
+  }, [c, view.from, span, view.to]);
   const at = (event: { clientX: number }) => {
     const box = track.current?.getBoundingClientRect();
-    return box ? clamp(dom.from + ((event.clientX - box.left) / box.width) * span, dom.from, dom.to) : dom.from;
+    return box ? clamp(view.from + ((event.clientX - box.left) / box.width) * span, dom.from, dom.to) : view.from;
   };
   const down = (event: ReactPointerEvent) => { dragging.current = true; (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); onSeek(at(event)); };
   const move = (event: ReactPointerEvent) => { setHover(at(event)); if (dragging.current) onSeek(at(event)); };
-  const band = (from: number, to: number) => ({ left: pct(from), width: `calc(${(clamp(to, dom.from, dom.to) - clamp(from, dom.from, dom.to)) / span * 100}% - 2px)` });
+  const band = (from: number, to: number) => ({ left: pct(from), width: `calc(${(clamp(to, view.from, view.to) - clamp(from, view.from, view.to)) / span * 100}% - 2px)` });
+
+  // the bar below: the part shown, to drag, or click beside it to jump there
+  const grab = useRef<{ x: number; from: number } | null>(null);
+  const thumbDown = (event: ReactPointerEvent) => { event.stopPropagation(); (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); grab.current = { x: event.clientX, from: view.from }; };
+  const thumbMove = (event: ReactPointerEvent) => {
+    const box = rail.current?.getBoundingClientRect();
+    if (!grab.current || !box?.width) return;
+    show(grab.current.from + ((event.clientX - grab.current.x) / box.width) * domSpan, grab.current.from + ((event.clientX - grab.current.x) / box.width) * domSpan + span);
+  };
+  const railDown = (event: ReactPointerEvent) => {
+    const box = rail.current?.getBoundingClientRect();
+    if (!box?.width) return;
+    const centre = dom.from + ((event.clientX - box.left) / box.width) * domSpan;
+    show(centre - span / 2, centre + span / 2);
+  };
   return (
-    <div className="chr-timeline">
+    <div className="chr-timeline" ref={root}>
       <div className="chr-levels" aria-hidden="true">{levels.map(l => <span key={l.t} style={{ left: pct(l.t) }}>{l.n}</span>)}</div>
       <div className="chr-zones" aria-hidden="true">
         {runs.map((r, i) => <span key={i} style={{ ...band(r.from, r.to), background: `hsl(${hue(c.zones[r.zone])} 38% 30% / .92)` }}>{nameOf(maps, c.zones[r.zone], lang)}</span>)}
-        {instanceList.filter(x => (x.to ?? c.duration) > dom.from && x.from < dom.to).map((x, i) => <span key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)}><TypeIcon k="travel.instance" size={12} /> {x.name}</span>)}
+        {instanceList.filter(x => (x.to ?? c.duration) > view.from && x.from < view.to).map((x, i) => <span key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)}><TypeIcon k="travel.instance" size={12} /> {x.name}</span>)}
       </div>
       <div ref={track} className="chr-track" role="slider" tabIndex={-1} aria-label="Timeline" aria-valuemin={Math.round(dom.from)} aria-valuemax={Math.round(dom.to)} aria-valuenow={Math.round(time)} aria-valuetext={clock(time)}
         onPointerDown={down} onPointerMove={move} onPointerUp={() => { dragging.current = false; }} onPointerLeave={() => setHover(null)}>
@@ -382,6 +466,16 @@ function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, lang 
         {hover !== null && <em className="chr-hover" style={{ left: pct(hover) }}>{clock(hover)}</em>}
       </div>
       <canvas ref={bars} className="chr-bars" aria-hidden="true" />
+      <div className="chr-tzoom">
+        <button type="button" onClick={() => zoomBy(1.8)} disabled={!zoomed} aria-label="Zoom out" title="−">−</button>
+        <button type="button" onClick={() => zoomBy(1 / 1.8)} disabled={span <= Math.min(MIN_VIEW, domSpan) + 0.5} aria-label="Zoom in" title="+">+</button>
+        <button type="button" onClick={() => setZoom(null)} disabled={!zoomed} aria-label="Fit" title="1:1">⤢</button>
+        <div ref={rail} className={`chr-rail${zoomed ? " is-zoomed" : ""}`} onPointerDown={railDown}>
+          <span className="chr-thumb" style={{ left: `${((view.from - dom.from) / domSpan) * 100}%`, width: `${(span / domSpan) * 100}%` }}
+            onPointerDown={thumbDown} onPointerMove={thumbMove} onPointerUp={() => { grab.current = null; }} />
+        </div>
+        <small>{zoomed ? `×${(domSpan / span).toFixed(domSpan / span < 10 ? 1 : 0)}` : ""}</small>
+      </div>
     </div>
   );
 }
@@ -497,7 +591,14 @@ function journeyRing(c: Chronicle): { d: string; color: string; opacity: number 
 }
 const DEFAULT_SETS = { timeline: new Set(SHOWN_ON_TIMELINE), map: new Set(SHOWN_ON_MAP), icon: new Set(ALL_TYPES) } as Record<string, ReadonlySet<string>>;
 
-function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinition[]; onBack: () => void }) {
+type Slice = { at: number; to: number };
+function Player({ c, maps, onBack, slice }: { c: Chronicle; maps: readonly MapDefinition[]; onBack: () => void; slice?: Slice | null }) {
+  // arriving from a highlight: the stretch of the journey it is about, played at once
+  const first = useMemo(() => {
+    if (!slice) return null;
+    const from = journeyTimeOf(c, slice.at), to = journeyTimeOf(c, slice.to);
+    return to - from >= 1 ? { from: Math.max(0, from - 5), to: Math.min(c.duration, to + 5) } : null;
+  }, [c, slice]);
   const { lang } = useI18n();
   const w = TEXT[lang === "cs" ? "cs" : "en"];
   const index = useMemo(() => buildIndex(c), [c]);
@@ -507,17 +608,17 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
   const instanceList = useMemo(() => instances(c), [c]);
   const root = useRef<HTMLDivElement>(null);
   const stage = useRef<StageApi | null>(null);
-  const timeRef = useRef(0);
-  const [time, setTime] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [started, setStarted] = useState(false);
+  const timeRef = useRef(first?.from ?? 0);
+  const [time, setTime] = useState(first?.from ?? 0);
+  const [playing, setPlaying] = useState(first !== null);
+  const [started, setStarted] = useState(first !== null);
   const [help, setHelp] = useState(false);
   const [speed, setSpeed] = useState<number>(20);
   const [follow, setFollow] = useState(true);
   const [skipIdle, setSkipIdle] = useState(true);
   const [panel, setPanel] = useState(() => typeof window === "undefined" || window.innerWidth > 900);
   const [pop, setPop] = useState<null | "days" | "filters" | "menu">(null);
-  const [range, setRange] = useState<{ from: number; to: number } | null>(null);
+  const [range, setRange] = useState<{ from: number; to: number } | null>(first);
   const [filters, setFilters] = useState<ReadonlySet<Category>>(new Set(CATEGORIES));
   const [sets, setSetsState] = useState<Record<string, ReadonlySet<string>>>(DEFAULT_SETS);
   const [minQ, setMinQ] = useState(2);
@@ -620,6 +721,7 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
           <p className="chr-eyebrow">{w.of}</p>
           <h1 style={{ color: "#d4a574" }}>{c.character.name}</h1>
           <p className="chr-sub">{[className, c.character.guild ? `<${c.character.guild}>` : null, `${w.level} ${total.level}`].filter(Boolean).join(" · ")}</p>
+          <p className="chr-when">{w.whenPlayed} {datesText(c.sessions?.[0]?.at ?? c.startedAt, c.startedAt + c.duration, lang)} · {durationText(c.duration, w)}</p>
           <button type="button" className="chr-ring" onClick={toggle} aria-label={w.play}>
             <svg viewBox="0 0 200 200" aria-hidden="true">{ring.map((seg, i) => <path key={i} d={seg.d} fill={seg.color} opacity={seg.opacity} />)}</svg>
             <span><svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg></span>
@@ -783,20 +885,37 @@ function Player({ c, maps, onBack }: { c: Chronicle; maps: readonly MapDefinitio
   );
 }
 
-type CharacterRow = { id: string; name: string | null; classId: number | null; level: number | null };
-/** The page: the account's own characters to replay, or a recording file; `#chronicle/demo` plays a sample with generated data. */
-export function ChronicleView({ route, user, signIn }: { route: string; user: User | null; signIn: string | null }) {
-  const { lang, t } = useI18n();
+type Listing = { profileId: string; name: string; realm: string | null; classId: number | null; level: number | null; shared: boolean; own: boolean; summary: { seconds: number; sessions: number; from: number; to: number; events: number; zones: number } };
+/** "14 h 58 min", "42 min": how long a recording is, written out. */
+function durationText(seconds: number, w: Pick<Words, "hours" | "minutes">): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return minutes >= 60 ? `${Math.floor(minutes / 60)} ${w.hours} ${String(minutes % 60).padStart(2, "0")} ${w.minutes}` : `${minutes} ${w.minutes}`;
+}
+/** "3. 8. – 9. 8. 2026" or the one day. */
+function datesText(from: number, to: number, lang: string): string {
+  const locale = lang === "cs" ? "cs-CZ" : "en-GB";
+  const day = (t: number) => new Date(t * 1000).toLocaleDateString(locale, { day: "numeric", month: "numeric", year: "numeric" });
+  const a = day(from), b = day(to);
+  return a === b ? a : `${a} – ${b}`;
+}
+
+/** The page: the public chronicles, newest played first, each with how long it is and when it was played; or a recording file. `#chronicle/<id>` opens one; `#chronicle/demo` plays a sample. */
+export function ChronicleView({ route }: { route: string; user?: User | null; signIn?: string | null }) {
+  const { lang } = useI18n();
   const w = TEXT[lang === "cs" ? "cs" : "en"];
   const maps = useMaps();
-  const demoRequested = route.split("?")[0] === "demo";
+  const [target, query = ""] = route.split("?");
+  const params = new URLSearchParams(query);
+  const sliceAt = Number(params.get("at")), sliceTo = Number(params.get("to"));
+  const demoRequested = target === "demo";
   const [opened, setOpened] = useState<Chronicle | null>(null);
+  const [slice, setSlice] = useState<Slice | null>(null);
   const [problem, setProblem] = useState("");
   const [over, setOver] = useState(false);
-  const [days, setDays] = useState(14);
+  const [days, setDays] = useState(0);   // 0: the whole history
   const [busy, setBusy] = useState<string | null>(null);
   const [empty, setEmpty] = useState(false);
-  const me = useApi<{ profiles?: CharacterRow[] }>(user ? "/api/me" : null);
+  const list = useApi<{ chronicles?: Listing[] }>(`/api/chronicles?days=${days}`);
   const demo = useMemo(() => (demoRequested ? demoChronicle() : null), [demoRequested]);
   const chronicle = opened ?? demo;
 
@@ -808,49 +927,50 @@ export function ChronicleView({ route, user, signIn }: { route: string; user: Us
       if (parsed) { setOpened(parsed); setProblem(""); } else setProblem(w.bad);
     } catch { setProblem(w.unreadable); }
   };
-  const load = async (profile: string) => {
-    setBusy(profile); setProblem(""); setEmpty(false);
+  const load = async (profile: string, span = days, part: Slice | null = null) => {
+    setBusy(profile); setProblem(""); setEmpty(false); setSlice(part);
     try {
-      const data = await api<{ chronicle: unknown }>(`/api/chronicle?profile=${encodeURIComponent(profile)}&days=${days}`);
+      const data = await api<{ chronicle: unknown }>(`/api/chronicle?profile=${encodeURIComponent(profile)}&days=${span}`);
       const parsed = data.chronicle ? parseChronicle(data.chronicle) : null;
       if (parsed) setOpened(parsed); else setEmpty(true);
     } catch { setProblem(w.failed); } finally { setBusy(null); }
   };
+  // a link to one chronicle (#chronicle/<id>) opens it straight away
+  useEffect(() => {
+    if (target && target !== "demo") void load(target, 0, sliceAt > 0 && sliceTo > sliceAt ? { at: sliceAt, to: sliceTo } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, sliceAt, sliceTo]);
 
   if (chronicle) {
     if (!maps.data) return <div className="chr-start"><p className="muted">{w.loading}</p></div>;
-    return <Player key={chronicle.startedAt + chronicle.duration} c={chronicle} maps={maps.data} onBack={() => { setOpened(null); window.location.hash = "chronicle"; }} />;
+    return <Player key={`${chronicle.startedAt}-${chronicle.duration}-${slice?.at ?? 0}`} c={chronicle} maps={maps.data} slice={slice} onBack={() => { setOpened(null); setSlice(null); window.location.hash = "chronicle"; }} />;
   }
-  const characters = me.data?.profiles ?? [];
+  const chronicles = list.data?.chronicles ?? [];
   return (
     <div className="chr-start page-column">
       <h1>{w.heading}</h1>
       <p className="chr-lead">{w.lead}</p>
-      {!user ? (
-        <section className="chr-pick">
-          <p>{w.signIn}</p>
-          {!signIn ? <p className="notice error">{t("auth.discord_not_configured")}</p> : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
-        </section>
-      ) : (
-        <section className="chr-pick">
-          <div className="chr-periods" role="group" aria-label={w.period}>
-            <span>{w.period}</span>
-            {[7, 14, 30].map(n => <button key={n} type="button" className={days === n ? "is-on" : ""} aria-pressed={days === n} onClick={() => { setDays(n); setEmpty(false); }}>{n} {w.periodDays}</button>)}
-          </div>
-          <h2>{w.chooseChar}</h2>
-          {me.data && !characters.length && <p className="muted">{w.noChars}</p>}
-          <ul className="chr-chars">
-            {characters.map(c => (
-              <li key={c.id}>
-                <span className="chr-char-icon" style={c.classId ? { backgroundImage: `url(${classIconUrl(c.classId)})` } : undefined} aria-hidden="true" />
-                <span><b>{c.name ?? "?"}</b>{c.level ? <small> {w.level} {c.level}</small> : null}</span>
-                <button type="button" className="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => void load(c.id)}>{busy === c.id ? w.composing : w.play}</button>
-              </li>
-            ))}
-          </ul>
-          {empty && <div className="pp-notice" role="status"><b>{w.emptyTitle}</b><br />{w.howto}</div>}
-        </section>
-      )}
+      <section className="chr-pick">
+        <div className="chr-periods" role="group" aria-label={w.period}>
+          <span>{w.period}</span>
+          {[0, 30, 14, 7].map(n => <button key={n} type="button" className={days === n ? "is-on" : ""} aria-pressed={days === n} onClick={() => { setDays(n); setEmpty(false); }}>{n === 0 ? w.allTime : `${n} ${w.periodDays}`}</button>)}
+        </div>
+        <h2>{w.publicHead}</h2>
+        {list.data && !chronicles.length && <p className="muted">{w.noPublic}</p>}
+        <ul className="chr-chars">
+          {chronicles.map(c => (
+            <li key={c.profileId}>
+              <span className="chr-char-icon" style={c.classId ? { backgroundImage: `url(${classIconUrl(c.classId)})` } : undefined} aria-hidden="true" />
+              <span>
+                <b>{c.name}</b>{c.realm ? <small> · {c.realm}</small> : null}{c.level ? <small> · {w.level} {c.level}</small> : null}{!c.shared && <small className="chr-tag"> · {w.privateTag}</small>}
+                <small className="chr-meta"><b>{durationText(c.summary.seconds, w)}</b> · {c.summary.sessions} {w.sessionsOf[c.summary.sessions === 1 ? 0 : 1]} · {datesText(c.summary.from, c.summary.to, lang)} · {c.summary.events.toLocaleString()} {w.eventsOf}</small>
+              </span>
+              <button type="button" className="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => void load(c.profileId)}>{busy === c.profileId ? w.composing : w.play}</button>
+            </li>
+          ))}
+        </ul>
+        {empty && <div className="pp-notice" role="status"><b>{w.emptyTitle}</b><br />{w.howto}</div>}
+      </section>
       {problem && <p className="pp-notice" role="alert">{problem}</p>}
       <div className={`chr-drop${over ? " is-over" : ""}`}
         onDragOver={event => { event.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}

@@ -494,8 +494,58 @@ impl Identity {
     }
 }
 
+/// Linux and macOS: looks for the marker in the top-left zone of each visible Forever window.
 #[cfg(not(windows))]
-pub fn capture(_configured: Option<&Path>) -> Option<Marker> {
+pub fn capture(configured: Option<&Path>) -> Option<Marker> {
+    crate::screen::capture_with(configured, |zone| {
+        find_marker(zone.width, zone.height, &zone.bgra)
+    })
+}
+
+/// Finds the 128 x 6 marker strip anywhere near the top-left of a captured zone (BGRA, row-major).
+///
+/// Window frames, title bars and display scaling move the strip and may enlarge it, so a small range of
+/// offsets and scales is tried. The strip must start with a clean rising ramp and pass the payload
+/// checksum, so a wrong offset or other screen content never decodes to a marker.
+#[cfg(any(not(windows), test))]
+#[must_use]
+pub fn find_marker(width: usize, height: usize, bgra: &[u8]) -> Option<Marker> {
+    if bgra.len() < width * height * 4 {
+        return None;
+    }
+    let pixel = |x: usize, y: usize, channel: usize| bgra[(y * width + x) * 4 + channel];
+    let mut strip = vec![0u8; WIDTH * HEIGHT * 4];
+    for scale in 1..=3usize {
+        let (span_x, span_y) = ((WIDTH - 1) * scale, (HEIGHT - 1) * scale);
+        if width <= span_x || height <= span_y {
+            break;
+        }
+        for top in 0..=(height - 1 - span_y).min(100 * scale) {
+            for left in 0..=(width - 1 - span_x).min(32 * scale) {
+                // The first four pixels are the ramp: cheap to reject before assembling the strip.
+                let ramp = (0..3).all(|channel| {
+                    (1..4).all(|k| {
+                        i32::from(pixel(left + k * scale, top, channel))
+                            - i32::from(pixel(left + (k - 1) * scale, top, channel))
+                            >= 3
+                    })
+                });
+                if !ramp {
+                    continue;
+                }
+                for row in 0..HEIGHT {
+                    for column in 0..WIDTH {
+                        let from = ((top + row * scale) * width + left + column * scale) * 4;
+                        let to = (row * WIDTH + column) * 4;
+                        strip[to..to + 4].copy_from_slice(&bgra[from..from + 4]);
+                    }
+                }
+                if let Some(marker) = decode(&strip) {
+                    return Some(marker);
+                }
+            }
+        }
+    }
     None
 }
 
@@ -705,6 +755,54 @@ mod tests {
     fn fixture() -> Value {
         serde_json::from_str(FIXTURE).unwrap()
     }
+
+    /// The strip as the game draws it, placed at (`left`, `top`) in a noisy zone, each pixel repeated `scale` times.
+    fn zone_with(strip: &[u8], width: usize, height: usize, left: usize, top: usize, scale: usize) -> Vec<u8> {
+        let mut zone: Vec<u8> = (0..width * height * 4).map(|i| (i * 31 % 251) as u8).collect();
+        for row in 0..HEIGHT {
+            for column in 0..WIDTH {
+                for (dy, dx) in (0..scale).flat_map(|dy| (0..scale).map(move |dx| (dy, dx))) {
+                    let at = ((top + row * scale + dy) * width + left + column * scale + dx) * 4;
+                    let from = (row * WIDTH + column) * 4;
+                    zone[at..at + 4].copy_from_slice(&strip[from..from + 4]);
+                }
+            }
+        }
+        zone
+    }
+
+    #[test]
+    fn finds_the_marker_behind_a_window_frame_and_display_scaling() {
+        let f = fixture();
+        let mut strip = pixels_of(&f, |v| v as u8);
+        let direct = decode(&strip).expect("direct decode");
+        strip.resize(WIDTH * HEIGHT * 4, 0); // the rest of the strip is unused by this short payload
+        // (left, top, scale): exact corner, a title bar on macOS, a Retina display.
+        for (left, top, scale) in [(0, 0, 1), (11, 37, 1), (0, 56, 2), (17, 28, 2), (9, 3, 3)] {
+            let (width, height) = (ZONE_FOR_TESTS.0, ZONE_FOR_TESTS.1);
+            let zone = zone_with(&strip, width * scale, height * scale, left, top, scale);
+            let found = find_marker(width * scale, height * scale, &zone)
+                .unwrap_or_else(|| panic!("marker at ({left}, {top}) x{scale}"));
+            assert_eq!(
+                (found.b, found.e, found.s, found.t, found.m, found.x, found.y),
+                (direct.b, direct.e, direct.s, direct.t, direct.m, direct.x, direct.y)
+            );
+        }
+    }
+
+    #[test]
+    fn plain_screen_content_never_decodes_to_a_marker() {
+        let (width, height) = ZONE_FOR_TESTS;
+        let noise: Vec<u8> = (0..width * height * 4).map(|i| (i * 7919 % 253) as u8).collect();
+        assert!(find_marker(width, height, &noise).is_none());
+        assert!(find_marker(width, height, &vec![0; width * height * 4]).is_none());
+        assert!(find_marker(width, height, &vec![255; width * height * 4]).is_none());
+        assert!(find_marker(100, 4, &[0; 1600]).is_none(), "zone smaller than the strip");
+        assert!(find_marker(width, height, &[]).is_none(), "short buffer");
+    }
+
+    /// Same size as the zone `screen.rs` reads.
+    const ZONE_FOR_TESTS: (usize, usize) = (320, 200);
 
     #[test]
     fn decodes_the_actual_lua_addon_pixels() {

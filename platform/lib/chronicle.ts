@@ -324,6 +324,15 @@ export function whenOf(c: Chronicle, t: number): number {
   const x = s[sessionAt(c, t)];
   return x.at + (t - x.t);
 }
+/** The other way round: the moment of the journey that was played at a real time (inside its own session, never past it). */
+export function journeyTimeOf(c: Chronicle, at: number): number {
+  const s = c.sessions;
+  if (!s?.length) return Math.min(c.duration, Math.max(0, at - c.startedAt));
+  let i = 0;
+  for (let k = 0; k < s.length; k++) if (s[k].at <= at) i = k;
+  const end = s[i + 1]?.t ?? c.duration;
+  return Math.min(end, Math.max(s[i].t, s[i].t + (at - s[i].at)));
+}
 export type Day = { key: string; from: number; to: number; events: number };
 /** The days played, oldest first: the stretch of journey time of each and how much happened in it. */
 export function daysOf(c: Chronicle): Day[] {

@@ -108,10 +108,10 @@ if (args.has("--check-db")) {
   summary.runningInRegion = info.running_in_region;
   summary.applicationTables = userTables();
   if (JSON.stringify(summary.applicationTables) !== JSON.stringify(schema)) throw new Error("Production schema differs from the current application schema. Apply missing additive migrations before deploying.");
-  // Column-only migrations do not change the table list; the leaderboard reads these columns of 0009.
+  // Column-only migrations do not change the table list; the leaderboard and the public chronicles read these columns (0009, 0011, 0014).
   const profileColumns = sql("PRAGMA table_info('atlas_profiles')").map((row) => row.name);
-  const missing = ["show_item_level", "show_guild", "visibility_at"].filter((name) => !profileColumns.includes(name));
-  if (missing.length) throw new Error(`atlas_profiles lacks ${missing.join(", ")}. Apply drizzle/0009_ranking_details.sql and 0010_publish_from_game.sql before deploying.`);
+  const missing = ["show_item_level", "show_guild", "visibility_at", "show_gear", "show_chronicle"].filter((name) => !profileColumns.includes(name));
+  if (missing.length) throw new Error(`atlas_profiles lacks ${missing.join(", ")}. Apply drizzle/0009_ranking_details.sql, 0010_publish_from_game.sql, 0011_public_gear.sql and 0014_public_chronicle.sql before deploying.`);
 }
 if (args.has("--dry-run")) {
   const output = wrangler(["deploy", "--dry-run", "--outdir", path.join(root, ".test-artifacts/production-dry-run")]);

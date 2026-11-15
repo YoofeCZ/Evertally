@@ -113,6 +113,7 @@ local function selfLootMessage(message)
     end
     return false
 end
+local ITEM_QUALITY_BY_COLOR={["9d9d9d"]=0,["ffffff"]=1,["1eff00"]=2,["0070dd"]=3,["a335ee"]=4,["ff8000"]=5}
 A.On("CHAT_MSG_LOOT",function(message)
     message=A.Text(message,2048)
     -- Match Blizzard's localized self-only templates; never compare a recipient's player name.
@@ -122,9 +123,11 @@ A.On("CHAT_MSG_LOOT",function(message)
     local id=tonumber(message:match("item:(%d+)"));if not id then return end
     local quantity=tonumber(message:match("|h|r?%s*x(%d+)")) or tonumber(message:match("x(%d+)%.?$")) or 1
     local name=message:match("|h%[(.-)%]|h")
+    local color=message:match("|c%x%x(%x%x%x%x%x%x)|Hitem:")
+    local quality=color and ITEM_QUALITY_BY_COLOR[color:lower()] or A.Number(select(3,A.Call(GetItemInfo,id)),0,5)
     -- "You create: X" (conjured food, crafted items) is not loot from the world.
     local source=created and {sourceKind="craft",sourceCertain=true} or (A.Monotonic()-lastLootAt<30 and lootPending[id] or nil)
-    A.Record("loot.received",{itemId=id,name=name,quantity=quantity,sourceNpcId=source and source.sourceNpcId,
+    A.Record("loot.received",{itemId=id,name=name,quantity=quantity,quality=quality,sourceNpcId=source and source.sourceNpcId,
         sourceCertain=source and source.sourceCertain or false,sourceKind=source and source.sourceKind or "unknown"})
 end)
 

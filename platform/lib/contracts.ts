@@ -16,7 +16,7 @@ const characterPayload = z.object({level:integer.max(1000).optional(),classId:en
 const questPayload=z.object({questId:entityId,title:text.optional(),xp:num.optional(),money:num.optional(),npcId:entityId.optional(),...location}).strict();
 const npcPayload=z.object({npcId:entityId,name:text.optional(),...location,positionMethod:z.enum(["player_interaction","unit_position","unknown"]).optional(),level:integer.max(1000).optional()}).strict();
 const vendorPayload=z.object({npcId:entityId,name:text.optional(),items:z.array(z.object({itemId:entityId,name:text.optional(),price:num.optional(),quantity:z.number().finite().min(-1).optional()}).strict()).max(1000),...location}).strict();
-const lootPayload=z.object({itemId:entityId,name:text.optional(),quantity:integer.positive().max(1000000),sourceNpcId:entityId.optional(),sourceKind:z.enum(["corpse","object","gathering","craft","quest","unknown"]).optional(),sourceCertain:z.boolean().optional()}).strict();
+const lootPayload=z.object({itemId:entityId,name:text.optional(),quantity:integer.positive().max(1000000),quality:integer.max(5).optional(),sourceNpcId:entityId.optional(),sourceKind:z.enum(["corpse","object","gathering","craft","quest","unknown"]).optional(),sourceCertain:z.boolean().optional()}).strict();
 const professionPayload=z.object({professionId:entityId,name:text.optional(),skill:integer.optional(),maxSkill:integer.optional(),recipes:z.array(z.object({recipeId:entityId,name:text.optional(),learned:z.boolean().optional()}).strict()).max(10000)}).strict();
 const craftPayload=z.object({recipeId:entityId,itemId:entityId.optional(),quantity:integer.positive().optional(),professionId:entityId.optional()}).strict();
 const cooldownPayload=z.object({recipeId:entityId,readyAt:num}).strict();
@@ -30,6 +30,14 @@ const zonePayload=z.object({mapId:entityId,mapSystem:z.literal("ui_map"),mapName
 // One walked stretch inside a single map: points are [seconds since startedAt, x, y] with x,y as 0..1 map fractions.
 export const TRACK_MAX_POINTS=120;
 const trackPayload=z.object({mapId:entityId,mapSystem:z.literal("ui_map").optional(),startedAt:num,points:z.array(z.tuple([integer.max(86400),coordinate,coordinate])).min(1).max(TRACK_MAX_POINTS)}).strict();
+// The moments of a journey that no other event carries (kills, money, skills, deaths, groups, flights, battlegrounds), batched: one event holds a
+// few minutes of play, so a long session costs a handful of database rows, not thousands. `t` is seconds after `startedAt`; the place is the own route.
+export const JOURNEY_KINDS=["kill","money","skill","death","group","travel","pvp"] as const;
+export const JOURNEY_MAX_MOMENTS=300;
+const journeyMoment=z.object({t:integer.max(86400),k:z.enum(JOURNEY_KINDS),text:z.string().max(120).optional(),a:z.string().max(16).optional(),
+  n:z.number().finite().min(-1e12).max(1e12).optional(),max:integer.max(100000).optional(),xp:num.max(1e7).optional(),
+  mapId:entityId.optional(),x:coordinate.optional(),y:coordinate.optional(),d:num.max(86400).optional(),detail:z.string().max(200).optional()}).strict();
+const journeyPayload=z.object({startedAt:num,events:z.array(journeyMoment).min(1).max(JOURNEY_MAX_MOMENTS)}).strict();
 // Guild identity of the own character. Only a guild master (rankIndex 0) may send the roster.
 export const GUILD_ROSTER_MAX=1000;
 const guildPayload=z.object({left:z.literal(true).optional(),guildName:text.optional(),rankIndex:integer.max(100).optional(),rankName:text.optional(),
@@ -61,7 +69,7 @@ const armoryViewPayload=z.object({
 const armoryRevokedPayload=z.object({name:z.string().min(1).max(60),realm:text.optional()}).strict();
 // The player's leaderboard choice for this character, made in the game (Settings or the setup guide).
 // chosenAt = when the player made the choice; one choice is sent again for every character the player logs in with.
-const publishPayload=z.object({public:z.boolean(),showItemLevel:z.boolean().optional(),showGuild:z.boolean().optional(),showGear:z.boolean().optional(),chosenAt:num.optional()}).strict();
+const publishPayload=z.object({public:z.boolean(),showItemLevel:z.boolean().optional(),showGuild:z.boolean().optional(),showGear:z.boolean().optional(),showChronicle:z.boolean().optional(),chosenAt:num.optional()}).strict();
 
 export const payloadSchemas = {
   "character.snapshot":characterPayload,"character.level":characterPayload,"character.publish":publishPayload,
@@ -71,7 +79,7 @@ export const payloadSchemas = {
   "instance.entered":runPayload,"run.finished":runPayload,"run.interrupted":runPayload,
   "raid.encounter_finished":encounterPayload,
   "zone.visited":zonePayload,
-  "track.path":trackPayload,"guild.snapshot":guildPayload,
+  "track.path":trackPayload,"journey.chunk":journeyPayload,"guild.snapshot":guildPayload,
   "armory.snapshot":armorySnapshotPayload,"armory.view":armoryViewPayload,"armory.revoked":armoryRevokedPayload,
 } as const;
 export type EventKind = keyof typeof payloadSchemas;
@@ -82,7 +90,7 @@ export const eventSchema=z.object({schemaVersion:z.literal(1),eventId:id,produce
   if(!result.success) for(const issue of result.error.issues)ctx.addIssue({...issue,path:["payload",...issue.path]});
   const latest=Math.floor(Date.now()/1000)+300;
   if(event.observedAt>latest)ctx.addIssue({code:z.ZodIssueCode.custom,path:["observedAt"],message:"Observation lies in the future."});
-  if(event.kind==="track.path"&&typeof event.payload.startedAt==="number"&&event.payload.startedAt>event.observedAt+300)ctx.addIssue({code:z.ZodIssueCode.custom,path:["payload","startedAt"],message:"Track starts after the observation."});
+  if((event.kind==="track.path"||event.kind==="journey.chunk")&&typeof event.payload.startedAt==="number"&&event.payload.startedAt>event.observedAt+300)ctx.addIssue({code:z.ZodIssueCode.custom,path:["payload","startedAt"],message:"The batch starts after the observation."});
   if(event.kind.startsWith("run.")||event.kind==="instance.entered"){
     const p=event.payload;
     if(typeof p.startedAt==="number"&&p.startedAt>event.observedAt+300)ctx.addIssue({code:z.ZodIssueCode.custom,path:["payload","startedAt"],message:"Run starts after the observation."});
@@ -105,7 +113,7 @@ export function scopeFor(kind:EventKind):Scope{
   if(kind.startsWith("character.")||kind.startsWith("armory."))return "own_character";
   if(kind.startsWith("run.")||kind.startsWith("instance.")||kind.startsWith("raid."))return "own_runs";
   if(kind.startsWith("profession.")||kind.startsWith("craft.")||kind.startsWith("cooldown."))return "own_professions";
-  if(kind.startsWith("track."))return "own_track";
+  if(kind.startsWith("track.")||kind.startsWith("journey."))return "own_track";
   if(kind.startsWith("guild."))return "guild_share";
   return "world_facts";
 }

@@ -270,3 +270,15 @@ test("the table of map keys and uiMapIDs in the specification is the website's o
   assert.deepEqual(table.maps, want, "out of date: run `node scripts/write-chronicle-maps.mjs` in platform/");
   assert.ok(table.maps.every(m => /^[a-z0-9][a-z0-9-]{0,79}$/.test(m.key)), "every key is a valid zone key of a recording");
 });
+
+test("a real time is found again inside the session it was played in, and never past it", async () => {
+  const { journeyTimeOf, whenOf } = await import("../lib/chronicle");
+  const c = { v: 1, character: { name: "A", classId: 1, level: 5 }, startedAt: 1000, duration: 900, zones: ["azeroth"], path: [], events: [],
+    sessions: [{ t: 0, at: 1000 }, { t: 300, at: 50_000 }] } as never;
+  assert.equal(journeyTimeOf(c, 1100), 100);
+  assert.equal(journeyTimeOf(c, 50_100), 400);
+  assert.equal(journeyTimeOf(c, 20_000), 300, "a gap between sessions ends at the start of the next one");
+  assert.equal(journeyTimeOf(c, 10), 0, "before the first session");
+  assert.equal(journeyTimeOf(c, 99_999), 900, "and after the last");
+  assert.equal(journeyTimeOf(c, whenOf(c, 450)), 450);
+});

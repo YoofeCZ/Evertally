@@ -1,6 +1,6 @@
 import type { Scope } from "@/lib/contracts";
 
-export type View = "overview" | "runs" | "rankings" | "atlas" | "database" | "professions" | "armory" | "forum" | "sync" | "account" | "link" | "character" | "guild" | "chronicle";
+export type View = "overview" | "runs" | "rankings" | "atlas" | "database" | "professions" | "armory" | "forum" | "sync" | "account" | "link" | "character" | "guild" | "chronicle" | "highlights";
 export type Character = { id: string; name?: string | null; realm?: string | null; classId?: number | null; raceId?: number | null; level?: number | null };
 export type CombatMetrics = { damage?: number; healing?: number; overhealing?: number; absorbs?: number; damageTaken?: number; interrupts?: number; dispels?: number; deaths?: number };
 export type RunMember = { guid: string; name?: string; classId?: number; raceId?: number; level?: number; role?: string };
@@ -21,7 +21,7 @@ export type Run = {
 export type Entity = { id: string; kind: string; name: string; count: number; lastSeen?: number; payload?: Record<string, unknown>; origin?: "catalog" | "observation"; sourceLabel?: string; isVendor?: boolean; locations?: {mapId:number;mapSystem?:string;x?:number;y?:number;positionMethod?:string;count?:number;lastSeen?:number}[] };
 export type Grant = { id: string; producerId: string; scopes: Scope[]; revokedAt: number | null; createdAt: number };
 export type Device = { id: string; name: string; scopes: Scope[]; createdAt: number; lastSeenAt: number | null };
-export type Profile = Character & { public: boolean; showItemLevel?: boolean; showGuild?: boolean; showGear?: boolean };
+export type Profile = Character & { public: boolean; showItemLevel?: boolean; showGuild?: boolean; showGear?: boolean; showChronicle?: boolean };
 export type User = { id: string; username: string; displayName: string; avatarUrl: string | null };
 export type Status = {
   version: string; user: User | null; totalEvents: number; totalRuns: number; totalCharacters: number; latestAt: number | null;

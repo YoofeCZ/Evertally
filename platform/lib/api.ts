@@ -7,7 +7,7 @@ import { approvePairing, describePairing, deviceFromRequest, deviceUpload, listD
 import { ApiError } from "./policy";
 import {deviceLive} from "./live";
 import {requestLocate,searchLocatable} from "./locate";
-import {myChronicle} from "./chronicle-build";
+import {listChronicles,publicHighlights,readChronicle} from "./chronicle-build";
 import {CHRONICLE_MAPS} from "./chronicle-maps";
 import {ownLast,ownLive} from "./people";
 import { getBinding } from "@/db";
@@ -62,8 +62,8 @@ const grantInput = z.object({ producerId: z.string().min(1).max(180), consentEpo
   .strict().refine((v) => v.since <= Math.floor(Date.now() / 1000) + 300, "The period cannot start in the future.");
 const uploadInput = z.object({ grantId: z.string().uuid(), export: z.unknown() }).strict();
 // Any of the three may change at once; item level and guild only show while the character is public.
-const visibilityInput = z.object({ public: z.boolean().optional(), showItemLevel: z.boolean().optional(), showGuild: z.boolean().optional(), showGear: z.boolean().optional() }).strict()
-  .refine(v => v.public !== undefined || v.showItemLevel !== undefined || v.showGuild !== undefined || v.showGear !== undefined, "Nothing to change.");
+const visibilityInput = z.object({ public: z.boolean().optional(), showItemLevel: z.boolean().optional(), showGuild: z.boolean().optional(), showGear: z.boolean().optional(), showChronicle: z.boolean().optional() }).strict()
+  .refine(v => v.public !== undefined || v.showItemLevel !== undefined || v.showGuild !== undefined || v.showGear !== undefined || v.showChronicle !== undefined, "Nothing to change.");
 const deviceStartInput = z.object({ name: z.string().max(200).optional() }).strict();
 const devicePollInput = z.object({ deviceCode: z.string().min(10).max(100) }).strict();
 const deviceApproveInput = z.object({ userCode: z.string().min(8).max(12), scopes: z.array(z.enum(SCOPES)).max(SCOPES.length), approve: z.boolean() }).strict();
@@ -136,6 +136,14 @@ export async function handleApi(request: Request, operation: string, id?: string
     const forumAdmin = () => isForumAdmin(getBinding() as unknown as PeopleDb, user?.id ?? null, (env as unknown as Record<string, string | undefined>).FORUM_ADMIN_DISCORD_IDS);
     if (operation === "forum") return json(await listForum(getBinding() as unknown as PeopleDb, user?.id ?? null, { category: params.get("category") ?? undefined, page: Number(params.get("page")) || 0, q: params.get("q") ?? undefined }, await forumAdmin()));
     if (operation === "forum-thread" && id) return json(await getThread(getBinding() as unknown as PeopleDb, id, user?.id ?? null, await forumAdmin()));
+    // journey recordings: the ones their players made public, and (when signed in) the viewer's own
+    if (operation === "chronicles") return json({ chronicles: await listChronicles(getBinding() as unknown as PeopleDb, user?.id ?? null, Number(params.get("days")) || 0, CHRONICLE_MAPS) });
+    if (operation === "highlights") return json(await publicHighlights(getBinding() as unknown as PeopleDb, Number(params.get("days")) || 0, CHRONICLE_MAPS));
+    if (operation === "chronicle") {
+      const result = await readChronicle(getBinding() as unknown as PeopleDb, user?.id ?? null, params.get("profile") ?? "", Number(params.get("days")) || 0, CHRONICLE_MAPS);
+      if (!result) throw new ApiError("not_found", "There is no such chronicle.", 404);
+      return json(result);
+    }
     if (operation === "leaderboards") return json(await getLeaderboards(params));
     // public guilds: only what members of public characters chose to show
     if (operation === "guilds") return json(await getGuilds(params));
@@ -187,11 +195,6 @@ export async function handleApi(request: Request, operation: string, id?: string
       // what other accounts chose to show to friends, to signed-in visitors or to everyone
       const others=await visiblePlayers(db,user.id);
       return json({own,last:await ownLast(db,user.id),peers:[...peers].map(([profileId,position])=>({profileId,...position})),others});
-    }
-    if(operation==="chronicle"&&request.method==="GET"){
-      const result=await myChronicle(people(),user.id,params.get("profile")??"",Number(params.get("days"))||14,CHRONICLE_MAPS);
-      if(!result)throw new ApiError("not_found","This character is not yours.",404);
-      return json(result);
     }
     if(operation==="locate"&&request.method==="GET")return json({players:await searchLocatable(people(),user.id,params.get("q")??"")});
     if(operation==="locate"&&request.method==="POST")return json(await requestLocate(people(),user.id,await request.json().then((body:unknown)=>typeof body==="object"&&body?body as {profileId?:unknown;userId?:unknown}:{},()=>({}))));

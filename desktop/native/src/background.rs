@@ -1,11 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! Per-user WoW companion launcher. Reads process executable names/paths only.
 //! It never accesses game memory, sends input, injects code or starts WoW.
+//!
+//! Windows enumerates processes with Toolhelp; Linux and macOS read the process list (the game runs
+//! under Wine, CrossOver or Whisky there, so its command line carries a Windows path) and stop through
+//! a signal file instead of a named event.
 
-use std::{
-    collections::BTreeSet,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeSet;
+#[cfg(windows)]
+use std::path::{Path, PathBuf};
 
 #[derive(Default)]
 struct Sessions {
@@ -20,6 +23,7 @@ impl Sessions {
     }
 }
 
+#[cfg(windows)]
 fn is_forever_executable(path: &Path, configured: Option<&Path>) -> bool {
     if !path
         .file_name()
@@ -198,7 +202,91 @@ mod windows {
     }
 }
 
+#[cfg(not(windows))]
+mod unix {
+    use super::Sessions;
+    use evertally_sync::{config, game, platform, shutdown};
+    use std::{
+        process::{Command, Stdio},
+        thread,
+        time::Duration,
+    };
+    const STOP: &str = "Local\\EvertallyBackgroundStop";
+    const POLL: Duration = Duration::from_secs(4);
+
+    pub fn stop() {
+        shutdown::request(STOP);
+    }
+
+    pub fn processes() -> std::collections::BTreeSet<u32> {
+        game::forever_processes(None)
+    }
+
+    pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+        let Some(_instance) = platform::single_instance_named("Local\\EvertallyBackgroundSingleInstance")
+        else {
+            return Ok(());
+        };
+        let Some(stop_signal) = shutdown::StopSignal::new(STOP) else {
+            return Err("Cannot create background stop signal".into());
+        };
+        let paths = config::Paths::new()?;
+        let executable = std::env::current_exe()?.with_file_name("Evertally");
+        if !executable.is_file() {
+            return Err("Evertally is missing beside the background launcher".into());
+        }
+        let mut sessions = Sessions::default();
+        loop {
+            // Read settings without modifying them; changes from the app take effect on the next poll.
+            let configured = std::fs::read(&paths.config)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<config::Config>(&bytes).ok())
+                .and_then(|config| config.wow_path);
+            if sessions.update(game::forever_processes(configured.as_deref())) {
+                // The app's --wow-start flag starts it minimised and inactive.
+                if let Err(error) = Command::new(&executable)
+                    .arg("--wow-start")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                {
+                    config::log(
+                        &paths.log,
+                        &format!("Background companion launch failed: {error}"),
+                    );
+                }
+            }
+            // The poll interval is also the stop latency, so wait in short steps.
+            for _ in 0..(POLL.as_millis() / 250) {
+                if stop_signal.requested() {
+                    return Ok(());
+                }
+                thread::sleep(Duration::from_millis(250));
+            }
+        }
+    }
+}
+
 fn main() {
+    #[cfg(not(windows))]
+    {
+        if std::env::args().any(|arg| arg == "--diagnostics") {
+            // Read-only: no settings/keyring access, no new lock/signal, no subprocess.
+            println!(
+                "{}",
+                serde_json::json!({"watcher":"EvertallyBackground","matchingGameProcesses":unix::processes().len(),"launchesApplication":false,"writesSettings":false})
+            );
+            return;
+        }
+        if std::env::args().any(|arg| arg == "--stop") {
+            unix::stop();
+            return;
+        }
+        if let Err(error) = unix::run() {
+            eprintln!("Evertally background: {error}");
+        }
+    }
     #[cfg(windows)]
     {
         if std::env::args().any(|arg| arg == "--diagnostics") {
@@ -217,8 +305,6 @@ fn main() {
             eprintln!("Evertally background: {error}");
         }
     }
-    #[cfg(not(windows))]
-    eprintln!("Evertally background launcher requires Windows.");
 }
 
 #[cfg(test)]
@@ -234,6 +320,7 @@ mod tests {
         assert!(sessions.update(BTreeSet::from([11])));
         assert!(!sessions.update(BTreeSet::from([11])));
     }
+    #[cfg(windows)]
     #[test]
     fn only_forever_or_the_explicit_install_is_matched() {
         assert!(is_forever_executable(

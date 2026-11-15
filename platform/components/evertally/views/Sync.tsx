@@ -118,6 +118,10 @@ function ManualImport({ user, signIn }: { user: User | null; signIn: string | nu
   );
 }
 
+/** The packages of the bridge for macOS and Linux are built on GitHub and kept in the release of the same version (not re-hosted here). */
+const BRIDGE_VERSION = "0.9.11";
+const BRIDGE_RELEASE = `https://github.com/YoofeCZ/Evertally/releases/download/bridge-${BRIDGE_VERSION}`;
+
 export function SyncView({ user, signIn }: { user: User | null; signIn: string | null }) {
   const { t } = useI18n();
   return (
@@ -137,6 +141,25 @@ export function SyncView({ user, signIn }: { user: User | null; signIn: string |
             <a className="btn btn-primary" href="/downloads/EvertallySetup.exe"><Icon name="download" size={16} /> {t("sync.app.download")}</a>
             <a className="btn btn-ghost" href="/downloads/Evertally.zip"><Icon name="download" size={16} /> {t("hero.download")}</a>
           </div>
+        </section>
+        <section className="chapter-card tint-navy">
+          <Tag tone="lilac">{t("sync.unix.tag")}</Tag>
+          <h2 className="serif-heading small"><Icon name="laptop" size={22} /> {t("sync.unix.title")}</h2>
+          <p className="lead">{t("sync.unix.text")}</p>
+          <ol className="steps">
+            {(["sync.unix.step1", "sync.unix.step2", "sync.unix.step3"] as const).map((key, i) => (
+              <li key={key}><span className="step-node mono">{i + 1}</span><span>{t(key)}</span></li>
+            ))}
+          </ol>
+          <p className="muted small">{t("sync.unix.note")}</p>
+          <div className="button-row">
+            <a className="btn btn-primary" href={`${BRIDGE_RELEASE}/Evertally-${BRIDGE_VERSION}-macos-arm64.zip`}><Icon name="download" size={16} /> {t("sync.unix.mac")}</a>
+            <a className="btn btn-primary" href={`${BRIDGE_RELEASE}/Evertally-${BRIDGE_VERSION}-linux-x86_64.tar.gz`}><Icon name="download" size={16} /> {t("sync.unix.linux")}</a>
+          </div>
+          <p className="muted small">
+            {t("sync.unix.sha")}: <a href={`${BRIDGE_RELEASE}/Evertally-${BRIDGE_VERSION}-macos-arm64.zip.sha256`}>macOS</a> · <a href={`${BRIDGE_RELEASE}/Evertally-${BRIDGE_VERSION}-linux-x86_64.tar.gz.sha256`}>Linux</a> ·{" "}
+            <a href="https://github.com/YoofeCZ/Evertally" target="_blank" rel="noreferrer">{t("sync.unix.source")}</a> · <a href="https://github.com/YoofeCZ/Evertally/blob/main/desktop/native/README.md" target="_blank" rel="noreferrer">{t("sync.unix.guide")}</a>
+          </p>
         </section>
         <ManualImport user={user} signIn={signIn} />
       </div>

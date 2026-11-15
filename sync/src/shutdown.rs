@@ -1,4 +1,8 @@
-//! Cooperative shutdown for the tray and its settings window. No process termination.
+//! Cooperative shutdown and command signals between the tray bridge, its settings window and the
+//! background launcher. No process termination.
+//!
+//! Windows uses named events. Linux and macOS have no equivalent, so a signal is an empty file in the
+//! per-user runtime folder: `request` creates it, the owner polls `requested` and removes it with `reset`.
 #[cfg(windows)]
 use windows_sys::Win32::{
     Foundation::CloseHandle,
@@ -10,7 +14,7 @@ use windows_sys::Win32::{
 #[cfg(windows)]
 pub struct StopSignal(windows_sys::Win32::Foundation::HANDLE);
 #[cfg(not(windows))]
-pub struct StopSignal;
+pub struct StopSignal(std::path::PathBuf);
 
 pub const BRIDGE_STOP: &str = "Local\\EvertallyBridgeStop";
 pub const SETTINGS_STOP: &str = "Local\\EvertallyConnectionSettingsStop";
@@ -19,6 +23,20 @@ pub const BRIDGE_RELOAD: &str = "Local\\EvertallyBridgeReload";
 #[cfg(windows)]
 fn wide(name: &str) -> Vec<u16> {
     name.encode_utf16().chain(Some(0)).collect()
+}
+
+/// Signal file for a named signal: a per-user folder (the XDG runtime dir when there is one), never shared.
+#[cfg(not(windows))]
+pub(crate) fn signal_path(name: &str) -> Option<std::path::PathBuf> {
+    let dirs = directories::ProjectDirs::from("gg", "Evertally", "Evertally Sync")?;
+    let base = dirs
+        .runtime_dir()
+        .map_or_else(|| dirs.config_dir().join("run"), std::path::Path::to_path_buf);
+    let file: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    Some(base.join(file))
 }
 
 impl StopSignal {
@@ -32,8 +50,11 @@ impl StopSignal {
         }
         #[cfg(not(windows))]
         {
-            let _ = name;
-            Some(Self)
+            let path = signal_path(name)?;
+            std::fs::create_dir_all(path.parent()?).ok()?;
+            // A request that arrived while nobody was listening must not close the next start.
+            let _ = std::fs::remove_file(&path);
+            Some(Self(path))
         }
     }
     pub fn reset(&self) {
@@ -42,6 +63,8 @@ impl StopSignal {
         unsafe {
             ResetEvent(self.0);
         }
+        #[cfg(not(windows))]
+        let _ = std::fs::remove_file(&self.0);
     }
     #[must_use]
     pub fn requested(&self) -> bool {
@@ -52,18 +75,20 @@ impl StopSignal {
         }
         #[cfg(not(windows))]
         {
-            false
+            self.0.exists()
         }
     }
 }
 
-#[cfg(windows)]
 impl Drop for StopSignal {
     fn drop(&mut self) {
+        #[cfg(windows)]
         // SAFETY: unique owned event is closed exactly once.
         unsafe {
             CloseHandle(self.0);
         }
+        #[cfg(not(windows))]
+        let _ = std::fs::remove_file(&self.0);
     }
 }
 
@@ -80,10 +105,16 @@ pub fn request(name: &str) {
         }
     }
     #[cfg(not(windows))]
-    let _ = name;
+    if let Some(path) = signal_path(name)
+        && let Some(parent) = path.parent()
+        && parent.is_dir()
+    {
+        // Only a running owner created the folder; without one the request has nobody to reach.
+        let _ = std::fs::write(path, b"");
+    }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
     #[test]

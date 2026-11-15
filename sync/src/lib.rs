@@ -10,12 +10,15 @@ pub mod community;
 pub mod bridge;
 pub mod config;
 pub mod forum;
+pub mod game;
 pub mod lang;
 pub mod local;
 pub mod optical;
 pub mod platform;
 pub mod ranking;
 pub mod savedvars;
+#[cfg(not(windows))]
+pub mod screen;
 pub mod shutdown;
 #[cfg(feature = "tray")]
 pub mod ui;
@@ -62,7 +65,15 @@ pub fn run() -> anyhow::Result<()> {
     );
 
     let (tx, rx) = mpsc::channel();
-    let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    #[allow(unused_mut)] // only the macOS branch below mutates it
+    let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    #[cfg(target_os = "macos")]
+    {
+        // Menu bar icon only: no Dock icon, and starting with WoW never takes focus from the game.
+        use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
+        event_loop.set_activation_policy(ActivationPolicy::Accessory);
+        event_loop.set_activate_ignoring_other_apps(false);
+    }
     let proxy = event_loop.create_proxy();
     let publish = Box::new(move |state| {
         let _ = proxy.send_event(UserEvent::State(state));

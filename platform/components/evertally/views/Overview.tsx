@@ -10,6 +10,7 @@ import { useDungeonArt } from "../db/store";
 import type { Entity, Entry, Run, Status, View } from "../types";
 import { Empty, Icon, RunTable } from "../ui";
 import { DungeonGrid, Row } from "./Rankings";
+import { HomeHighlights } from "./Highlights";
 
 type PackagePlayer = { classId: number | null; raceId: number | null };
 const ART = "/media/dungeons/blackrock-depths.jpg";
@@ -69,6 +70,8 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
           <div><strong className="home-date">{date(status?.latestAt)}</strong><small>{t("home.updated")}</small></div>
         </div>
       </section>
+
+      <HomeHighlights />
 
       <div className="home-grid">
         <div>

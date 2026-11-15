@@ -49,7 +49,7 @@ def runtime(record_globals=False, enforce_requirements=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "Gear.lua", "GearUI.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "Gear.lua", "GearUI.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -529,8 +529,13 @@ class ReplayTests(unittest.TestCase):
         self.a.SetPublish("gear", True)
         self.assertTrue(self.exported("character.publish")[2].payload.showGear, "gear and talents are a choice of their own")
         self.assertFalse(self.exported("character.publish")[2].payload.showGuild)
+        self.assertFalse(self.exported("character.publish")[2].payload.showChronicle, "the chronicle is off until it is chosen")
+        self.a.SetPublish("chronicle", True)
+        self.assertTrue(self.exported("character.publish")[3].payload.showChronicle, "the chronicle is a choice of its own")
+        self.a.SetPublish("chronicle", False)
+        self.assertFalse(self.exported("character.publish")[4].payload.showChronicle, "and can be taken back")
         self.a.SetPublish("bags", True)
-        self.assertEqual(len(self.exported("character.publish")), 3, "nothing else can be published")
+        self.assertEqual(len(self.exported("character.publish")), 5, "nothing else can be published")
         self.assertFalse(self.a.SendPublish(), "the same choice is not sent twice for one character")
         self.lua.execute('UnitGUID=function(unit) if unit=="player" then return "Player-TEST-alt" end end')
         self.assertTrue(self.a.SendPublish(), "another character gets the same choice")

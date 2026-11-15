@@ -26,7 +26,7 @@ const nullableNum=(v:unknown)=>typeof v==="number"?v:null;
 const nullableText=(v:unknown)=>typeof v==="string"?v:null;
 
 export function serializeGrant(row:Row){return {id:String(row.id),producerId:String(row.producer_id),consentEpoch:Number(row.consent_epoch),since:Number(row.since),scopes:decode<Scope[]>(row.scopes,[]),revokedAt:nullableNum(row.revoked_at),createdAt:Number(row.created_at)};}
-export function serializeProfile(row:Row){return {id:String(row.id),name:nullableText(row.name),realm:nullableText(row.realm),classId:nullableNum(row.class_id),raceId:nullableNum(row.race_id),level:nullableNum(row.level),public:bool(row.public),showItemLevel:bool(row.show_item_level),showGuild:bool(row.show_guild),showGear:bool(row.show_gear),lastSeen:Number(row.last_seen)};}
+export function serializeProfile(row:Row){return {id:String(row.id),name:nullableText(row.name),realm:nullableText(row.realm),classId:nullableNum(row.class_id),raceId:nullableNum(row.race_id),level:nullableNum(row.level),public:bool(row.public),showItemLevel:bool(row.show_item_level),showGuild:bool(row.show_guild),showGear:bool(row.show_gear),showChronicle:bool(row.show_chronicle),lastSeen:Number(row.last_seen)};}
 
 export async function createGrant(userId:string,input:{producerId:string;consentEpoch:number;since:number;scopes:Scope[]}){
   const existing=await first("SELECT * FROM atlas_grants WHERE user_id=? AND producer_id=? AND consent_epoch=?",[userId,input.producerId,input.consentEpoch]);
@@ -89,9 +89,9 @@ export async function uploadEvents(userId:string,grantId:string,raw:unknown){
       profileRows.push({id:profileId,userId,producerId:event.producerId,characterKey:c.id,name:c.name??null,realm:c.realm??null,classId:c.classId??null,raceId:c.raceId??null,level:c.level??null,lastSeen:event.observedAt,observationId:eventId});
     }
     if(event.kind==="track.path")hasTracks=true;
-    if(event.kind==="character.publish"&&profileId){const p=event.payload as {public:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;chosenAt?:number};
+    if(event.kind==="character.publish"&&profileId){const p=event.payload as {public:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;showChronicle?:boolean;chosenAt?:number};
       // the moment of the choice decides, never later than the observation itself
-      publishChoices.push({profileId,observedAt:Math.min(p.chosenAt??event.observedAt,event.observedAt),public:p.public,showItemLevel:p.showItemLevel,showGuild:p.showGuild,showGear:p.showGear});}
+      publishChoices.push({profileId,observedAt:Math.min(p.chosenAt??event.observedAt,event.observedAt),public:p.public,showItemLevel:p.showItemLevel,showGuild:p.showGuild,showGear:p.showGear,showChronicle:p.showChronicle});}
     if(event.kind==="guild.snapshot"&&profileId&&event.character?.name){
       const p=event.payload as {guildName?:string;rankIndex?:number;roster?:GuildSnapshot["roster"]};
       guildSnapshots.push({profileId,name:event.character.name,realm:event.character.realm??event.game.realm,observedAt:event.observedAt,guildName:p.guildName,rankIndex:p.rankIndex,roster:p.roster});
@@ -123,15 +123,16 @@ export async function meData(userId:string){
   return {grants:grants.map(serializeGrant),profiles:profiles.map(serializeProfile),eventCount:Number(count?.count??0),runCount:runs.length};
 }
 
-export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean}){
+export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;showChronicle?:boolean}){
   const existing=await first("SELECT * FROM atlas_profiles WHERE id=? AND user_id=?",[id,userId]);if(!existing)throw new ApiError("not_found","Character not found.",404);
-  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;visibilityAt?:number}={visibilityAt:now()};
+  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;showChronicle?:boolean;visibilityAt?:number}={visibilityAt:now()};
   if(change.public!==undefined)set.public=change.public;
   if(change.showItemLevel!==undefined)set.showItemLevel=change.showItemLevel;
   if(change.showGuild!==undefined)set.showGuild=change.showGuild;
   if(change.showGear!==undefined)set.showGear=change.showGear;
+  if(change.showChronicle!==undefined)set.showChronicle=change.showChronicle;
   await getDb().update(profileTable).set(set).where(eq(profileTable.id,id));
-  return serializeProfile({...existing,...(set.public!==undefined?{public:set.public}:{}),...(set.showItemLevel!==undefined?{show_item_level:set.showItemLevel}:{}),...(set.showGuild!==undefined?{show_guild:set.showGuild}:{}),...(set.showGear!==undefined?{show_gear:set.showGear}:{})});
+  return serializeProfile({...existing,...(set.public!==undefined?{public:set.public}:{}),...(set.showItemLevel!==undefined?{show_item_level:set.showItemLevel}:{}),...(set.showGuild!==undefined?{show_guild:set.showGuild}:{}),...(set.showGear!==undefined?{show_gear:set.showGear}:{}),...(set.showChronicle!==undefined?{show_chronicle:set.showChronicle}:{})});
 }
 
 export async function deleteMyData(userId:string){const db=getBinding();await db.batch([
