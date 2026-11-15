@@ -33,14 +33,20 @@ jobs:
             desktop/native
       - name: sync - tests and clippy
         working-directory: sync
+        shell: bash
         run: |
-          cargo test --lib
-          cargo clippy --all-targets -- -D warnings
+          rc=0
+          ../.github/ci-run.sh cargo test --lib || rc=1
+          ../.github/ci-run.sh cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
       - name: desktop - tests and clippy
         working-directory: desktop/native
+        shell: bash
         run: |
-          cargo test
-          cargo clippy --all-targets -- -D warnings
+          rc=0
+          ../../.github/ci-run.sh cargo test || rc=1
+          ../../.github/ci-run.sh cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
       - name: Package (Linux, macOS)
         if: runner.os != 'Windows'
         run: ./Build-Release.sh
