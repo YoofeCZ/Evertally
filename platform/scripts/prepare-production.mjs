@@ -73,7 +73,7 @@ function sql(command) {
   return result.flatMap((part) => part.results ?? []);
 }
 const userTables = () => sql("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('_cf_KV','d1_migrations') ORDER BY name").map((row) => row.name);
-const schema = ["atlas_grants", "atlas_observations", "atlas_profiles", "atlas_sources", "atlas_uploads", "et_circle_members", "et_circles", "et_device_codes", "et_devices", "et_forum_posts", "et_forum_threads", "et_friends", "et_game_connections", "et_guild_members", "et_guilds", "et_live_positions", "et_meet_access", "et_meet_rsvps", "et_meets", "et_sessions", "et_sharing", "et_users"];
+const schema = ["atlas_grants", "atlas_observations", "atlas_profiles", "atlas_sources", "atlas_uploads", "et_circle_members", "et_circles", "et_device_codes", "et_devices", "et_forum_posts", "et_forum_threads", "et_friends", "et_game_connections", "et_guild_members", "et_guilds", "et_last_positions", "et_live_positions", "et_locate_asks", "et_locate_requests", "et_meet_access", "et_meet_rsvps", "et_meets", "et_sessions", "et_sharing", "et_users"];
 const summary = { config: path.relative(root, productionPath).replaceAll(path.sep, "/"), worker: target.workerName, hostname: target.hostname, database: target.database.name, databaseId: target.database.id, published: false };
 
 if (args.has("--init-db")) {
