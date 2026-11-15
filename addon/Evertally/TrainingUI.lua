@@ -1,5 +1,6 @@
 local _, A = ...
 local MODES = {"ready", "later", "pet", "quest", "all"}
+A.locale.en.trainingSearch="Search abilities…";A.locale.cs.trainingSearch="Hledat schopnosti…"
 
 function A.BuildTrainingPage(page, kit)
     local T, C = A.Training, kit.C
@@ -25,7 +26,8 @@ function A.BuildTrainingPage(page, kit)
         page.showKnown = not page.showKnown; T.State().showKnown = page.showKnown; page.Refresh()
     end)
     page.known:SetPoint("TOPRIGHT", 0, -89)
-    page.summary = kit.label(page, 11, C.gold); page.summary:SetPoint("TOPLEFT", 2, -126); page.summary:SetPoint("TOPRIGHT", -2, -126); page.summary:SetHeight(32); page.summary:SetWordWrap(true)
+    page.summaryCard = kit.Card(page, C.gold); page.summaryCard:SetPoint("TOPLEFT", 0, -123); page.summaryCard:SetPoint("TOPRIGHT", 0, -123); page.summaryCard:SetHeight(36)
+    page.summary = kit.label(page.summaryCard, 12, C.bright or C.gold); page.summary:SetPoint("TOPLEFT", 10, -8); page.summary:SetPoint("TOPRIGHT", -10, -8); page.summary:SetHeight(28); page.summary:SetWordWrap(true)
     page.book = kit.Book(page, 168); page.book:SetPoint("BOTTOMRIGHT", 0, 44)
     page.list = kit.ListView(page.book.index, 0, nil, true)
     page.document = kit.Document(page.book.paper)
@@ -36,7 +38,7 @@ function A.BuildTrainingPage(page, kit)
         if not ok then A.Print(A.L(reason == "map_off" and "navErr_map_off" or "trainingNoTrainer")) end
     end)
     page.navigate:SetPoint("BOTTOMRIGHT", 0, 2)
-    page.priceHint = kit.label(page, 10, C.mist)
+    page.priceHint = kit.label(page, 11, C.mist)
     page.priceHint:SetPoint("BOTTOMLEFT", 0, 7); page.priceHint:SetPoint("BOTTOMRIGHT", page.navigate, "BOTTOMLEFT", -10, 0)
     page.priceHint:SetWordWrap(true)
     local function money(copper) return A.FormatMoney and A.FormatMoney(copper) or tostring(copper or 0) end
@@ -69,9 +71,10 @@ function A.BuildTrainingPage(page, kit)
     end
     function page.Refresh()
         local model, rows = T.Model(), T.Rows(page.mode, page.query, page.showKnown)
+        page.search.hint:SetText(A.L("trainingSearch"))
         for _, mode in ipairs(MODES) do
             local button = page.filters[mode]; button.text:SetText(A.L("training_" .. mode))
-            local color = mode == page.mode and C.gold or C.mist; button.text:SetTextColor(unpack(color))
+            local color = mode == page.mode and (C.bright or C.gold) or C.mist; button.text:SetTextColor(unpack(color))
         end
         page.known.text:SetText(A.L(page.showKnown and "trainingHideKnown" or "trainingShowKnown"))
         page.navigate.text:SetText(A.L("trainingNavigate"))
@@ -90,5 +93,14 @@ function A.BuildTrainingPage(page, kit)
         selected = selected or rows[1]; page.selected = selected; page.selectedId = selected and selected.id
         page.document.Set(selectedDetail(selected))
     end
-    page.Layout = function() if page.book.Layout then page.book.Layout() end end
+    local function layout()
+        local width = tonumber(page:GetWidth()) or 640; if width < 300 then width = 640 end
+        local tabWidth = math.min(108, (width - 16) / #MODES)
+        for _, mode in ipairs(MODES) do page.filters[mode]:SetWidth(tabWidth) end
+        page.search:SetWidth(math.max(180, math.min(300, width * .56)))
+        page.known:SetWidth(math.max(150, math.min(190, width * .36)))
+        if page.document.spec then page.document.Set(page.document.spec) end
+    end
+    page.book.onLayout = layout
+    page.Layout = function() if page.book.Layout then page.book.Layout() end; layout() end
 end

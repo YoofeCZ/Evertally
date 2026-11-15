@@ -3,8 +3,8 @@ local A = _G.Evertally
 -- The database tab as it looks: a search box, a list, and what is known about the chosen NPC, quest or item with buttons to show
 -- the places on the map or to navigate to the nearest one. The reading of QuestieDB is in WorldDb.lua (M.Db).
 local Db = M.Db
-local ROWS, ROW_H, MAX_RESULTS = 18, 34, 100
-local HEAD = "|cffa78bfa"
+local ROWS, ROW_H, MAX_RESULTS = 18, 40, 100
+local HEAD = "|cffcba65f"
 
 -- ---------------------------------------------------------------- what to show about one entity
 local function nameOf(db, kind, id)
@@ -195,7 +195,9 @@ function M.WorldDbRows(frame)
             row.name:SetText(A.Plain(values and values.name or tostring(id)))
             if row.icon then row.icon:SetTexture(s.kind == "item" and M.ItemLook(id) or ICON_OF[s.kind] or M.guideQuestion) end
             if row.level then row.level:SetText(s.kind == "quest" and values and values.questLevel and tostring(values.questLevel) or "") end
-            row.bg:SetAlpha(s.selected and s.selected.kind == s.kind and s.selected.id == id and 0.22 or 0.05)
+            local selected = s.selected and s.selected.kind == s.kind and s.selected.id == id
+            row.bg:SetAlpha(selected and 0.18 or 0.025)
+            row.accent:SetShown(selected == true)
         end
     end
 end
@@ -263,7 +265,7 @@ function M.WorldDbRefresh(frame, fromTimer)
     for kind, button in pairs(s.kindButtons) do
         button:SetShown(not s.dbHandle or s.dbHandle.has == nil or s.dbHandle.has[kind] == true)
         button.text:SetText(A.L("worldDb_" .. kind))
-        button.text:SetTextColor(unpack(s.kind == kind and frame.kitColors.text or frame.kitColors.mist))
+        button.text:SetTextColor(unpack(s.kind == kind and frame.kitColors.bright or frame.kitColors.mist))
     end
     if s.dbFailed then
         s.status:SetText(A.L("worldDbMissing")); s.results = {}; M.WorldDbRows(frame); return
@@ -291,10 +293,8 @@ local function build(frame, kit)
     frame.kitColors = C
     local s = {kind = "npc", results = {}, offset = 0, query = ""}
     frame.db = s
-    s.box = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-    s.box:SetSize(230, 26); s.box:SetPoint("TOPLEFT", 6, -4); s.box:SetAutoFocus(false); s.box:SetMaxLetters(60); s.box:SetFont("Fonts\\ARIALN.TTF", 12, "")
-    s.box:SetScript("OnTextChanged", function(self) s.query = self:GetText() or ""; s.offset = 0; M.WorldDbRefresh(frame) end)
-    s.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    s.box = kit.SearchBox(frame, 230, function(value) s.query = value or ""; s.offset = 0; M.WorldDbRefresh(frame) end)
+    s.box:SetPoint("TOPLEFT", 0, -4); s.box:SetMaxLetters(60)
     s.kindButtons = {}
     for i, kind in ipairs(Db.kinds) do
         local b = kit.Button(frame, "worldDb_" .. kind, 72, "ghost", function() s.kind = kind; s.offset = 0; s.selected = nil; s.progress = nil; M.WorldDbRefresh(frame) end)
@@ -316,6 +316,7 @@ local function build(frame, kit)
     -- the list
     s.list = CreateFrame("Frame", nil, frame)
     s.list:SetPoint("TOPLEFT", 0, -58); s.list:SetSize(290, ROWS * ROW_H)
+    A.NativePanel(s.list, C)
     s.list:EnableMouse(true)
     if s.list.EnableMouseWheel then s.list:EnableMouseWheel(true) end
     s.list:SetScript("OnMouseWheel", function(_, delta)
@@ -327,13 +328,13 @@ local function build(frame, kit)
     for i = 1, ROWS do
         local row = CreateFrame("Button", nil, s.list)
         row:SetHeight(ROW_H - 2); row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_H)
-        row.bg = kit.fill(row, {1, 1, 1}, 1); row.bg:SetAlpha(0.05)   -- the alpha IS the strength: a colour alpha on top would multiply
-        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(22, 22); row.icon:SetPoint("LEFT", 6, 0)
-        row.level = kit.label(row, 10, C.gold); row.level:SetPoint("RIGHT", -7, 0); row.level:SetJustifyH("RIGHT")
-        row.name = kit.label(row, 12, C.text); row.name:SetPoint("LEFT", 34, 0); row.name:SetPoint("RIGHT", -32, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
-        row:SetScript("OnEnter", function() row.bg:SetAlpha(0.14) end)
-        row:SetScript("OnLeave", function() row.bg:SetAlpha(0.05) end)
-        row:SetScript("OnClick", function() if row.id then s.selected = {kind = s.kind, id = row.id}; M.WorldDbDetail(frame) end end)
+        row.bg = kit.fill(row, C.gold, 1); row.bg:SetAlpha(0.025)
+        row.accent = row:CreateTexture(nil, "OVERLAY"); row.accent:SetPoint("TOPLEFT"); row.accent:SetPoint("BOTTOMLEFT"); row.accent:SetWidth(2); kit.paint(row.accent, C.gold, 1); row.accent:Hide()
+        local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, C.gold, 0.10)
+        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(26, 26); row.icon:SetPoint("LEFT", 8, 0)
+        row.level = kit.label(row, 11, C.gold); row.level:SetPoint("RIGHT", -8, 0); row.level:SetJustifyH("RIGHT")
+        row.name = kit.label(row, 13, C.text); row.name:SetPoint("LEFT", 42, 0); row.name:SetPoint("RIGHT", -32, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
+        row:SetScript("OnClick", function() if row.id then s.selected = {kind = s.kind, id = row.id}; M.WorldDbDetail(frame); M.WorldDbRows(frame) end end)
         s.rows[i] = row
     end
     -- the detail
@@ -344,7 +345,7 @@ local function build(frame, kit)
         pcall(function() GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink("item:" .. self.itemId); GameTooltip:Show() end)
     end)
     s.icon:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-    s.title = kit.label(frame, 15, C.text); s.title:SetPoint("TOPLEFT", 306, -60); s.title:SetWidth(350); s.title:SetJustifyH("LEFT")
+    s.title = kit.label(frame, 19, C.bright or C.gold); s.title:SetPoint("TOPLEFT", 306, -60); s.title:SetWidth(350); s.title:SetJustifyH("LEFT")
     s.subtitle = kit.label(frame, 11, C.mist); s.subtitle:SetPoint("TOPLEFT", s.title, "BOTTOMLEFT", 0, -4); s.subtitle:SetWidth(350)
     -- the text of the detail scrolls (a quest or an item has many lines)
     s.kit = kit
@@ -375,7 +376,7 @@ local function build(frame, kit)
         -- A newly created anchored body can briefly report zero (the small unit-test mock reports 100) before its parent lays out.
         if w < 300 then w = 640 end
         if h < 150 then h = 400 end
-        s.listWidth = math.max(160, math.min(238, math.floor(w * 0.30)))
+        s.listWidth = math.max(175, math.min(276, math.floor(w * 0.33)))
         s.visibleRows = math.max(1, math.min(ROWS, math.floor((h - 58) / ROW_H)))
         s.list:SetWidth(s.listWidth); s.list:SetHeight(math.max(34, h - 58))
         local left, detail = s.listWidth + 16, math.max(180, w - s.listWidth - 20)
@@ -401,6 +402,8 @@ local function build(frame, kit)
             s.show:SetWidth(detail); s.go:SetWidth(detail); s.show:SetPoint("BOTTOMLEFT", left, 36); s.go:SetPoint("BOTTOMLEFT", left, 2)
         end
         s.status:SetWidth(math.max(100, w - 12))
+        s.catButton:ClearAllPoints(); s.catButton:SetPoint("TOPRIGHT", 0, -34); s.catButton:SetWidth(math.min(260, detail))
+        s.status:SetWidth(math.max(100, w - s.catButton:GetWidth() - 16))
         M.WorldDbRows(frame)
     end
     frame:SetScript("OnSizeChanged", function()

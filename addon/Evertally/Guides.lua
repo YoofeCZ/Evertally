@@ -153,36 +153,40 @@ local function follow(action)
 end
 local function parchment(frame,kit)
  if A.NativeParchment then return A.NativeParchment(frame,kit.C)end
- local t=frame:CreateTexture(nil,"BACKGROUND");t:SetAllPoints(frame);t:SetTexture("Interface\\QuestFrame\\QuestBG");kit.outline(frame,{.5,.32,.12,1})
- return{ink={.2,.12,.055},mutedInk={.36,.26,.14},heading={.42,.23,.055}}
+ kit.fill(frame,kit.C.well,1);kit.outline(frame,kit.C.line or kit.C.gold)
+ return{ink=kit.C.text,mutedInk=kit.C.mist,heading=kit.C.bright or kit.C.gold}
 end
 function A.BuildGuidesPage(page,kit)
  local C=kit.C;kit.PageHeader(page,"guides")
  local g={rows={},sections={},category="all",query="",selected="leveling"};page.guides=g
- g.search=CreateFrame("EditBox",nil,page,"InputBoxTemplate");g.search:SetAutoFocus(false);g.search:SetFont(kit.fontPath(),12,"");g.search:SetMaxLetters(80);g.search:SetSize(220,26);g.search:SetPoint("TOPLEFT",6,-57);g.search:SetScript("OnEscapePressed",function(self)self:ClearFocus()end)
- g.progress=kit.label(page,10,C.mist);g.progress:SetPoint("TOPRIGHT",0,-64)
+ g.search=kit.SearchBox(page,240,function(value)g.query=value or"";g.renderKey=nil;if page.Refresh then page.Refresh()end end);g.search:SetPoint("TOPLEFT",0,-57)
+ g.progress=kit.label(page,11,C.mist);g.progress:SetPoint("TOPRIGHT",0,-65)
  g.tabs={};for i,pair in ipairs({{"all","guideAll"},{"professions","guideProfessions"},{"classes","guideClasses"},{"leveling","guideLeveling"},{"dungeons","guideDungeons"}})do
   local key=pair[1];local chip=kit.Chip(page,function()g.category=key;g.renderKey=nil;page.Refresh()end);chip.SetLabel(A.L(pair[2]));chip.key=key;chip.localeKey=pair[2]
   if i==1 then chip:SetPoint("TOPLEFT",0,-94)else chip:SetPoint("LEFT",g.tabs[i-1],"RIGHT",5,0)end;g.tabs[i]=chip
  end
  g.list=CreateFrame("ScrollFrame",nil,page,"UIPanelScrollFrameTemplate");g.list:SetPoint("TOPLEFT",0,-130);g.list:SetPoint("BOTTOMLEFT",0,5);g.list:SetWidth(190)
  g.listContent=CreateFrame("Frame",nil,g.list);g.listContent:SetSize(174,1000);g.list:SetScrollChild(g.listContent)
+ g.index=CreateFrame("Frame",nil,page);g.index:SetPoint("TOPLEFT",g.list,"TOPLEFT",-1,1);g.index:SetPoint("BOTTOMRIGHT",g.list,"BOTTOMRIGHT",1,-1)
+ if g.index.SetFrameLevel and g.list.GetFrameLevel then g.index:SetFrameLevel(math.max(0,(g.list:GetFrameLevel()or 1)-1))end
+ A.NativePanel(g.index,C)
  g.panel=CreateFrame("Frame",nil,page);g.panel:SetPoint("TOPLEFT",g.list,"TOPRIGHT",22,0);g.panel:SetPoint("BOTTOMRIGHT",0,5);g.palette=parchment(g.panel,kit)
  g.reader=CreateFrame("ScrollFrame",nil,g.panel,"UIPanelScrollFrameTemplate");g.reader:SetPoint("TOPLEFT",16,-15);g.reader:SetPoint("BOTTOMRIGHT",-29,52)
  g.content=CreateFrame("Frame",nil,g.reader);g.content:SetSize(350,800);g.reader:SetScrollChild(g.content)
- g.title=kit.label(g.content,20,g.palette.heading);g.title:SetPoint("TOPLEFT");g.title:SetPoint("TOPRIGHT");g.title:SetJustifyV("TOP")
+ g.title=kit.label(g.content,22,g.palette.heading);g.title:SetPoint("TOPLEFT");g.title:SetPoint("TOPRIGHT");g.title:SetJustifyV("TOP")
  g.mark=kit.Button(g.panel,"guideRead",150,"ghost",function()readStore()[g.selected]=not readStore()[g.selected]or nil;page.Refresh()end);g.mark:SetPoint("BOTTOMLEFT",14,12)
  g.next=kit.Button(g.panel,"guideNext",126,"primary",function()for i,b in ipairs(g.results or{})do if b.id==g.selected and g.results[i+1]then g.selected=g.results[i+1].id;g.renderKey=nil;break end end;page.Refresh()end);g.next:SetPoint("BOTTOMRIGHT",-14,12)
  local function renderArticle()
   local article=A.GuideArticle(g.selected);if not article then return end
+  local savedScroll=g.article and g.article.id==article.id and(g.reader:GetVerticalScroll()or 0)or 0
   local width=math.max(180,(g.panel:GetWidth()or 400)-48);g.content:SetWidth(width);g.title:SetText(article.title);g.title:SetWidth(width)
-  local y=math.max(28,g.title:GetStringHeight()or 28)+18
+  local y=math.max(30,g.title:GetStringHeight()or 30)+20
   for _,frame in ipairs(g.sections)do frame:Hide()end
   for index,spec in ipairs(article.sections)do
    local frame=g.sections[index]
    if not frame then
-    frame=CreateFrame("Frame",nil,g.content);frame.head=kit.label(frame,14,g.palette.heading);frame.head:SetPoint("TOPLEFT");frame.head:SetPoint("TOPRIGHT");frame.head:SetJustifyV("TOP")
-    frame.text=kit.label(frame,12,g.palette.ink);frame.text:SetJustifyV("TOP");frame.text:SetJustifyH("LEFT")
+    frame=CreateFrame("Frame",nil,g.content);frame.head=kit.label(frame,15,g.palette.heading);frame.head:SetPoint("TOPLEFT");frame.head:SetPoint("TOPRIGHT");frame.head:SetJustifyV("TOP")
+    frame.text=kit.label(frame,13,g.palette.ink);frame.text:SetJustifyV("TOP");frame.text:SetJustifyH("LEFT")
     frame.action=kit.Button(frame,nil,160,"ghost",function(self)follow(self.actionKey)end);g.sections[index]=frame
    end
    frame:ClearAllPoints();frame:SetPoint("TOPLEFT",0,-y);frame:SetWidth(width);frame.head:SetWidth(width);frame.head:SetText(spec.title)
@@ -196,7 +200,7 @@ function A.BuildGuidesPage(page,kit)
    end
    frame:SetHeight(height);frame:Show();y=y+height+20
   end
-  g.content:SetHeight(y+10);g.reader:SetVerticalScroll(0);g.article=article
+  g.content:SetHeight(y+10);g.reader:SetVerticalScroll(math.min(savedScroll,math.max(0,y+10-(g.reader:GetHeight()or 0))));g.article=article
  end
  function page.Refresh()
   local read=readStore();local count=0;for _,b in ipairs(BOOKS)do if read[b.id]then count=count+1 end end;g.progress:SetText(string.format(A.L("guideProgress"),count,#BOOKS))
@@ -208,19 +212,27 @@ function A.BuildGuidesPage(page,kit)
   for _,row in ipairs(g.rows)do row:Hide()end
   for i,b in ipairs(g.results)do local row=g.rows[i]
    if not row then
-    row=CreateFrame("Button",nil,g.listContent);row:SetHeight(47);row.bg=kit.fill(row,C.card,.6);row.edge=kit.fill(row,C.gold,0,"ARTWORK")
-    row.icon=row:CreateTexture(nil,"ARTWORK");row.icon:SetSize(22,22);row.icon:SetPoint("LEFT",5,0)
-    row.title=kit.label(row,11,C.text);row.title:SetPoint("TOPLEFT",33,-6);row.title:SetPoint("TOPRIGHT",-5,-6);row.title:SetHeight(30);row.title:SetWordWrap(true);row.title:SetJustifyV("TOP")
+    row=CreateFrame("Button",nil,g.listContent);row:SetHeight(52);row.bg=kit.fill(row,C.card,1);row.edge=kit.fill(row,C.gold,0,"ARTWORK")
+    row.accent=row:CreateTexture(nil,"OVERLAY");row.accent:SetPoint("TOPLEFT");row.accent:SetPoint("BOTTOMLEFT");row.accent:SetWidth(2);kit.paint(row.accent,C.gold,1)
+    local hover=row:CreateTexture(nil,"HIGHLIGHT");hover:SetAllPoints(row);kit.paint(hover,C.gold,.10)
+    row.icon=row:CreateTexture(nil,"ARTWORK");row.icon:SetSize(26,26);row.icon:SetPoint("LEFT",9,0)
+    row.title=kit.label(row,12,C.text);row.title:SetPoint("TOPLEFT",43,-10);row.title:SetPoint("TOPRIGHT",-8,-10);row.title:SetHeight(34);row.title:SetWordWrap(true);row.title:SetJustifyV("TOP")
     row:SetScript("OnClick",function(self)g.selected=self.chapter.id;g.renderKey=nil;page.Refresh()end);g.rows[i]=row
    end
-   row.chapter=b;row:ClearAllPoints();row:SetPoint("TOPLEFT",0,-(i-1)*50);row:SetPoint("TOPRIGHT",0,-(i-1)*50);row.icon:SetTexture(b.icon);row.title:SetText((read[b.id]and"• "or"")..tr(b.en,b.cs));row.edge:SetAlpha(b.id==g.selected and.12 or 0);row:Show()
+   row.chapter=b;row:ClearAllPoints();row:SetPoint("TOPLEFT",3,-(i-1)*56-3);row:SetPoint("TOPRIGHT",-3,-(i-1)*56-3);row.icon:SetTexture(b.icon);row.title:SetText((read[b.id]and"• "or"")..tr(b.en,b.cs));row.edge:SetAlpha(b.id==g.selected and.14 or 0);row.accent:SetShown(b.id==g.selected);row:Show()
   end
-  g.listContent:SetHeight(math.max(1,#g.results*50))
+  g.listContent:SetHeight(math.max(1,#g.results*56+6))
   local key=tostring(g.selected)..":"..tostring(cz())..":"..tostring(g.panel:GetWidth())
   if key~=g.renderKey and #g.results>0 then renderArticle();g.renderKey=key end
   g.panel:SetShown(#g.results>0);g.mark.text:SetText(A.L(read[g.selected]and"guideReadDone"or"guideRead"))
  end
- g.search:SetScript("OnTextChanged",function(self)g.query=self:GetText()or"";g.renderKey=nil;page.Refresh()end)
- page:SetScript("OnSizeChanged",function(_,width)width=tonumber(width)or page:GetWidth()or 640;g.list:SetWidth(math.max(145,math.min(200,width*.29)));g.listContent:SetWidth(g.list:GetWidth()-18);g.renderKey=nil;if page:IsShown()then page.Refresh()end end)
+ local function layout(_,width)
+  width=tonumber(width)or page:GetWidth()or 640;if width<300 then width=640 end
+  g.list:SetWidth(math.max(170,math.min(270,width*.32)));g.listContent:SetWidth(g.list:GetWidth()-18)
+  g.search:SetWidth(math.max(180,math.min(280,width*.48)))
+  local bw=math.max(96,math.min(150,((g.panel:GetWidth()or 350)-40)/2));g.mark:SetWidth(bw);g.next:SetWidth(bw)
+  g.renderKey=nil;if page:IsShown()and page.Refresh then page.Refresh()end
+ end
+ page:SetScript("OnSizeChanged",layout);page.Layout=layout
 end
 

@@ -95,8 +95,8 @@ local function ensurePopup()
     local f = CreateFrame("Frame", "EvertallySocialPopup", UIParent)
     f:SetSize(440, 400); f:SetPoint("TOP", UIParent, "TOP", 0, -130); f:SetFrameStrata("DIALOG"); f:EnableMouse(true)
     A.NativeFrame(f, k.C)
-    f.title = k.label(f, 15, k.C.gold); f.title:SetPoint("TOPLEFT", 18, -16); f.title:SetWidth(404)
-    f.body = k.label(f, 12, k.C.mist); f.body:SetPoint("TOPLEFT", 18, -46); f.body:SetWidth(404); f.body:SetJustifyV("TOP")
+    f.title = k.label(f, 18, k.C.bright or k.C.gold); f.title:SetPoint("TOPLEFT", 18, -16); f.title:SetWidth(404)
+    f.body = k.label(f, 13, k.C.text); f.body:SetPoint("TOPLEFT", 18, -54); f.body:SetWidth(404); f.body:SetJustifyV("TOP")
     f.checks, f.buttons = {}, {}
     for i = 1, 8 do
         local b = k.Button(f, nil, 404, "ghost", function() end); b:SetPoint("TOPLEFT", 18, -110 - (i - 1) * 28); b:SetHeight(26); b:Hide(); f.checks[i] = b
@@ -120,7 +120,7 @@ function A.SocialShowPopup(spec)
             f:SetHeight(math.max(170, math.min(560, -y + 6 + lines * 16 + 80)))
         else
             layoutItems(f, {})
-            f.body:SetPoint("TOPLEFT", 18, -46); f.body:SetText(spec.body or "")
+            f.body:SetPoint("TOPLEFT", 18, -54); f.body:SetText(spec.body or "")
             f:SetHeight(400)
         end
         local selected = {}
@@ -336,19 +336,19 @@ function openViewer(view)
         local C = k.C
         if not viewer then
             local f = CreateFrame("Frame", "EvertallyViewFrame", UIParent)
-            f:SetSize(820, 560); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
+            f:SetSize(940, 620); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
             A.NativeFrame(f, C)
             -- Two clearly separated surfaces: the shared character on the left,
             -- your proposal on the right. Background textures never intercept input.
-            local header=k.fill(f,{0.10,0.095,0.095},1,"BACKGROUND")
-            header:ClearAllPoints();header:SetPoint("TOPLEFT",5,-5);header:SetPoint("TOPRIGHT",-5,-5);header:SetHeight(52)
-            local headerLine=f:CreateTexture(nil,"BORDER");headerLine:SetPoint("TOPLEFT",7,-55);headerLine:SetPoint("TOPRIGHT",-7,-55);headerLine:SetHeight(1);k.paint(headerLine,{0.62,0.48,0.26},0.65)
-            local profilePanel=f:CreateTexture(nil,"BACKGROUND");profilePanel:SetPoint("TOPLEFT",14,-96);profilePanel:SetPoint("BOTTOMLEFT",14,32);profilePanel:SetWidth(454);k.paint(profilePanel,{0.065,0.065,0.075},0.96)
-            local offerPanel=f:CreateTexture(nil,"BACKGROUND");offerPanel:SetPoint("TOPLEFT",482,-62);offerPanel:SetPoint("BOTTOMRIGHT",-14,32);k.paint(offerPanel,{0.095,0.088,0.088},0.98)
-            local divider=f:CreateTexture(nil,"BORDER");divider:SetPoint("TOPLEFT",482,-62);divider:SetPoint("BOTTOMLEFT",482,32);divider:SetWidth(1);k.paint(divider,{0.65,0.50,0.25},0.65)
+            local header=k.fill(f,C.header or C.card,1,"BACKGROUND")
+            header:ClearAllPoints();header:SetPoint("TOPLEFT",5,-5);header:SetPoint("TOPRIGHT",-5,-5);header:SetHeight(58)
+            local headerLine=f:CreateTexture(nil,"BORDER");headerLine:SetPoint("TOPLEFT",7,-63);headerLine:SetPoint("TOPRIGHT",-7,-63);headerLine:SetHeight(1);k.paint(headerLine,C.line,0.85)
+            local profilePanel=f:CreateTexture(nil,"BACKGROUND");profilePanel:SetPoint("TOPLEFT",14,-72);profilePanel:SetPoint("BOTTOMLEFT",14,32);profilePanel:SetWidth(550);k.paint(profilePanel,C.well or C.side,1)
+            local offerPanel=f:CreateTexture(nil,"BACKGROUND");offerPanel:SetPoint("TOPLEFT",578,-72);offerPanel:SetPoint("BOTTOMRIGHT",-14,32);k.paint(offerPanel,C.card,1)
+            local divider=f:CreateTexture(nil,"BORDER");divider:SetPoint("TOPLEFT",578,-72);divider:SetPoint("BOTTOMLEFT",578,32);divider:SetWidth(1);k.paint(divider,C.line,0.85)
             f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", function() f:StartMoving() end); f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
-            f.title = k.label(f, 18, C.gold); f.title:SetPoint("TOPLEFT", 20, -10); f.title:SetWidth(560)
-            f.sub = k.label(f, 10, C.mist); f.sub:SetPoint("TOPLEFT", 20, -34); f.sub:SetWidth(560)
+            f.title = k.label(f, 20, C.bright or C.gold); f.title:SetPoint("TOPLEFT", 20, -14); f.title:SetWidth(560)
+            f.sub = k.label(f, 10, C.mist); f.sub:SetPoint("TOPLEFT", 20, -42); f.sub:SetWidth(560)
             f.close = k.Button(f, nil, 30, "ghost", function() f:Hide() end); f.close:SetPoint("TOPRIGHT", -14, -12); f.close.text:SetText("x")
             f.pointChip = k.Chip(f, function() f.pointMode = not f.pointMode; A.SocialRefreshViewer() end)
             f.pointChip:SetPoint("TOPRIGHT", -54, -14)
@@ -363,23 +363,23 @@ function openViewer(view)
                 f.tabs[mode] = chip; previous = chip
             end
             -- what they showed: icons for gear and bags, rows for professions and gold
-            f.search = k.SearchBox(f, 230, function(value) if value ~= f.query then f.query = value; A.SocialRefreshViewer() end end); f.search:SetPoint("TOPLEFT", 22, -98)
+            f.search = k.SearchBox(f, 270, function(value) if value ~= f.query then f.query = value; A.SocialRefreshViewer() end end); f.search:SetPoint("TOPLEFT", 24, -136)
             f.sortBtn = k.Button(f, nil, 150, "ghost", function() f.sort = (f.sort or 1) % #SORTS + 1; A.SocialRefreshViewer() end); f.sortBtn:SetPoint("LEFT", f.search, "RIGHT", 10, 0)
             f.summary = k.label(f, 10, C.faint); f.summary:SetPoint("LEFT", f.sortBtn, "RIGHT", 10, 0); f.summary:SetWidth(40)
-            f.grid = k.IconGrid(f, 40, 6); f.grid:ClearAllPoints(); f.grid:SetPoint("TOPLEFT", 18, -130); f.grid:SetPoint("BOTTOMLEFT", 18, 36); f.grid:SetWidth(444)
-            f.list = k.ListView(f, 102); f.list:ClearAllPoints(); f.list:SetPoint("TOPLEFT", 18, -102); f.list:SetPoint("BOTTOMLEFT", 18, 36); f.list:SetWidth(444); f.list.child:SetWidth(436)
+            f.grid = k.IconGrid(f, 44, 8); f.grid:ClearAllPoints(); f.grid:SetPoint("TOPLEFT", 22, -174); f.grid:SetPoint("BOTTOMLEFT", 22, 40); f.grid:SetWidth(534)
+            f.list = k.ListView(f, 102); f.list:ClearAllPoints(); f.list:SetPoint("TOPLEFT", 22, -136); f.list:SetPoint("BOTTOMLEFT", 22, 40); f.list:SetWidth(534); f.list.child:SetWidth(526)
             -- what I offer back
-            f.offerTitle = k.label(f, 13, C.gold); f.offerTitle:SetPoint("TOPLEFT", 492, -68); f.offerTitle:SetWidth(310)
-            f.offers = k.IconGrid(f, 36, 6); f.offers:ClearAllPoints(); f.offers:SetPoint("TOPLEFT", 492, -92); f.offers:SetSize(310, 214)
-            f.goldLabel = k.label(f, 11, C.mist); f.goldLabel:SetPoint("TOPLEFT", 492, -318)
-            f.gold = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.gold:SetSize(90, 24); f.gold:SetPoint("TOPLEFT", 496, -334)
+            f.offerTitle = k.label(f, 14, C.bright or C.gold); f.offerTitle:SetPoint("TOPLEFT", 594, -88); f.offerTitle:SetWidth(314)
+            f.offers = k.IconGrid(f, 40, 7); f.offers:ClearAllPoints(); f.offers:SetPoint("TOPLEFT", 594, -118); f.offers:SetSize(314, 230)
+            f.goldLabel = k.label(f, 11, C.mist); f.goldLabel:SetPoint("TOPLEFT", 594, -362)
+            f.gold = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.gold:SetSize(110, 26); f.gold:SetPoint("TOPLEFT", 598, -382)
             f.gold:SetAutoFocus(false); f.gold:SetMaxLetters(7); f.gold:SetFont(FONT, 12, ""); f.gold:SetNumeric(true)
-            f.noteLabel = k.label(f, 11, C.mist); f.noteLabel:SetPoint("TOPLEFT", 492, -364)
-            f.note = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.note:SetSize(300, 24); f.note:SetPoint("TOPLEFT", 496, -380)
+            f.noteLabel = k.label(f, 11, C.mist); f.noteLabel:SetPoint("TOPLEFT", 594, -426)
+            f.note = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.note:SetSize(310, 26); f.note:SetPoint("TOPLEFT", 598, -446)
             f.note:SetAutoFocus(false); f.note:SetMaxLetters(120); f.note:SetFont(FONT, 12, "")
-            f.send = k.Button(f, nil, 180, "primary", function() A.SocialSendFromViewer() end); f.send:SetPoint("BOTTOMLEFT", 492, 36)
-            f.status = k.label(f, 11, C.green); f.status:SetPoint("BOTTOMLEFT", 492, 72); f.status:SetWidth(310)
-            f.hint = k.label(f, 10, C.faint); f.hint:SetPoint("BOTTOMLEFT", 18, 12); f.hint:SetWidth(780)
+            f.send = k.Button(f, nil, 314, "primary", function() A.SocialSendFromViewer() end); f.send:SetPoint("BOTTOMLEFT", 594, 48)
+            f.status = k.label(f, 11, C.green); f.status:SetPoint("BOTTOMLEFT", 594, 92); f.status:SetWidth(314);f.status:SetHeight(42)
+            f.hint = k.label(f, 10, C.mist); f.hint:SetPoint("BOTTOMLEFT", 20, 12); f.hint:SetWidth(900)
             if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyViewFrame" end
             viewer = f
         end
@@ -411,7 +411,13 @@ function A.SocialRefreshViewer()
     local k = K();local v = f.view
     f.title:SetText(string.format(A.L("viewTitle"), plain(base(v.sender))))
     f.sub:SetText(string.format(A.L("viewReceived"), (A.Call(date, "%H:%M", v.at) or "")) .. "   " .. kindsText(v.kinds or ""))
-    for mode, chip in pairs(f.tabs) do chip.SetLabel(A.L("viewTab_" .. mode)); chip.SetOn(f.mode == mode) end
+    local tabX,tabY=22,-82
+    for _,mode in ipairs({"equipped","stats","talents","bags","professions","quests","reputation","gold"}) do
+        local chip=f.tabs[mode];chip.SetLabel(A.L("viewTab_" .. mode));chip.SetOn(f.mode==mode)
+        local width=tonumber(chip:GetWidth()) or 70
+        if tabX>22 and tabX+width>556 then tabX,tabY=22,tabY-30 end
+        chip:ClearAllPoints();chip:SetPoint("TOPLEFT",tabX,tabY);tabX=tabX+width+6
+    end
     f.offerTitle:SetText(A.L("viewMyOffer")); f.goldLabel:SetText(A.L("viewGoldOffer")); f.noteLabel:SetText(A.L("viewNote"))
     f.send.text:SetText(A.L("viewSend")); f.hint:SetText(f.pointMode and A.L("viewPointHint") or A.L("viewHint")); f.hint:SetTextColor(unpack(f.pointMode and k.C.green or k.C.faint))
     f.pointChip.SetLabel(A.L("viewPoint")); f.pointInfo:SetText(A.L("viewPointInfo")); f.pointChip.SetOn(f.pointMode == true)
@@ -836,7 +842,7 @@ local function peopleRows(filter)
                     titleColor = p.class and K().classColor(p.class) or nil,
                     right = (mark and (mark .. "  ") or "") .. (distance and (math.floor(distance + 0.5) .. " yd") or "")}
                 if p.flags.live or p.flags.user or p.flags.linked or p.flags.web then row.tag, row.tagColor = "EVERTALLY", K().C.lilac end
-                if mine.friendOff then row.titleColor = {0.55, 0.52, 0.5}
+                if mine.friendOff then row.titleColor = K().C.faint
                 elseif live then row.onClick = function() navigate(live.name) end
                 else row.onClick = function()
                     if page and page.name then page.name:SetText(who) end
@@ -863,8 +869,8 @@ function A.BuildSocialPage(host, k)
         page.tabs[mode] = chip; previous = chip
     end
 
-    -- A contact ledger on the left; the selected player's permission request is a full parchment leaf.
-    local ink, muted, heading = {0.90,0.88,0.82}, {0.66,0.63,0.56}, C.gold
+    -- The contact ledger and permission form use the same framed navy panels.
+    local ink, muted, heading = C.text, C.mist, C.bright or C.gold
     page.cols=k.Columns(page,{2,3},12)
     page.cols:SetPoint("TOPLEFT",0,-90);page.cols:SetPoint("BOTTOMRIGHT")
     local rosterCard=k.Card(page.cols.cells[1]);rosterCard:SetAllPoints(page.cols.cells[1]);page.rosterCard=rosterCard
@@ -891,7 +897,7 @@ function A.BuildSocialPage(host, k)
         if n==5 then chip:SetPoint("TOPLEFT",14,-167)elseif last then chip:SetPoint("LEFT",last,"RIGHT",5,0)else chip:SetPoint("TOPLEFT",14,-141)end
         page.kindButtons[key]=chip;last=chip
     end
-    page.permissionNote=k.label(form,10,muted);page.permissionNote:SetPoint("TOPLEFT",14,-195);page.permissionNote:SetPoint("TOPRIGHT",-14,-195);page.permissionNote:SetHeight(16)
+    page.permissionNote=k.label(form,11,muted);page.permissionNote:SetPoint("TOPLEFT",14,-195);page.permissionNote:SetPoint("TOPRIGHT",-14,-195);page.permissionNote:SetHeight(42);page.permissionNote:SetJustifyV("TOP")
     -- a private mark for this player, drawn beside their nameplate: a raid icon or any game icon, from a small picker
     page.markButton=k.Button(form,nil,96,"ghost",function()
         local who=page.name:GetText() or ""
@@ -948,6 +954,14 @@ function A.BuildSocialPage(host, k)
     function page.Refresh()
         local mode = page.mode
         for key, chip in pairs(page.tabs) do chip.SetLabel(A.L("socialTab_" .. key)); chip.SetOn(mode == key) end
+        local tabX,tabY,width=0,-62,math.max(240,tonumber(page:GetWidth()) or 640)
+        for _,key in ipairs({"live","ask","proposals","meets","privacy"}) do
+            local chip=page.tabs[key];local w=tonumber(chip:GetWidth()) or 70
+            if tabX>0 and tabX+w>width then tabX,tabY=0,tabY-30 end
+            chip:ClearAllPoints();chip:SetPoint("TOPLEFT",tabX,tabY);tabX=tabX+w+6
+        end
+        page.cols:ClearAllPoints();page.cols:SetPoint("TOPLEFT",0,tabY-40);page.cols:SetPoint("BOTTOMRIGHT")
+        page.secondaryLeaf:ClearAllPoints();page.secondaryLeaf:SetPoint("TOPLEFT",0,tabY-40);page.secondaryLeaf:SetPoint("BOTTOMRIGHT")
         page.cols:SetShown(mode == "ask"); page.cols.Layout()
         page.secondaryLeaf:SetShown(mode ~= "ask")
         -- the category buttons wrap onto a second line in a narrow window; the list starts below them
@@ -972,6 +986,16 @@ function A.BuildSocialPage(host, k)
             chip.SetLabel(A.L(({i = "socialInv", s = "socialStats", t = "socialTalents", p = "socialProf", q = "socialQuests", r = "socialRep", g = "socialGold", w = "socialWeb"})[key]))
             chip.SetOn(page.kinds[key] and (key ~= "w" or webReady)); chip:SetShown(key ~= "w" or webReady)
         end
+        local kindX,kindY,formWidth=14,-145,math.max(200,(tonumber(page.requestLeaf:GetWidth()) or 400)-28)
+        for _,key in ipairs({"i","s","t","p","q","r","g","w"}) do
+            local chip=page.kindButtons[key]
+            if key~="w" or webReady then
+                local w=tonumber(chip:GetWidth()) or 70
+                if kindX>14 and kindX-14+w>formWidth then kindX,kindY=14,kindY-30 end
+                chip:ClearAllPoints();chip:SetPoint("TOPLEFT",kindX,kindY);kindX=kindX+w+6
+            end
+        end
+        page.permissionNote:ClearAllPoints();page.permissionNote:SetPoint("TOPLEFT",14,kindY-38);page.permissionNote:SetPoint("TOPRIGHT",-14,kindY-38)
         page.rosterTitle:SetText(A.L("socialRoster")); page.formTitle:SetText(A.L("socialAsk")); page.viewsTitle:SetText(A.L("socialViewsTitle"))
         page.meetLabel:SetShown(mode == "meets"); page.meetStatus:SetShown(mode == "meets")
         page.meetHint:SetShown(mode == "meets"); page.meetHint:SetText(A.L("socialMeetLabelHint"))

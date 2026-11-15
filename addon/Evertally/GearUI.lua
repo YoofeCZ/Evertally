@@ -1,5 +1,6 @@
 local _, A = ...
 local function T(key) return A.L(key) end
+A.locale.en.gearSearch="Search bags…";A.locale.cs.gearSearch="Hledat v taškách…"
 function A.BuildGearPage(page,k)
  local G=A.Gear;if not G then return end
  A.gearPage=page;k.PageHeader(page,"gear")
@@ -14,7 +15,7 @@ function A.BuildGearPage(page,k)
   local profile=G.Profile();local n=profile and not profile.automatic and profile.index or 0;n=n+1;if n>#G.Profiles() then n=0 end
   G.SetProfile(n);page.plan=nil;page.Refresh()
  end);page.role:SetPoint("TOPLEFT",0,-87)
- page.search=k.SearchBox(page,150,function(value)page.query=value or "";page.selected=nil;page.Refresh()end);page.search:SetPoint("TOPRIGHT",-2,-87)
+ page.search=k.SearchBox(page,180,function(value)page.query=value or "";page.selected=nil;page.Refresh()end);page.search:SetPoint("TOPRIGHT",0,-87)
  page.book=k.Book(page,124);page.list=k.ListView(page.book.index,0,nil,true);page.document=k.Document(page.book.paper)
  page.book:SetPoint("BOTTOMRIGHT",0,80)
  page.primary=k.Button(page,nil,185,"primary",function()
@@ -28,7 +29,8 @@ function A.BuildGearPage(page,k)
   if page.selected then G.SetKept(page.selected.id,not G.Kept(page.selected.id));page.plan=nil;page.Refresh() end
  end);page.keep:SetPoint("BOTTOMRIGHT",0,42)
  page.cancel=k.Button(page,nil,185,"ghost",function()G.CancelSale();page.plan=nil;page.Refresh()end);page.cancel:SetPoint("BOTTOMLEFT",0,42)
- page.note=k.label(page,10,k.C.mist);page.note:SetPoint("BOTTOMLEFT",0,9);page.note:SetPoint("BOTTOMRIGHT",0,9);page.note:SetWordWrap(true)
+ page.note=k.label(page,11,k.C.mist);page.note:SetPoint("BOTTOMLEFT",0,9);page.note:SetPoint("BOTTOMRIGHT",0,9);page.note:SetWordWrap(true)
+ page.footerRule=page:CreateTexture(nil,"BORDER");page.footerRule:SetHeight(1);page.footerRule:SetPoint("BOTTOMLEFT",0,33);page.footerRule:SetPoint("BOTTOMRIGHT",0,33);k.paint(page.footerRule,k.C.gold,.3)
  local function itemTitle(item,id) return item and item.name or ("#"..tostring(id or "?")) end
  local function optionRows()
   local rows={};for _,key in ipairs({"tooltip","loot","rewards"}) do local value=key;rows[#rows+1]={text=T(({tooltip="gearTooltip",loot="gearLoot",rewards="gearRewards"})[key])..": "..T(G.Enabled(key) and "gearOn" or "gearOff"),onClick=function()G.SetOption(value,not G.Enabled(value));page.Refresh()end} end
@@ -36,6 +38,7 @@ function A.BuildGearPage(page,k)
  end
  function page.Refresh()
   local profile=G.Profile()
+  page.search.hint:SetText(T("gearSearch"))
   page.role.text:SetText(T("gearRole")..": "..(profile and ((profile.automatic and T("gearAuto").." · " or "")..profile.name) or "?"))
   for key,chip in pairs(page.chips)do chip.SetLabel(T(names[key]));chip.SetOn(page.filter==key)end
   local sale=G.sale;local selling=sale and sale.active
@@ -85,5 +88,11 @@ function A.BuildGearPage(page,k)
   page.keep:SetShown(page.selected~=nil and not selling and page.filter~="options")
   page.keep.text:SetText(T(page.selected and G.Kept(page.selected.id) and "gearUnkeep" or "gearKeep"))
  end
- page.book.onLayout=function()if page.document.spec then page.document.Set(page.document.spec)end end
+ local function layout()
+  local width=tonumber(page:GetWidth())or 640;if width<300 then width=640 end
+  page.role:SetWidth(math.min(330,math.max(210,width*.55)));page.search:SetWidth(math.min(250,math.max(150,width*.36)))
+  local bw=math.min(220,(width-12)/2);page.primary:SetWidth(bw);page.cancel:SetWidth(bw);page.keep:SetWidth(bw)
+  if page.document.spec then page.document.Set(page.document.spec)end
+ end
+ page.book.onLayout=layout;page.Layout=function()if page.book.Layout then page.book.Layout()end;layout()end
 end

@@ -310,31 +310,33 @@ end
 --- A small grid of marks below `anchor`; a click stores the mark for `name` and calls done(). Parented to `parent`,
 --- so it closes with the window it belongs to.
 function A.OpenMarkPicker(parent, anchor, name, done)
+    local kit=A.UIKit();local C=kit.C
     local p = A.markPicker
     if p and p:IsShown() and p.forName == name then p:Hide(); return end
     if not p then
         p = CreateFrame("Frame", nil, parent)
-        p:SetFrameStrata("DIALOG"); p:EnableMouse(true)
-        p.bg = p:CreateTexture(nil, "BACKGROUND"); p.bg:SetAllPoints(); p.bg:SetColorTexture(0.06, 0.05, 0.08, 0.96)
-        p.title = p:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); p.title:SetPoint("TOPLEFT", 8, -6)
+        p:SetFrameStrata("DIALOG"); p:EnableMouse(true);p:SetClampedToScreen(true)
+        A.NativePanel(p,C)
+        p.title = kit.label(p,12,C.bright);p.title:SetPoint("TOPLEFT",12,-10);p.title:SetPoint("TOPRIGHT",-12,-10)
+        local rule=p:CreateTexture(nil,"BORDER");rule:SetHeight(1);rule:SetPoint("TOPLEFT",10,-30);rule:SetPoint("TOPRIGHT",-10,-30);kit.paint(rule,C.line)
         p.buttons = {}
         A.markPicker = p
     end
     p:SetParent(parent); p.forName = name
     local choices = A.MarkChoices()
     choices[#choices + 1] = 0
-    local columns, cell = 8, 24
+    local columns, cell = 8, 28
     for i, choice in ipairs(choices) do
         local b = p.buttons[i]
         if not b then
             b = CreateFrame("Button", nil, p); b:SetSize(cell - 2, cell - 2)
             b.icon = b:CreateTexture(nil, "ARTWORK"); b.icon:SetAllPoints()
-            b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.18)
-            b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); b.label:SetPoint("CENTER")
+            b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints();kit.paint(b.hl,C.gold,0.24)
+            b.label = kit.label(b,16,C.text); b.label:SetPoint("CENTER")
             p.buttons[i] = b
         end
         local row, col = math.floor((i - 1) / columns), (i - 1) % columns
-        b:ClearAllPoints(); b:SetPoint("TOPLEFT", 6 + col * cell, -22 - row * cell)
+        b:ClearAllPoints(); b:SetPoint("TOPLEFT", 10 + col * cell, -38 - row * cell)
         local texture, icon = A.MarkTexture(choice)
         if texture then
             b.icon:SetTexture(texture); b.icon:Show(); b.label:SetText("")
@@ -345,7 +347,7 @@ function A.OpenMarkPicker(parent, anchor, name, done)
     end
     for i = #choices + 1, #p.buttons do p.buttons[i]:Hide() end
     p.title:SetText(A.L("markPick"))
-    p:SetSize(12 + columns * cell, 28 + math.ceil(#choices / columns) * cell)
+    p:SetSize(20 + columns * cell, 48 + math.ceil(#choices / columns) * cell)
     p:ClearAllPoints(); p:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
     p:Show()
     return p

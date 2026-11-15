@@ -285,21 +285,23 @@ function A.BuildRankingsPage(page,kit)
  page.kind=kit.Button(page,"rankAll",150,"ghost",function()change("kind",KINDS)end);page.class=kit.Button(page,"rankClass",150,"ghost",function()change("classId",CLASSES)end);page.race=kit.Button(page,"rankRace",150,"ghost",function()change("raceId",RACES)end)
  page.search=kit.SearchBox(page,240,function(value) if page.filters.query~=value then page.filters.query=value;page.selection=nil;A.RefreshUI() end end)
  page.clearSearch=kit.Button(page,"rankClear",76,"ghost",function()page.search:SetText("");page.filters.query="";page.selection=nil;A.RefreshUI()end)
- page.summary=kit.label(page,10,C.mist);page.summary:SetJustifyH("LEFT");page.summary:SetWordWrap(false)
+ page.summary=kit.label(page,10,C.mist);page.summary:SetJustifyH("LEFT");page.summary:SetJustifyV("TOP");page.summary:SetWordWrap(true);page.summary:SetHeight(32)
  page.book=kit.Book(page,150);page.catalog=page.book.index;page.board=page.book.paper
  page.indexMeasure=kit.label(page,13,C.text);page.indexMeasure:Hide()
  page.metaMeasure=kit.label(page,10,C.mist);page.metaMeasure:Hide()
- page.dungeonList=kit.ListView(page.book.index,0,true);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-6);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6)
- page.detailFrame=CreateFrame("Frame",nil,page.book.paper);page.detailFrame:SetAllPoints(page.book.paper);kit.fill(page.detailFrame,{0.075,0.074,0.08},1)
+ page.catalogTitle=kit.label(page.book.index,12,C.bright or C.gold);page.catalogTitle:SetPoint("TOPLEFT",14,-14);page.catalogTitle:SetPoint("TOPRIGHT",-14,-14)
+ page.dungeonList=kit.ListView(page.book.index,0,true);page.dungeonList:ClearAllPoints();page.dungeonList:SetPoint("TOPLEFT",6,-42);page.dungeonList:SetPoint("BOTTOMRIGHT",-10,6)
+ page.detailFrame=CreateFrame("Frame",nil,page.book.paper);page.detailFrame:SetAllPoints(page.book.paper);kit.fill(page.detailFrame,C.well or C.side,1)
  page.document=A.CreateCommunityDocument and A.CreateCommunityDocument(page.detailFrame,kit) or kit.Document(page.book.paper)
  page.boardFrame=CreateFrame("Frame",nil,page.book.paper);page.boardFrame:SetPoint("TOPLEFT",4,-4);page.boardFrame:SetPoint("BOTTOMRIGHT",-4,4)
- kit.fill(page.boardFrame,{0.094,0.09,0.086},1)
- page.boardTitle=kit.label(page.boardFrame,16,{0.96,0.86,0.67});page.boardTitle:SetPoint("TOPLEFT",16,-12);page.boardTitle:SetPoint("TOPRIGHT",-16,-12);page.boardTitle:SetJustifyH("LEFT")
- page.boardSub=kit.label(page.boardFrame,10,{0.70,0.68,0.64});page.boardSub:SetPoint("TOPLEFT",16,-34);page.boardSub:SetPoint("TOPRIGHT",-16,-34);page.boardSub:SetJustifyH("LEFT");page.boardSub:SetWordWrap(false)
- page.columnNames=kit.label(page.boardFrame,10,{0.65,0.62,0.56});page.columnNames:SetPoint("TOPLEFT",16,-54)
- page.columnValue=kit.label(page.boardFrame,10,{0.65,0.62,0.56});page.columnValue:SetPoint("TOPRIGHT",-18,-54);page.columnValue:SetJustifyH("RIGHT")
- local rule=page.boardFrame:CreateTexture(nil,"BORDER");rule:SetPoint("TOPLEFT",16,-69);rule:SetPoint("TOPRIGHT",-16,-69);rule:SetHeight(1);kit.paint(rule,{0.70,0.55,0.30},0.5)
- page.boardList=kit.ListView(page.boardFrame,0,true);page.boardList:ClearAllPoints();page.boardList:SetPoint("TOPLEFT",8,-75);page.boardList:SetPoint("BOTTOMRIGHT",-8,0)
+ kit.fill(page.boardFrame,C.well or C.side,1)
+ local boardHeader=kit.fill(page.boardFrame,C.header or C.card,1);boardHeader:ClearAllPoints();boardHeader:SetPoint("TOPLEFT");boardHeader:SetPoint("TOPRIGHT");boardHeader:SetHeight(66)
+ page.boardTitle=kit.label(page.boardFrame,18,C.bright or C.gold);page.boardTitle:SetPoint("TOPLEFT",16,-14);page.boardTitle:SetPoint("TOPRIGHT",-16,-14);page.boardTitle:SetJustifyH("LEFT")
+ page.boardSub=kit.label(page.boardFrame,11,C.mist);page.boardSub:SetPoint("TOPLEFT",16,-40);page.boardSub:SetPoint("TOPRIGHT",-16,-40);page.boardSub:SetJustifyH("LEFT");page.boardSub:SetWordWrap(false)
+ page.columnNames=kit.label(page.boardFrame,10,C.gold);page.columnNames:SetPoint("TOPLEFT",16,-78)
+ page.columnValue=kit.label(page.boardFrame,10,C.gold);page.columnValue:SetPoint("TOPRIGHT",-18,-78);page.columnValue:SetJustifyH("RIGHT")
+ local rule=page.boardFrame:CreateTexture(nil,"BORDER");rule:SetPoint("TOPLEFT",16,-98);rule:SetPoint("TOPRIGHT",-16,-98);rule:SetHeight(1);kit.paint(rule,C.line,0.8)
+ page.boardList=kit.ListView(page.boardFrame,0,true);page.boardList:ClearAllPoints();page.boardList:SetPoint("TOPLEFT",8,-104);page.boardList:SetPoint("BOTTOMRIGHT",-8,6)
  local function showSelection()
   local selected=page.selection;if not selected then return false end;local spec
   if selected.run then spec=A.RankingRunDetail(kit,selected.run,selected.character)
@@ -319,7 +321,7 @@ function A.BuildRankingsPage(page,kit)
   table.insert(spec.entries,1,{text=A.L("rankBack"),onClick=function()page.selection=nil;A.RefreshUI()end});page.document.Set(spec);return true
  end
  local function layout()
-  local width=math.max(240,tonumber(page:GetWidth()) or 640);local x,y=0,-54
+  local width=math.max(240,tonumber(page:GetWidth()) or 640);local x,y=0,-62
   for _,mode in ipairs(MODES) do local chip=page.chips[mode];chip.SetLabel(modeLabel(mode));chip.SetOn(page.mode==mode);local w=chip:GetWidth() or 70
    if x>0 and x+w>width then x=0;y=y-29 end
    chip:ClearAllPoints();chip:SetPoint("TOPLEFT",x,y);x=x+w+5
@@ -329,11 +331,12 @@ function A.BuildRankingsPage(page,kit)
   page.search:ClearAllPoints();page.search:SetPoint("TOPLEFT",0,y-38);page.search:SetWidth(math.max(90,math.min(270,width-84)))
   page.clearSearch:ClearAllPoints();page.clearSearch:SetPoint("LEFT",page.search,"RIGHT",8,0)
   page.summary:ClearAllPoints();page.summary:SetPoint("TOPLEFT",0,y-72);page.summary:SetPoint("TOPRIGHT",0,y-72)
-  page.book:ClearAllPoints();page.book:SetPoint("TOPLEFT",0,y-91);page.book:SetPoint("BOTTOMRIGHT");page.book.Layout()
+  page.book:ClearAllPoints();page.book:SetPoint("TOPLEFT",0,y-112);page.book:SetPoint("BOTTOMRIGHT");page.book.Layout()
  end
  page:SetScript("OnSizeChanged",layout)
  function page.Refresh()
   layout();page.kind.text:SetText(kindLabel(page.filters.kind));page.class.text:SetText(A.L("rankClass")..": "..filterName(page.filters.classId,"class"));page.race.text:SetText(A.L("rankRace")..": "..filterName(page.filters.raceId,"race"));page.search.hint:SetText(A.L("rankSearch"));page.clearSearch.text:SetText(A.L("rankClear"));page.columnNames:SetText(A.L("rankColumns"));page.columnValue:SetText(A.L("rankResult"))
+  page.catalogTitle:SetText(A.db.settings.language=="cs" and "Dungeony a raidy" or "Dungeons & raids")
   local choices={{title=kindLabel(page.filters.kind),icon=kit.ICON.raid,onClick=function()page.dungeon=nil;page.selection=nil;A.RefreshUI()end}}
   for _,item in ipairs(A.RankingCatalog(page.filters)) do local instance=item.name
    local available=math.max(45,(tonumber(page.book.index:GetWidth()) or 200)-86)

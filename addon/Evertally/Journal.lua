@@ -82,7 +82,7 @@ end
 
 function A.BuildJournalPage(page, kit)
     local C = kit.C
-    local ink, muted = {0.20,0.12,0.055}, {0.36,0.26,0.14}
+    local ink, muted = C.text, C.mist
     A.journalPage = page
     kit.PageHeader(page, "journal")
     page.filter, page.query, page.chips = "all", "", {}
@@ -98,11 +98,14 @@ function A.BuildJournalPage(page, kit)
     page.columns=kit.Columns(page,{2,3},12);page.columns:SetPoint("TOPLEFT",0,-118);page.columns:SetPoint("BOTTOMRIGHT")
     local ledger=kit.Card(page.columns.cells[1]);ledger:SetAllPoints(page.columns.cells[1]);page.ledger=ledger
     page.list=kit.ListView(ledger,0)
+    page.metaMeasure=kit.label(page,10,C.mist);page.metaMeasure:Hide()
     local reader=CreateFrame("Frame",nil,page.columns.cells[2]);reader:SetAllPoints(page.columns.cells[2]);A.NativeParchment(reader,C);page.reader=reader
     page.readerBody=CreateFrame("Frame",nil,reader);page.readerBody:SetPoint("TOPLEFT",14,-14);page.readerBody:SetPoint("BOTTOMRIGHT",-14,52)
-    page.readerTitle=kit.label(page.readerBody,17,ink);page.readerTitle:SetPoint("TOPLEFT");page.readerTitle:SetPoint("TOPRIGHT");page.readerTitle:SetJustifyH("LEFT")
+    page.readerTitle=kit.label(page.readerBody,20,C.bright or C.gold);page.readerTitle:SetPoint("TOPLEFT");page.readerTitle:SetPoint("TOPRIGHT");page.readerTitle:SetJustifyH("LEFT")
     page.readerDate=kit.label(page.readerBody,10,muted);page.readerDate:SetPoint("TOPLEFT",0,-48);page.readerDate:SetPoint("TOPRIGHT",0,-48)
-    page.readerText=kit.label(page.readerBody,12,ink);page.readerText:SetPoint("TOPLEFT",0,-76);page.readerText:SetPoint("BOTTOMRIGHT");page.readerText:SetJustifyV("TOP")
+    page.readerText=kit.label(page.readerBody,13,ink);page.readerText:SetPoint("TOPLEFT",0,-88);page.readerText:SetPoint("BOTTOMRIGHT");page.readerText:SetJustifyV("TOP")
+    local readerRule=page.readerBody:CreateTexture(nil,"BORDER");readerRule:SetPoint("TOPLEFT",0,-72);readerRule:SetPoint("TOPRIGHT",0,-72);readerRule:SetHeight(1);kit.paint(readerRule,C.line,0.8)
+    page.readerRule=readerRule
     page.open=kit.Button(reader,nil,170,"primary",function()
         local e=page.selectedEvent;local p=e and e.payload or {}
         if p.questId then A.OpenDatabaseEntry("quest",p.questId)
@@ -130,7 +133,7 @@ function A.BuildJournalPage(page, kit)
             page.questView.scroll:Show()
         elseif page.questView then page.questView.scroll:Hide() end
         local questCard=model~=nil
-        page.readerTitle:SetShown(not questCard);page.readerDate:SetShown(not questCard);page.readerText:SetShown(not questCard)
+        page.readerTitle:SetShown(not questCard);page.readerDate:SetShown(not questCard);page.readerText:SetShown(not questCard);page.readerRule:SetShown(not questCard)
         page.readerTitle:SetText(page.selectedTitle or A.L("journalNone"));page.readerDate:SetText(event and kit.stamp(event.observedAt) or "")
         local lines={}
         if event then
@@ -151,13 +154,34 @@ function A.BuildJournalPage(page, kit)
     end
     page.readerBody:SetScript("OnSizeChanged",function() selectedDetail(true) end)
     function page.Refresh()
-        page.columns.Layout()
         local items,counts,matches,states=A.JournalItems(kit,page.filter,page.query)
         for _,key in ipairs(FILTERS) do local chip=page.chips[key];chip.SetLabel(A.L("journal"..key:sub(1,1):upper()..key:sub(2)));chip.SetOn(page.filter==key) end
         page.search.hint:SetText(A.L("journalSearch"))
+        local width=math.max(240,tonumber(page:GetWidth()) or 640)
+        local x,y=0,-62
+        for _,key in ipairs(FILTERS) do
+            local chip=page.chips[key];local w=tonumber(chip:GetWidth()) or 60
+            if x>0 and x+w>width then x,y=0,y-30 end
+            chip:ClearAllPoints();chip:SetPoint("TOPLEFT",x,y);x=x+w+6
+        end
+        page.search:ClearAllPoints();page.search:SetPoint("TOPLEFT",0,y-36);page.search:SetWidth(math.min(260,width*.48))
+        page.summary:ClearAllPoints();page.summary:SetPoint("TOPLEFT",page.search,"TOPRIGHT",14,-6);page.summary:SetPoint("TOPRIGHT",page,"TOPRIGHT",-4,y-42);page.summary:SetHeight(16);page.summary:SetWordWrap(false)
+        page.columns:ClearAllPoints();page.columns:SetPoint("TOPLEFT",0,y-76);page.columns:SetPoint("BOTTOMRIGHT");page.columns.Layout()
         if page.filter=="quests" then page.summary:SetText(string.format(A.L("journalQuestState"),states.open,states.done,states.dropped)) else page.summary:SetText(string.format(A.L("journalCount"),matches)) end
         local first,selected
         for _,item in ipairs(items) do
+            if item.sub then
+                local text=item.sub
+                local available=math.max(55,(tonumber(page.columns.cells[1]:GetWidth()) or 300)-76)
+                page.metaMeasure:SetText(text)
+                if (page.metaMeasure:GetStringWidth() or 0)>available then
+                    repeat
+                        text=text:match("^(.*)[\1-\127\194-\244][\128-\191]*$") or ""
+                        page.metaMeasure:SetText(text.."...")
+                    until text=="" or (page.metaMeasure:GetStringWidth() or 0)<=available
+                    item.sub=text.."..."
+                end
+            end
             if item.event then
                 first=first or item
                 if item.event==page.selectedEvent then selected=item end

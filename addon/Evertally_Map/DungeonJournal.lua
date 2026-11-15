@@ -5,8 +5,8 @@ local A = _G.Evertally
 -- mouse), Quests (the quests of the dungeon: what they ask, who gives them, where to hand them in, what they reward) and Map (the dungeon's map with
 -- its bosses). The data and the art are the DungeonJournal add-on's (ForeverDungeonJournal_NS: DB, BOSS_LEVELS, DUNGEON_HOME_ART, DUNGEON_MAPS); the
 -- art is used by its file path, nothing is copied. Without that add-on the page lists the instances Evertally knows and says what is missing.
-local CARD_H, GAP, ROW_H, ROWS_MAX = 144, 12, 40, 16
-local GOLD = {1, 0.82, 0.25}
+local CARD_H, GAP, ROW_H, ROWS_MAX = 160, 14, 46, 16
+local GOLD = A.Theme and A.Theme.colors.gold or {0.796, 0.651, 0.373}
 local QUEST_ICON, BOSS_ICON = "Interface\\GossipFrame\\AvailableQuestIcon", "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01"
 
 local text = {
@@ -194,11 +194,14 @@ local function layout(dj)
     dj.gridWidth = math.max(300, width - 30)
     dj.cols = dj.gridWidth >= 620 and 2 or 1
     dj.cardW = math.floor((dj.gridWidth - GAP * (dj.cols - 1)) / dj.cols)
-    dj.listWidth = math.max(190, math.min(260, width * 0.33))
+    dj.listWidth = math.max(175, math.min(280, width * 0.33))
     dj.list:SetWidth(dj.listWidth)
     dj.visibleRows = math.max(1, math.min(ROWS_MAX, math.floor((height - 130) / ROW_H)))
     dj.detail.SetWidth(width - dj.listWidth - 12 - 40)
     dj.mapArea:ClearAllPoints(); dj.mapArea:SetPoint("TOPLEFT", 0, -86); dj.mapArea:SetPoint("BOTTOMRIGHT", 0, 44)
+    local actionWidth = math.min(260, (width - 10) / 2)
+    dj.show:SetWidth(actionWidth); dj.go:SetWidth(actionWidth)
+    dj.box:SetWidth(math.max(170, math.min(300, width * 0.48)))
 end
 
 local function refreshCards(dj)
@@ -238,7 +241,8 @@ local function refreshList(dj)
         if item then
             row.icon:SetTexture(item.icon or BOSS_ICON)
             row.name:SetText(A.Plain(item.title)); row.sub:SetText(A.Plain(item.sub or "")); row.badge:SetText(item.badge or "")
-            row.bg:SetAlpha(item == dj.chosen and 0.16 or 0.05)
+            row.bg:SetAlpha(item == dj.chosen and 0.18 or 0.025)
+            row.accent:SetShown(item == dj.chosen)
             row.sub:SetShown(item.sub ~= nil and item.sub ~= "")
         end
     end
@@ -359,28 +363,27 @@ function M.BuildDungeons(body, kit)
         return false
     end
     -- home: the search and the grid of cards
-    dj.box = CreateFrame("EditBox", nil, body, "InputBoxTemplate")
-    dj.box:SetSize(260, 26); dj.box:SetPoint("TOPLEFT", 6, -4); dj.box:SetAutoFocus(false); dj.box:SetMaxLetters(60); dj.box:SetFont(kit.fontPath(), 12, "")
-    dj.box:SetScript("OnTextChanged", function(self) dj.query = self:GetText() or ""; refresh(dj) end)
-    dj.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    dj.box = kit.SearchBox(body, 260, function(value) dj.query = value or ""; refresh(dj) end)
+    dj.box:SetPoint("TOPLEFT", 0, -4); dj.box:SetMaxLetters(60); dj.box.hint:SetText(A.L("dungeonsSearch"))
     dj.count = kit.label(body, 11, C.mist); dj.count:SetPoint("LEFT", dj.box, "RIGHT", 12, 0)
     dj.scroll = CreateFrame("ScrollFrame", nil, body, "UIPanelScrollFrameTemplate")
     dj.grid = CreateFrame("Frame", nil, dj.scroll); dj.grid:SetSize(600, 400); dj.scroll:SetScrollChild(dj.grid)
     for i = 1, 60 do
         local card = CreateFrame("Button", nil, dj.grid)
         card.bg = kit.fill(card, C.card, 1)
-        kit.outline(card, {0.55, 0.39, 0.16, 1})
+        kit.outline(card, C.line or C.gold)
         card.art = card:CreateTexture(nil, "ARTWORK"); card.art:SetPoint("TOPLEFT", 2, -2); card.art:SetPoint("BOTTOMRIGHT", -2, 2)
-        card.shade = card:CreateTexture(nil, "OVERLAY"); card.shade:SetPoint("BOTTOMLEFT", 2, 2); card.shade:SetPoint("BOTTOMRIGHT", -2, 2); card.shade:SetHeight(34); kit.paint(card.shade, {0, 0, 0}, 0.55)
-        card.top = card:CreateTexture(nil, "OVERLAY"); card.top:SetPoint("TOPLEFT", 2, -2); card.top:SetPoint("TOPRIGHT", -2, -2); card.top:SetHeight(34); kit.paint(card.top, {0, 0, 0}, 0.4)
-        card.title = card:CreateFontString(nil, "OVERLAY"); card.title:SetFont(kit.fontPath(), 15, "OUTLINE"); card.title:SetTextColor(GOLD[1], GOLD[2], GOLD[3], 1)
-        card.title:SetPoint("TOPLEFT", 12, -9); card.title:SetPoint("TOPRIGHT", -110, -9); card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(false)
-        card.quests = card:CreateFontString(nil, "OVERLAY"); card.quests:SetFont(kit.fontPath(), 11, "OUTLINE"); card.quests:SetTextColor(GOLD[1], GOLD[2], GOLD[3], 1)
-        card.quests:SetPoint("TOPRIGHT", -12, -11); card.quests:SetJustifyH("RIGHT")
-        card.level = card:CreateFontString(nil, "OVERLAY"); card.level:SetFont(kit.fontPath(), 11, "OUTLINE"); card.level:SetTextColor(1, 1, 1, 1)
-        card.level:SetPoint("BOTTOMLEFT", 12, 9); card.level:SetJustifyH("LEFT")
-        card.location = kit.label(card, 10, {0.94, 0.89, 0.76}); card.location:SetPoint("BOTTOMLEFT", 95, 9); card.location:SetPoint("BOTTOMRIGHT", -12, 9); card.location:SetWordWrap(false); card.location:SetJustifyH("RIGHT")
-        local hover = card:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(card); kit.paint(hover, {1, 1, 1}, 0.08)
+        card.shade = card:CreateTexture(nil, "OVERLAY"); card.shade:SetPoint("BOTTOMLEFT", 2, 2); card.shade:SetPoint("BOTTOMRIGHT", -2, 2); card.shade:SetHeight(34); kit.paint(card.shade, C.well, 0.96)
+        card.top = card:CreateTexture(nil, "OVERLAY"); card.top:SetPoint("TOPLEFT", 2, -2); card.top:SetPoint("TOPRIGHT", -2, -2); card.top:SetHeight(40); kit.paint(card.top, C.header or C.well, 0.96)
+        card.rule = card:CreateTexture(nil, "OVERLAY"); card.rule:SetPoint("TOPLEFT", 2, -42); card.rule:SetPoint("TOPRIGHT", -2, -42); card.rule:SetHeight(1); kit.paint(card.rule, C.gold, 0.55)
+        card.title = card:CreateFontString(nil, "OVERLAY"); card.title:SetFont(kit.fontPath(), 16, ""); card.title:SetTextColor(GOLD[1], GOLD[2], GOLD[3], 1)
+        card.title:SetPoint("TOPLEFT", 12, -12); card.title:SetPoint("TOPRIGHT", -100, -12); card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(false)
+        card.quests = card:CreateFontString(nil, "OVERLAY"); card.quests:SetFont(kit.fontPath(), 11, ""); card.quests:SetTextColor(C.mist[1], C.mist[2], C.mist[3], 1)
+        card.quests:SetPoint("TOPRIGHT", -12, -14); card.quests:SetJustifyH("RIGHT")
+        card.level = card:CreateFontString(nil, "OVERLAY"); card.level:SetFont(kit.fontPath(), 11, ""); card.level:SetTextColor(C.bright[1], C.bright[2], C.bright[3], 1)
+        card.level:SetPoint("BOTTOMLEFT", 12, 11); card.level:SetJustifyH("LEFT")
+        card.location = kit.label(card, 11, C.text); card.location:SetPoint("BOTTOMLEFT", 95, 11); card.location:SetPoint("BOTTOMRIGHT", -12, 11); card.location:SetWordWrap(false); card.location:SetJustifyH("RIGHT")
+        local hover = card:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(card); kit.paint(hover, C.gold, 0.10)
         card:SetScript("OnClick", function(self) if self.entry then openDungeon(dj, self.entry) end end)
         card:Hide()
         dj.cards[i] = card
@@ -388,8 +391,8 @@ function M.BuildDungeons(body, kit)
     -- a dungeon: the header with the way back and the tabs
     dj.head = CreateFrame("Frame", nil, body); dj.head:SetPoint("TOPLEFT"); dj.head:SetPoint("TOPRIGHT"); dj.head:SetHeight(80)
     dj.back = kit.Button(dj.head, "dungeonsBack", 110, "ghost", function() dj.mode = "home"; showMode(dj) end); dj.back:SetPoint("TOPLEFT", 0, -2)
-    dj.title = kit.label(dj.head, 18, C.text); dj.title:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -2); dj.title:SetPoint("RIGHT", -4, 0); dj.title:SetWordWrap(false); dj.title:SetJustifyH("LEFT")
-    dj.subtitle = kit.label(dj.head, 11, C.mist); dj.subtitle:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -24); dj.subtitle:SetPoint("RIGHT", -4, 0); dj.subtitle:SetWordWrap(false); dj.subtitle:SetJustifyH("LEFT")
+    dj.title = kit.label(dj.head, 21, C.bright or C.gold); dj.title:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -2); dj.title:SetPoint("RIGHT", -4, 0); dj.title:SetWordWrap(false); dj.title:SetJustifyH("LEFT")
+    dj.subtitle = kit.label(dj.head, 11, C.mist); dj.subtitle:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -29); dj.subtitle:SetPoint("RIGHT", -4, 0); dj.subtitle:SetWordWrap(false); dj.subtitle:SetJustifyH("LEFT")
     dj.tabs = {}
     local previous
     for _, key in ipairs({"bosses", "quests", "map"}) do
@@ -408,20 +411,21 @@ function M.BuildDungeons(body, kit)
     for i = 1, ROWS_MAX do
         local row = CreateFrame("Button", nil, dj.list); row:SetHeight(ROW_H - 3)
         row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_H)
-        row.bg = kit.fill(row, {1, 1, 1}, 1); row.bg:SetAlpha(0.05)
-        local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, {1, 1, 1}, 0.07)
+        row.bg = kit.fill(row, C.gold, 1); row.bg:SetAlpha(0.025)
+        row.accent = row:CreateTexture(nil, "OVERLAY"); row.accent:SetPoint("TOPLEFT"); row.accent:SetPoint("BOTTOMLEFT"); row.accent:SetWidth(2); kit.paint(row.accent, C.gold, 1); row.accent:Hide()
+        local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, C.gold, 0.10)
         row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(26, 26); row.icon:SetPoint("LEFT", 6, 0); row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         row.badge = kit.label(row, 10, C.gold or GOLD); row.badge:SetPoint("RIGHT", -8, 0); row.badge:SetJustifyH("RIGHT")
-        row.name = kit.label(row, 12, C.text); row.name:SetPoint("TOPLEFT", 40, -4); row.name:SetPoint("RIGHT", row.badge, "LEFT", -4, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
-        row.sub = kit.label(row, 10, C.mist); row.sub:SetPoint("BOTTOMLEFT", 40, 4); row.sub:SetPoint("BOTTOMRIGHT", -6, 4); row.sub:SetWordWrap(false); row.sub:SetJustifyH("LEFT")
+        row.name = kit.label(row, 13, C.text); row.name:SetPoint("TOPLEFT", 40, -6); row.name:SetPoint("RIGHT", row.badge, "LEFT", -4, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
+        row.sub = kit.label(row, 11, C.mist); row.sub:SetPoint("BOTTOMLEFT", 40, 5); row.sub:SetPoint("BOTTOMRIGHT", -6, 5); row.sub:SetWordWrap(false); row.sub:SetJustifyH("LEFT")
         row:SetScript("OnClick", function(self) if self.item then chooseItem(dj, self.item) end end)
         row:Hide()
         dj.rows[i] = row
     end
-    local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, 0.55}
+    local edge = C.line or C.gold
     dj.listBg = CreateFrame("Frame", nil, body); dj.listBg:SetFrameLevel(math.max(0, (dj.list:GetFrameLevel() or 1) - 1))
     dj.listBg:SetPoint("TOPLEFT", dj.list, "TOPLEFT", -3, 3); dj.listBg:SetPoint("BOTTOMRIGHT", dj.list, "BOTTOMRIGHT", 3, -3)
-    kit.fill(dj.listBg, C.well, 0.6); kit.outline(dj.listBg, edge); dj.listBg:Hide()
+    kit.fill(dj.listBg, C.well, 1); kit.outline(dj.listBg, edge); dj.listBg:Hide()
     dj.panel = CreateFrame("Frame", nil, body)
     dj.panel:SetPoint("TOPLEFT", dj.list, "TOPRIGHT", 12, 3); dj.panel:SetPoint("BOTTOMRIGHT", 0, 44)
     A.NativeParchment(dj.panel,C)

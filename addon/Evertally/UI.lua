@@ -1,22 +1,13 @@
 local _, A = ...
--- Evertally window: native dark stone, bronze and gold. Only built-in game textures are
--- used (plus the addon logo with a built-in fallback), so nothing depends on new files.
+-- Navy-and-gold window and shared controls; Theme.lua owns every surface colour.
 
 -- The window is resizable: these are its default and smallest size; below COMPACT_BELOW the side menu shrinks to icons.
-local DEFAULT_W, DEFAULT_H, MIN_W, MIN_H = 960, 620, 700, 460
-local WIDTH, HEIGHT, HEADER, SIDEBAR, PAD, ROW = DEFAULT_W, DEFAULT_H, 54, 192, 20, 42
+local DEFAULT_W, DEFAULT_H, MIN_W, MIN_H = 1120, 740, 700, 460
+local WIDTH, HEIGHT, HEADER, SIDEBAR, PAD, ROW = DEFAULT_W, DEFAULT_H, 64, 224, 22, 44
 local COMPACT_SIDEBAR, COMPACT_BELOW, HEAD_ROW = 56, 860, 30
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
--- The look is the game's own, like the Dungeon Journal's: dark stone, a bronze edge, gold titles and rules, red buttons. (lilac is the accent colour of
--- the pages: it is gold now; violet is the fill of a selected or primary thing: the dark red of the game's buttons.)
-local C = {
-    canvas = {0.052, 0.046, 0.040}, header = {0.140, 0.100, 0.055}, side = {0.075, 0.064, 0.050},
-    card = {0.118, 0.094, 0.066}, well = {0.036, 0.032, 0.028}, line = {0.68, 0.52, 0.20, 0.32},
-    text = {0.96, 0.94, 0.88}, mist = {0.76, 0.70, 0.58}, faint = {0.54, 0.49, 0.40},
-    violet = {0.46, 0.11, 0.09}, lilac = {0.96, 0.79, 0.25}, green = {0.48, 0.80, 0.42},
-    peach = {0.96, 0.66, 0.38}, red = {0.90, 0.38, 0.32}, off = {0.30, 0.26, 0.20}, sky = {0.45, 0.70, 0.95},
-    gold = {0.96, 0.79, 0.25}, silver = {0.80, 0.80, 0.84}, bronze = {0.80, 0.52, 0.30},
-}
+-- Legacy accent names remain aliases for pages that use the shared kit.
+local C = A.Theme.colors
 local ICON = {
     overview = "Interface\\Icons\\INV_Misc_Book_09", journal = "Interface\\Icons\\INV_Scroll_03", history = "Interface\\Icons\\INV_Sword_04",
     facts = "Interface\\Icons\\INV_Misc_Map_01", rankings = "Interface\\Icons\\Ability_Warrior_BattleShout",
@@ -88,23 +79,25 @@ local function canUseFont(path)
     fontOk[path] = ok and true or false
     return fontOk[path]
 end
-local function fontPath()
+local function fontPath(role)
     if A.db and A.db.settings.language == "cs" then
         if canUseFont("Interface\\AddOns\\WowfCZ\\Fonts\\FRIZQT__.ttf") then return "Interface\\AddOns\\WowfCZ\\Fonts\\FRIZQT__.ttf" end
         return "Fonts\\ARIALN.TTF"
     end
-    return "Fonts\\FRIZQT__.TTF"
+    return role == "heading" and "Fonts\\FRIZQT__.TTF" or "Fonts\\ARIALN.TTF"
 end
 function A.FontPath() return fontPath() end
 local function label(parent, size, c, layer)
     local fs = parent:CreateFontString(nil, layer or "OVERLAY")
-    fs:SetFont(fontPath(), size, ""); fs:SetTextColor(c[1], c[2], c[3], c[4] or 1); fs:SetJustifyH("LEFT")
-    fontStrings[#fontStrings + 1] = {fs = fs, size = size}
+    size=size or 13
+    local role=size>=18 and "heading" or "body"
+    fs:SetFont(fontPath(role), size, ""); fs:SetTextColor(c[1], c[2], c[3], c[4] or 1); fs:SetJustifyH("LEFT")
+    if role=="heading" and fs.SetShadowOffset then fs:SetShadowOffset(1,-1);fs:SetShadowColor(0,0,0,0.7) end
+    fontStrings[#fontStrings + 1] = {fs = fs, size = size,role=role}
     return fs
 end
 local function applyFonts()
-    local path = fontPath()
-    for _, entry in ipairs(fontStrings) do entry.fs:SetFont(path, entry.size, "") end
+    for _, entry in ipairs(fontStrings) do entry.fs:SetFont(fontPath(entry.role), entry.size, "") end
 end
 local function plain(v) local text = tostring(A.Plain(v) or A.L("unknown")); return (text:gsub("|", "||")) end
 -- string.upper leaves the Czech letters alone, so they are mapped by hand
@@ -164,17 +157,19 @@ end
 local localeButtons = {}
 local function Button(parent, key, width, kind, onClick)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(width, 30)
+    b:SetSize(width, 32)
     local primary = kind == "primary"
     A.NativeButton(b, C, primary)
     local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, primary and 0.9 or 0.45}
     outline(b, edge)
     local glow = b:CreateTexture(nil, "ARTWORK"); glow:SetPoint("TOPLEFT", 1, -1); glow:SetPoint("BOTTOMRIGHT", -1, 1); paint(glow, C.gold, 0)
-    local text = label(b, 12, primary and C.gold or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
+    local text = label(b, 13, primary and C.bright or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
     b.text, b.localeKey = text, key
     if key then text:SetText(A.L(key)); localeButtons[#localeButtons + 1] = b end
     b:SetScript("OnEnter", function() paint(glow, C.gold, 0.12) end)
     b:SetScript("OnLeave", function() paint(glow, C.gold, 0) end)
+    b:SetScript("OnMouseDown", function() paint(glow,C.gold,0.22) end)
+    b:SetScript("OnMouseUp", function() paint(glow,C.gold,0.10) end)
     b:SetScript("OnClick", onClick)
     return b
 end
@@ -219,7 +214,7 @@ local function ScrollArea(parent, top)
     scroll:SetPoint("TOPLEFT", 0, -top); scroll:SetPoint("BOTTOMRIGHT", -8, 0)
     local child = CreateFrame("Frame", nil, scroll); child:SetSize(560, 10)
     scroll:SetScrollChild(child)
-    local thumb = scroll:CreateTexture(nil, "OVERLAY"); thumb:SetWidth(3); paint(thumb, C.lilac, 0.5)
+    local thumb = scroll:CreateTexture(nil, "OVERLAY"); thumb:SetWidth(4); paint(thumb, C.gold, 0.65)
     local function update()
         local view, total = scroll:GetHeight() or 1, child:GetHeight() or 1
         if total <= view + 1 then thumb:Hide(); scroll:SetVerticalScroll(0); return end
@@ -244,7 +239,7 @@ end
 
 local function NewRow(parent)
     local r = CreateFrame("Button", nil, parent); r:SetHeight(ROW - 4)
-    r.bg = fill(r, {0.17, 0.165, 0.16}, 1)
+    r.bg = fill(r, C.card, 1)
     r.divider = r:CreateTexture(nil, "BORDER"); r.divider:SetHeight(1); r.divider:SetPoint("BOTTOMLEFT"); r.divider:SetPoint("BOTTOMRIGHT"); paint(r.divider, {0, 0, 0}, 1)
     -- the highlight is a texture of its own: changing the alpha of the card colour would multiply with the alpha it already has
     r.hover = r:CreateTexture(nil, "HIGHLIGHT"); r.hover:SetAllPoints(r); paint(r.hover, {1, 1, 1}, 0.07)
@@ -256,7 +251,7 @@ local function NewRow(parent)
     r.icon = r:CreateTexture(nil, "ARTWORK"); r.icon:SetSize(26, 26); r.icon:SetPoint("LEFT", 8, 0)
     r.raceIcon = r:CreateTexture(nil, "ARTWORK"); r.raceIcon:SetSize(22, 22); r.raceIcon:SetPoint("LEFT", r.icon, "RIGHT", 4, 0); r.raceIcon:Hide()
     r.title = label(r, 13, C.text)
-    r.sub = label(r, 10, C.mist)
+    r.sub = label(r, 11, C.mist)
     r.right = label(r, 13, C.text); r.right:SetPoint("RIGHT", -12, 0); r.right:SetJustifyH("RIGHT")
     r.tag = Pill(r); r.tag:SetPoint("RIGHT", r.right, "LEFT", -10, 0)
     r.chevron = label(r, 12, C.lilac); r.chevron:SetPoint("RIGHT", -7, 0)
@@ -288,7 +283,7 @@ local function ListView(parent, top, striped, wrappedRows)
             r:ClearAllPoints(); r:SetPoint("TOPLEFT", 0, -y); r:SetPoint("TOPRIGHT", 0, -y)
             r:SetHeight((heading and HEAD_ROW or ROW) - (scroll.striped and not heading and 0 or 4))
             r.bg:SetShown(not heading); r.hover:SetShown(not heading); r.divider:SetShown(not heading)
-            if not heading and scroll.striped then stripe = stripe + 1; paint(r.bg, stripe % 2 == 1 and {0.17, 0.165, 0.16} or {0.137, 0.133, 0.129}, 1)
+            if not heading and scroll.striped then stripe = stripe + 1; paint(r.bg, stripe % 2 == 1 and C.card or C.well, 1)
             elseif not heading then paint(r.bg, C.card, 0.55) end
             r.divider:SetShown(not heading and scroll.striped)
             r.head:SetShown(heading); r.headRight:SetShown(heading); r.headLine:SetShown(heading)
@@ -306,8 +301,8 @@ local function ListView(parent, top, striped, wrappedRows)
                 r.right:SetWidth(compact and 60 or 100); r.right:ClearAllPoints(); r.right:SetPoint("RIGHT", item.onClick and -26 or -12, 0)
                 r.action = item.onClick; r.itemId = item.itemId; r.chevron:SetText(item.onClick and ">" or "")
                 r.title:SetText(item.title or ""); r.sub:SetText(item.sub or ""); r.right:SetText(item.right or "")
-                local tc = item.titleColor or (scroll.striped and {1, 0.54, 0.24}) or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
-                if scroll.striped then r.right:SetTextColor(1, 0.72, 0.11) else r.right:SetTextColor(C.text[1], C.text[2], C.text[3]) end
+                local tc = item.titleColor or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
+                r.right:SetTextColor(C.bright[1], C.bright[2], C.bright[3])
                 -- the right side keeps room for what is really there: the chevron, the value and the tag (a narrow list shows no tag)
                 local reserve = (item.onClick and 26 or 12) + ((item.right and item.right ~= "") and (compact and 66 or 110) or 0)
                 if item.tag and not compact then
@@ -420,9 +415,12 @@ end
 -- ---------- pages ----------
 
 local function PageHeader(page, key)
-    page.title = label(page, 20, C.gold); page.title:SetPoint("TOPLEFT", 0, 0)
-    page.subtitle = label(page, 11, C.mist)
-    page.subtitle:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -28); page.subtitle:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -28)
+    local emblem=CreateFrame("Frame",nil,page);emblem:SetSize(38,38);emblem:SetPoint("TOPLEFT",0,0);A.NativePanel(emblem,C)
+    emblem.icon=emblem:CreateTexture(nil,"ARTWORK");emblem.icon:SetPoint("TOPLEFT",5,-5);emblem.icon:SetPoint("BOTTOMRIGHT",-5,5);setIcon(emblem.icon,ICON[key] or ICON.overview)
+    page.title = label(page, 23, C.bright); page.title:SetPoint("TOPLEFT", 50, 1)
+    page.subtitle = label(page, 12, C.mist)
+    page.subtitle:SetPoint("TOPLEFT", page, "TOPLEFT", 50, -28); page.subtitle:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -28);page.subtitle:SetHeight(17);page.subtitle:SetWordWrap(false)
+    local rule=page:CreateTexture(nil,"BORDER");rule:SetHeight(1);rule:SetPoint("TOPLEFT",0,-47);rule:SetPoint("TOPRIGHT",0,-47);paint(rule,C.line,0.55)
     page.titleKey = key
 end
 
@@ -434,11 +432,11 @@ local function Metrics(page, definitions)
     row:SetPoint("TOPLEFT",0,-54);row:SetPoint("TOPRIGHT",0,-54);row:SetHeight(42)
     local cards={}
     for i,definition in ipairs(definitions) do
-        local card=CreateFrame("Frame",nil,row.cells[i])
-        card.value=label(card,16,definition.color or C.gold);card.value:SetPoint("TOPLEFT",24,0)
-        local icon=card:CreateTexture(nil,"ARTWORK");icon:SetSize(18,18);icon:SetPoint("TOPLEFT");setIcon(icon,definition.icon or ICON.facts)
-        card.caption=label(card,10,C.mist);card.caption:SetPoint("TOPLEFT",24,-20);card.caption:SetPoint("TOPRIGHT",-2,-20);card.caption:SetWordWrap(false)
-        card.delta=label(card,10,C.faint);card.delta:SetPoint("TOPRIGHT",-2,0)
+        local card=CreateFrame("Frame",nil,row.cells[i]);A.NativePanel(card,C)
+        card.value=label(card,17,definition.color or C.bright);card.value:SetPoint("TOPLEFT",32,-3)
+        local icon=card:CreateTexture(nil,"ARTWORK");icon:SetSize(18,18);icon:SetPoint("TOPLEFT",8,-8);setIcon(icon,definition.icon or ICON.facts)
+        card.caption=label(card,10,C.mist);card.caption:SetPoint("TOPLEFT",32,-24);card.caption:SetPoint("TOPRIGHT",-6,-24);card.caption:SetWordWrap(false)
+        card.delta=label(card,10,C.faint);card.delta:SetPoint("TOPRIGHT",-6,-4)
         card:SetAllPoints(row.cells[i]);cards[i]=card
     end
     page.metrics=cards
@@ -960,7 +958,7 @@ local function showCopy()
 end
 
 local function SectionTitle(parent, key, y)
-    local fs = label(parent, 13, C.lilac); fs:SetPoint("TOPLEFT", 0, y); fs.localeKey = key
+    local fs = label(parent, 16, C.bright); fs:SetPoint("TOPLEFT", 0, y); fs.localeKey = key
     return fs
 end
 
@@ -986,7 +984,7 @@ local function buildSettings(page)
         local index=#page.settingCards
         local button=Button(categoryScroll.child,key,180,"ghost",function() page.SelectSection(index) end)
         button:ClearAllPoints();button:SetPoint("TOPLEFT",8,-10-(index-1)*46);button:SetPoint("TOPRIGHT",-8,-10-(index-1)*46);button:SetHeight(40)
-        button.text:SetPoint("LEFT",8,0);button.text:SetPoint("RIGHT",-8,0);button.text:SetWordWrap(true)
+        button.text:ClearAllPoints();button.text:SetPoint("LEFT",8,0);button.text:SetPoint("RIGHT",-8,0);button.text:SetWordWrap(true)
         page.categoryButtons[index]=button
     end
     local function place(control,height,indent)
@@ -1061,6 +1059,10 @@ local function buildSettings(page)
     function page.SelectSection(index)
         page.selectedSection=index
         for i,panel in ipairs(page.settingCards) do panel:SetShown(i==index) end
+        for i,button in ipairs(page.categoryButtons) do
+            button.text:SetTextColor(unpack(i==index and C.bright or C.mist))
+            if button.nativeSurface then paint(button.nativeSurface,i==index and C.violet or C.well,1) end
+        end
         scroll:SetShown(index~=5);page.plates:SetShown(index==5)
         if index==5 then page.plates.Update() end
         body:SetHeight(page.settingCards[index]:GetHeight())
@@ -1178,9 +1180,9 @@ ensureNavVisible = function(view)
 end
 
 local function NavButton(parent, view)
-    local b = CreateFrame("Button", nil, parent); b:SetHeight(30)
+    local b = CreateFrame("Button", nil, parent); b:SetHeight(34)
     b.bg = fill(b, C.lilac, 1); b.bg:SetAlpha(0)   -- the tint is its alpha: it shows when the item is selected or hovered
-    b.bar = b:CreateTexture(nil, "ARTWORK"); b.bar:SetSize(3, 22); b.bar:SetPoint("LEFT"); paint(b.bar, C.lilac)
+    b.bar = b:CreateTexture(nil, "ARTWORK"); b.bar:SetSize(3, 26); b.bar:SetPoint("LEFT"); paint(b.bar, C.gold)
     b.icon = b:CreateTexture(nil, "ARTWORK"); b.icon:SetSize(20, 20); b.icon:SetPoint("LEFT", 14, 0); setIcon(b.icon, ICON[view])
     b.text = label(b, 13, C.mist); b.text:SetPoint("LEFT", b.icon, "RIGHT", 10, 0)
     b.viewKey, b.localeKey = view, view
@@ -1199,11 +1201,8 @@ local function layoutNav()
     if not frame then return end
     local compact = shell.compact == true
     local height = tonumber(shell.navScroll:GetHeight()) or ((tonumber(frame:GetHeight()) or DEFAULT_H) - HEADER - 40)
-    local headings = 0
-    for _, group in ipairs(NAV) do if group.head then headings = headings + 1 end end
     local headH = compact and 14 or 24
-    local avail = height - headings * headH - 28
-    local itemH = math.max(24, math.min(34, math.floor(avail / #VIEWS)))
+    local itemH = 34
     local y = -10
     for g, group in ipairs(NAV) do
         if group.head then
@@ -1282,8 +1281,8 @@ local function build()
     bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() frame:StartMoving() end)
     bar:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
-    local logo = bar:CreateTexture(nil, "ARTWORK"); logo:SetSize(30, 30); logo:SetPoint("LEFT", 16, 0); setLogo(logo)
-    header.title = label(bar, 18, C.gold); header.title:SetPoint("LEFT", logo, "RIGHT", 10, 1); header.title:SetText("Evertally")
+    local logo = bar:CreateTexture(nil, "ARTWORK"); logo:SetSize(38, 38); logo:SetPoint("LEFT", 14, 0); setLogo(logo)
+    header.title = label(bar, 23, C.bright); header.title:SetPoint("LEFT", logo, "RIGHT", 10, 1); header.title:SetText("Evertally")
     header.version = label(bar, 10, C.faint); header.version:SetPoint("LEFT", header.title, "RIGHT", 8, -1); header.version:SetText("v" .. A.version)
     local zoomOut = Button(bar, nil, 28, "ghost", function() A.SetUIScale(A.GetUIScale() - 0.1) end); zoomOut:SetPoint("LEFT", header.version, "RIGHT", 18, 0); zoomOut.text:SetText("-")
     local zoomIn = Button(bar, nil, 28, "ghost", function() A.SetUIScale(A.GetUIScale() + 0.1) end); zoomIn:SetPoint("LEFT", zoomOut, "RIGHT", 4, 0); zoomIn.text:SetText("+")

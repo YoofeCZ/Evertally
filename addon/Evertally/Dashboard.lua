@@ -102,63 +102,89 @@ end
 
 function A.BuildOverviewPage(page, kit)
     local C, label = kit.C, kit.label
-    -- dark ranking-table look: light text on stone, gold figures
-    local ink = {0.96, 0.93, 0.86}
-    local muted = {0.79, 0.77, 0.73}
-    local heading = {1, 0.72, 0.11}
+    local ink, muted, heading = C.text, C.mist, C.bright or C.gold
     A.overviewPage = page
     kit.PageHeader(page, "overview")
-    page.columns = kit.Columns(page, {2, 4}, 12)
-    page.columns:SetPoint("TOPLEFT", 0, -54); page.columns:SetPoint("BOTTOMRIGHT")
+    page.columns = kit.Columns(page, {2, 4}, 14)
+    page.columns:SetPoint("TOPLEFT", 0, -62); page.columns:SetPoint("BOTTOMRIGHT")
 
-    -- A character dossier, with a portrait and ruled journal entries rather than four dashboard tiles.
+    -- A character dossier and a two-by-two record grid. The grid becomes a
+    -- compact ledger at the smallest window height instead of covering money.
     local hero = CreateFrame("Frame", nil, page.columns.cells[1]); hero:SetAllPoints(page.columns.cells[1])
     A.NativePanel(hero, C); page.hero = hero
-    page.portrait = hero:CreateTexture(nil, "ARTWORK"); page.portrait:SetSize(54, 54); page.portrait:SetPoint("TOPLEFT", 12, -14)
+    page.portrait = hero:CreateTexture(nil, "ARTWORK"); page.portrait:SetSize(58, 58); page.portrait:SetPoint("TOPLEFT", 14, -18)
     page.heroClass = hero:CreateTexture(nil, "OVERLAY"); page.heroClass:SetSize(22, 22); page.heroClass:SetPoint("BOTTOMRIGHT", page.portrait, "BOTTOMRIGHT", 2, -2)
     page.heroRace = hero:CreateTexture(nil, "OVERLAY"); page.heroRace:SetSize(20, 20); page.heroRace:SetPoint("BOTTOMLEFT", page.portrait, "BOTTOMLEFT", -2, -2)
-    page.heroName = label(hero, 17, heading); page.heroName:SetPoint("TOPLEFT", 76, -18); page.heroName:SetPoint("TOPRIGHT", -12, -18); page.heroName:SetWordWrap(false)
-    page.heroSub = label(hero, 11, ink); page.heroSub:SetPoint("TOPLEFT", 76, -41); page.heroSub:SetPoint("TOPRIGHT", -12, -41); page.heroSub:SetHeight(36)
-    page.xpLabel = label(hero, 10, muted); page.xpLabel:SetPoint("TOPLEFT", 12, -90); page.xpLabel:SetPoint("TOPRIGHT", -12, -90)
-    page.xpBar = kit.ProgressBar(hero, C.gold, 8); page.xpBar:SetPoint("TOPLEFT", 12, -110); page.xpBar:SetPoint("TOPRIGHT", -12, -110)
-    page.dossierTitle = label(hero, 13, heading); page.dossierTitle:SetPoint("TOPLEFT", 12, -132)
-    local rule = hero:CreateTexture(nil, "BORDER"); rule:SetPoint("TOPLEFT", 12, -155); rule:SetPoint("TOPRIGHT", -12, -155); rule:SetHeight(1); kit.paint(rule, heading, 0.4)
+    page.heroName = label(hero, 18, heading); page.heroName:SetPoint("TOPLEFT", 84, -20); page.heroName:SetPoint("TOPRIGHT", -14, -20); page.heroName:SetWordWrap(false)
+    page.heroSub = label(hero, 11, ink); page.heroSub:SetPoint("TOPLEFT", 84, -45); page.heroSub:SetPoint("TOPRIGHT", -14, -45); page.heroSub:SetHeight(36)
+    page.xpLabel = label(hero, 11, muted); page.xpLabel:SetPoint("TOPLEFT", 14, -99); page.xpLabel:SetPoint("TOPRIGHT", -14, -99)
+    page.xpBar = kit.ProgressBar(hero, C.gold, 7); page.xpBar:SetPoint("TOPLEFT", 14, -120); page.xpBar:SetPoint("TOPRIGHT", -14, -120)
+    page.dossierTitle = label(hero, 13, heading); page.dossierTitle:SetPoint("TOPLEFT", 14, -146)
+    local rule = hero:CreateTexture(nil, "BORDER"); rule:SetPoint("TOPLEFT", 14, -169); rule:SetPoint("TOPRIGHT", -14, -169); rule:SetHeight(1); kit.paint(rule, C.line, 0.8)
     page.stats = {}
     for i, icon in ipairs({kit.ICON.questDone, kit.ICON.run, kit.ICON.places, kit.ICON.overview}) do
-        local entry = CreateFrame("Frame", nil, hero); entry:SetPoint("TOPLEFT", 8, -152-(i-1)*26); entry:SetPoint("TOPRIGHT", -8, -152-(i-1)*26); entry:SetHeight(26)
-        kit.fill(entry, i % 2 == 1 and {0.17, 0.165, 0.16} or {0.137, 0.133, 0.129}, 1)
-        entry.icon = entry:CreateTexture(nil, "ARTWORK"); entry.icon:SetSize(18, 18); entry.icon:SetPoint("LEFT", 6, 0); kit.setIcon(entry.icon, icon)
-        entry.caption = label(entry, 10, ink); entry.caption:SetPoint("LEFT", entry.icon, "RIGHT", 6, 0); entry.caption:SetPoint("RIGHT", -60, 0); entry.caption:SetWordWrap(false)
-        entry.value = label(entry, 15, heading); entry.value:SetPoint("RIGHT", -8, 0); entry.value:SetJustifyH("RIGHT")
+        local entry = CreateFrame("Frame", nil, hero)
+        kit.fill(entry, C.well or C.side, 1); kit.outline(entry, C.line)
+        entry.icon = entry:CreateTexture(nil, "ARTWORK"); entry.icon:SetSize(18, 18); kit.setIcon(entry.icon, icon)
+        entry.caption = label(entry, 10, muted); entry.caption:SetWordWrap(false)
+        entry.value = label(entry, 22, heading)
         entry.delta = label(entry, 10, muted); entry.delta:Hide()
         page.stats[i] = entry
     end
-    page.moneyLabel = label(hero, 11, muted); page.moneyLabel:SetPoint("BOTTOMLEFT", 12, 38)
-    page.money = label(hero, 13, ink); page.money:SetPoint("BOTTOMLEFT", 12, 17)
-    page.warning = label(hero, 10, C.red); page.warning:SetPoint("BOTTOMRIGHT", -12, 17)
+    page.moneyLabel = label(hero, 11, muted); page.moneyLabel:SetPoint("BOTTOMLEFT", 14, 40)
+    page.money = label(hero, 15, ink); page.money:SetPoint("BOTTOMLEFT", 14, 18)
+    page.warning = label(hero, 10, C.red); page.warning:SetPoint("BOTTOMRIGHT", -14, 18)
+
+    local function layoutDossier()
+        local width = math.max(160, tonumber(hero:GetWidth()) or 250)
+        local compact = (tonumber(hero:GetHeight()) or 500) < 430
+        page.portrait:SetSize(compact and 46 or 58,compact and 46 or 58)
+        page.portrait:ClearAllPoints();page.portrait:SetPoint("TOPLEFT",compact and 12 or 14,compact and -12 or -18)
+        page.heroName:ClearAllPoints();page.heroName:SetPoint("TOPLEFT",compact and 68 or 84,compact and -14 or -20);page.heroName:SetPoint("TOPRIGHT",-14,compact and -14 or -20)
+        page.heroSub:ClearAllPoints();page.heroSub:SetPoint("TOPLEFT",compact and 68 or 84,compact and -39 or -45);page.heroSub:SetPoint("TOPRIGHT",-14,compact and -39 or -45);page.heroSub:SetHeight(compact and 40 or 36)
+        page.xpLabel:ClearAllPoints();page.xpLabel:SetPoint("TOPLEFT",14,compact and -86 or -99);page.xpLabel:SetPoint("TOPRIGHT",-14,compact and -86 or -99)
+        page.xpBar:ClearAllPoints();page.xpBar:SetPoint("TOPLEFT",14,compact and -106 or -120);page.xpBar:SetPoint("TOPRIGHT",-14,compact and -106 or -120)
+        page.dossierTitle:SetShown(not compact);rule:SetShown(not compact);page.moneyLabel:SetShown(not compact)
+        for i, entry in ipairs(page.stats) do
+            entry:ClearAllPoints(); entry.icon:ClearAllPoints(); entry.caption:ClearAllPoints(); entry.value:ClearAllPoints()
+            if compact then
+                entry:SetPoint("TOPLEFT", 10, -125-(i-1)*27); entry:SetPoint("TOPRIGHT", -10, -125-(i-1)*27); entry:SetHeight(25)
+                entry.icon:SetPoint("LEFT", 6, 0)
+                entry.caption:SetPoint("LEFT", entry.icon, "RIGHT", 6, 0); entry.caption:SetPoint("RIGHT", -52, 0)
+                entry.value:SetPoint("RIGHT", -8, 0); entry.value:SetFont(kit.fontPath(), 16, "")
+            else
+                local cell = (width-36)/2
+                entry:SetPoint("TOPLEFT", 12+((i-1)%2)*(cell+12), -183-math.floor((i-1)/2)*82); entry:SetSize(cell, 70)
+                entry.icon:SetPoint("TOPRIGHT", -9, -10)
+                entry.value:SetPoint("TOPLEFT", 10, -9); entry.value:SetPoint("TOPRIGHT", -29, -9); entry.value:SetFont(kit.fontPath(), 22, "")
+                entry.caption:SetPoint("BOTTOMLEFT", 10, 10); entry.caption:SetPoint("BOTTOMRIGHT", -7, 10)
+            end
+        end
+    end
+    hero:SetScript("OnSizeChanged", layoutDossier)
 
     local right = page.columns.cells[2]
-    local recent = kit.Card(right); recent:SetPoint("TOPLEFT"); recent:SetPoint("TOPRIGHT"); recent:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 162)
-    page.recentTitle = label(recent, 14, C.gold); page.recentTitle:SetPoint("TOPLEFT", 12, -12)
+    local recent = kit.Card(right, C.gold); recent:SetPoint("TOPLEFT"); recent:SetPoint("TOPRIGHT"); recent:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", 0, 178)
+    page.recentTitle = label(recent, 15, heading); page.recentTitle:SetPoint("TOPLEFT", 14, -14)
     page.recentMode, page.recentChips = "activity", {}
     local previous
     for _, key in ipairs({"activity", "areas", "loot"}) do
         local chip = kit.Chip(recent, function() page.recentMode = key; A.RefreshUI() end)
-        if previous then chip:SetPoint("LEFT", previous, "RIGHT", 5, 0) else chip:SetPoint("TOPLEFT", 12, -36) end
+        if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", 14, -40) end
         previous = chip; page.recentChips[key] = chip
     end
-    local inner = CreateFrame("Frame", nil, recent); inner:SetPoint("TOPLEFT", 6, -66); inner:SetPoint("BOTTOMRIGHT", -6, 7)
+    local inner = CreateFrame("Frame", nil, recent); inner:SetPoint("TOPLEFT", 6, -72); inner:SetPoint("BOTTOMRIGHT", -6, 7)
     page.list = kit.ListView(inner, 0)
     page.areas = kit.BarList(inner); page.areas:SetPoint("TOPLEFT", 6, -3); page.areas:SetPoint("BOTTOMRIGHT", -6, 0)
     page.loot = kit.IconGrid(inner, 38, 6)
-    local chart = CreateFrame("Frame", nil, right); chart:SetPoint("BOTTOMLEFT"); chart:SetPoint("BOTTOMRIGHT"); chart:SetHeight(150)
+    local chart = CreateFrame("Frame", nil, right); chart:SetPoint("BOTTOMLEFT"); chart:SetPoint("BOTTOMRIGHT"); chart:SetHeight(164)
     A.NativePanel(chart, C)
-    page.chartTitle = label(chart, 12, heading); page.chartTitle:SetPoint("TOPLEFT", 12, -9)
-    page.legend = kit.Legend(chart); page.legend:SetPoint("TOPLEFT", 12, -29)
-    page.chart = kit.BarChart(chart); page.chart:SetPoint("TOPLEFT", 12, -50); page.chart:SetPoint("BOTTOMRIGHT", -12, 8)
+    page.chartTitle = label(chart, 13, heading); page.chartTitle:SetPoint("TOPLEFT", 14, -13)
+    page.legend = kit.Legend(chart); page.legend:SetPoint("TOPLEFT", 14, -37)
+    page.chart = kit.BarChart(chart); page.chart:SetPoint("TOPLEFT", 14, -60); page.chart:SetPoint("BOTTOMRIGHT", -14, 10)
     local colors = {C.gold, C.green, C.sky, C.peach}
     function page.Refresh()
-        page.columns.Layout()
+        page.columns.Layout(); layoutDossier()
         local db, c = A.db, A.Character()
         if c then
             kit.classIcon(page.heroClass, c.classId); kit.raceIcon(page.heroRace, c.raceId); page.heroRace:Show()

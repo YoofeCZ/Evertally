@@ -3,7 +3,7 @@ local A = _G.Evertally
 -- The Recipes page: every profession recipe Forever has (2,339, from the website's database), by profession, with what it makes, the skill it turns orange,
 -- yellow, green and grey at, and its reagents as rows with the item's icon that open the item in the database. The list is data shipped with this add-on
 -- (GuideData.lua: ids, numbers and names); icons and tooltips are the game's own.
-local ROW_H, ROWS_MAX = 30, 18
+local ROW_H, ROWS_MAX = 40, 18
 local SKILL_COLOR = {"|cffff8040", "|cffffff00", "|cff40c040", "|cff9a9a9a"}
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 local PROFESSION_ICON = {
@@ -29,7 +29,7 @@ local function detailOf(rp, recipe)
     local ink = rp.kit.ParchmentText
     local C = {text=ink.ink,mist=ink.mutedInk}
     d.SetTheme("quest");d.Reset("recipe:"..recipe.id)
-    d.Text(A.Plain(recipe.name), C.text, 16)
+    d.Text(A.Plain(recipe.name), ink.heading, 20)
     d.Text(M.recipeLines and M.recipeLines[recipe.line] or "", C.mist, 11)
     if recipe.out then
         d.Head(A.L("recipesCreates"))
@@ -68,7 +68,8 @@ local function refreshRows(rp)
             row.icon:SetTexture(PROFESSION_ICON[recipe.line] or QUESTION)
             row.name:SetText(A.Plain(recipe.name))
             row.badge:SetText(recipe.skill and recipe.skill[1] and tostring(recipe.skill[1]) or "")
-            row.bg:SetAlpha(recipe == rp.selected and 0.16 or 0.05)
+            row.bg:SetAlpha(recipe == rp.selected and 0.18 or 0.025)
+            row.accent:SetShown(recipe == rp.selected)
         end
     end
 end
@@ -104,11 +105,9 @@ function M.BuildRecipes(body, kit)
     local rp = {kit = kit, body = body, rows = {}, chips = {}, results = {}, offset = 0, visibleRows = 8, query = ""}
     body.recipes = rp
     M.recipePage = rp
-    rp.box = CreateFrame("EditBox", nil, body, "InputBoxTemplate")
-    rp.box:SetSize(240, 26); rp.box:SetPoint("TOPLEFT", 6, -4); rp.box:SetAutoFocus(false); rp.box:SetMaxLetters(60); rp.box:SetFont(kit.fontPath(), 12, "")
-    rp.box:SetScript("OnTextChanged", function(self) rp.query = self:GetText() or ""; filter(rp) end)
-    rp.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    rp.count = kit.label(body, 11, C.mist); rp.count:SetPoint("LEFT", rp.box, "RIGHT", 12, 0)
+    rp.box = kit.SearchBox(body, 240, function(value) rp.query = value or ""; filter(rp) end)
+    rp.box:SetPoint("TOPLEFT", 0, -4); rp.box:SetMaxLetters(60); rp.box.hint:SetText(A.L("recipesSearch"))
+    rp.count = kit.label(body, 11, C.mist); rp.count:SetPoint("TOPLEFT", 2, -37)
     -- A native profession menu leaves room for the recipe itself, even in a narrow window.
     rp.professionButton=kit.Button(body,"recipesAll",190,"ghost",function() rp.professionMenu:SetShown(not rp.professionMenu:IsShown()) end)
     rp.professionButton:SetPoint("TOPRIGHT",0,-2)
@@ -126,10 +125,10 @@ function M.BuildRecipes(body, kit)
         chip:SetPoint("TOPLEFT",0,-(i-1)*30);chip:SetPoint("TOPRIGHT",0,-(i-1)*30)
         rp.chips[key] = chip
     end
-    local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, 0.55}
-    rp.list = CreateFrame("Frame", nil, body); rp.list:SetPoint("TOPLEFT", 0, -44); rp.list:SetPoint("BOTTOMLEFT", 0, 0); rp.list:SetWidth(270)
+    local edge = C.line or C.gold
+    rp.list = CreateFrame("Frame", nil, body); rp.list:SetPoint("TOPLEFT", 0, -62); rp.list:SetPoint("BOTTOMLEFT", 0, 0); rp.list:SetWidth(270)
     rp.listBg = CreateFrame("Frame", nil, body); rp.listBg:SetFrameLevel(math.max(0, (rp.list:GetFrameLevel() or 1) - 1))
-    rp.listBg:SetPoint("TOPLEFT", rp.list, "TOPLEFT", -3, 3); rp.listBg:SetPoint("BOTTOMRIGHT", rp.list, "BOTTOMRIGHT", 3, -3); kit.fill(rp.listBg, C.well, 0.6); kit.outline(rp.listBg, edge)
+    rp.listBg:SetPoint("TOPLEFT", rp.list, "TOPLEFT", -3, 3); rp.listBg:SetPoint("BOTTOMRIGHT", rp.list, "BOTTOMRIGHT", 3, -3); kit.fill(rp.listBg, C.well, 1); kit.outline(rp.listBg, edge)
     rp.list:EnableMouse(true); if rp.list.EnableMouseWheel then rp.list:EnableMouseWheel(true) end
     rp.list:SetScript("OnMouseWheel", function(_, delta)
         local step = math.max(3, math.floor(#rp.results / 100))
@@ -138,11 +137,12 @@ function M.BuildRecipes(body, kit)
     for i = 1, ROWS_MAX do
         local row = CreateFrame("Button", nil, rp.list); row:SetHeight(ROW_H - 2)
         row:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H); row:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_H)
-        row.bg = kit.fill(row, {1, 1, 1}, 1); row.bg:SetAlpha(0.05)
-        local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, {1, 1, 1}, 0.07)
-        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(22, 22); row.icon:SetPoint("LEFT", 5, 0); row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        row.badge = kit.label(row, 10, SKILL_COLOR and {1, 0.5, 0.25}); row.badge:SetPoint("RIGHT", -8, 0); row.badge:SetJustifyH("RIGHT")
-        row.name = kit.label(row, 12, C.text); row.name:SetPoint("LEFT", 32, 0); row.name:SetPoint("RIGHT", row.badge, "LEFT", -4, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
+        row.bg = kit.fill(row, C.gold, 1); row.bg:SetAlpha(0.025)
+        row.accent = row:CreateTexture(nil, "OVERLAY"); row.accent:SetPoint("TOPLEFT"); row.accent:SetPoint("BOTTOMLEFT"); row.accent:SetWidth(2); kit.paint(row.accent, C.gold, 1); row.accent:Hide()
+        local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, C.gold, 0.10)
+        row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(26, 26); row.icon:SetPoint("LEFT", 8, 0); row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        row.badge = kit.label(row, 11, C.gold); row.badge:SetPoint("RIGHT", -8, 0); row.badge:SetJustifyH("RIGHT")
+        row.name = kit.label(row, 13, C.text); row.name:SetPoint("LEFT", 42, 0); row.name:SetPoint("RIGHT", row.badge, "LEFT", -4, 0); row.name:SetWordWrap(false); row.name:SetJustifyH("LEFT")
         row:SetScript("OnClick", function(self) if self.recipe then choose(rp, self.recipe) end end)
         row:Hide()
         rp.rows[i] = row
@@ -155,8 +155,9 @@ function M.BuildRecipes(body, kit)
     rp.nodata = kit.label(body, 12, C.peach); rp.nodata:SetPoint("TOPLEFT", 0, -110); rp.nodata:Hide()
     local function layout()
         local width, height = body:GetWidth() or 640, body:GetHeight() or 420
-        rp.list:SetWidth(math.max(210, math.min(300, width * 0.38)))
-        rp.visibleRows = math.max(3, math.min(ROWS_MAX, math.floor((height - 44) / ROW_H)))
+        rp.box:SetWidth(math.max(160, math.min(300, width - 218)))
+        rp.list:SetWidth(math.max(180, math.min(290, width * 0.34)))
+        rp.visibleRows = math.max(1, math.min(ROWS_MAX, math.floor((height - 62) / ROW_H)))
         rp.detail.SetWidth(width - rp.list:GetWidth() - 12 - 40)
         refreshRows(rp)
     end

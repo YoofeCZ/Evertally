@@ -3,7 +3,7 @@ local A = _G.Evertally
 -- Building blocks the guide pages (database, dungeon journal) share: a scrolling detail made of headings, text and rows with an icon that can be
 -- clicked (a quest -> the person who gives it -> his other quests -> an item -> who sells it), and the colour of an item's quality. The rows are
 -- pooled, so opening one entry after another costs nothing.
-local ROW_H, ICON = 40, 30
+local ROW_H, ICON = 46, 30
 local QUALITY = {[0] = {0.62, 0.62, 0.62}, [1] = {1, 1, 1}, [2] = {0.12, 1, 0.1}, [3] = {0.25, 0.6, 1}, [4] = {0.72, 0.4, 1}, [5] = {1, 0.55, 0.1}, [6] = {0.9, 0.8, 0.5}}
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 M.guideQuestion = QUESTION
@@ -58,25 +58,23 @@ function M.GuideDetail(kit, parent)
     if d.surface.SetFrameLevel and d.scroll.GetFrameLevel then d.surface:SetFrameLevel(math.max(0, (d.scroll:GetFrameLevel() or 1) - 1)) end
     if A.NativeParchment then A.NativeParchment(d.surface, C)
     else
-        kit.fill(d.surface, {0.72, 0.59, 0.38}, 1)
-        local parchment = d.surface:CreateTexture(nil, "BACKGROUND"); parchment:SetPoint("TOPLEFT", 3, -3); parchment:SetPoint("BOTTOMRIGHT", -3, 3)
-        parchment:SetTexture("Interface\\QuestFrame\\QuestBG"); parchment:SetVertexColor(1, 0.97, 0.88, 1)
-        kit.outline(d.surface, {0.30, 0.20, 0.09, 1})
+        kit.fill(d.surface, C.well, 1)
+        kit.outline(d.surface, C.line or C.gold)
     end
     d.surface:Hide()
-    d.ink, d.heading = C.text, C.lilac
+    d.ink, d.heading = C.text, C.bright or C.gold
     function d.SetTheme(theme)
         if theme == "parchment" then theme = "quest" end
         d.theme = theme
         d.surface:SetShown(theme == "quest")
-        d.ink = theme == "quest" and {0.13, 0.085, 0.035} or C.text
-        d.heading = theme == "quest" and {1, 0.83, 0.25} or C.lilac
+        d.ink = C.text
+        d.heading = C.bright or C.gold
     end
 
     local function textLine()
         d.used.text = d.used.text + 1
         local fs = d.pools.text[d.used.text]
-        if not fs then fs = kit.label(d.content, 12, C.text); fs:SetJustifyH("LEFT"); fs:SetJustifyV("TOP"); d.pools.text[d.used.text] = fs end
+        if not fs then fs = kit.label(d.content, 13, C.text); fs:SetJustifyH("LEFT"); fs:SetJustifyV("TOP"); d.pools.text[d.used.text] = fs end
         fs:Show()
         return fs
     end
@@ -86,12 +84,12 @@ function M.GuideDetail(kit, parent)
         if not row then
             row = CreateFrame("Button", nil, d.content)
             row:SetHeight(ROW_H - 4)
-            row.bg = kit.fill(row, {1, 1, 1}, 1); row.bg:SetAlpha(0.05)
-            local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, {1, 1, 1}, 0.07)
+            row.bg = kit.fill(row, C.card, 1)
+            local hover = row:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(row); kit.paint(hover, C.gold, 0.12)
             row.border = row:CreateTexture(nil, "BORDER"); row.border:SetSize(ICON + 4, ICON + 4); row.border:SetPoint("LEFT", 4, 0)
             row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(ICON, ICON); row.icon:SetPoint("LEFT", 6, 0); row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            row.title = kit.label(row, 12, C.text); row.title:SetPoint("TOPLEFT", ICON + 16, -6); row.title:SetPoint("TOPRIGHT", -34, -6); row.title:SetWordWrap(false); row.title:SetJustifyH("LEFT")
-            row.sub = kit.label(row, 10, C.mist); row.sub:SetPoint("BOTTOMLEFT", ICON + 16, 5); row.sub:SetPoint("BOTTOMRIGHT", -34, 5); row.sub:SetWordWrap(false); row.sub:SetJustifyH("LEFT")
+            row.title = kit.label(row, 13, C.text); row.title:SetPoint("TOPLEFT", ICON + 16, -6); row.title:SetPoint("TOPRIGHT", -34, -6); row.title:SetWordWrap(false); row.title:SetJustifyH("LEFT")
+            row.sub = kit.label(row, 11, C.mist); row.sub:SetPoint("BOTTOMLEFT", ICON + 16, 5); row.sub:SetPoint("BOTTOMRIGHT", -34, 5); row.sub:SetWordWrap(false); row.sub:SetJustifyH("LEFT")
             row.badge = kit.label(row, 11, C.mist); row.badge:SetPoint("RIGHT", -10, 0); row.badge:SetJustifyH("RIGHT")
             row:SetScript("OnEnter", function(self) if self.spec and self.spec.itemId then M.ShowItemTooltip(self, self.spec.itemId, self.spec.title, self.spec.extra) end end)
             row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -120,26 +118,25 @@ function M.GuideDetail(kit, parent)
     function d.Text(value, color, size, width)
         local fs = textLine()
         fs:ClearAllPoints(); fs:SetPoint("TOPLEFT", d.content, "TOPLEFT", 0, -d.y); fs:SetWidth(width or d.width)
-        fs:SetFont(kit.fontPath(), size or 12, "")
+        fs:SetFont(kit.fontPath(), size or 13, "")
         local c = color or d.ink
         fs:SetTextColor(c[1], c[2], c[3], 1)
         if fs.SetShadowOffset then fs:SetShadowOffset(0, 0) end
         fs:SetText(value or "")
-        d.y = d.y + math.max(14, fs:GetStringHeight() or 14) + (d.theme == "quest" and 3 or 6)
+        d.y = d.y + math.max(16, fs:GetStringHeight() or 16) + 6
         return fs
     end
     function d.Head(value)
-        d.y = d.y + (d.theme == "quest" and 2 or 5)
-        local fs = d.Text(value, d.heading, d.theme == "quest" and 13 or 14)
-        if d.theme == "quest" and fs.SetShadowOffset then fs:SetShadowOffset(1, -1); fs:SetShadowColor(0.27, 0.16, 0.03, 0.85) end
+        d.y = d.y + 10
+        local fs = d.Text(value, d.heading, 14)
         return fs
     end
     function d.PortraitHeader(value, texture)
         if not d.portrait then
             d.portrait = CreateFrame("Frame", nil, d.content)
             d.portrait:SetSize(50, 50)
-            d.portrait.bg = kit.fill(d.portrait, {0.17, 0.105, 0.05}, 1)
-            kit.outline(d.portrait, {0.42, 0.29, 0.13, 1})
+            d.portrait.bg = kit.fill(d.portrait, C.card, 1)
+            kit.outline(d.portrait, C.line or C.gold)
             d.portrait.icon = d.portrait:CreateTexture(nil, "ARTWORK"); d.portrait.icon:SetPoint("TOPLEFT", 3, -3); d.portrait.icon:SetPoint("BOTTOMRIGHT", -3, 3)
         end
         local top = d.y
@@ -153,10 +150,7 @@ function M.GuideDetail(kit, parent)
         row.spec = spec
         row:ClearAllPoints(); row:SetPoint("TOPLEFT", d.content, "TOPLEFT", 0, -d.y); row:SetPoint("TOPRIGHT", d.content, "TOPRIGHT", 0, -d.y)
         row:SetHeight(ROW_H - 4)
-        if d.theme=="quest" then kit.paint(row.bg,{0.16,0.105,0.055},1);row.bg:SetAlpha(1)
-        else kit.paint(row.bg,{1,1,1},1);row.bg:SetAlpha(0.05) end
-        local itemOnPaper = d.theme == "quest"
-        if itemOnPaper then kit.paint(row.bg, {0.16, 0.105, 0.055}, 1); row.bg:SetAlpha(1) end
+        kit.paint(row.bg, C.card, 1); row.bg:SetAlpha(1)
         row.icon:ClearAllPoints(); row.icon:SetSize(ICON, ICON); row.icon:SetPoint("LEFT", 6, 0)
         row.title:ClearAllPoints(); row.title:SetPoint("TOPLEFT", ICON + 16, -6); row.title:SetPoint("TOPRIGHT", -34, -6); row.title:SetHeight(15); row.title:SetWordWrap(false)
         row.badge:ClearAllPoints(); row.badge:SetPoint("RIGHT", -10, 0); row.badge:Show()
@@ -165,11 +159,10 @@ function M.GuideDetail(kit, parent)
         if spec.itemId then local _,current=M.ItemLook(spec.itemId);q=current or q end
         row.border:SetShown(q ~= nil)
         if q ~= nil then local c = M.QualityColor(q); kit.paint(row.border, c, 1) end
-        local c = spec.color or (q ~= nil and M.QualityColor(q)) or (itemOnPaper and C.text or d.ink)
+        local c = spec.color or (q ~= nil and M.QualityColor(q)) or d.ink
         row.title:SetTextColor(c[1], c[2], c[3], 1)
         row.title:SetText(A.Plain(spec.title or "?")); row.sub:SetText(A.Plain(spec.sub or "")); row.badge:SetText(spec.badge or "")
-        local subColor = d.theme == "quest" and not itemOnPaper and {0.36, 0.26, 0.14} or C.mist
-        row.sub:SetTextColor(subColor[1], subColor[2], subColor[3], 1)
+        row.sub:SetTextColor(C.mist[1], C.mist[2], C.mist[3], 1)
         row.sub:SetShown(spec.sub ~= nil and spec.sub ~= "")
         d.y = d.y + ROW_H
         return row
@@ -186,8 +179,8 @@ function M.GuideDetail(kit, parent)
                 local row = linkRow()
                 row.spec = {itemId = id, quality = quality or item.quality, title = item.name or item[2] or M.ItemName(id), onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item", id) end end}
                 row:ClearAllPoints(); row:SetPoint("TOPLEFT", d.content, "TOPLEFT", ((index - 1) % cols) * (width + gap), -d.y - math.floor((index - 1) / cols) * (height + 6)); row:SetSize(width, height)
-                kit.paint(row.bg, {0.16, 0.105, 0.055}, 1); row.bg:SetAlpha(1)
-                if not row.rewardEdge then row.rewardEdge = true; kit.outline(row, {0.30, 0.20, 0.09, 1}) end
+                kit.paint(row.bg, C.card, 1); row.bg:SetAlpha(1)
+                if not row.rewardEdge then row.rewardEdge = true; kit.outline(row, C.line or C.gold) end
                 row.icon:SetTexture(icon); row.icon:ClearAllPoints(); row.icon:SetPoint("LEFT", 4, 0); row.icon:SetSize(36, 36)
                 row.border:SetShown(false)
                 row.title:ClearAllPoints(); row.title:SetPoint("LEFT", 46, 0); row.title:SetPoint("RIGHT", -6, 0); row.title:SetHeight(34); row.title:SetWordWrap(true)
@@ -206,14 +199,15 @@ function M.GuideDetail(kit, parent)
         local badge = d.pools.badge[d.used.badge]
         if not badge then
             badge = CreateFrame("Frame", nil, d.content)
-            badge.bg = kit.fill(badge, {0.28, 0.18, 0.38}, 1)
+            badge.bg = kit.fill(badge, C.card, 1)
+            kit.outline(badge, C.line or C.gold)
             badge.icon = badge:CreateTexture(nil, "ARTWORK"); badge.icon:SetSize(22, 22); badge.icon:SetPoint("LEFT", 3, 0)
             badge.iconText = kit.label(badge, 10, {1, 0.93, 0.5}); badge.iconText:SetPoint("CENTER", badge.icon, "CENTER", 0, 0); badge.iconText:SetText("XP")
             badge.text = kit.label(badge, 12, {1, 1, 1}); badge.text:SetPoint("LEFT", 30, 0)
             d.pools.badge[d.used.badge] = badge
         end
         badge:Show(); badge:SetSize(math.min(d.width, 150), 30); badge:ClearAllPoints(); badge:SetPoint("TOPLEFT", 0, -d.y)
-        if not icon or icon == "XP" then kit.paint(badge.icon, {0.48, 0.22, 0.80}, 1); badge.iconText:Show()
+        if not icon or icon == "XP" then kit.paint(badge.icon, C.header or C.well, 1); badge.iconText:Show()
         else badge.icon:SetTexture(icon); badge.iconText:Hide() end
         badge.text:SetText(value)
         if color then kit.paint(badge.bg, color, 1) end
@@ -316,13 +310,13 @@ function M.DatabaseQuestModel(db, id, values, detail)
     return model
 end
 
---- A complete parchment quest reader. All adapters use this renderer, so dungeon and world quests cannot diverge visually.
+--- A complete quest reader. All adapters share the same navy surface, typography and reward cards.
 function M.RenderQuestCard(d, model)
     if not model then return false end
     d.SetTheme("quest"); d.Reset("quest:" .. tostring(model.id or model.title))
     d.model = model
     local title = d.Text(model.title or "?", d.heading, 20)
-    if title.SetShadowOffset then title:SetShadowOffset(1, -1); title:SetShadowColor(0.27, 0.16, 0.03, 1) end
+    if title.SetShadowOffset then title:SetShadowOffset(0, 0) end
     local available = tonumber(model.requiredLevel)
     local availableY = d.y
     if available then d.Text(string.format(A.L("questCardFrom"), available), d.ink, 11)
@@ -342,7 +336,7 @@ function M.RenderQuestCard(d, model)
         if #(rows or {}) == 0 then return end
         d.Head(A.L(label))
         for _, person in ipairs(rows) do
-            local line = d.Text(tostring(person.name or "?") .. (person.location and (", " .. person.location) or ""), d.ink, 12, person.spot and math.max(80, d.width - 24) or nil)
+            local line = d.Text(tostring(person.name or "?") .. (person.location and (", " .. person.location) or ""), d.ink, 13, person.spot and math.max(80, d.width - 24) or nil)
             if (person.kind and person.id) or person.spot then
                 d.used.hit = d.used.hit + 1
                 local hit = d.pools.hit[d.used.hit] or CreateFrame("Button", nil, d.content); d.pools.hit[d.used.hit] = hit
@@ -369,7 +363,7 @@ function M.RenderQuestCard(d, model)
         if #(model.guaranteedRewards or {}) == 0 then d.Head(A.L("questCardAlso")) end
         if (tonumber(model.xp) or tonumber(model.xpBase) or 0) > 0 then
             local label = model.xpLabel or (model.xp and (tostring(model.xp) .. " XP") or (tostring(model.xpBase) .. " XP*"))
-            d.Badge(label, {0.31, 0.20, 0.41}, "XP")
+            d.Badge(label, d.kit.C.card, "XP")
             if model.xp == nil and model.xpBase then d.Text(A.db and A.db.settings.language == "cs" and "* Základní XP; odměna ve hře se může lišit podle úrovně." or "* Base XP; the reward in game may vary with level.", d.ink, 10) end
         end
         if tonumber(model.money) and model.money > 0 then d.Text(A.FormatMoney and A.FormatMoney(model.money) or tostring(model.money)) end

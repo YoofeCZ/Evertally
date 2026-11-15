@@ -85,21 +85,21 @@ class WindowTests(unittest.TestCase):
 
     # ---- size ----
     def test_the_window_size_is_limited_kept_and_resettable(self):
-        self.assertEqual(tuple(self.a.GetUISize()), (960, 620), "the default")
+        self.assertEqual(tuple(self.a.GetUISize()), (1120, 740), "the default")
         self.assertEqual(tuple(self.a.SetUISize(100, 100)), (700, 460), "never smaller than the minimum")
         self.assertEqual(tuple(self.a.SetUISize(99999, 99999)), (1890, 1050), "never bigger than the screen")
         self.assertEqual(tuple(self.a.SetUISize(1000.4, 700.6)), (1000, 701), "whole pixels")
         self.assertEqual((self.a.db.settings.uiWidth, self.a.db.settings.uiHeight), (1000, 701))
         self.a.db.settings.uiWidth = "junk"
-        self.assertEqual(self.a.GetUISize()[0], 960, "a damaged value falls back")
+        self.assertEqual(self.a.GetUISize()[0], 1120, "a damaged value falls back")
         self.a.db.settings.uiWidth, self.a.db.settings.uiHeight = 1200, 800
         self.a.OpenUI()
         frame = self.lua.globals().EvertallyFrame
         self.assertEqual((frame.w, frame.h), (1200, 800), "built at the saved size")
         self.a.SetUISize(800, 500)
         self.assertEqual((frame.w, frame.h), (800, 500))
-        self.assertEqual(tuple(self.a.ResetUISize()), (960, 620))
-        self.assertEqual((frame.w, frame.h), (960, 620))
+        self.assertEqual(tuple(self.a.ResetUISize()), (1120, 740))
+        self.assertEqual((frame.w, frame.h), (1120, 740))
         self.assertIsNone(self.a.db.settings.uiWidth)
 
     def test_a_narrow_window_shows_only_the_icons_in_the_side_menu(self):
@@ -114,7 +114,7 @@ class WindowTests(unittest.TestCase):
     def test_the_slash_command_resets_the_window(self):
         self.a.OpenUI(); self.a.SetUISize(800, 500)
         self.lua.execute('SlashCmdList.EVERTALLY("reset")')
-        self.assertEqual(tuple(self.a.GetUISize()), (960, 620))
+        self.assertEqual(tuple(self.a.GetUISize()), (1120, 740))
 
     # ---- the overview ----
     def test_the_chart_counts_per_day_and_ignores_noise(self):

@@ -17,8 +17,8 @@ class ParchmentSurfaceTests(unittest.TestCase):
         lua.execute('PREVIEW_SETTLE()')
         nodes=preview.to_py(lua.eval('PREVIEW_EXPORT')(panel))
         paper=[node for node in nodes if node['kind']=='Texture' and node.get('rgba') and node['rgba'][3]==1 and node['w']>=610 and node['h']>=390]
-        self.assertTrue(paper,'paper must be opaque beyond the top-left fragment of QuestBG')
-        self.assertTrue(any(node['rgba'][0]<.9 and node['rgba'][1]>.5 for node in paper),'use a readable paper tone across the entire reader')
+        self.assertTrue(paper,'reader must be opaque across its entire surface')
+        self.assertTrue(any(node['rgba'][2]>node['rgba'][0] and node['rgba'][1]<.2 for node in paper),'the full reader uses the shared dark navy surface')
         self.assertIn('WHITE8X8',panel._backdrop.bgFile)
 
     def test_refresh_reuses_the_support_texture(self):

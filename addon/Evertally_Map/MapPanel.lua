@@ -11,25 +11,19 @@ local text = {
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
-local function label(parent, size, r, g, b)
-    local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont(A.FontPath and A.FontPath() or "Fonts\\FRIZQT__.TTF", size, ""); fs:SetTextColor(r, g, b, 1); fs:SetJustifyH("LEFT")
-    return fs
-end
-local function backdrop(frame, r, g, b, a)
-    local t = frame:CreateTexture(nil, "BACKGROUND"); t:SetAllPoints()
-    if t.SetColorTexture then t:SetColorTexture(r, g, b, a) else t:SetTexture(r, g, b, a) end
-    return t
+local function label(parent, size, color)
+    return A.UIKit().label(parent,size,color)
 end
 
 function M.PanelRefresh()
     if button then button:SetShown(not (M.OpenMap and M.OpenMap())) end   -- OpenMap's menu carries Evertally's switches instead
     if not panel then return end
+    local C=A.UIKit().C
     for _, row in ipairs(rows) do
         local on = M.LayerOn(row.key)
         row.box:SetAlpha(on and 1 or 0.35)
         row.text:SetText(A.L("layer_" .. row.key))
-        row.text:SetTextColor(on and 1 or 0.7, on and 1 or 0.7, on and 1 or 0.75, 1)
+        row.text:SetTextColor(unpack(on and C.text or C.mist))
     end
     panel.title:SetText(A.L("mapPanelTitle"))
     panel.search.text:SetText(A.L("mapSearch")); panel.journey.text:SetText(A.L("mapJourney")); panel.clear.text:SetText(A.L("mapClear"))
@@ -39,13 +33,8 @@ function M.PanelRefresh()
 end
 
 local function actionButton(parent, y, onClick)
-    local b = CreateFrame("Button", nil, parent)
-    b:SetSize(204, 26); b:SetPoint("TOPLEFT", 12, y)
-    local bg = backdrop(b, 1, 1, 1, 0.08)
-    b.text = label(b, 12, 0.95, 0.95, 0.98); b.text:SetPoint("CENTER"); b.text:SetJustifyH("CENTER")
-    b:SetScript("OnEnter", function() bg:SetAlpha(0.7) end)
-    b:SetScript("OnLeave", function() bg:SetAlpha(1) end)
-    b:SetScript("OnClick", onClick)
+    local b = A.UIKit().Button(parent,nil,228,"ghost",onClick)
+    b:SetHeight(28);b:SetPoint("TOPLEFT",12,y)
     return b
 end
 
@@ -56,34 +45,36 @@ function M.BuildMapPanel()
     local host = rawget(_G, "WorldMapFrame")
     if type(host) ~= "table" or not host.CreateTexture then return false end
     local anchor = type(host.ScrollContainer) == "table" and host.ScrollContainer or host
+    local kit=A.UIKit();local C=kit.C
     button = CreateFrame("Button", "EvertallyMapButton", host)
     button:SetSize(92, 24); button:SetPoint("TOPLEFT", anchor, "TOPLEFT", 10, -10)
     button:SetFrameLevel((anchor:GetFrameLevel() or 1) + 12)
-    backdrop(button, 0.075, 0.067, 0.11, 0.92)
-    button.text = label(button, 12, 0.655, 0.545, 0.98); button.text:SetPoint("CENTER"); button.text:SetJustifyH("CENTER")
+    A.NativeButton(button,C,false)
+    button.text = label(button,12,C.bright);button.text:SetPoint("CENTER");button.text:SetJustifyH("CENTER")
     button.text:SetText(A.L("mapButton"))
 
     panel = CreateFrame("Frame", "EvertallyMapPanel", button)
-    panel:SetSize(228, 196); panel:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -4)
+    panel:SetSize(252,196);panel:SetPoint("TOPLEFT",button,"BOTTOMLEFT",0,-6)
     panel:SetFrameLevel((button:GetFrameLevel() or 1) + 2); panel:EnableMouse(true); panel:Hide()
-    backdrop(panel, 0.075, 0.067, 0.11, 0.96)
-    panel.title = label(panel, 13, 0.97, 0.97, 0.97); panel.title:SetPoint("TOPLEFT", 12, -10)
+    A.NativePanel(panel,C)
+    panel.title=label(panel,14,C.bright);panel.title:SetPoint("TOPLEFT",12,-12)
+    local rule=panel:CreateTexture(nil,"BORDER");rule:SetHeight(1);rule:SetPoint("TOPLEFT",12,-36);rule:SetPoint("TOPRIGHT",-12,-36);kit.paint(rule,C.line)
     for i, key in ipairs(M.layerKeys) do
         local row = CreateFrame("Button", nil, panel)
-        row:SetSize(204, 22); row:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 24)
+        row:SetSize(228,24);row:SetPoint("TOPLEFT",12,-44-(i-1)*28)
         row.key = key
         row.box = row:CreateTexture(nil, "ARTWORK"); row.box:SetSize(14, 14); row.box:SetPoint("LEFT", 0, 0)
-        if row.box.SetColorTexture then row.box:SetColorTexture(0.655, 0.545, 0.98, 1) else row.box:SetTexture(0.655, 0.545, 0.98, 1) end
-        row.text = label(row, 12, 1, 1, 1); row.text:SetPoint("LEFT", row.box, "RIGHT", 8, 0)
+        kit.paint(row.box,C.gold)
+        row.text=label(row,12,C.text);row.text:SetPoint("LEFT",row.box,"RIGHT",8,0);row.text:SetPoint("RIGHT",0,0)
         row:SetScript("OnClick", function() M.SetLayer(key, not M.LayerOn(key)) end)
         rows[i] = row
     end
-    local actions = -34 - #M.layerKeys * 24
-    panel.progress = label(panel, 10, 0.6, 0.6, 0.68); panel.progress:SetPoint("TOPLEFT", 12, actions)
-    panel.search = actionButton(panel, actions - 16, function() if M.OpenWorldTab then M.OpenWorldTab("db") end end)
-    panel.journey = actionButton(panel, actions - 44, function() if M.OpenWorldTab then M.OpenWorldTab("plan") end end)
-    panel.clear = actionButton(panel, actions - 72, function() M.ClearExtra() end)
-    panel:SetHeight(-actions + 104)
+    local actions = -46 - #M.layerKeys * 28
+    panel.progress=label(panel,11,C.mist);panel.progress:SetPoint("TOPLEFT",12,actions);panel.progress:SetPoint("TOPRIGHT",-12,actions)
+    panel.search = actionButton(panel, actions - 20, function() if M.OpenWorldTab then M.OpenWorldTab("db") end end)
+    panel.journey = actionButton(panel, actions - 52, function() if M.OpenWorldTab then M.OpenWorldTab("plan") end end)
+    panel.clear = actionButton(panel, actions - 84, function() M.ClearExtra() end)
+    panel:SetHeight(-actions+124)
     button:SetScript("OnClick", function() panel:SetShown(not panel:IsShown()); M.PanelRefresh() end)
     M.PanelRefresh()
     return true

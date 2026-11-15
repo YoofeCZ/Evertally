@@ -4,7 +4,7 @@ local _, A = ...
 -- the player: every switch that sends something anywhere starts off, the wizard only shows what the current choices are (a quick choice for
 -- the website sets the switches, and they stay visible). Nameplate choices are live; other choices apply at Finish.
 local VERSION = 5   -- required installation is the first page of this single window
-local W, H, HEADER, FOOTER, PAD = 720, 540, 58, 66, 28
+local W, H, HEADER, FOOTER, PAD = 880, 672, 64, 72, 28
 A.DOWNLOAD_URL = "https://evertally.afstudio.dev/#sync"                  -- the Download page of the website (the app for Windows)
 A.OPENMAP_URL = "https://www.curseforge.com/wow/addons/openmap"          -- OpenMap on CurseForge
 local STEPS = {"install", "welcome", "website", "live", "sharing", "map", "window", "nameplates", "summary"}
@@ -253,7 +253,7 @@ local function refresh()
     f.next:SetEnabled(ready);f.next:SetAlpha(ready and 1 or 0.45)
     for i, dot in ipairs(f.dots) do
         local on = i == step
-        A.UIKit().paint(dot, on and C.lilac or C.off, on and 1 or 0.6)
+        A.UIKit().paint(dot, on and C.bright or (i < step and C.gold or C.off), on and 1 or 0.75)
     end
     for i, page in ipairs(pages) do page:SetShown(i == step) end
     local page = pages[step]
@@ -270,8 +270,8 @@ local function newPage(i, titleKey, bodyKey)
     local kit = A.UIKit()
     local page = CreateFrame("Frame", nil, f.body)
     page:SetAllPoints(f.body); page:Hide()
-    page.title = kit.label(page, 20, kit.C.text); page.title:SetPoint("TOPLEFT", 0, 0)
-    page.body = kit.label(page, 12, kit.C.mist); page.body:SetPoint("TOPLEFT", 0, -32); page.body:SetPoint("TOPRIGHT", 0, -32)
+    page.title = kit.label(page, 24, kit.C.bright); page.title:SetPoint("TOPLEFT", 0, 0)
+    page.body = kit.label(page, 13, kit.C.mist); page.body:SetPoint("TOPLEFT", 0, -36); page.body:SetPoint("TOPRIGHT", 0, -36)
     page.titleKey, page.bodyKey = titleKey, bodyKey
     pages[i] = page
     return page
@@ -287,19 +287,26 @@ local function build()
     local C = kit.C
     f = CreateFrame("Frame", "EvertallySetup", UIParent)
     f:SetSize(W, H); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
-    f:SetScale(A.GetUIScale and A.GetUIScale() or 1)
+    local scale=A.GetUIScale and A.GetUIScale() or 1
+    local screenW=A.Number(A.Call(UIParent.GetWidth,UIParent),1)
+    local screenH=A.Number(A.Call(UIParent.GetHeight,UIParent),1)
+    if screenW and screenH then scale=math.min(scale,math.max(0.5,math.min((screenW-32)/W,(screenH-32)/H))) end
+    f:SetScale(scale)
     A.NativeFrame(f, C)
     local bar = CreateFrame("Frame", nil, f); bar:SetPoint("TOPLEFT"); bar:SetPoint("TOPRIGHT"); bar:SetHeight(HEADER)
-    kit.gradient(kit.fill(bar, C.header), C.header, C.canvas)
+    kit.gradient(kit.fill(bar, C.header), C.header, C.side)
+    local headerRule=bar:CreateTexture(nil,"BORDER");headerRule:SetHeight(1);headerRule:SetPoint("BOTTOMLEFT",1,0);headerRule:SetPoint("BOTTOMRIGHT",-1,0);kit.paint(headerRule,C.gold,0.8)
+    local logo=bar:CreateTexture(nil,"ARTWORK");logo:SetSize(32,32);logo:SetPoint("LEFT",PAD,0);logo:SetTexture("Interface\\AddOns\\Evertally\\Media\\Logo")
     bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() f:StartMoving() end); bar:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
-    f.title = kit.label(bar, 18, C.text); f.title:SetPoint("LEFT", PAD, 0)
+    f.title = kit.label(bar, 20, C.bright); f.title:SetPoint("LEFT", logo,"RIGHT",12,0)
     local close = kit.Button(bar, nil, 30, "ghost", function() A.OnboardingClose() end); close:SetPoint("RIGHT", -14, 0); close.text:SetText("x");f.close=close
     f.counter = kit.label(bar, 11, C.mist); f.counter:SetPoint("RIGHT", close, "LEFT", -16, 0); f.counter:SetJustifyH("RIGHT")
     f.body = CreateFrame("Frame", nil, f); f.body:SetPoint("TOPLEFT", PAD, -HEADER - 14); f.body:SetPoint("BOTTOMRIGHT", -PAD, FOOTER)
 
     -- No skip action: closing never marks setup complete or bypasses installation.
-    local footer = CreateFrame("Frame", nil, f); footer:SetPoint("BOTTOMLEFT"); footer:SetPoint("BOTTOMRIGHT"); footer:SetHeight(FOOTER)
+    local footer = CreateFrame("Frame", nil, f); footer:SetPoint("BOTTOMLEFT",1,1); footer:SetPoint("BOTTOMRIGHT",-1,1); footer:SetHeight(FOOTER)
+    kit.fill(footer,C.side)
     local rule = footer:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("TOPLEFT"); rule:SetPoint("TOPRIGHT"); kit.paint(rule, C.line)
     f.next = kit.Button(footer, nil, 130, "primary", function()
         if A.RequirementsReady and not A.RequirementsReady() then go(1);return end
@@ -309,8 +316,8 @@ local function build()
     f.back = kit.Button(footer, nil, 100, "ghost", function() go(step - 1) end); f.back:SetPoint("RIGHT", f.next, "LEFT", -8, 0)
     f.dots = {}
     for i = 1, #STEPS do
-        local dot = footer:CreateTexture(nil, "ARTWORK"); dot:SetSize(8, 8)
-        dot:SetPoint("CENTER", footer, "CENTER", (i - (#STEPS + 1) / 2) * 16, 0)
+        local dot = footer:CreateTexture(nil, "ARTWORK"); dot:SetSize(18, 3)
+        dot:SetPoint("LEFT", footer, "LEFT", PAD+(i-1)*24, 0)
         f.dots[i] = dot
     end
 

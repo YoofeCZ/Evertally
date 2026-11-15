@@ -12,11 +12,12 @@ function A.OpenInstallationLink(which)
     if not linkWindow then
         linkWindow=CreateFrame("Frame","EvertallyInstallationLink",UIParent)
         A.installationLinkWindow=linkWindow
-        linkWindow:SetSize(650,218);linkWindow:SetPoint("CENTER");linkWindow:SetFrameStrata("FULLSCREEN_DIALOG")
+        linkWindow:SetSize(650,236);linkWindow:SetPoint("CENTER");linkWindow:SetFrameStrata("FULLSCREEN_DIALOG")
         linkWindow:SetClampedToScreen(true);linkWindow:EnableMouse(true);A.NativeFrame(linkWindow,C)
-        linkWindow.title=k.label(linkWindow,18,C.gold);linkWindow.title:SetPoint("TOPLEFT",24,-22)
-        linkWindow.help=k.label(linkWindow,12,C.text);linkWindow.help:SetPoint("TOPLEFT",24,-60);linkWindow.help:SetPoint("TOPRIGHT",-24,-60)
-        linkWindow.address=k.LinkBox(linkWindow);linkWindow.address:SetPoint("TOPLEFT",24,-111);linkWindow.address:SetPoint("TOPRIGHT",-24,-111)
+        linkWindow.title=k.label(linkWindow,20,C.bright);linkWindow.title:SetPoint("TOPLEFT",24,-22)
+        local divider=linkWindow:CreateTexture(nil,"BORDER");divider:SetHeight(1);divider:SetPoint("TOPLEFT",24,-56);divider:SetPoint("TOPRIGHT",-24,-56);k.paint(divider,C.line)
+        linkWindow.help=k.label(linkWindow,13,C.mist);linkWindow.help:SetPoint("TOPLEFT",24,-70);linkWindow.help:SetPoint("TOPRIGHT",-24,-70)
+        linkWindow.address=k.LinkBox(linkWindow);linkWindow.address:SetPoint("TOPLEFT",24,-123);linkWindow.address:SetPoint("TOPRIGHT",-24,-123)
         linkWindow.close=k.Button(linkWindow,"installLinkClose",120,"primary",function() linkWindow:Hide() end)
         linkWindow.close:SetPoint("BOTTOMRIGHT",-24,20)
         linkWindow:SetScript("OnHide",function() linkWindow.address:ClearFocus() end)
@@ -63,23 +64,24 @@ function A.BuildInstallationControls(parent)
     local panel=CreateFrame("Frame",nil,parent);panel.rows={}
     A.installationPage=panel
     for i,which in ipairs({"bridge","openmap"}) do
-        local top=(i-1)*100
+        local top=(i-1)*112
         local row={}
-        row.title=k.label(panel,14,C.text);row.title:SetPoint("TOPLEFT",0,-top)
-        row.status=k.label(panel,11,C.mist);row.status:SetPoint("TOPRIGHT",0,-top);row.status:SetJustifyH("RIGHT")
-        row.body=k.label(panel,11,C.mist);row.body:SetPoint("TOPLEFT",0,-top-23);row.body:SetPoint("TOPRIGHT",0,-top-23)
+        row.card=CreateFrame("Frame",nil,panel);row.card:SetPoint("TOPLEFT",0,-top);row.card:SetPoint("TOPRIGHT",0,-top);row.card:SetHeight(102);A.NativePanel(row.card,C)
+        row.title=k.label(row.card,14,C.bright);row.title:SetPoint("TOPLEFT",14,-12);row.title:SetPoint("TOPRIGHT",-110,-12)
+        row.status=k.label(row.card,11,C.mist);row.status:SetPoint("TOPRIGHT",-14,-14);row.status:SetJustifyH("RIGHT")
+        row.body=k.label(row.card,12,C.mist);row.body:SetPoint("TOPLEFT",14,-35);row.body:SetPoint("TOPRIGHT",-14,-35)
         local destination=which
-        row.open=k.Button(panel,"installOpen_"..which,210,"ghost",function() A.OpenInstallationLink(destination) end)
-        row.open:SetPoint("TOPLEFT",0,-top-56)
+        row.open=k.Button(row.card,"installOpen_"..which,210,"ghost",function() A.OpenInstallationLink(destination) end)
+        row.open:SetPoint("TOPLEFT",14,-62)
         panel.rows[which]=row
     end
-    panel.help=k.label(panel,11,C.mist);panel.help:SetPoint("TOPLEFT",0,-198);panel.help:SetPoint("TOPRIGHT",0,-198)
-    panel.verify=k.Button(panel,"installVerify",170,"primary",A.VerifyInstallation);panel.verify:SetPoint("TOPLEFT",0,-244)
+    panel.help=k.label(panel,12,C.mist);panel.help:SetPoint("TOPLEFT",2,-232);panel.help:SetPoint("TOPRIGHT",-2,-232)
+    panel.verify=k.Button(panel,"installVerify",170,"primary",A.VerifyInstallation);panel.verify:SetPoint("TOPLEFT",0,-292)
     panel.reload=k.Button(panel,"installReload",180,"ghost",function()
         if A.Call(InCombatLockdown)==true then A.Print(A.L("markPlatesCombat"));return end
         A.Call(ReloadUI)
     end);panel.reload:SetPoint("LEFT",panel.verify,"RIGHT",10,0)
-    panel.result=k.label(panel,11,C.peach);panel.result:SetPoint("TOPLEFT",0,-285);panel.result:SetPoint("TOPRIGHT",0,-285)
+    panel.result=k.label(panel,12,C.peach);panel.result:SetPoint("TOPLEFT",0,-334);panel.result:SetPoint("TOPRIGHT",0,-334)
     function panel.Update()
         local status=A.RequirementsStatus()
         for which,row in pairs(panel.rows) do

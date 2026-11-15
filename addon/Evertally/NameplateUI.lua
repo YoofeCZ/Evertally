@@ -7,7 +7,7 @@ function A.BuildFriendlyPlateControls(parent,options)
     options=options or {}
     local k=A.UIKit()
     local editor=CreateFrame("Frame",nil,parent)
-    editor.bg=k.fill(editor,k.C.well,1)
+    A.NativePanel(editor,k.C)
     editor.controls,editor.tabs,editor.groups,editor.providers={},{},{},{}
     editor.group="names";editor.choosing=options.chooseFirst==true
     local function active() return A.db.settings.plateGameLook~=false and A.FriendlyPlatesShown() end
@@ -16,10 +16,10 @@ function A.BuildFriendlyPlateControls(parent,options)
         editor.Update()
     end
     editor.choice=CreateFrame("Frame",nil,editor);editor.choice:SetAllPoints()
-    editor.choiceHint=k.label(editor.choice,12,k.C.text)
-    editor.choiceHint:SetPoint("TOPLEFT",8,-2);editor.choiceHint:SetPoint("TOPRIGHT",-8,-2)
+    editor.choiceHint=k.label(editor.choice,13,k.C.mist)
+    editor.choiceHint:SetPoint("TOPLEFT",12,-10);editor.choiceHint:SetPoint("TOPRIGHT",-12,-10)
     local choices=k.Columns(editor.choice,{1,1},12)
-    choices:SetPoint("TOPLEFT",0,-52);choices:SetPoint("TOPRIGHT",0,-52);choices:SetHeight(176)
+    choices:SetPoint("TOPLEFT",12,-60);choices:SetPoint("TOPRIGHT",-12,-60);choices:SetHeight(176)
     for i,provider in ipairs({"evertally","blizzard"}) do
         local mode=provider
         local b=k.Option(choices.cells[i],function()
@@ -33,21 +33,21 @@ function A.BuildFriendlyPlateControls(parent,options)
         editor.providers[mode]=b
     end
     editor.config=CreateFrame("Frame",nil,editor);editor.config:SetAllPoints()
-    editor.mode=k.label(editor.config,12,k.C.gold);editor.mode:SetPoint("TOPLEFT",6,-6)
+    editor.mode=k.label(editor.config,13,k.C.bright);editor.mode:SetPoint("TOPLEFT",12,-10)
     editor.change=k.Button(editor.config,nil,105,"ghost",function() editor.choosing=true;editor.Update() end)
-    editor.change:SetPoint("TOPRIGHT",0,0);editor.change:SetHeight(26)
+    editor.change:SetPoint("TOPRIGHT",-8,-6);editor.change:SetHeight(26)
     editor.previewBox=CreateFrame("ScrollFrame",nil,editor.config)
-    editor.previewBox:SetPoint("TOPLEFT",0,-34);editor.previewBox:SetPoint("TOPRIGHT",0,-34);editor.previewBox:SetHeight(94)
-    k.fill(editor.previewBox,k.C.well,0.88)
+    editor.previewBox:SetPoint("TOPLEFT",8,-40);editor.previewBox:SetPoint("TOPRIGHT",-8,-40);editor.previewBox:SetHeight(94)
+    A.NativeParchment(editor.previewBox,k.C)
     local stage=CreateFrame("Frame",nil,editor.previewBox);stage:SetHeight(94)
     editor.previewBox:SetScrollChild(stage)
     editor.preview=A.CreateFriendlyPlatePreview(stage)
-    editor.previewLabel=k.label(editor.config,10,k.C.mist)
-    editor.previewLabel:SetPoint("TOPLEFT",6,-132);editor.previewLabel:SetPoint("TOPRIGHT",-6,-132)
+    editor.previewLabel=k.label(editor.config,11,k.C.mist)
+    editor.previewLabel:SetPoint("TOPLEFT",12,-140);editor.previewLabel:SetPoint("TOPRIGHT",-12,-140)
     local tabs=k.Columns(editor.config,{1,1,1,1,1},4)
-    tabs:SetPoint("TOPLEFT",0,-150);tabs:SetPoint("TOPRIGHT",0,-150);tabs:SetHeight(32)
+    tabs:SetPoint("TOPLEFT",8,-160);tabs:SetPoint("TOPRIGHT",-8,-160);tabs:SetHeight(32)
     editor.scroll=k.ScrollArea(editor.config,4)
-    editor.scroll:ClearAllPoints();editor.scroll:SetPoint("TOPLEFT",0,-188);editor.scroll:SetPoint("BOTTOMRIGHT",-2,0)
+    editor.scroll:ClearAllPoints();editor.scroll:SetPoint("TOPLEFT",8,-200);editor.scroll:SetPoint("BOTTOMRIGHT",-10,8)
     for i,group in ipairs(GROUPS) do
         local id=group
         local panel=CreateFrame("Frame",nil,editor.scroll.child);panel:SetPoint("TOPLEFT");panel:SetPoint("TOPRIGHT")
@@ -55,7 +55,7 @@ function A.BuildFriendlyPlateControls(parent,options)
         local button=k.Button(tabs.cells[i],nil,80,"ghost",function()
             editor.group=id;editor.scroll:SetVerticalScroll(0);editor.Update()
         end)
-        button:ClearAllPoints();button:SetAllPoints(tabs.cells[i]);button.text:SetWordWrap(true);button.text:SetFont(k.fontPath(),10,"")
+        button:ClearAllPoints();button:SetAllPoints(tabs.cells[i]);button.text:SetWordWrap(true);button.text:SetFont(k.fontPath(),11,"")
         editor.tabs[id]=button
     end
     for _,definition in ipairs(A.FriendlyPlateOptions) do
@@ -64,8 +64,8 @@ function A.BuildFriendlyPlateControls(parent,options)
         local row
         if option.min or option.values then
             row=CreateFrame("Frame",nil,group.frame)
-            row.title=k.label(row,11,k.C.text);row.title:SetPoint("LEFT",5,0);row.title:SetPoint("RIGHT",-146,0);row.title:SetWordWrap(true)
-            row.value=k.label(row,11,k.C.text);row.value:SetPoint("RIGHT",-30,0);row.value:SetWidth(82);row.value:SetJustifyH("CENTER");row.value:SetWordWrap(true)
+            row.title=k.label(row,12,k.C.text);row.title:SetPoint("LEFT",10,0);row.title:SetPoint("RIGHT",-146,0);row.title:SetWordWrap(true)
+            row.value=k.label(row,12,k.C.bright);row.value:SetPoint("RIGHT",-30,0);row.value:SetWidth(82);row.value:SetJustifyH("CENTER");row.value:SetWordWrap(true)
             local function change(delta)
                 local current=A.FriendlyPlateChoices()[option.key]
                 if option.values then
@@ -86,12 +86,12 @@ function A.BuildFriendlyPlateControls(parent,options)
             row.title:SetWordWrap(true)
             row.Update=function() row.SetTexts(A.L(option.key));row.Set(A.FriendlyPlateChoices()[option.key],true) end
         end
-        row.bg=row.bg or k.fill(row,k.C.card,0.85)
+        if not row.bg then A.NativePanel(row,k.C) end
         row:SetHeight(44);group.rows[#group.rows+1]=row;editor.controls[option.key]=row
     end
     function editor.Layout()
         local width=editor:GetWidth() or 0
-        stage:SetWidth(math.max(1,width))
+        stage:SetWidth(math.max(1,width-16))
         local columns=width>=640 and 2 or 1
         local cell=math.max(1,(width-20-(columns-1)*10)/columns)
         for id,group in pairs(editor.groups) do

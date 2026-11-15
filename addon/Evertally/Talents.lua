@@ -230,9 +230,10 @@ local function draw(page,kit)
   if not column then
    column=CreateFrame("Frame",nil,t.content);A.NativePanel(column,C)
    column.icon=column:CreateTexture(nil,"ARTWORK");column.icon:SetSize(28,28);column.icon:SetPoint("TOPLEFT",10,-10)
-   column.name=kit.label(column,13,C.gold);column.name:SetPoint("TOPLEFT",column.icon,"TOPRIGHT",6,-1);column.name:SetPoint("RIGHT",-6,0);column.name:SetWordWrap(false)
-   column.points=kit.label(column,10,C.text);column.points:SetPoint("TOPLEFT",column.icon,"TOPRIGHT",6,-17)
-   column.back=column:CreateTexture(nil,"BACKGROUND");column.back:SetPoint("TOPLEFT",3,-48);column.back:SetPoint("BOTTOMRIGHT",-3,3);column.back:SetAlpha(.45)
+   column.name=kit.label(column,14,C.bright or C.gold);column.name:SetPoint("TOPLEFT",column.icon,"TOPRIGHT",8,-1);column.name:SetPoint("RIGHT",-6,0);column.name:SetWordWrap(false)
+   column.points=kit.label(column,11,C.mist);column.points:SetPoint("TOPLEFT",column.icon,"TOPRIGHT",8,-19)
+   column.back=column:CreateTexture(nil,"BACKGROUND");column.back:SetPoint("TOPLEFT",3,-52);column.back:SetPoint("BOTTOMRIGHT",-3,3);column.back:SetAlpha(.18)
+   column.rule=column:CreateTexture(nil,"BORDER");column.rule:SetPoint("TOPLEFT",8,-50);column.rule:SetPoint("TOPRIGHT",-8,-50);column.rule:SetHeight(1);kit.paint(column.rule,C.gold,.45)
    t.columns[i]=column
   end
   column:ClearAllPoints();column:SetPoint("TOPLEFT",(i-1)*(cw+10),0);column:SetSize(cw,height);column:Show();column.icon:SetTexture(tree.icon);column.name:SetText(tree.name)
@@ -244,7 +245,7 @@ local function draw(page,kit)
     b=CreateFrame("Button",nil,t.content);b:RegisterForClicks("LeftButtonUp","RightButtonUp")
     b.border=b:CreateTexture(nil,"BACKGROUND");b.border:SetPoint("TOPLEFT",-2,2);b.border:SetPoint("BOTTOMRIGHT",2,-2)
     b.icon=b:CreateTexture(nil,"ARTWORK");b.icon:SetAllPoints(b);b.icon:SetTexCoord(.08,.92,.08,.92)
-    b.rank=kit.label(b,10,C.text);b.rank:SetPoint("BOTTOMRIGHT",3,-4)
+    b.rank=kit.label(b,11,C.text);b.rank:SetPoint("BOTTOMRIGHT",3,-4)
     b:SetScript("OnClick",function(self,mouse)
      local ok,reason,value=A.ChangeTalentPlan(t.plan,t.trees,self.tab,self.index,mouse=="RightButton" and -1 or 1)
      t.notice=not ok and (value and string.format(A.L(reason),value) or A.L(reason)) or "";draw(page,kit)
@@ -283,18 +284,24 @@ local function localText(value)
  if type(value)=="table" then return value[language] or value.en or value.cs or "" end
  return type(value)=="string" and value or ""
 end
+local function dialogSurface(dialog,kit)
+ local C=kit.C
+ dialog.top=dialog:CreateTexture(nil,"BACKGROUND");dialog.top:SetPoint("TOPLEFT",2,-2);dialog.top:SetPoint("TOPRIGHT",-2,-2);dialog.top:SetHeight(44);kit.paint(dialog.top,C.header or C.card,1)
+ dialog.rule=dialog:CreateTexture(nil,"BORDER");dialog.rule:SetPoint("TOPLEFT",12,-46);dialog.rule:SetPoint("TOPRIGHT",-12,-46);dialog.rule:SetHeight(1);kit.paint(dialog.rule,C.gold,.5)
+end
 local function transferDialog(page,kit,mode)
  local t,C=page.talents,kit.C
  local dialog=t.transfer
  if not dialog then
-  dialog=CreateFrame("Frame",nil,page);t.transfer=dialog;A.NativePanel(dialog,C)
-  dialog:SetPoint("CENTER");dialog:SetHeight(246);dialog:SetFrameLevel((page:GetFrameLevel() or 1)+60);dialog:SetFrameStrata("DIALOG");dialog:EnableMouse(true)
-  dialog.title=kit.label(dialog,15,C.gold);dialog.title:SetPoint("TOPLEFT",12,-12);dialog.title:SetPoint("TOPRIGHT",-12,-12)
-  dialog.hint=kit.label(dialog,11,C.text);dialog.hint:SetPoint("TOPLEFT",12,-38);dialog.hint:SetPoint("TOPRIGHT",-12,-38);dialog.hint:SetHeight(32)
-  dialog.scroll=CreateFrame("ScrollFrame",nil,dialog,"UIPanelScrollFrameTemplate");dialog.scroll:SetPoint("TOPLEFT",12,-78);dialog.scroll:SetPoint("BOTTOMRIGHT",-32,72)
-  dialog.box=CreateFrame("EditBox",nil,dialog.scroll);dialog.box:SetMultiLine(true);dialog.box:SetAutoFocus(false);dialog.box:SetMaxLetters(16384);dialog.box:SetFont(kit.fontPath(),11,"");dialog.box:SetTextColor(C.text[1],C.text[2],C.text[3]);dialog.box:SetTextInsets(5,5,4,4);dialog.box:SetHeight(100);dialog.scroll:SetScrollChild(dialog.box)
+  dialog=CreateFrame("Frame",nil,page);t.transfer=dialog;A.NativePanel(dialog,C);dialogSurface(dialog,kit)
+  dialog:SetPoint("CENTER");dialog:SetHeight(290);dialog:SetFrameLevel((page:GetFrameLevel() or 1)+60);dialog:SetFrameStrata("DIALOG");dialog:EnableMouse(true)
+  dialog.title=kit.label(dialog,19,C.bright or C.gold);dialog.title:SetPoint("TOPLEFT",16,-14);dialog.title:SetPoint("TOPRIGHT",-16,-14)
+  dialog.hint=kit.label(dialog,12,C.mist);dialog.hint:SetPoint("TOPLEFT",16,-58);dialog.hint:SetPoint("TOPRIGHT",-16,-58);dialog.hint:SetHeight(36)
+  dialog.well=CreateFrame("Frame",nil,dialog);A.NativeParchment(dialog.well,C);dialog.well:SetPoint("TOPLEFT",12,-102);dialog.well:SetPoint("BOTTOMRIGHT",-12,76)
+  dialog.scroll=CreateFrame("ScrollFrame",nil,dialog.well,"UIPanelScrollFrameTemplate");dialog.scroll:SetPoint("TOPLEFT",8,-6);dialog.scroll:SetPoint("BOTTOMRIGHT",-28,6)
+  dialog.box=CreateFrame("EditBox",nil,dialog.scroll);dialog.box:SetMultiLine(true);dialog.box:SetAutoFocus(false);dialog.box:SetMaxLetters(16384);dialog.box:SetFont(kit.fontPath(),12,"");dialog.box:SetTextColor(C.text[1],C.text[2],C.text[3]);dialog.box:SetTextInsets(5,5,4,4);dialog.box:SetHeight(100);dialog.scroll:SetScrollChild(dialog.box)
   dialog.box:SetScript("OnEscapePressed",function(self)self:ClearFocus();dialog:Hide()end)
-  dialog.error=kit.label(dialog,10,C.peach);dialog.error:SetPoint("BOTTOMLEFT",12,42);dialog.error:SetPoint("BOTTOMRIGHT",-12,42);dialog.error:SetHeight(26)
+  dialog.error=kit.label(dialog,11,C.peach);dialog.error:SetPoint("BOTTOMLEFT",12,44);dialog.error:SetPoint("BOTTOMRIGHT",-12,44);dialog.error:SetHeight(26)
   dialog.close=kit.Button(dialog,"talentClose",100,"ghost",function()dialog.box:ClearFocus();dialog:Hide()end);dialog.close:SetPoint("BOTTOMLEFT",12,10)
   dialog.apply=kit.Button(dialog,"talentImportSave",178,"primary",function()
    if not A.ImportTalentProfile then return end
@@ -304,7 +311,7 @@ local function transferDialog(page,kit,mode)
    name=A.UniqueTalentProfileName(name);t.savedIndex=A.SaveTalentBuild(plan,name);t.plan=plan;t.name:SetText(name);t.notice=A.L("talentImported");dialog.box:ClearFocus();dialog:Hide();draw(page,kit)
   end);dialog.apply:SetPoint("BOTTOMRIGHT",-12,10)
  end
- dialog:SetWidth(math.min(620,math.max(340,(page:GetWidth() or 640)-12)));dialog.box:SetWidth(math.max(260,dialog:GetWidth()-48));dialog.error:SetText("")
+ dialog:SetWidth(math.min(620,math.max(340,(page:GetWidth() or 640)-24)));dialog.box:SetWidth(math.max(250,dialog:GetWidth()-64));dialog.error:SetText("")
  dialog.apply:SetShown(mode=="import")
  dialog.title:SetText(A.L(mode=="export" and "talentExportTitle" or "talentImportTitle"));dialog.hint:SetText(A.L(mode=="export" and "talentExportHint" or "talentImportHint"))
  if mode=="export" then
@@ -321,12 +328,12 @@ local function recommendationDialog(page,kit)
  if #list==0 then t.notice=A.L("talentRecommendedEmpty");draw(page,kit);return end
  local dialog=t.recommendation
  if not dialog then
-  dialog=CreateFrame("Frame",nil,page);t.recommendation=dialog;A.NativePanel(dialog,C);dialog:SetPoint("CENTER");dialog:SetHeight(324);dialog:SetFrameLevel((page:GetFrameLevel() or 1)+60);dialog:SetFrameStrata("DIALOG");dialog:EnableMouse(true)
-  dialog.title=kit.label(dialog,15,C.gold);dialog.title:SetPoint("TOPLEFT",12,-12);dialog.title:SetPoint("TOPRIGHT",-12,-12);dialog.title:SetHeight(34)
-  dialog.scroll=CreateFrame("ScrollFrame",nil,dialog,"UIPanelScrollFrameTemplate");dialog.scroll:SetPoint("TOPLEFT",12,-52);dialog.scroll:SetPoint("BOTTOMRIGHT",-30,112)
+  dialog=CreateFrame("Frame",nil,page);t.recommendation=dialog;A.NativePanel(dialog,C);dialogSurface(dialog,kit);dialog:SetPoint("CENTER");dialog:SetHeight(350);dialog:SetFrameLevel((page:GetFrameLevel() or 1)+60);dialog:SetFrameStrata("DIALOG");dialog:EnableMouse(true)
+  dialog.title=kit.label(dialog,18,C.bright or C.gold);dialog.title:SetPoint("TOPLEFT",16,-14);dialog.title:SetPoint("TOPRIGHT",-16,-14);dialog.title:SetHeight(25)
+  dialog.scroll=CreateFrame("ScrollFrame",nil,dialog,"UIPanelScrollFrameTemplate");dialog.scroll:SetPoint("TOPLEFT",16,-60);dialog.scroll:SetPoint("BOTTOMRIGHT",-32,116)
   dialog.content=CreateFrame("Frame",nil,dialog.scroll);dialog.content:SetSize(500,176);dialog.scroll:SetScrollChild(dialog.content)
-  dialog.body=kit.label(dialog.content,11,C.text);dialog.body:SetPoint("TOPLEFT");dialog.body:SetPoint("TOPRIGHT");dialog.body:SetJustifyH("LEFT")
-  dialog.error=kit.label(dialog,10,C.peach);dialog.error:SetPoint("BOTTOMLEFT",12,80);dialog.error:SetPoint("BOTTOMRIGHT",-12,80);dialog.error:SetHeight(32)
+  dialog.body=kit.label(dialog.content,13,C.text);dialog.body:SetPoint("TOPLEFT");dialog.body:SetPoint("TOPRIGHT");dialog.body:SetJustifyH("LEFT")
+  dialog.error=kit.label(dialog,11,C.peach);dialog.error:SetPoint("BOTTOMLEFT",12,80);dialog.error:SetPoint("BOTTOMRIGHT",-12,80);dialog.error:SetHeight(32)
   dialog.previous=kit.Button(dialog,"talentPrevious",110,"ghost",function()dialog.index=(dialog.index-2)%#dialog.list+1;dialog.Refresh()end);dialog.previous:SetPoint("BOTTOMLEFT",12,43)
   dialog.next=kit.Button(dialog,"talentNext",110,"ghost",function()dialog.index=dialog.index%#dialog.list+1;dialog.Refresh()end);dialog.next:SetPoint("LEFT",dialog.previous,"RIGHT",6,0)
   dialog.close=kit.Button(dialog,"talentClose",100,"ghost",function()dialog:Hide()end);dialog.close:SetPoint("BOTTOMLEFT",12,8)
@@ -351,8 +358,8 @@ local function recommendationDialog(page,kit)
 end
 function A.BuildTalentsPage(page,kit)
  local C=kit.C;kit.PageHeader(page,"talents");local t={columns={},buttons={},lines={}};page.talents=t;A.talentPage=page
- t.summary=kit.label(page,12,C.gold);t.summary:SetPoint("TOPLEFT",0,-55)
- t.level=kit.label(page,11,C.text);t.level:SetPoint("TOPRIGHT",-36,-55)
+ t.summary=kit.label(page,13,C.bright or C.gold);t.summary:SetPoint("TOPLEFT",0,-55)
+ t.level=kit.label(page,12,C.text);t.level:SetPoint("TOPRIGHT",-36,-55)
  local function levelBy(delta)
   if not t.plan then return end;local level=math.max(10,math.min(60,t.plan.level+delta))
   if A.TalentPlanPoints(t.plan)>math.max(0,level-9) then t.notice=A.L("talentLevelBlocked") else t.plan.level=level;t.notice="" end;draw(page,kit)
@@ -368,8 +375,8 @@ function A.BuildTalentsPage(page,kit)
  t.recommended=kit.Button(page,"talentRecommended",180,"ghost",function()recommendationDialog(page,kit)end);t.recommended:SetPoint("LEFT",t.import,"RIGHT",6,0)
  t.scroll=CreateFrame("ScrollFrame",nil,page,"UIPanelScrollFrameTemplate");t.scroll:SetPoint("TOPLEFT",0,-182);t.scroll:SetPoint("BOTTOMRIGHT",-24,70)
  t.content=CreateFrame("Frame",nil,t.scroll);t.content:SetSize(600,420);t.scroll:SetScrollChild(t.content)
- t.note=kit.label(page,10,C.peach);t.note:SetPoint("TOPLEFT",0,-153);t.note:SetPoint("TOPRIGHT",-5,-153);t.note:SetHeight(25)
- t.savedLabel=kit.label(page,10,C.mist);t.savedLabel:SetPoint("BOTTOMLEFT",0,48);t.savedLabel:SetText(A.L("talentSaved"))
+ t.note=kit.label(page,11,C.peach);t.note:SetPoint("TOPLEFT",0,-153);t.note:SetPoint("TOPRIGHT",-5,-153);t.note:SetHeight(25)
+ t.savedLabel=kit.label(page,11,C.mist);t.savedLabel:SetPoint("BOTTOMLEFT",0,48);t.savedLabel:SetText(A.L("talentSaved"))
  t.saved=kit.Button(page,nil,200,"ghost",function()
   local list=A.SavedTalentBuilds();if #list==0 then return end;t.savedIndex=(t.savedIndex or 0)%#list+1
   local plan=A.LoadTalentBuild(list[t.savedIndex],A.TalentTrees());if plan then t.plan=plan;t.name:SetText(list[t.savedIndex].name);t.notice="";draw(page,kit) end

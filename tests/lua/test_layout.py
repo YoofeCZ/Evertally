@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / "tools" / "ui_preview"))
 sys.path.insert(0, str(ROOT / "tests" / "lua"))
 import preview  # noqa: E402
 
-SIZES = ((960, 620), (700, 460))
+SIZES = ((1120, 740), (700, 460), (960, 620))
 
 
 def serious(problems):
@@ -42,6 +42,9 @@ class LayoutTests(unittest.TestCase):
 
     def test_every_page_is_laid_out_cleanly_at_the_smallest_size(self):
         self.check(SIZES[1], self.every_scene())
+
+    def test_every_page_is_laid_out_cleanly_at_a_previously_saved_window_size(self):
+        self.check(SIZES[2], self.every_scene())
 
     def test_every_step_of_the_setup_is_laid_out_cleanly_in_both_languages_with_and_without_openmap(self):
         for openmap in (False, True):
@@ -95,7 +98,7 @@ class LayoutTests(unittest.TestCase):
             self.assertLessEqual(button.navBottom, offset + scroll.GetHeight(scroll), button.viewKey)
 
     def test_navigation_wheel_is_bounded_and_resize_resets_obsolete_scroll(self):
-        lua, a = preview.make_session(700, 460)
+        lua, a = preview.make_session(700, 460, sw=1440, sh=1200)
         a.OpenUI()
         lua.execute("PREVIEW_SETTLE()")
         scroll = lua.globals().EvertallyNavigationScroll
@@ -106,7 +109,7 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(scroll.GetVerticalScroll(scroll), 0)
         a.ShowView("settings")
         self.assertGreater(scroll.GetVerticalScroll(scroll), 0)
-        a.SetUISize(960, 730)
+        a.SetUISize(1120, 1100)
         lua.execute("PREVIEW_SETTLE()")
         self.assertEqual(scroll.maxScroll, 0)
         self.assertEqual(scroll.GetVerticalScroll(scroll), 0)

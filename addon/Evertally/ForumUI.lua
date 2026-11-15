@@ -1,6 +1,6 @@
 local _, A = ...
--- The Community page: the forum (Forum.lua) in the window's own stone, bronze and gold. Categories across the top, the threads of the
--- chosen category on the left page of a book and the open thread on parchment on the right, with a small writing window for new
+-- The Community page: the forum (Forum.lua) in navy and gold. Categories across the top, threads in the left ledger
+-- and the open thread in the right reader, with a writing window for new
 -- threads and replies. Built lazily from helpers the main window exports (A.UIKit); a problem here leaves the old page in place.
 local kit
 local function K() if not kit then kit = A.UIKit() end return kit end
@@ -49,11 +49,11 @@ local function ensureCompose()
     local k = K()
     local C = k.C
     local f = CreateFrame("Frame", "EvertallyForumCompose", UIParent)
-    f:SetSize(520, 430); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
+    f:SetSize(600, 500); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true); f:SetClampedToScreen(true)
     A.NativeFrame(f, C)
     f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", function() f:StartMoving() end); f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
-    f.title = k.label(f, 15, C.gold); f.title:SetPoint("TOPLEFT", 18, -16); f.title:SetWidth(484)
-    f.quote = k.label(f, 11, C.mist); f.quote:SetPoint("TOPLEFT", 18, -44); f.quote:SetWidth(484); f.quote:SetHeight(30); f.quote:SetWordWrap(true); f.quote:SetJustifyV("TOP")
+    f.title = k.label(f, 20, C.bright or C.gold); f.title:SetPoint("TOPLEFT", 20, -18); f.title:SetPoint("TOPRIGHT", -20, -18)
+    f.quote = k.label(f, 11, C.mist); f.quote:SetPoint("TOPLEFT", 20, -60); f.quote:SetPoint("TOPRIGHT", -20, -60); f.quote:SetHeight(30); f.quote:SetWordWrap(true); f.quote:SetJustifyV("TOP")
     f.chips = {}
     local previous
     for _, id in ipairs(A.ForumCategories()) do
@@ -61,20 +61,21 @@ local function ensureCompose()
         if previous then chip:SetPoint("LEFT", previous, "RIGHT", 5, 0) else chip:SetPoint("TOPLEFT", 18, -44) end
         chip.categoryId = id; f.chips[#f.chips + 1] = chip; previous = chip
     end
-    f.titleLabel = k.label(f, 11, C.mist); f.titleLabel:SetPoint("TOPLEFT", 18, -82)
-    f.titleBox = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.titleBox:SetHeight(26); f.titleBox:SetPoint("TOPLEFT", 22, -98); f.titleBox:SetPoint("TOPRIGHT", -18, -98)
+    f.titleLabel = k.label(f, 11, C.gold)
+    f.titleBox = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.titleBox:SetHeight(30)
     f.titleBox:SetAutoFocus(false); f.titleBox:SetMaxLetters(A.FORUM_LIMITS.title); f.titleBox:SetFont(FONT, 12, ""); k.trackFont(f.titleBox, 12)
-    f.bodyLabel = k.label(f, 11, C.mist)
+    f.bodyLabel = k.label(f, 11, C.gold)
+    f.editor = CreateFrame("Frame", nil, f); A.NativePanel(f.editor,C)
     f.scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
     f.body = CreateFrame("EditBox", nil, f.scroll)
-    f.body:SetMultiLine(true); f.body:SetAutoFocus(false); f.body:SetFont(FONT, 12, ""); k.trackFont(f.body, 12)
-    f.body:SetWidth(440); f.body:SetMaxLetters(A.FORUM_LIMITS.body)
+    f.body:SetMultiLine(true); f.body:SetAutoFocus(false); f.body:SetFont(FONT, 13, ""); k.trackFont(f.body, 13); f.body:SetTextColor(unpack(C.text))
+    f.body:SetWidth(520); f.body:SetMaxLetters(A.FORUM_LIMITS.body)
     f.body:SetScript("OnEscapePressed", function() f:Hide() end)
     f.body:SetScript("OnTextChanged", function() A.ForumRefreshCompose() end)
     f.scroll:SetScrollChild(f.body)
     f.counter = k.label(f, 10, C.faint); f.counter:SetPoint("BOTTOMRIGHT", -18, 90); f.counter:SetJustifyH("RIGHT")
     f.status = k.label(f, 11, C.peach); f.status:SetPoint("BOTTOMLEFT", 18, 90); f.status:SetWidth(380)
-    f.note = k.label(f, 10, C.faint); f.note:SetPoint("BOTTOMLEFT", 18, 54); f.note:SetWidth(484); f.note:SetHeight(28); f.note:SetWordWrap(true); f.note:SetJustifyV("TOP")
+    f.note = k.label(f, 10, C.mist); f.note:SetPoint("BOTTOMLEFT", 20, 54); f.note:SetPoint("BOTTOMRIGHT", -20, 54); f.note:SetHeight(28); f.note:SetWordWrap(true); f.note:SetJustifyV("TOP")
     f.submit = k.Button(f, "forumPost", 150, "primary", function() A.ForumSubmitCompose() end); f.submit:SetPoint("BOTTOMLEFT", 18, 16)
     f.cancel = k.Button(f, "forumCancel", 110, "ghost", function() f:Hide() end); f.cancel:SetPoint("BOTTOMRIGHT", -18, 16)
     if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyForumCompose" end
@@ -86,13 +87,23 @@ function A.ForumRefreshCompose()
     local f = compose
     if not f then return end
     local isThread = f.mode == "thread"
-    local top = isThread and 134 or 82
+    local x,y=20,-60
     f.title:SetText(A.L(isThread and "forumNewTitle" or "forumReplyTitle"))
     f.quote:SetShown(not isThread); f.quote:SetText(f.quoteText or "")
-    for _, chip in ipairs(f.chips) do chip:SetShown(isThread); chip.SetLabel(A.L("forumCatShort_" .. chip.categoryId)); chip.SetOn(f.category == chip.categoryId) end
+    for _, chip in ipairs(f.chips) do
+        chip:SetShown(isThread); chip.SetLabel(A.L("forumCatShort_" .. chip.categoryId)); chip.SetOn(f.category == chip.categoryId)
+        local width=tonumber(chip:GetWidth()) or 80
+        if x>20 and x+width>580 then x,y=20,y-30 end
+        chip:ClearAllPoints();chip:SetPoint("TOPLEFT",x,y);x=x+width+6
+    end
+    local titleTop=-y+42
+    local top=isThread and titleTop+78 or 116
     f.titleLabel:SetShown(isThread); f.titleLabel:SetText(A.L("forumThreadTitle")); f.titleBox:SetShown(isThread)
-    f.bodyLabel:ClearAllPoints(); f.bodyLabel:SetPoint("TOPLEFT", 18, -(top - 16)); f.bodyLabel:SetText(A.L("forumThreadBody"))
-    f.scroll:ClearAllPoints(); f.scroll:SetPoint("TOPLEFT", 18, -top); f.scroll:SetPoint("BOTTOMRIGHT", -38, 112)
+    f.titleLabel:ClearAllPoints();f.titleLabel:SetPoint("TOPLEFT",20,-titleTop)
+    f.titleBox:ClearAllPoints();f.titleBox:SetPoint("TOPLEFT",24,-titleTop-17);f.titleBox:SetPoint("TOPRIGHT",-20,-titleTop-17)
+    f.bodyLabel:ClearAllPoints(); f.bodyLabel:SetPoint("TOPLEFT", 20, -(top - 20)); f.bodyLabel:SetText(A.L("forumThreadBody"))
+    f.editor:ClearAllPoints();f.editor:SetPoint("TOPLEFT",20,-top);f.editor:SetPoint("BOTTOMRIGHT",-20,112)
+    f.scroll:ClearAllPoints(); f.scroll:SetPoint("TOPLEFT", 30, -top-10); f.scroll:SetPoint("BOTTOMRIGHT", -44, 122)
     local author = A.ForumAuthor()
     f.note:SetText(string.format(A.L("forumPublicNote"), plain(author or "?")))
     f.counter:SetText(string.format("%d / %d", #(f.body:GetText() or ""), A.FORUM_LIMITS.body))
@@ -138,7 +149,7 @@ end
 -- ---------------------------------------------------------------- the thread on parchment
 local function postEntries(thread)
     local k = K()
-    local muted = {0.65, 0.63, 0.60}
+    local muted = k.C.mist
     local entries, authors = {}, {}
     for _, post in ipairs(thread.posts) do authors[post.id] = post.author end
     for _, post in ipairs(thread.posts) do
@@ -149,7 +160,7 @@ local function postEntries(thread)
         if post.replyTo and post.replyTo ~= thread.id and authors[post.replyTo] then
             entries[#entries + 1] = {text = string.format(A.L("forumInReplyTo"), plain(authors[post.replyTo])), size = 10, color = muted}
         end
-        entries[#entries + 1] = {text = plain(post.body), color = {0.92, 0.90, 0.86}}
+        entries[#entries + 1] = {text = plain(post.body), size=13, color = k.C.text}
         local postId = post.id
         entries[#entries + 1] = {text = string.format(A.L("forumReplyTo"), plain(post.author)), size = 10, color = muted, onClick = function() A.ForumOpenCompose({threadId = thread.id, replyTo = postId}) end}
     end
@@ -168,8 +179,8 @@ local function forumDocument(parent, k)
         local old = scroll:GetVerticalScroll() or 0
         local changed = document.key ~= spec.key; document.key = spec.key
         local width = math.max(120, tonumber(scroll.child:GetWidth()) or 300)
-        local entries = {{text=spec.title or A.L("noData"), size=19, color={0.97,0.90,0.73}}}
-        if spec.subtitle and spec.subtitle ~= "" then entries[#entries+1] = {text=spec.subtitle,size=11,color={0.68,0.66,0.62}} end
+        local entries = {{text=spec.title or A.L("noData"), size=21, color=k.C.bright or k.C.gold}}
+        if spec.subtitle and spec.subtitle ~= "" then entries[#entries+1] = {text=spec.subtitle,size=11,color=k.C.mist} end
         for _, e in ipairs(spec.entries or {}) do entries[#entries+1]=e end
         local y = 0
         for i, e in ipairs(entries) do
@@ -178,15 +189,15 @@ local function forumDocument(parent, k)
                 row=CreateFrame("Button",nil,scroll.child)
                 row.text=k.label(row,12,k.C.text); row.text:SetJustifyH("LEFT");row.text:SetJustifyV("TOP");row.text:SetWordWrap(true)
                 row.icon=row:CreateTexture(nil,"ARTWORK");row.icon:SetSize(28,28);row.icon:SetPoint("TOPLEFT",0,-2)
-                row.rule=row:CreateTexture(nil,"BORDER");row.rule:SetHeight(1);row.rule:SetPoint("BOTTOMLEFT");row.rule:SetPoint("BOTTOMRIGHT");k.paint(row.rule,{0.70,0.55,0.30},0.25)
+                row.rule=row:CreateTexture(nil,"BORDER");row.rule:SetHeight(1);row.rule:SetPoint("BOTTOMLEFT");row.rule:SetPoint("BOTTOMRIGHT");k.paint(row.rule,k.C.line,0.8)
                 row:SetScript("OnClick",function(self) if self.action then self.action() end end)
                 document.pool[i]=row
             end
             row:Show();row.action=e.onClick;row:ClearAllPoints();row:SetPoint("TOPLEFT",0,-y);row:SetWidth(width)
             local inset=e.classId and e.raceId and 66 or (e.icon or e.classId) and 38 or 0
             row.text:ClearAllPoints();row.text:SetPoint("TOPLEFT",inset,0);row.text:SetWidth(width-inset)
-            row.text:SetFont(k.fontPath(),e.size or 12,"")
-            local c=e.color or (e.head and {0.94,0.78,0.48} or {0.92,0.90,0.86})
+            row.text:SetFont(k.fontPath(),e.size or 13,"")
+            local c=e.color or (e.head and (k.C.bright or k.C.gold) or k.C.text)
             row.text:SetTextColor(c[1],c[2],c[3]);row.text:SetText(e.text or "")
             row.icon:SetShown(e.icon~=nil or e.classId~=nil)
             if e.classId and A.SetClassIcon then A.SetClassIcon(row.icon,e.classId) elseif e.icon then k.setIcon(row.icon,e.icon) end
@@ -219,7 +230,7 @@ local function layoutChips(p)
     for _, chip in ipairs(p.chips) do
         local w = tonumber(chip:GetWidth()) or 80
         if x > 0 and x + w > width then x = 0; row = row + 1 end
-        chip:ClearAllPoints(); chip:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(54 + row * 28))
+        chip:ClearAllPoints(); chip:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(62 + row * 30))
         x = x + w + 6
     end
     return row
@@ -235,7 +246,7 @@ function A.BuildForumPage(host, k)
         chip.categoryId = id; page.chips[#page.chips + 1] = chip
     end
     page.newButton = k.Button(page, "forumNew", 140, "primary", function() A.ForumOpenCompose({category = page.category ~= "" and page.category or "general"}) end)
-    page.newButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -50)
+    page.newButton:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -60)
     page.search = k.SearchBox(page, 240, function(value)
         if value~=page.query then page.query=value;A.RefreshUI() end
     end)
@@ -246,9 +257,10 @@ function A.BuildForumPage(host, k)
     page.book = k.Book(page, 112)
     page.measure = k.label(page,13,C.text);page.measure:Hide()
     page.metaMeasure = k.label(page,10,C.mist);page.metaMeasure:Hide()
-    page.list = k.ListView(page.book.index, 8); page.list:ClearAllPoints(); page.list:SetPoint("TOPLEFT", 6, -6); page.list:SetPoint("BOTTOMRIGHT", -10, 6)
+    page.listTitle=k.label(page.book.index,12,C.bright or C.gold);page.listTitle:SetPoint("TOPLEFT",14,-14);page.listTitle:SetPoint("TOPRIGHT",-14,-14)
+    page.list = k.ListView(page.book.index, 8); page.list:ClearAllPoints(); page.list:SetPoint("TOPLEFT", 6, -42); page.list:SetPoint("BOTTOMRIGHT", -10, 6)
     page.reading = CreateFrame("Frame",nil,page.book.paper);page.reading:SetAllPoints(page.book.paper)
-    k.fill(page.reading,{0.075,0.074,0.08},1);k.outline(page.reading,{0.33,0.28,0.19,0.9})
+    k.fill(page.reading,C.well or C.side,1);k.outline(page.reading,C.line)
     page.doc = forumDocument(page.reading,k)
     -- thread titles need more room than the default index of a book
     page.book.onLayout = function() page.book.index:SetWidth(math.max(190, math.min(300, (tonumber(page.book:GetWidth()) or 640) * 0.4))) end
@@ -265,7 +277,8 @@ function A.BuildForumPage(host, k)
         end
         page.newButton.text:SetText(A.L("forumNew"))
         local rows = layoutChips(page)
-        local searchTop = 54 + (rows + 1) * 28
+        local searchTop = 62 + (rows + 1) * 30+6
+        page.listTitle:SetText(page.category=="" and A.L("forumAll") or categoryName(page.category))
         page.search.hint:SetText(A.L("forumSearch"));page.clearSearch.text:SetText(A.L("forumClearSearch"))
         page.search:ClearAllPoints();page.search:SetPoint("TOPLEFT",page,"TOPLEFT",0,-searchTop)
         page.search:SetWidth(math.max(90,math.min(270,(tonumber(page:GetWidth()) or 600)-88)))

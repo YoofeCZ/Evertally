@@ -1,75 +1,16 @@
 local _, A = ...
--- Shared native stone and bronze surfaces. Some clients put backdrop methods in a mixin rather than on every Frame.
-local function backdrop(frame, spec, color, border)
-    if type(frame.SetBackdrop) ~= "function" and type(BackdropTemplateMixin) == "table" and type(Mixin) == "function" then
-        pcall(Mixin, frame, BackdropTemplateMixin)
-    end
-    if type(frame.SetBackdrop) ~= "function" or not pcall(frame.SetBackdrop, frame, spec) then return false end
-    if type(frame.SetBackdropColor) == "function" then frame:SetBackdropColor(unpack(color)) end
-    if type(frame.SetBackdropBorderColor) == "function" then frame:SetBackdropBorderColor(unpack(border)) end
-    return true
-end
-local function surfaceFallback(frame, color, edge)
-    local function texture()
-        local t = frame:CreateTexture(nil, "BACKGROUND")
-        if t.SetColorTexture then t:SetColorTexture(unpack(color))
-        else t:SetTexture("Interface\\Buttons\\WHITE8X8"); t:SetVertexColor(unpack(color)) end
-        return t
-    end
-    local bg = texture(); bg:SetAllPoints(frame)
-    for _, pair in ipairs({{"TOPLEFT", "TOPRIGHT"}, {"BOTTOMLEFT", "BOTTOMRIGHT"}, {"TOPLEFT", "BOTTOMLEFT"}, {"TOPRIGHT", "BOTTOMRIGHT"}}) do
-        local t = texture()
-        if t.SetColorTexture then t:SetColorTexture(unpack(edge)) else t:SetVertexColor(unpack(edge)) end
-        t:SetPoint(pair[1]); t:SetPoint(pair[2])
-        if pair[1]:find("TOP") and pair[2]:find("BOTTOM") then t:SetWidth(1) else t:SetHeight(1) end
-    end
-end
-
---- Window and dialog skin; no external addon or artwork is required.
-function A.NativeFrame(frame, C)
-    local ok = backdrop(frame, {
-        bgFile = "Interface\\FrameGeneral\\UI-Background-Rock", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 64, edgeSize = 24, insets = {left = 6, right = 6, top = 6, bottom = 6}},
-        {0.22, 0.19, 0.15, 0.99}, {1, 0.90, 0.69, 1})
-    if not ok then surfaceFallback(frame, {C.canvas[1], C.canvas[2], C.canvas[3], 0.99}, C.line) end
-    return ok
-end
-
---- Recessed stone card with a restrained bronze edge. Used by every page's shared Card helper.
-function A.NativePanel(frame, C)
-    local ok = backdrop(frame, {
-        bgFile = "Interface\\FrameGeneral\\UI-Background-Rock", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 64, edgeSize = 8, insets = {left = 3, right = 3, top = 3, bottom = 3}},
-        {0.30, 0.25, 0.18, 0.98}, {0.70, 0.52, 0.27, 0.85})
-    if not ok then surfaceFallback(frame, {C.card[1], C.card[2], C.card[3], 0.98}, C.line) end
-    return ok
-end
-
-local PARCHMENT = {ink = {0.20, 0.12, 0.055}, mutedInk = {0.36, 0.26, 0.14}, heading = {0.42, 0.23, 0.055}}
--- Opaque paper across the whole reader. QuestBG contains transparent padding in this client and cannot be the backing surface.
+-- All shared controls use the same navy-and-gold surfaces, including legacy reader aliases.
+local PARCHMENT = A.Theme.reader
+function A.NativeFrame(frame, C) A.Theme.Surface(frame, "window"); return true end
+function A.NativePanel(frame, C) A.Theme.Surface(frame, "panel"); return true end
 function A.NativeParchment(frame, C)
     frame.parchment = true
-    local ok = backdrop(frame, {
-        bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = false, edgeSize = 12, insets = {left = 5, right = 5, top = 5, bottom = 5}},
-        {0.73, 0.63, 0.43, 1}, {0.42, 0.29, 0.13, 1})
-    if not ok then surfaceFallback(frame, {0.73, 0.63, 0.43, 1}, {0.42, 0.29, 0.13, 1}) end
-    if not frame.paperBase then frame.paperBase=frame:CreateTexture(nil,"BACKGROUND") end
-    frame.paperBase:ClearAllPoints();frame.paperBase:SetPoint("TOPLEFT",4,-4);frame.paperBase:SetPoint("BOTTOMRIGHT",-4,4)
-    if frame.paperBase.SetColorTexture then frame.paperBase:SetColorTexture(0.73,0.63,0.43,1)
-    else frame.paperBase:SetTexture("Interface\\Buttons\\WHITE8X8");frame.paperBase:SetVertexColor(0.73,0.63,0.43,1) end
+    local skin = A.Theme.Surface(frame, "reader")
+    frame.paperBase = skin.base
     return PARCHMENT
 end
-
---- Built-in button artwork: red for the principal action, bronze for secondary controls and filters.
 function A.NativeButton(button, C, primary)
-    local texture = button:CreateTexture(nil, "BACKGROUND")
-    texture:SetPoint("TOPLEFT", 1, -1); texture:SetPoint("BOTTOMRIGHT", -1, 1)
-    local path = primary and "Interface\\Buttons\\UI-Panel-Button-Up" or "Interface\\DialogFrame\\UI-DialogBox-Background"
-    if texture:SetTexture(path) == false then
-        if texture.SetColorTexture then texture:SetColorTexture(unpack(primary and C.violet or C.card)) end
-    elseif primary then texture:SetTexCoord(0, 0.625, 0, 0.6875)
-    else texture:SetVertexColor(0.72, 0.56, 0.33, 1) end
+    local texture = A.Theme.Button(button, primary)
     button.nativeSurface = texture
     return texture
 end
@@ -125,7 +66,7 @@ function A.ExtendKit(kit)
     kit.alphaGradient = alphaGradient
     kit.ParchmentText = PARCHMENT
 
-    -- A book spread: a narrow index on the left and a readable page on the right.
+    -- An index-and-reader spread, sized to leave enough space for both columns.
     function kit.Book(parent, top)
         local book = CreateFrame("Frame", nil, parent)
         book:SetPoint("TOPLEFT", 0, -(top or 58)); book:SetPoint("BOTTOMRIGHT")
@@ -135,14 +76,14 @@ function A.ExtendKit(kit)
         book.paper:SetPoint("TOPLEFT", book.index, "TOPRIGHT", 12, 0); book.paper:SetPoint("BOTTOMRIGHT")
         local function layout()
             local width = tonumber(book:GetWidth()) or 640
-            book.index:SetWidth(math.max(156, math.min(245, width * 0.32)))
+            book.index:SetWidth(math.max(176, math.min(285, width * 0.34)))
             if book.onLayout then book.onLayout() end
         end
         book:SetScript("OnSizeChanged", layout); book.Layout = layout; layout()
         return book
     end
 
-    -- Structured, scrollable prose and clickable records on paper. Repaints preserve reading position.
+    -- Structured prose and clickable records. Repaints preserve reading position.
     function kit.Document(parent)
         local document = {pool = {}, key = nil}
         local scroll = kit.ScrollArea(parent, 0)
@@ -278,7 +219,13 @@ function A.ExtendKit(kit)
         local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
         box:SetSize(width, 24); box:SetAutoFocus(false); box:SetMaxLetters(100); box:SetFont(kit.fontPath(), 12, "")
         kit.trackFont(box, 12)
-        box.hint = label(box, 11, C.faint); box.hint:SetPoint("LEFT", 8, 0)
+        box:SetTextColor(C.text[1],C.text[2],C.text[3]);box:SetTextInsets(10,10,0,0)
+        A.Theme.Surface(box,"reader")
+        for _,part in ipairs({"Left","Middle","Right"}) do
+            local region=box[part]
+            if (type(region)=="table" or type(region)=="userdata") and type(region.Hide)=="function" then region:Hide() end
+        end
+        box.hint = label(box, 11, C.mist); box.hint:SetPoint("LEFT", 10, 0)
         box:SetScript("OnTextChanged", function(self)
             local value = self:GetText() or ""
             box.hint:SetShown(value == "")

@@ -50,7 +50,7 @@ function M.RefreshWorld(body)
     for _, key in ipairs(ORDER) do
         local button, frame, tab = body.tabButtons[key], body.tabFrames[key], M.worldTabs[key]
         button.text:SetText(A.L("worldTab_" .. key))
-        button.text:SetTextColor(unpack(body.mode == key and body.kit.C.text or body.kit.C.mist))
+        button.text:SetTextColor(unpack(body.mode == key and (body.kit.C.bright or body.kit.C.gold) or body.kit.C.mist))
         frame:SetShown(body.mode == key)
         if body.mode == key and tab then
             if not frame.built then

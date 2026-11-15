@@ -20,15 +20,18 @@ function A.QuestGuideRefreshTracker()
     if not state or not state.tracker then if tracker then tracker:Hide() end;return end
     if not tracker then
         local kit=A.UIKit();tracker=CreateFrame("Frame",nil,UIParent)
-        tracker:SetSize(290,122);tracker:SetPoint("RIGHT",UIParent,"RIGHT",-35,70);tracker:SetMovable(true);tracker:EnableMouse(true);tracker:SetClampedToScreen(true)
+        tracker:SetSize(330,150);tracker:SetPoint("RIGHT",UIParent,"RIGHT",-35,70);tracker:SetMovable(true);tracker:EnableMouse(true);tracker:SetClampedToScreen(true)
         A.NativePanel(tracker,kit.C);tracker:RegisterForDrag("LeftButton")
         tracker:SetScript("OnDragStart",function(self)self:StartMoving()end)
         tracker:SetScript("OnDragStop",function(self)self:StopMovingOrSizing()end)
-        tracker.title=kit.label(tracker,13,kit.C.gold);tracker.title:SetPoint("TOPLEFT",10,-10);tracker.title:SetPoint("TOPRIGHT",-34,-10);tracker.title:SetWordWrap(true)
-        tracker.info=kit.label(tracker,11,kit.C.mist);tracker.info:SetPoint("TOPLEFT",10,-39);tracker.info:SetPoint("TOPRIGHT",-10,-39);tracker.info:SetWordWrap(true)
+        tracker.head=tracker:CreateTexture(nil,"BACKGROUND");tracker.head:SetPoint("TOPLEFT",2,-2);tracker.head:SetPoint("TOPRIGHT",-2,-2);tracker.head:SetHeight(50);kit.paint(tracker.head,kit.C.header or kit.C.card,1)
+        tracker.icon=tracker:CreateTexture(nil,"ARTWORK");tracker.icon:SetSize(24,24);tracker.icon:SetPoint("TOPLEFT",12,-13);tracker.icon:SetTexture(kit.ICON.quest)
+        tracker.rule=tracker:CreateTexture(nil,"BORDER");tracker.rule:SetPoint("TOPLEFT",10,-53);tracker.rule:SetPoint("TOPRIGHT",-10,-53);tracker.rule:SetHeight(1);kit.paint(tracker.rule,kit.C.gold,.45)
+        tracker.title=kit.label(tracker,14,kit.C.bright or kit.C.gold);tracker.title:SetPoint("TOPLEFT",44,-12);tracker.title:SetPoint("TOPRIGHT",-34,-12);tracker.title:SetHeight(35);tracker.title:SetWordWrap(true)
+        tracker.info=kit.label(tracker,12,kit.C.mist);tracker.info:SetPoint("TOPLEFT",12,-63);tracker.info:SetPoint("TOPRIGHT",-12,-63);tracker.info:SetHeight(32);tracker.info:SetWordWrap(true)
         tracker.close=kit.Button(tracker,nil,20,"ghost",function()Q.SetOption("tracker",false);refresh()end);tracker.close:SetHeight(20);tracker.close:SetPoint("TOPRIGHT",-5,-5);tracker.close.text:SetText("x")
-        tracker.go=kit.Button(tracker,"qgNavigate",128,"primary",function()local ok,why=Q.Navigate();if not ok then A.Print(A.L("qgNoPoint").." ("..tostring(why)..")") end end);tracker.go:SetPoint("BOTTOMLEFT",10,9)
-        tracker.skip=kit.Button(tracker,"qgSkip",128,"ghost",function()Q.Skip();refresh()end);tracker.skip:SetPoint("BOTTOMRIGHT",-10,9)
+        tracker.go=kit.Button(tracker,"qgNavigate",148,"primary",function()local ok,why=Q.Navigate();if not ok then A.Print(A.L("qgNoPoint").." ("..tostring(why)..")") end end);tracker.go:SetPoint("BOTTOMLEFT",12,10)
+        tracker.skip=kit.Button(tracker,"qgSkip",148,"ghost",function()Q.Skip();refresh()end);tracker.skip:SetPoint("BOTTOMRIGHT",-12,10)
     end
     local step=Q.Current()
     tracker.title:SetText(step and step.quest.title or A.L("questguide"))
@@ -49,28 +52,32 @@ function A.BuildQuestGuidePage(page,kit)
         local chip=kit.Chip(page,function()local state=Q.Store();Q.SetOption(key,not state[key]);refresh()end)
         chip:SetPoint("LEFT",previous,"RIGHT",8,0);page.options[key]={chip=chip,label=label};previous=chip
     end
-    page.note=kit.label(page,10,C.mist);page.note:SetPoint("TOPLEFT",0,-91);page.note:SetPoint("TOPRIGHT",0,-91);page.note:SetWordWrap(true)
+    page.note=kit.label(page,11,C.mist);page.note:SetPoint("TOPLEFT",0,-91);page.note:SetPoint("TOPRIGHT",0,-91);page.note:SetWordWrap(true)
     page.book=kit.Book(page,120)
     page.list=kit.ListView(page.book.index,0)
     page.document=kit.Document(page.book.paper)
-    page.document.scroll:SetPoint("BOTTOMRIGHT",page.book.paper,"BOTTOMRIGHT",-22,116)
+    page.document.scroll:SetPoint("BOTTOMRIGHT",page.book.paper,"BOTTOMRIGHT",-22,124)
+    page.controls=CreateFrame("Frame",nil,page.book.paper);page.controls:SetPoint("BOTTOMLEFT",1,1);page.controls:SetPoint("BOTTOMRIGHT",-1,1);page.controls:SetHeight(118)
+    page.controls.bg=kit.fill(page.controls,C.header or C.well,1)
+    page.controls.rule=page.controls:CreateTexture(nil,"BORDER");page.controls.rule:SetPoint("TOPLEFT");page.controls.rule:SetPoint("TOPRIGHT");page.controls.rule:SetHeight(1);kit.paint(page.controls.rule,C.gold,.35)
     page.actions={}
     local actions={{"qgBack",Q.Back},{"qgNext",Q.Next},{"qgSkip",Q.Skip},{"qgResume",Q.Resume},{"qgNavigate",function()local ok,why=Q.Navigate();if not ok then A.Print(A.L("qgNoPoint").." ("..tostring(why)..")")end end},{"qgTracker",function()local s=Q.Store();Q.SetOption("tracker",not s.tracker)end}}
     for i,action in ipairs(actions) do
         local key,fn=action[1],action[2]
-        local button=kit.Button(page.book.paper,key,110,key=="qgNavigate" and "primary" or "ghost",function()fn();refresh()end)
-        button:SetHeight(27);page.actions[i]=button
+        local button=kit.Button(page.controls,key,110,key=="qgNavigate" and "primary" or "ghost",function()fn();refresh()end)
+        button:SetHeight(30);page.actions[i]=button
     end
-    page.auto=kit.Chip(page.book.paper,function()local s=Q.Store();Q.SetOption("autoNavigate",not s.autoNavigate);refresh()end)
+    page.auto=kit.Chip(page.controls,function()local s=Q.Store();Q.SetOption("autoNavigate",not s.autoNavigate);refresh()end)
     page.auto:SetPoint("BOTTOMLEFT",12,8)
     local function layout()
         local bookWidth=tonumber(page.book:GetWidth()) or 640
-        page.book.index:SetWidth(math.max(185,math.min(260,bookWidth*0.38)))
+        page.search:SetWidth(math.max(140,math.min(240,bookWidth*.34)))
+        page.book.index:SetWidth(math.max(175,math.min(260,bookWidth*0.34)))
         local width=math.max(210,(tonumber(page.book.paper:GetWidth()) or 440)-24)
         local cell=(width-12)/3
         for i,button in ipairs(page.actions) do
             local col=(i-1)%3;local row=math.floor((i-1)/3)
-            button:ClearAllPoints();button:SetWidth(cell);button:SetPoint("BOTTOMLEFT",page.book.paper,"BOTTOMLEFT",12+col*(cell+6),70-row*32)
+            button:ClearAllPoints();button:SetWidth(cell);button:SetPoint("BOTTOMLEFT",page.controls,"BOTTOMLEFT",12+col*(cell+6),74-row*34)
             button.text:SetFont(kit.fontPath(),width<360 and 10 or 11,"")
         end
     end

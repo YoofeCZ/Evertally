@@ -554,7 +554,7 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("views", nargs="*")
-    ap.add_argument("--size", default="960x620")
+    ap.add_argument("--size", default="1120x740")
     ap.add_argument("--out", default=str(ROOT / "output" / "ui-preview"))
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--screen", default="1280x760")

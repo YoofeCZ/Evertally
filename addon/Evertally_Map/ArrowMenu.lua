@@ -123,7 +123,7 @@ local function build()
     catcher:RegisterForClicks("AnyUp"); catcher:SetScript("OnClick", M.ArrowMenuClose); catcher:Hide()
     menu = CreateFrame("Frame", "EvertallyArrowMenu", UIParent)
     menu:SetFrameStrata("DIALOG"); menu:SetFrameLevel(10); menu:SetSize(190, #ENTRIES * 30 + 14); menu:EnableMouse(true); menu:SetClampedToScreen(true)
-    kit.fill(menu, C.canvas, 0.97); kit.outline(menu, {C.lilac[1], C.lilac[2], C.lilac[3], 0.4})
+    A.NativePanel(menu,C)
     menu.items = {}
     for i, entry in ipairs(ENTRIES) do
         local button = kit.Button(menu, entry.key, 176, "ghost", function() M.ArrowMenuClose(); entry.run() end)
@@ -195,8 +195,8 @@ local function buildRouteMenu()
     routeMenu=CreateFrame("Frame","EvertallyRouteMenu",UIParent)
     routeMenu:SetFrameStrata("DIALOG");routeMenu:SetFrameLevel(10);routeMenu:SetSize(250,40+#ROUTE_ENTRIES*30)
     routeMenu:EnableMouse(true);routeMenu:SetClampedToScreen(true)
-    kit.fill(routeMenu,kit.C.canvas,0.98);kit.outline(routeMenu,{0.65,0.5,0.22,0.9})
-    routeMenu.title=kit.label(routeMenu,12,{1,0.82,0.2})
+    A.NativePanel(routeMenu,kit.C)
+    routeMenu.title=kit.label(routeMenu,13,kit.C.bright)
     routeMenu.title:SetPoint("TOPLEFT",12,-10);routeMenu.title:SetPoint("TOPRIGHT",-12,-10);routeMenu.title:SetHeight(16);routeMenu.title:SetWordWrap(false)
     routeMenu.items={}
     for i,entry in ipairs(ROUTE_ENTRIES) do

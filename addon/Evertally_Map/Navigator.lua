@@ -166,11 +166,6 @@ end
 
 -- ---------------------------------------------------------------- the tracker frame
 local function fontPath() return A.FontPath and A.FontPath() or "Fonts\\FRIZQT__.TTF" end
-local function text(parent, size, r, g, b)
-    local fs = parent:CreateFontString(nil, "OVERLAY")
-    fs:SetFont(fontPath(), size, ""); fs:SetTextColor(r, g, b, 1); fs:SetJustifyH("LEFT")
-    return fs
-end
 -- Shortest Path Forever is the one installed addon that searches real terrain: QuestMaster hands its targets to
 -- ShortestPathForever.API too and Questie reaches it through its TomTom stand-in. So the tracker offers it as a button.
 local function terrainApi()
@@ -204,6 +199,7 @@ end
 
 local function ensureFrame()
     if frame then return frame end
+    local kit=A.UIKit();local C=kit.C
     -- the arrow with the distance under it and the name of the goal under that, floating over the game (no panel): the arrow changes colour with
     -- how you are turned to the goal (M.ArrowColor), so a glance says whether you are heading the right way
     local f = CreateFrame("Frame", "EvertallyTracker", UIParent)
@@ -214,17 +210,16 @@ local function ensureFrame()
     elseif Minimap then f:SetPoint("TOP", Minimap, "BOTTOM", 0, -26) else f:SetPoint("TOP", UIParent, "TOP", 0, -120) end
     f.arrow = f:CreateTexture(nil, "ARTWORK"); f.arrow:SetAllPoints(f)
     f.arrow:SetTexture(MEDIA .. "arrow"); f.arrow:SetVertexColor(GREEN[1], GREEN[2], GREEN[3])
-    f.distance = outlined(f, 20, 1, 1, 1); f.distance:SetPoint("TOP", f.arrow, "BOTTOM", 0, -6)
-    f.title = outlined(f, 12, 0.97, 0.97, 0.97); f.title:SetPoint("TOP", f.distance, "BOTTOM", 0, -3)
-    f.line1 = outlined(f, 10, 0.86, 0.86, 0.9); f.line1:SetPoint("TOP", f.title, "BOTTOM", 0, -3)
-    f.line2 = outlined(f, 10, 0.7, 0.7, 0.78); f.line2:SetPoint("TOP", f.line1, "BOTTOM", 0, -2)
-    f.hint = outlined(f, 9, 0.6, 0.62, 0.68); f.hint:SetPoint("TOP", f.line2, "BOTTOM", 0, -2)
+    f.distance = outlined(f,20,unpack(C.text));f.distance:SetPoint("TOP",f.arrow,"BOTTOM",0,-6)
+    f.title = outlined(f,13,unpack(C.bright));f.title:SetPoint("TOP",f.distance,"BOTTOM",0,-3)
+    f.line1 = outlined(f,11,unpack(C.text));f.line1:SetPoint("TOP",f.title,"BOTTOM",0,-3)
+    f.line2 = outlined(f,10,unpack(C.mist));f.line2:SetPoint("TOP",f.line1,"BOTTOM",0,-2)
+    f.hint = outlined(f,9,unpack(C.mist));f.hint:SetPoint("TOP",f.line2,"BOTTOM",0,-2)
     -- terrain guidance by Shortest Path Forever; only visible when that addon is there (see show)
     local terrain = CreateFrame("Button", nil, f)
-    terrain:SetSize(46, 13); terrain:SetPoint("LEFT", f, "RIGHT", 8, 0)
-    terrain.bg = terrain:CreateTexture(nil, "BACKGROUND"); terrain.bg:SetAllPoints()
-    if terrain.bg.SetColorTexture then terrain.bg:SetColorTexture(0.27, 0.22, 0.42, 0.9) else terrain.bg:SetTexture(0.27, 0.22, 0.42, 0.9) end
-    terrain.label = text(terrain, 9, 0.92, 0.92, 0.97); terrain.label:SetPoint("CENTER", 0, 0); terrain.label:SetJustifyH("CENTER")
+    terrain:SetSize(56,20);terrain:SetPoint("LEFT",f,"RIGHT",8,0)
+    terrain.bg=A.NativeButton(terrain,C,false)
+    terrain.label=kit.label(terrain,10,C.bright);terrain.label:SetPoint("CENTER",0,0);terrain.label:SetJustifyH("CENTER")
     terrain:SetScript("OnClick", function()
         local ok, reason = M.NavigateTerrain()
         A.Print(A.L(ok and "terrainStarted" or ("terrainErr_" .. tostring(reason))))
@@ -622,15 +617,13 @@ local function applyStopPosition(b)
 end
 local function ensureStopButton()
     if stopButton then return stopButton end
+    local kit=A.UIKit();local C=kit.C
     local b = CreateFrame("Button", "EvertallyStopNavigation", UIParent)
     b:SetSize(150, 26); b:SetFrameStrata("HIGH"); b:SetMovable(true); b:SetClampedToScreen(true)
     b:RegisterForDrag("LeftButton")
-    b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetAllPoints(b); b.bg:SetColorTexture(0.12, 0.05, 0.05, 0.88)
-    b.hover = b:CreateTexture(nil, "HIGHLIGHT"); b.hover:SetAllPoints(b); b.hover:SetColorTexture(1, 1, 1, 0.12)
-    for i, e in ipairs({{"TOPLEFT", "TOPRIGHT", true}, {"BOTTOMLEFT", "BOTTOMRIGHT", true}}) do
-        local t = b:CreateTexture(nil, "BORDER"); t:SetColorTexture(0.75, 0.25, 0.2, 1); t:SetHeight(1); t:SetPoint(e[1]); t:SetPoint(e[2])
-    end
-    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); b.text:SetPoint("CENTER"); b.text:SetTextColor(1, 0.85, 0.8)
+    b.bg=A.NativeButton(b,C,false)
+    b.hover=b:CreateTexture(nil,"HIGHLIGHT");b.hover:SetAllPoints(b);kit.paint(b.hover,C.gold,0.16)
+    b.text=kit.label(b,12,C.bright);b.text:SetPoint("CENTER")
     b:SetScript("OnDragStart", function(self) self.moved = true; self:StartMoving() end)
     b:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
