@@ -1528,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "evertally-desktop"
-version = "0.9.10"
+version = "0.9.11"
 dependencies = [
  "eframe",
  "evertally-sync",
