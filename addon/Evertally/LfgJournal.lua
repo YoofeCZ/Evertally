@@ -53,5 +53,5 @@ function L.Attach()
     return true
 end
 
-A.On("ADDON_LOADED", function(name) if name == "Blizzard_GroupFinder_VanillaStyle" then pcall(L.Attach) end end)
+A.On("ADDON_LOADED", function() if not L.button then pcall(L.Attach) end end)
 A.On("PLAYER_LOGIN", function() pcall(L.Attach) end)

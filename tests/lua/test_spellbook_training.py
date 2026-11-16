@@ -57,3 +57,22 @@ class SpellbookTrainingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AddonLoadedTests(unittest.TestCase):
+    """The game's spellbook, talent and group finder windows are add-ons loaded when first opened; 0.9.55 never heard of them."""
+
+    def test_the_event_frame_passes_other_addons_loading_on_to_the_modules(self):
+        import lupa.lua51 as lupa
+        from test_addon import ADDON
+        lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+        lua.execute('SCRIPT=nil; CreateFrame=function() return {SetScript=function(_, _, fn) SCRIPT=fn end, RegisterEvent=function() end} end')
+        ns = lua.eval("{locale={en={},cs={}}}")
+        for name in ("Locale.lua", "Core.lua"):
+            lua.eval("loadstring")((ADDON / name).read_text(encoding="utf-8"), name)("Evertally", ns)
+        lua.execute("HEARD={}")
+        ns.db = lua.eval("{settings={}}")
+        ns.RequirementsReady = None
+        ns.On("ADDON_LOADED", lua.eval("function(name) HEARD[#HEARD+1]=name end"))
+        lua.globals().SCRIPT(None, "ADDON_LOADED", "Blizzard_PlayerSpells")
+        self.assertEqual(list(lua.globals().HEARD.values()), ["Blizzard_PlayerSpells"])

@@ -218,5 +218,5 @@ function N.Attach()
     return true
 end
 
-A.On("ADDON_LOADED", function(name) if name == "Blizzard_PlayerSpells" then pcall(N.Attach) end end)
+A.On("ADDON_LOADED", function() if not N.profiles then pcall(N.Attach) end end)
 A.On("PLAYER_LOGIN", function() pcall(N.Attach) end)

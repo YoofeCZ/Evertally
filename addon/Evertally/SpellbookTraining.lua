@@ -226,7 +226,7 @@ function S.Attach()
     return true
 end
 
-A.On("ADDON_LOADED", function(name) if name == "Blizzard_PlayerSpells" then pcall(S.Attach) end end)
+A.On("ADDON_LOADED", function() if not S.book then pcall(S.Attach) end end)
 A.On("PLAYER_LOGIN", function() pcall(S.Attach) end)
 for _, event in ipairs({"SPELLS_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_MONEY", "TRAINER_UPDATE"}) do
     A.On(event, function() if S.shown then S.Draw() end end)

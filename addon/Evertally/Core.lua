@@ -276,7 +276,9 @@ if type(CreateFrame)=="function" then
     A.frame=CreateFrame("Frame")
     A.frame:SetScript("OnEvent",function(_,event,...)
         if event=="ADDON_LOADED" then
-            local name=A.Plain((...));if name==addonName then A.Initialize() end
+            local name=A.Plain((...));if name==addonName then A.Initialize();return end
+            -- the game's own windows (spellbook, talents, group finder) are add-ons loaded when first opened: modules hook them here
+            if A.db then A.Dispatch(event,...) end
             return
         end
         if A.db then A.Dispatch(event,...) end
