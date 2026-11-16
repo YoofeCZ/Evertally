@@ -4,8 +4,8 @@ style of the game's tracking icons (gold rim, textured coloured face, an embosse
     python -I tools/build_transport_icons.py
 
 Silhouettes (CC BY 3.0, credited in THIRD_PARTY.md and addon/Evertally_Map/NOTICE.txt, never in the game's UI):
-  shared/sources/game-icons/delapouite-sailboat.svg  "Sailboat" by Delapouite, https://game-icons.net
-  shared/sources/game-icons/skoll-zeppelin.svg       "Zeppelin" by Skoll, https://game-icons.net
+  tools/game-icons/delapouite-sailboat.svg  "Sailboat" by Delapouite, https://game-icons.net
+  tools/game-icons/skoll-zeppelin.svg       "Zeppelin" by Skoll, https://game-icons.net
 Changed: only the outline shape is used; the badge, colours, texture and shading are drawn here. Chrome renders the SVG (no
 SVG library is needed), Pillow draws the rest. The colours are in the picture, so the game shows the texture untinted.
 """
@@ -21,7 +21,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = ROOT / "shared" / "sources" / "game-icons"
+SOURCES = ROOT / "tools" / "game-icons"
 OUT = ROOT / "addon" / "Evertally_Map" / "Media"
 # name: (silhouette, face colour light, face colour dark)
 ICONS = {

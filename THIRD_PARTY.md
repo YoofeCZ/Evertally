@@ -25,7 +25,7 @@ Stav: 11. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform
 | wago.tools (herní tabulky UiMap, LoadingScreens …) | data Blizzard Entertainment | umístění map na mapě světa, odkazy na umění | `shared/sources/*.csv` |
 | Leaflet 1.9.4 | BSD-2-Clause | vykreslování mapy v prohlížeči | `platform/package.json` |
 | DockWatch 1.8.1 (Wyveryx) | MIT (text licence je v hlavičce `TransportData.lua`) | jízdní řády lodí a zeppelinů: přístavy, ověřené doby plavby a čekání, délka okruhu a jeden skutečný odjezd na trasu (data 13. 10. 2026); časy se jen dopočítávají, ve hře se nic nesleduje ani neučí | `tools/build_transport_data.py` → `addon/Evertally_Map/TransportData.lua`, `Transports.lua` |
-| game-icons.net: „Sailboat“ (Delapouite), „Zeppelin“ (Skoll) | CC BY 3.0 | jen siluety lodi a zeppelinu; odznak, barvy a stínování kreslí náš skript | `shared/sources/game-icons/` → `tools/build_transport_icons.py` → `addon/Evertally_Map/Media/ship.tga`, `zeppelin.tga` |
+| game-icons.net: „Sailboat“ (Delapouite), „Zeppelin“ (Skoll) | CC BY 3.0 | jen siluety lodi a zeppelinu; odznak, barvy a stínování kreslí náš skript | `tools/game-icons/` → `tools/build_transport_icons.py` → `addon/Evertally_Map/Media/ship.tga`, `zeppelin.tga` |
 | HereBeDragons 2.0 + Pins (Nevcairiel) | BSD (podle X-License v jejím TOC) | body na světové mapě a minimapě v addonu; nezměněné kopie přibalené v GatherLite, commit 0547c95 | `addon/Evertally_Map/Libs/` |
 | CallbackHandler-1.0 (Ace3) | licence Ace3 (BSD s doložkou o samostatném šíření; zde je vložená do addonu, ne šířená samostatně) | závislost HereBeDragons | `addon/Evertally_Map/Libs/`, text v `Ace3-LICENSE.txt` |
 | LibStub | public domain (uvedeno v souboru) | závislost HereBeDragons | `addon/Evertally_Map/Libs/` |
