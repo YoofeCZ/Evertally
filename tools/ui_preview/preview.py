@@ -23,7 +23,6 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "tests" / "lua"))
 from test_addon import runtime  # noqa: E402
 from test_navigation import FAKE_LIBS, MapTests  # noqa: E402
-from test_dungeons import FAKE_JOURNAL  # noqa: E402
 from test_openmap import OPENMAP  # noqa: E402
 from test_forever_traits import FOREVER_TRAITS  # noqa: E402
 
@@ -376,7 +375,7 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     # the map add-on, loaded the way the game does it on first use (with the stand-ins the unit tests use for the map libraries and QuestieDB)
     lua.execute(FAKE_LIBS)
     lua.execute(MapTests.FAKE_QUESTIE)
-    lua.execute(FAKE_JOURNAL)   # (a small stand-in for the DungeonJournal add-on's data)
+    # (the Dungeon Journal shows Evertally's own data: DungeonData.lua and QuestGuideData.lua)
     map_table = lua.table()
 
     def load_map():

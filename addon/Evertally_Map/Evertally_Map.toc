@@ -5,7 +5,7 @@
 ## Author: Evertally contributors
 ## Version: 0.9.56
 ## Dependencies: Evertally
-## OptionalDeps: OpenMap, QuestieDB, ForeverDungeonJournal
+## OptionalDeps: OpenMap, QuestieDB
 ## LoadOnDemand: 1
 ## X-License: GPL-3.0-or-later (Data.lua contains travel numbers from Shortest Path Forever); the libraries keep their own licenses, see Libs\NOTICE.txt
 Libs\LibStub\LibStub.lua
@@ -55,6 +55,7 @@ MapLayers.lua
 WorldLayers.lua
 WorldServices.lua
 GuideKit.lua
+DungeonData.lua
 DungeonGuideNew.lua
 DungeonGuideClassic1.lua
 DungeonGuideClassic2.lua

@@ -3,8 +3,8 @@ local A = _G.Evertally
 -- The Dungeon Journal page, built like the journal itself: a grid of cards with the dungeon's banner, and inside a dungeon three tabs: Bosses (a list
 -- of them with their level; the loot of one as rows with the item's icon, its name in the colour of its quality and its slot; the game's tooltip on the
 -- mouse), Quests (the quests of the dungeon: what they ask, who gives them, where to hand them in, what they reward) and Map (the dungeon's map with
--- its bosses). The data and the art are the DungeonJournal add-on's (ForeverDungeonJournal_NS: DB, BOSS_LEVELS, DUNGEON_HOME_ART, DUNGEON_MAPS); the
--- art is used by its file path, nothing is copied. Without that add-on the page lists the instances Evertally knows and says what is missing.
+-- its bosses, when a map is known). The data is Evertally's own (DungeonData.lua and QuestGuideData.lua, see journal() below), no other add-on is
+-- needed; the banner is the instance's loading screen, drawn by the game by its file ID. An instance without data is listed from the entrances.
 local CARD_H, GAP, ROW_H, ROWS_MAX = 160, 14, 46, 16
 local GOLD = A.Theme and A.Theme.colors.gold or {0.796, 0.651, 0.373}
 local QUEST_ICON, BOSS_ICON = "Interface\\GossipFrame\\AvailableQuestIcon", "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01"
@@ -15,7 +15,7 @@ local text = {
         dungeonsObjective = "Objective", dungeonsStarts = "Starts at", dungeonsTurnin = "Turn in", dungeonsChoose = "Choose one reward", dungeonsAlso = "You will also receive",
         dungeonsLoot = "Loot", dungeonsNoLoot = "No loot is listed.", dungeonsNoBosses = "No bosses are listed for this one.", dungeonsNoQuests = "No quests are listed for this one.",
         dungeonsNoMap = "There is no map for this dungeon.", dungeonsEntrance = "Entrance", dungeonsShow = "Show the entrance on the map", dungeonsGo = "Navigate to the entrance",
-        dungeonsNoJournal = "The DungeonJournal add-on is not installed, so there is no list of bosses, loot and quests here. Install it (CurseForge) and reload.",
+        dungeonsNoJournal = "Evertally has no list of bosses, loot and quests for this one yet.",
         dungeonsFaction = "%s only", dungeonsInDb = "Open the quest in the database", dungeonsPlayers = "%d players", dungeonsIn = "In %s",
         dungeonsLevel = "Level %s", dungeonsPickup = "From", dungeonsRewards = "Reward"},
     cs = {dungeonsSearch = "Hledat dungeony", dungeonsCount = "Dungeonů a raidů: %d", dungeonsBosses = "Bossové", dungeonsQuests = "Questy", dungeonsMap = "Mapa",
@@ -23,21 +23,80 @@ local text = {
         dungeonsObjective = "Cíl", dungeonsStarts = "Začíná u", dungeonsTurnin = "Odevzdat u", dungeonsChoose = "Vyber jednu odměnu", dungeonsAlso = "Dostaneš také",
         dungeonsLoot = "Loot", dungeonsNoLoot = "Žádný loot není uvedený.", dungeonsNoBosses = "U tohohle nejsou uvedení žádní bossové.", dungeonsNoQuests = "U tohohle nejsou uvedené žádné questy.",
         dungeonsNoMap = "Pro tenhle dungeon není mapa.", dungeonsEntrance = "Vchod", dungeonsShow = "Ukázat vchod na mapě", dungeonsGo = "Navigovat ke vchodu",
-        dungeonsNoJournal = "Addon DungeonJournal není nainstalovaný, takže tu není seznam bossů, lootu a questů. Nainstaluj ho (CurseForge) a načti znovu.",
+        dungeonsNoJournal = "Pro tenhle Evertally zatím nemá seznam bossů, lootu a questů.",
         dungeonsFaction = "Jen %s", dungeonsInDb = "Otevřít quest v databázi", dungeonsPlayers = "Hráčů: %d", dungeonsIn = "V %s",
         dungeonsLevel = "Úroveň %s", dungeonsPickup = "Od", dungeonsRewards = "Odměna"},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
 -- ---------------------------------------------------------------- the data
-local function journal()
-    local ns = rawget(_G, "ForeverDungeonJournal_NS")
-    return type(ns) == "table" and type(ns.DB) == "table" and ns or nil
+-- Evertally's own journal (no other add-on needed): dungeons, bosses and loot from DungeonData.lua (AtlasLoot facts), the quests of
+-- each dungeon from QuestGuideData.lua (QuestieDB facts), the art a loading screen the game draws by file ID. Built once, in the
+-- shape the page reads (DB, DUNGEON_HOME_ART, DUNGEON_HOME_TEXCOORD, QUEST_PREREQ_CHAINS).
+local CLASS_BITS = {{1, "Warrior"}, {2, "Paladin"}, {4, "Hunter"}, {8, "Rogue"}, {16, "Priest"}, {64, "Shaman"}, {128, "Mage"}, {256, "Warlock"}, {1024, "Druid"}}
+local function classesOf(mask)
+    mask = tonumber(mask) or 0
+    if mask <= 0 then return nil end
+    local names, all = {}, true
+    for _, c in ipairs(CLASS_BITS) do if math.floor(mask / c[1]) % 2 == 1 then names[#names + 1] = c[2] else all = false end end
+    return not all and #names > 0 and table.concat(names, ", ") or nil
 end
+local function person(list)
+    local p = type(list) == "table" and list[1]
+    if type(p) ~= "table" then return nil, nil end
+    local spot = type(p.spots) == "table" and type(p.spots[1]) == "table" and p.spots[1] or nil
+    local zone = spot and M.MapName and M.MapName(spot.map)
+    local name = A.Text(p.name, 80)
+    return name and zone and zone ~= "" and (name .. ", " .. zone) or name, spot
+end
+local own
+local function journal()
+    if own then return own end
+    if type(M.dungeonData) ~= "table" then return nil end
+    local quests = type(A.questGuideData) == "table" and type(A.questGuideData.quests) == "table" and A.questGuideData.quests or {}
+    local byDungeon, chains = {}, {}
+    for id, q in pairs(quests) do
+        if type(q) == "table" and type(q.dungeon) == "string" then
+            local pickup, pickupSpot = person(q.starts)
+            local turnin, turninSpot = person(q.ends)
+            local list = byDungeon[q.dungeon] or {}; byDungeon[q.dungeon] = list
+            list[#list + 1] = {id = id, name = q.title, level = q.level, requires = q.minLevel, faction = q.faction or "Both", objective = q.text,
+                pickup = pickup, pickupSpot = pickupSpot, turnin = turnin, turninSpot = turninSpot, classOnly = classesOf(q.classMask)}
+            -- the quests to finish first, by their titles in the same catalogue
+            local before = {}
+            for _, key in ipairs({"requiresAll", "requiresAny"}) do
+                for _, pre in ipairs(type(q[key]) == "table" and q[key] or {}) do
+                    local title = type(quests[pre]) == "table" and quests[pre].title
+                    if title then before[#before + 1] = {id = pre, name = title} end
+                end
+            end
+            if #before > 0 then chains[id] = before end
+        end
+    end
+    local db, art, coords = {}, {}, {}
+    for name, d in pairs(M.dungeonData) do
+        local bosses = {}
+        for _, b in ipairs(d.bosses or {}) do
+            local loot = {}
+            for _, row in ipairs(b.loot or {}) do loot[#loot + 1] = {row[1], row[2] or ("#" .. tostring(row[1])), row[3] ~= "" and row[3] or nil, row[4] or 1} end
+            bosses[#bosses + 1] = {name = b.name, npcID = b.npc, loot = loot}
+        end
+        local list = byDungeon[name] or {}
+        table.sort(list, function(a, b) if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end; return tostring(a.name) < tostring(b.name) end)
+        local level = d.level and (tostring(d.level[2]) .. "-" .. tostring(d.level[3])) or ""
+        db[name] = {level = level, location = "", isRaid = d.raid, bosses = bosses, quests = list}
+        -- a loading screen is 4:3: the card shows its middle band
+        if d.art then art[name] = d.art; coords[name] = {0, 1, 0.22, 0.72} end
+    end
+    own = {DB = db, DUNGEON_HOME_ART = art, DUNGEON_HOME_TEXCOORD = coords, QUEST_PREREQ_CHAINS = chains, own = true}
+    M.ownJournal = own
+    return own
+end
+M.Journal = journal
 local function firstNumber(level) return tonumber(tostring(level or ""):match("^(%d+)")) or 0 end
 
---- The dungeons and raids, lowest level first: {key, name, level, min, location, icon, source, data, banner, texcoord, quests}. From the DungeonJournal
---- add-on when it is there, else from the instances Evertally has the entrances of.
+--- The dungeons and raids, lowest level first: {key, name, level, min, location, icon, source, data, banner, texcoord, quests}. From Evertally's
+--- own journal, else (the data file missing) from the instances Evertally has the entrances of.
 function M.DungeonList()
     local out, fdj = {}, journal()
     if fdj then
@@ -45,7 +104,13 @@ function M.DungeonList()
             if type(d) == "table" and type(name) == "string" then
                 local art = type(fdj.DUNGEON_HOME_ART) == "table" and fdj.DUNGEON_HOME_ART[name] or nil
                 local coords = type(fdj.DUNGEON_HOME_TEXCOORD) == "table" and fdj.DUNGEON_HOME_TEXCOORD[name] or nil
-                out[#out + 1] = {key = name, name = name, level = tostring(d.level or ""), min = firstNumber(d.level), location = type(d.location) == "string" and d.location or "",
+                -- the place: where Evertally knows the entrance (the zone of the instance with this name)
+                if d.location == "" and M.Instances and M.MapName then
+                    for _, item in ipairs(M.Instances(name, "all") or {}) do if item.map and item.name:lower() == name:lower() then d.location = M.MapName(item.map) or ""; break end end
+                end
+                -- (an instance without a level, the raids, comes after all those with one)
+                local min = firstNumber(d.level)
+                out[#out + 1] = {key = name, name = name, level = tostring(d.level or ""), min = min > 0 and min or 99, location = type(d.location) == "string" and d.location or "",
                     icon = d.icon, source = "journal", data = d, banner = art, texcoord = coords, quests = type(d.quests) == "table" and #d.quests or 0}
             end
         end
@@ -91,17 +156,18 @@ function M.DungeonQuestRows(id)
     end
 end
 
-local function portraitOf(boss)
-    if boss.customIcon then return boss.customIcon end
-    local saved = rawget(_G, "ForeverDungeonJournalDB")
-    local cache = type(saved) == "table" and saved.portraitTexturesByNpcID
-    local portrait = type(cache) == "table" and boss.npcID and cache[boss.npcID]
-    return portrait or BOSS_ICON
-end
+local function portraitOf(boss) return boss.customIcon or BOSS_ICON end
+-- a boss's level, when the journal has one (Evertally's own data does not list them yet)
 local function bossLevel(entry, boss)
     local fdj = journal()
     local levels = fdj and type(fdj.BOSS_LEVELS) == "table" and fdj.BOSS_LEVELS[entry.name]
     return type(levels) == "table" and levels[boss.name] or nil
+end
+--- The map of a dungeon with its floors and boss marks, when the journal has one.
+local function mapOf(entry)
+    local fdj = journal()
+    local data = entry and fdj and type(fdj.DUNGEON_MAPS) == "table" and fdj.DUNGEON_MAPS[entry.name]
+    return type(data) == "table" and type(data.floors) == "table" and data.floors[1] and data or nil
 end
 
 -- ---------------------------------------------------------------- the detail of a boss and of a quest
@@ -141,8 +207,7 @@ local function drawMap(dj)
     for _, tile in ipairs(m.tiles) do tile:Hide() end
     for _, mark in ipairs(m.marks) do mark:Hide() end
     m.single:Hide(); m.note:SetText("")
-    local fdj, entry = journal(), dj.selected
-    local data = fdj and type(fdj.DUNGEON_MAPS) == "table" and fdj.DUNGEON_MAPS[entry.name]
+    local data = mapOf(dj.selected)
     local floor = data and data.floors and data.floors[dj.floorIndex or 1]
     if not floor then m.note:SetText(A.L("dungeonsNoMap")); return end
     local aspect = floor.texture and (1 / (floor.texBottom or 1)) or 1002 / 668
@@ -316,7 +381,8 @@ local function openDungeon(dj, entry)
     dj.noJournal:SetShown(entry.source ~= "journal")
     showMode(dj)
     local hasData = entry.source == "journal"
-    for _, chip in pairs(dj.tabs) do chip:SetShown(hasData) end
+    -- the Map tab only where there is a map to show
+    for key, chip in pairs(dj.tabs) do chip:SetShown(hasData and (key ~= "map" or mapOf(entry) ~= nil)) end
     if hasData then setTab(dj, M.DungeonGuide and "guide" or "bosses")
     else
         dj.list:Hide(); dj.listBg:Hide(); dj.mapArea:Hide(); dj.detail.SetTheme("parchment"); detailShown(dj, true); dj.detail.Reset()

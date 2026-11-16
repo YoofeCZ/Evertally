@@ -249,8 +249,9 @@ end
 function M.JournalQuestModel(quest)
     local model = {id = quest.id, title = quest.name or "?", requiredLevel = quest.requires, level = quest.level, faction = quest.faction, objective = quest.objective,
         starts = {}, turnin = {}, choiceRewards = {}, guaranteedRewards = {}, rewards = {}, extras = {}, xp = tonumber(quest.xp), xpBase = tonumber(quest.liveXPFallback), money = tonumber(quest.money)}
-    if type(quest.pickup) == "string" and quest.pickup ~= "" then model.starts[1] = {name = quest.pickup} end
-    if type(quest.turnin) == "string" and quest.turnin ~= "" then model.turnin[1] = {name = quest.turnin} end
+    -- with a place when Evertally's own journal knows it (the card then has a button to show it on the map)
+    if type(quest.pickup) == "string" and quest.pickup ~= "" then model.starts[1] = {name = quest.pickup, spot = quest.pickupSpot} end
+    if type(quest.turnin) == "string" and quest.turnin ~= "" then model.turnin[1] = {name = quest.turnin, spot = quest.turninSpot} end
     local items = {}
     for _, item in ipairs(type(quest.rewardItems) == "table" and quest.rewardItems or {}) do
         if type(item) == "table" and tonumber(item[1]) then items[#items + 1] = {id = tonumber(item[1]), name = item[2], quality = item[3], count = item[4] or 1} end
@@ -268,6 +269,18 @@ function M.JournalQuestModel(quest)
     for _, item in ipairs(type(quest.additionalRewardItems) == "table" and quest.additionalRewardItems or {}) do
         if type(item) == "table" and tonumber(item[1]) then model.guaranteedRewards[#model.guaranteedRewards + 1] = {id = tonumber(item[1]), name = item[2], quality = item[3], count = item[4] or 1} end
     end
+    -- Evertally's own journal lists no rewards: they come from the quest facts every other quest card uses
+    local extra = type(M.questDetails) == "table" and type(quest.id) == "number" and M.questDetails[quest.id] or nil
+    if #model.choiceRewards == 0 and #model.guaranteedRewards == 0 and #model.rewards == 0 then
+        model.choiceRewards = rewardList(extra and extra.choice); model.guaranteedRewards = rewardList(extra and extra.guaranteed)
+        if #model.choiceRewards == 0 and #model.guaranteedRewards == 0 then
+            model.rewards = rewardList(extra and extra.rewards or (type(M.questRewards) == "table" and type(quest.id) == "number" and M.questRewards[quest.id] or nil))
+        end
+    end
+    if extra then
+        model.xp = model.xp or tonumber(extra.xp); model.xpBase = model.xpBase or tonumber(extra.xpBase); model.money = model.money or tonumber(extra.money)
+        if #model.extras == 0 and type(extra.rewardSummary) == "string" and extra.rewardSummary ~= "" then model.extras[1] = extra.rewardSummary end
+    end
     -- Forever exposes a quest-id argument here. A positive cached answer is authoritative; an uncached zero is not.
     local liveXP = A.Number(A.Call(GetQuestLogRewardXP, quest.id), 1, 1000000000)
     if liveXP then model.xp, model.xpLabel = liveXP, nil end
@@ -279,7 +292,7 @@ function M.JournalQuestModel(quest)
     if type(quest.startObject) == "table" and type(quest.startObject[1]) == "string" then
         model.startItem = quest.startObject[1] .. (type(quest.startObject[3]) == "string" and (": " .. quest.startObject[3]) or "")
     end
-    local fdj = rawget(_G, "ForeverDungeonJournal_NS")
+    local fdj = M.Journal and M.Journal()
     local chains = type(fdj) == "table" and type(fdj.QUEST_PREREQ_CHAINS) == "table" and fdj.QUEST_PREREQ_CHAINS[quest.id]
     if type(chains) == "table" then
         model.chain, model.chainTitle = {}, "questCardFirst"
@@ -293,7 +306,7 @@ end
 function M.DatabaseQuestModel(db, id, values, detail)
     values = values or (db and M.Db.Get(db, "quest", id))
     if not values then
-        local ns = rawget(_G, "ForeverDungeonJournal_NS")
+        local ns = M.Journal and M.Journal()
         for _, dungeon in pairs(type(ns) == "table" and type(ns.DB) == "table" and ns.DB or {}) do
             for _, quest in ipairs(type(dungeon) == "table" and type(dungeon.quests) == "table" and dungeon.quests or {}) do if quest.id == id then return M.JournalQuestModel(quest) end end
         end

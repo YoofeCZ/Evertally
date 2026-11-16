@@ -24,7 +24,7 @@ class QuestPresentationTests(unittest.TestCase):
         return [str(view.pools.text[i].text) for i in range(1, int(view.used.text) + 1)]
 
     def test_world_and_dungeon_quests_use_the_same_parchment_reader(self):
-        self.lua.execute(fixture.FAKE_JOURNAL)
+        self.f.fake()
         body, dj = self.f.page()
         self.f.open(dj, "Wailing Caverns"); self.f.tab(dj, "quests")
         self.assertEqual(dj.detail.theme, "quest")
@@ -101,7 +101,7 @@ class QuestPresentationTests(unittest.TestCase):
         self.assertEqual(self.lua.globals().SCROLL_VALUE, 0)
 
     def test_switching_back_to_a_boss_keeps_the_book_but_replaces_quest_rewards_with_boss_loot(self):
-        self.lua.execute(fixture.FAKE_JOURNAL)
+        self.f.fake()
         body, dj = self.f.page(); self.f.open(dj, "Wailing Caverns")
         self.f.tab(dj, "quests"); self.f.tab(dj, "bosses")
         self.assertEqual(dj.detail.theme, "quest"); self.assertTrue(dj.detail.surface.shown)

@@ -1,5 +1,5 @@
-"""The Dungeon Journal page, built like the journal itself: a grid of cards with banners, and in a dungeon the tabs Bosses / Quests / Map. The data and the
-art are the DungeonJournal add-on's; without it the instances Evertally knows."""
+"""The Dungeon Journal page, built like the journal itself: a grid of cards with banners, and in a dungeon the tabs Guide / Bosses / Quests (/ Map
+when a map is known). The data is Evertally's own (DungeonData.lua + QuestGuideData.lua); no other add-on is read."""
 from pathlib import Path
 import sys
 import unittest
@@ -9,23 +9,31 @@ from test_addon import MOCK_UI_LUA, ROOT, runtime
 from test_navigation import FAKE_LIBS
 
 MAP_DIR = ROOT / "addon" / "Evertally_Map"
+# a small journal in the shape of DungeonData.lua and QuestGuideData.lua (the real ones are tested at the end)
 FAKE_JOURNAL = """
-ForeverDungeonJournal_NS = {
-  BOSS_LEVELS = {["The Deadmines"] = {["Rhahk'Zor"] = "19", ["Cookie"] = "20"}},
-  DUNGEON_HOME_ART = {["The Deadmines"] = "Interface\\\\AddOns\\\\ForeverDungeonJournal\\\\Media\\\\DeadminesHome"},
-  DUNGEON_HOME_TEXCOORD = {["The Deadmines"] = {0, 1, 0.06, 0.94}},
-  DUNGEON_MAPS = {["The Deadmines"] = {floors = {{texture = "Interface\\\\AddOns\\\\ForeverDungeonJournal\\\\Media\\\\DeadminesMap", texBottom = 683 / 1024}},
-    bosses = {{name = "Rhahk'Zor", x = 0.5, y = 0.7}, {name = "Cookie", x = 0.3, y = 0.2}}}},
-  DB = {
-    ["Wailing Caverns"] = {level = "15-24", location = "Northern Barrens", description = "Deep beneath the Barrens.", icon = "Interface\\\\Icons\\\\Spell_Nature_Purge",
-      bosses = {{name = "Lord Cobrahn", loot = {{6460, "Cobrahn's Grasp", "Waist, Leather", 3}}}},
-      quests = {{id = 1486, name = "Deviate Hides", level = 17, requires = 13, faction = "Both", objective = "Bring 20 Deviate Hides to Nalpak.", pickup = "Nalpak, The Barrens",
-        turnin = "Nalpak, The Barrens", rewardChoice = true, rewards = "Choose: Slick Deviate Leggings\\n4,640 XP", rewardItems = {{6480, "Slick Deviate Leggings", 2}, {918, "Deviate Hide Pack", 1}}}}},
-    ["The Deadmines"] = {level = "10-20", location = "Westfall", description = "Miners and pirates.", icon = "Interface\\\\Icons\\\\INV_Misc_Bone_ElfSkull_01",
-      bosses = {{name = "Rhahk'Zor", loot = {{872, "Rockslicer", "Two-Hand, Axe", 3}, {5187, "Rhahk'Zor's Hammer", "Two-Hand, Mace", 3}}},
-                {name = "Cookie", loot = {{5197, "Cookie's Tenderizer", "One-Hand, Mace", 3}, {5198, "Cookie's Stirring Rod", "Held In Off-hand", 3}}}},
-      quests = {}},
-  }}
+local M, A = ...
+local zones = {[1436] = "Westfall", [1413] = "The Barrens"}
+C_Map.GetMapInfo = function(id) return {name = zones[id] or ("Map " .. id)} end
+M.dungeonData = {
+  ["Wailing Caverns"] = {name = "Wailing Caverns", raid = false, level = {10, 15, 24}, art = 131882,
+    bosses = {{name = "Lord Cobrahn", npc = 3669, loot = {{6460, "Cobrahn's Grasp", "Waist, Leather", 3}}}}},
+  ["The Deadmines"] = {name = "The Deadmines", raid = false, level = {10, 10, 20}, art = 131833,
+    bosses = {{name = "Rhahk'Zor", npc = 644, loot = {{872, "Rockslicer", "Two-Hand, Axe", 3}, {5187, "Rhahk'Zor's Hammer", "Two-Hand, Mace", 3}}},
+              {name = "Cookie", npc = 645, loot = {{5197, "Cookie's Tenderizer", "One-Hand, Mace", 3}, {5198, "Cookie's Stirring Rod", "", 3}}}}},
+}
+A.questGuideData = {quests = {
+  [1486] = {id = 1486, title = "Deviate Hides", level = 17, minLevel = 13, faction = "Both", classMask = 0, dungeon = "Wailing Caverns",
+    text = "Bring 20 Deviate Hides to Nalpak.", requiresAny = {1490},
+    starts = {{kind = "npc", id = 5767, name = "Nalpak", spots = {{map = 1413, x = 0.46, y = 0.36}}}},
+    ends = {{kind = "npc", id = 5767, name = "Nalpak", spots = {{map = 1413, x = 0.46, y = 0.36}}}}},
+  [1490] = {id = 1490, title = "Earlier Errand", level = 12, minLevel = 10, faction = "Both"},
+  [1487] = {id = 1487, title = "Mage Only", level = 18, minLevel = 14, faction = "Horde", classMask = 128, dungeon = "Wailing Caverns"},
+}}
+"""
+FAKE_MAP = """
+local M = ...
+M.Journal().DUNGEON_MAPS = {["The Deadmines"] = {floors = {{texture = 1234567, texBottom = 683 / 1024}},
+  bosses = {{name = "Rhahk'Zor", x = 0.5, y = 0.7}, {name = "Cookie", x = 0.3, y = 0.2}}}}
 """
 
 
@@ -56,6 +64,11 @@ class DungeonTests(unittest.TestCase):
                 chunk("Evertally_Map", self.m)
         self.a.ShowView = self.lua.eval("function(view) SHOWN=view end")
 
+    def fake(self, with_map=False):
+        self.lua.execute(FAKE_JOURNAL, self.m, self.a)
+        if with_map:
+            self.lua.execute(FAKE_MAP, self.m)
+
     def page(self):
         body = self.lua.eval("CreateFrame")("Frame", None, None)
         body.SetSize(body, 700, 420)
@@ -83,19 +96,19 @@ class DungeonTests(unittest.TestCase):
 
     # ---- the home: cards with banners ----
     def test_the_home_is_a_grid_of_cards_lowest_level_first_with_the_banner_of_each(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.assertEqual(self.names(dj), ["The Deadmines", "Wailing Caverns"])
         cards = [c for c in lst(dj.cards) if c.shown]
         self.assertEqual(len(cards), 2)
-        self.assertEqual(str(cards[0].art.texture), "Interface\\AddOns\\ForeverDungeonJournal\\Media\\DeadminesHome", "the journal's own art, used by its path")
+        self.assertEqual(cards[0].art.texture, 131833, "the loading screen of the instance, drawn by the game by its file ID")
         self.assertEqual(str(cards[0].title.text), "The Deadmines")
         self.assertEqual(str(cards[0].level.text), "LV 10-20")
-        self.assertEqual(str(cards[1].quests.text), "1 quests" if False else self.a.L("dungeonsQuestCount") % 1)
+        self.assertEqual(str(cards[1].quests.text), "1 quests" if False else self.a.L("dungeonsQuestCount") % 2)
         self.assertEqual(str(dj.mode), "home")
 
     def test_searching_narrows_the_cards_by_name_or_place(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         dj.box.SetText(dj.box, "barrens")
         dj.box.scripts.OnTextChanged(dj.box)
@@ -106,8 +119,8 @@ class DungeonTests(unittest.TestCase):
         self.assertEqual(str(dj.count.text), self.a.L("dungeonsNone"))
 
     # ---- a dungeon: bosses ----
-    def test_a_card_opens_the_dungeon_on_its_bosses_with_their_levels(self):
-        self.lua.execute(FAKE_JOURNAL)
+    def test_a_card_opens_the_dungeon_on_its_guide_and_its_bosses(self):
+        self.fake()
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.assertEqual(str(dj.mode), "dungeon")
@@ -118,11 +131,11 @@ class DungeonTests(unittest.TestCase):
         self.tab(dj, "bosses")
         items = lst(dj["items"])
         self.assertEqual([str(i.title) for i in items], ["Rhahk'Zor", "Cookie"])
-        self.assertEqual([str(i.badge) for i in items], ["LV 19", "LV 20"])
+        self.assertEqual([str(i.badge) for i in items], ["", ""], "Evertally's data has no boss levels: no made-up badge")
         self.assertTrue(dj.back.shown and dj.head.shown)
 
     def test_the_loot_of_a_boss_is_rows_with_icon_name_in_the_colour_of_its_quality_and_slot(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.tab(dj, "bosses")
@@ -133,13 +146,13 @@ class DungeonTests(unittest.TestCase):
         self.assertEqual(links[0].icon.texture, 130872, "the item's own icon")
         self.assertEqual(int(links[0].spec.quality), 3, "rare: its name is blue")
         texts = self.texts(dj)
-        self.assertTrue(any("Rhahk'Zor" in t and "LV 19" in t for t in texts), "the boss and his level above the loot")
+        self.assertTrue(any("Rhahk'Zor" in t for t in texts), "the boss above the loot")
         self.lua.execute("TIP={}; GameTooltip={SetOwner=function() end, SetHyperlink=function(_, link) TIP[#TIP+1]=link end, Show=function() end, Hide=function() end, NumLines=function() return 1 end, AddLine=function() end, SetText=function() end}")
         links[1].scripts.OnEnter(links[1])
         self.assertEqual(str(self.lua.globals().TIP[1]), "item:5187", "the game's tooltip")
 
     def test_choosing_another_boss_shows_his_loot(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.tab(dj, "bosses")
@@ -149,7 +162,7 @@ class DungeonTests(unittest.TestCase):
 
     # ---- the guide ----
     def test_the_guide_has_an_overview_role_advice_and_class_tips_with_the_players_class_first(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         self.lua.execute("UnitClass=function() return 'Priest','PRIEST',5 end")
         body, dj = self.page()
         self.open(dj, "The Deadmines")
@@ -165,7 +178,7 @@ class DungeonTests(unittest.TestCase):
         self.assertIn(self.a.L("dgYourClass"), texts[1], "the player's class comes first")
 
     def test_a_boss_has_its_tactic_before_the_loot_and_a_new_dungeons_boss_asks_for_one(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.tab(dj, "bosses")
@@ -191,28 +204,33 @@ class DungeonTests(unittest.TestCase):
 
     # ---- quests ----
     def test_the_quests_tab_lists_them_and_the_detail_has_objective_starts_turn_in_and_the_rewards_to_choose_from(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.open(dj, "Wailing Caverns")
         self.tab(dj, "quests")
         items = lst(dj["items"])
-        self.assertEqual([str(i.title) for i in items], ["Deviate Hides"])
+        self.assertEqual([str(i.title) for i in items], ["Deviate Hides", "Mage Only"], "the quests of this dungeon, lowest level first")
         self.assertIn("13", str(items[0].sub), "available from level 13")
+        self.assertIn("Horde", str(items[1].sub), "a quest of one faction says so")
         texts = " | ".join(self.texts(dj))
         self.assertIn("Deviate Hides", texts)
         self.assertIn("Bring 20 Deviate Hides to Nalpak.", texts)
-        self.assertIn("Nalpak, The Barrens", texts)
-        self.assertIn(self.a.L("dungeonsChoose"), texts, "choose one reward")
+        self.assertIn("Nalpak, The Barrens", texts, "who gives it, with the zone of the place")
+        self.assertIn(self.a.L("dungeonsChoose"), texts, "choose one reward (from the quest facts, the journal lists none)")
         badges = [str(dj.detail.pools.badge[i].text.text) for i in range(1, int(dj.detail.used.badge) + 1)]
-        self.assertIn("4,640 XP", badges, "XP is a compact reward badge, not a paragraph below the item list")
+        self.assertIn("1600 XP*", badges, "XP is a compact reward badge, not a paragraph below the item list")
         ids = [int(r.spec.itemId) for r in self.links(dj) if r.spec.itemId]
         self.assertEqual(ids, [6480, 918])
+        model = self.m.JournalQuestModel(dj.chosen.quest)
+        self.assertEqual([str(model.chain[i].name) for i in range(1, len(model.chain) + 1)], ["Earlier Errand"], "what must come first")
+        self.assertEqual(float(model.starts[1].spot.x), 0.46, "the giver has a place on the map")
+        self.assertEqual(str(self.m.JournalQuestModel(items[1].quest).classOnly), "Mage")
         last = self.links(dj)[-1]
         self.assertIn("1486", str(last.sub.text), "a way into the database for the quest")
 
     def test_a_refresh_of_the_window_keeps_the_tab_the_choice_and_the_dungeon(self):
         # the window is drawn again several times a second: it must not throw the player back to the first tab (it did)
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         row = dj.rows[2]
@@ -239,26 +257,29 @@ class DungeonTests(unittest.TestCase):
 
     # ---- the map ----
     def test_the_map_tab_draws_the_floor_and_a_numbered_mark_for_each_boss(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake(with_map=True)
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.tab(dj, "map")
         self.assertTrue(dj.mapArea.shown)
-        self.assertEqual(str(dj.map.single.texture), "Interface\\AddOns\\ForeverDungeonJournal\\Media\\DeadminesMap")
+        self.assertTrue(dj.tabs["map"].shown, "a dungeon with a map has the tab")
+        self.assertEqual(dj.map.single.texture, 1234567)
         marks = [m for m in lst(dj.map.marks) if m.shown]
         self.assertEqual([str(m.bossName) for m in marks], ["Rhahk'Zor", "Cookie"])
         self.assertEqual([str(m.num.text) for m in marks], ["1", "2"])
         self.open(dj, "Wailing Caverns") if False else None
 
-    def test_a_dungeon_without_a_map_says_so(self):
-        self.lua.execute(FAKE_JOURNAL)
+    def test_a_dungeon_without_a_map_has_no_map_tab_and_the_map_says_so(self):
+        self.fake()
         body, dj = self.page()
         self.open(dj, "Wailing Caverns")
+        self.assertFalse(dj.tabs["map"].shown, "no tab that only says there is nothing")
+        self.assertTrue(dj.tabs["bosses"].shown and dj.tabs["quests"].shown)
         self.tab(dj, "map")
         self.assertEqual(str(dj.map.note.text), self.a.L("dungeonsNoMap"))
 
     def test_a_boss_on_the_floor_map_opens_that_boss_and_his_loot(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake(with_map=True)
         body, dj = self.page(); self.open(dj, "The Deadmines"); self.tab(dj, "map")
         mark = dj.map.marks[2]
         mark.scripts.OnClick(mark)
@@ -269,7 +290,7 @@ class DungeonTests(unittest.TestCase):
 
     # ---- back, the entrance, the arrow ----
     def test_the_way_back_and_the_entrance(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.assertTrue(dj.show.shown and dj.go.shown, "The Deadmines has an entrance on the map")
@@ -279,7 +300,7 @@ class DungeonTests(unittest.TestCase):
         self.assertFalse(dj.show.shown)
 
     def test_opening_a_dungeon_by_name_asks_for_its_page(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         body, dj = self.page()
         self.assertTrue(self.m.OpenDungeonEntry("Wailing Caverns"))
         self.assertEqual(self.lua.globals().SHOWN, "dungeons")
@@ -288,7 +309,7 @@ class DungeonTests(unittest.TestCase):
         self.assertFalse(self.m.OpenDungeonEntry("No Such Place"))
 
     def test_a_dungeon_quest_that_questiedb_lacks_is_still_explained_in_a_record(self):
-        self.lua.execute(FAKE_JOURNAL)
+        self.fake()
         rows = lst(self.m.DatabaseRows("quest", 1486))
         self.assertEqual(str(rows[0].title), "Deviate Hides")
         self.assertIn("Wailing Caverns", str(rows[0].sub))
@@ -296,8 +317,9 @@ class DungeonTests(unittest.TestCase):
         unknown = lst(self.m.DatabaseRows("quest", 99999999))
         self.assertEqual(str(unknown[0].title), self.a.L("worldDbUnknown"))
 
-    # ---- without the add-on ----
+    # ---- without the data file ----
     def test_without_the_journal_the_known_instances_are_cards_and_the_page_says_what_is_missing(self):
+        self.m.dungeonData = None
         body, dj = self.page()
         names = self.names(dj)
         self.assertGreaterEqual(len(names), 40, "the 45 instances Evertally has the entrances of")
@@ -306,6 +328,29 @@ class DungeonTests(unittest.TestCase):
         self.assertTrue(dj.noJournal.shown)
         self.assertEqual(str(dj.noJournal.text), self.a.L("dungeonsNoJournal"))
         self.assertFalse(dj.tabs["bosses"].shown, "no tabs without the data")
+
+    # ---- the real data ----
+    def test_the_real_journal_has_every_dungeon_with_bosses_loot_art_and_quests_and_reads_no_other_add_on(self):
+        self.lua.execute("ForeverDungeonJournal_NS = setmetatable({}, {__index = function() error('read the other add-on') end})")
+        body, dj = self.page()
+        entries = {str(e.name): e for e in lst(dj.results)}
+        self.assertGreaterEqual(len(entries), 40, "44 dungeons and raids in DungeonData.lua")
+        for name in ("The Deadmines", "Wailing Caverns", "Stratholme: Living", "Stratholme: Undead", "Molten Core", "Hall of Thanes"):
+            self.assertIn(name, entries)
+            self.assertEqual(str(entries[name].source), "journal", name)
+            self.assertGreater(len(entries[name].data.bosses), 0, name)
+        deadmines = entries["The Deadmines"]
+        self.assertIsInstance(deadmines.banner, int, "a loading screen's file ID")
+        self.assertGreater(deadmines.quests, 0, "quests from QuestGuideData.lua")
+        first = deadmines.data.bosses[1]
+        self.assertEqual(str(first.name), "Rhahk'Zor")
+        self.assertEqual(int(first.loot[1][1]), 872)
+        # every dungeon of a quest in the catalogue is a page of the journal (the names agree)
+        quests = self.a.questGuideData.quests
+        dungeons = {str(q.dungeon) for q in quests.values() if q.dungeon}
+        self.assertEqual(dungeons - set(entries), set(), "a quest's dungeon with no page")
+        # every page with a written guide is one of the journal's
+        self.assertEqual({str(k) for k in self.m.dungeonGuides.keys()} - set(entries), set(), "a guide with no page")
 
 
 if __name__ == "__main__":
