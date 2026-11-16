@@ -17,6 +17,7 @@ local words = {
         chatRoomHint = "Room: the name (letters and digits) and an optional password after a space. The first one in creates it.",
         chatBadRoom = "Room names use 2–24 letters or digits and cannot be a game channel.",
         chatBadName = "Type a character name.", chatNotJoined = "You are not in this room yet; wait a moment or join it again.",
+        chatReadOnly = "Only Evertally's author writes here; everyone reads it.", chatLockedRoom = "Someone locked the %s room with a password. Evertally skips it for now; it is open to everyone, nobody should lock it.", chatLockedRoomShort = "This room is locked with a password: skipped.",
         chatJoined = "You joined the room.", chatLeft = "You left the room.", chatWrongPassword = "Wrong room password.",
         chatBanned = "You are banned from this room.", chatSendFailed = "The game did not accept the message.", chatUnread = "unread",
         chatNoApi = "This client cannot join chat channels.", chatTooMany = "The game allows only ten chat channels at once; leave one first."},
@@ -31,6 +32,7 @@ local words = {
         chatRoomHint = "Místnost: název (písmena a číslice) a za mezerou případně heslo. Kdo vejde první, ten ji založí.",
         chatBadRoom = "Název místnosti má 2–24 písmen nebo číslic a nesmí to být herní kanál.",
         chatBadName = "Napiš jméno postavy.", chatNotJoined = "V místnosti ještě nejsi; chvíli počkej nebo se připoj znovu.",
+        chatReadOnly = "Sem píše jen autor Evertally; ostatní čtou.", chatLockedRoom = "Místnost %s někdo zamkl heslem. Evertally ji zatím přeskočí; je pro všechny a nikdo ji nemá zamykat.", chatLockedRoomShort = "Místnost je zamčená heslem: přeskočeno.",
         chatJoined = "Připojil ses do místnosti.", chatLeft = "Opustil jsi místnost.", chatWrongPassword = "Špatné heslo místnosti.",
         chatBanned = "V této místnosti máš zákaz.", chatSendFailed = "Hra zprávu nepřijala.", chatUnread = "nepřečtené",
         chatNoApi = "Tento klient neumí vstoupit do chatových kanálů.", chatTooMany = "Hra dovolí najednou jen deset chatových kanálů; nejdřív nějaký opusť."},
@@ -74,6 +76,31 @@ for _, group in ipairs(C.CATALOG) do for _, room in ipairs(group.rooms) do room.
 function C.CatalogRoom(name) return type(name) == "string" and catalog[name:lower()] or nil end
 function C.Label(name) local room = C.CatalogRoom(name); return room and room.label or name end
 local reserved = {general = true, trade = true, localdefense = true, worlddefense = true, lookingforgroup = true, guildrecruitment = true, services = true, newcomerchat = true, world = true}
+
+-- #Evertally is the announcement room: everyone reads it, only these characters write in it (the author's, "Name Second"
+-- as the game folders write them). Anything else said in the channel is not shown by any Evertally client, and the box to
+-- write is not offered. Compared without spaces, dashes and case, since the game gives "Name-Second" or "Name Second".
+C.ANNOUNCE_ROOM = "evertally"
+local ANNOUNCERS = {
+    "Bratranec-Orkin", "Dva-Blesky", "Gadzo-Zostravy", "Healing-Booster", "Holywar-Cow", "Klasicky-Gadzo", "Mar-Dyx",
+    "Mardyx-Shoreborn", "Mardyx-Valdren", "Mardyx-Vexwick", "Mardyx-Warborn", "Mardyx-Znesvetitel", "Mistni-Ostravak",
+    "Naelvyr-Thalessan", "Obycejny-Gadzoro", "Ostravsky-Elektrikar", "Pet-Pan", "Petr-Kudla", "Sir-Dominik", "Titus-Mendel",
+    "Velky-Sef", "Vlasti-Zdrádce",
+}
+local function flat(name) return type(name) == "string" and name:gsub("[%s%-]", ""):lower() or nil end
+local announcers = {}
+for _, name in ipairs(ANNOUNCERS) do announcers[flat(name)] = true end
+--- Whether `sender` ("Name-Second" or "Name Second") may write in the announcement room.
+function C.IsAnnouncer(sender) local key = flat(A.Plain(sender)); return key ~= nil and announcers[key] == true end
+--- Whether this character may write in `room` (every room but the announcement room is open to all).
+function C.CanSpeak(room)
+    if type(room) ~= "string" or room:lower() ~= C.ANNOUNCE_ROOM then return true end
+    local name, second = A.Call(UnitFullName, "player")
+    local full = A.UnitPlayerName and A.UnitPlayerName("player")
+    return C.IsAnnouncer((A.Text(name, 60) or "") .. (A.Text(second, 60) or "")) or C.IsAnnouncer(full)
+end
+-- A fixed room someone locked with a password is skipped for the rest of the session (the game's password box is closed).
+C.locked = {}
 local function text(v, max) v = A.Plain(v); if type(v) == "string" and v ~= "" then return v:sub(1, max or 255) end end
 
 function C.Settings()
@@ -170,6 +197,8 @@ function C.JoinRoom(input, public, fixed)
         if #C.Rooms() >= MAX_ROOMS then return false, "chatTooMany" end
         room = {name = name}; table.insert(C.Rooms(), room)
     end
+    -- fixed rooms are open to everyone: never joined with a password, and one saved by an older version is dropped
+    if C.CatalogRoom(name) then password = nil; room.password = nil end
     if password then room.password = password end
     if public ~= nil and not fixed then room.public = public == true end
     C.Settings().left[name:lower()] = nil
@@ -204,7 +233,9 @@ function C.Rejoin()
     local n = 0
     for _, room in ipairs(C.Rooms()) do
         C.Conversation("room", room.name:lower(), C.Label(room.name))
-        if not channelIndex(room.name) then pcall(join, room.name, room.password); n = n + 1 end
+        local fixed = C.CatalogRoom(room.name) ~= nil
+        if fixed then room.password = nil end
+        if not channelIndex(room.name) and not C.locked[room.name:lower()] then pcall(join, room.name, not fixed and room.password or nil); n = n + 1 end
     end
     notify(); return n
 end
@@ -275,6 +306,7 @@ function C.Send(conv, message)
     end
     -- a fixed room shows its label ("General"); the channel is its own name ("EtGeneral")
     local room = savedRoom(conv.id); if not room then return false, "chatNotJoined" end
+    if not C.CanSpeak(room.name) then return false, "chatReadOnly" end
     local id = channelIndex(room.name); if not id then return false, "chatNotJoined" end
     local ok = send(message, "CHANNEL", id); return ok, not ok and "chatSendFailed" or nil
 end
@@ -302,6 +334,8 @@ function C.OnChannel(message, sender, _, channelName, _, _, _, _, baseName)
     if not C.Enabled() then return end
     local room = savedRoom(baseChannel(channelName, baseName)); if not room then return end
     message, sender = text(message, 4000), text(sender, 80); if not message or not sender then return end
+    -- the announcement room shows its authors only, whoever else writes in the channel
+    if room.name:lower() == C.ANNOUNCE_ROOM and not C.IsAnnouncer(sender) then return end
     local own = C.NameKey(A.Text(A.Call(UnitName, "player"), 60)) == C.NameKey(sender)
     C.Add(C.Conversation("room", room.name:lower(), C.Label(room.name)), short(sender), message, own)
 end
@@ -309,6 +343,15 @@ local notices = {YOU_JOINED = "chatJoined", YOU_CHANGED = "chatJoined", YOU_LEFT
 function C.OnNotice(kind, _, _, channelName, _, _, _, _, baseName)
     if not C.Enabled() then return end
     local room = savedRoom(baseChannel(channelName, baseName)); local key = notices[text(kind, 40) or ""]
+    -- someone locked a fixed room with a password: close the game's password box, say so, do not try again this session
+    if room and key == "chatWrongPassword" and C.CatalogRoom(room.name) then
+        C.locked[room.name:lower()] = true
+        local hide = function() if type(StaticPopup_Hide) == "function" then pcall(StaticPopup_Hide, "CHAT_CHANNEL_PASSWORD") end end
+        if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(0, hide) end
+        hide()
+        A.Print(string.format(A.L("chatLockedRoom"), C.Label(room.name)))
+        key = "chatLockedRoomShort"
+    end
     if room and key then C.Add(C.Conversation("room", room.name:lower(), C.Label(room.name)), "", A.L(key), false, true) end
 end
 

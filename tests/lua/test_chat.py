@@ -122,6 +122,38 @@ class ChatTests(unittest.TestCase):
         self.assertTrue(conv.lines[1].system)
         self.assertEqual(conv.lines[1].text, self.a.L("chatWrongPassword"))
 
+    def test_fixed_rooms_are_never_joined_with_a_password_even_one_saved_before(self):
+        self.lua.execute('Evertally.db.settings.chat.rooms={{name="Evertally",password="oops"},{name="Mine",password="secret"}}; JOINED={}; CHANNELS={}')
+        self.c.Rejoin()
+        joined = {str(j.name): j.password for j in self.lua.globals().JOINED.values()}
+        self.assertIsNone(joined["Evertally"], "a fixed room is open to everyone")
+        self.assertEqual(joined["Mine"], "secret", "a private room keeps its password")
+
+    def test_a_fixed_room_locked_with_a_password_closes_the_game_box_and_is_skipped(self):
+        self.c.Rejoin()
+        self.lua.execute("HIDDEN={}; StaticPopup_Hide=function(name) HIDDEN[#HIDDEN+1]=name end")
+        self.a.Dispatch("CHAT_MSG_CHANNEL_NOTICE", "WRONG_PASSWORD", "", "", "5. Evertally", "", "", 0, 5, "Evertally")
+        self.assertIn("CHAT_CHANNEL_PASSWORD", list(self.lua.globals().HIDDEN.values()))
+        self.lua.execute("JOINED={}; CHANNELS={}")
+        self.c.Rejoin()
+        self.assertNotIn("Evertally", [str(j.name) for j in self.lua.globals().JOINED.values()], "not tried again this session")
+
+    def test_only_the_authors_write_in_the_announcement_room_and_others_are_not_shown(self):
+        self.assertTrue(self.c.IsAnnouncer("Mardyx-Vexwick")); self.assertTrue(self.c.IsAnnouncer("Mardyx Vexwick"))
+        self.assertTrue(self.c.IsAnnouncer("sir dominik"))
+        self.assertFalse(self.c.IsAnnouncer("Mardyx-Someoneelse")); self.assertFalse(self.c.IsAnnouncer("Radu-Linek"))
+        self.c.Rejoin()
+        room = self.c.conversations["room:evertally"]
+        self.a.Dispatch("CHAT_MSG_CHANNEL", "spam", "Random-Player", "", "5. Evertally", "", "", 0, 5, "Evertally")
+        self.a.Dispatch("CHAT_MSG_CHANNEL", "Nova verze venku", "Mardyx-Vexwick", "", "5. Evertally", "", "", 0, 5, "Evertally")
+        self.assertEqual(self.lines(room), ["Nova verze venku"])
+        self.assertFalse(self.c.CanSpeak("Evertally"), "the fixture character is not an author")
+        ok, why = self.c.Send(room, "hello")
+        self.assertFalse(ok); self.assertEqual(why, "chatReadOnly")
+        self.lua.execute('UnitFullName=function() return "Mardyx", "Vexwick" end')
+        self.assertTrue(self.c.CanSpeak("Evertally"))
+        self.assertTrue(self.c.CanSpeak("EtGeneral"), "other rooms are open to all")
+
     def test_history_is_bounded_and_never_saved(self):
         for i in range(320): self.a.Dispatch("CHAT_MSG_WHISPER", "m%d" % i, "Bran")
         self.assertEqual(len(self.c.conversations["whisper:bran"].lines), 300)

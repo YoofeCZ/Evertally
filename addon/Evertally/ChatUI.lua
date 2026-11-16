@@ -411,7 +411,10 @@ function U.Redraw()
         local point, rel, relPoint, x, y = fs:GetPoint(1); fs:ClearAllPoints(); fs:SetPoint(point, rel, relPoint, x, y)
         fs:SetPoint("RIGHT", edge, "LEFT", -12, 0)
     end
-    w.input:SetShown(conv ~= nil); w.send:SetShown(conv ~= nil)
+    -- the announcement room has no box to write in for anyone but its authors; a line says why
+    local readOnly = conv ~= nil and conv.kind == "room" and not C.CanSpeak(conv.id)
+    w.input:SetShown(conv ~= nil and not readOnly); w.send:SetShown(conv ~= nil and not readOnly)
+    if readOnly then U.Status(A.L("chatReadOnly")) end
     w.hint:SetText(A.L(U.tab == "whispers" and listed == 0 and "chatEmpty" or "chatNoConv")); w.hint:SetShown(conv == nil and not browsing); w.hintLogo:SetShown(conv == nil and not browsing)
     if w.shownKey ~= (conv and conv.key) or w.shownCount ~= (conv and #conv.lines) then
         w.log:Clear()
