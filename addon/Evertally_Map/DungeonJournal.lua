@@ -17,7 +17,8 @@ local text = {
         dungeonsNoMap = "There is no map for this dungeon.", dungeonsEntrance = "Entrance", dungeonsShow = "Show the entrance on the map", dungeonsGo = "Navigate to the entrance",
         dungeonsNoJournal = "Evertally has no list of bosses, loot and quests for this one yet.",
         dungeonsFaction = "%s only", dungeonsInDb = "Open the quest in the database", dungeonsPlayers = "%d players", dungeonsIn = "In %s",
-        dungeonsLevel = "Level %s", dungeonsPickup = "From", dungeonsRewards = "Reward"},
+        dungeonsLevel = "Level %s", dungeonsPickup = "From", dungeonsRewards = "Reward", dungeonsNpcInDb = "Open the boss in the database",
+        dungeonsFloor = "Floor %d", dungeonsLearned = "level seen in the game"},
     cs = {dungeonsSearch = "Hledat dungeony", dungeonsCount = "Dungeonů a raidů: %d", dungeonsBosses = "Bossové", dungeonsQuests = "Questy", dungeonsMap = "Mapa",
         dungeonsBack = "< Dungeony", dungeonsNone = "Nic nenalezeno.", dungeonsQuestCount = "Questů: %d", dungeonsLv = "LV %s", dungeonsFrom = "Dostupné od úrovně %s",
         dungeonsObjective = "Cíl", dungeonsStarts = "Začíná u", dungeonsTurnin = "Odevzdat u", dungeonsChoose = "Vyber jednu odměnu", dungeonsAlso = "Dostaneš také",
@@ -25,14 +26,16 @@ local text = {
         dungeonsNoMap = "Pro tenhle dungeon není mapa.", dungeonsEntrance = "Vchod", dungeonsShow = "Ukázat vchod na mapě", dungeonsGo = "Navigovat ke vchodu",
         dungeonsNoJournal = "Pro tenhle Evertally zatím nemá seznam bossů, lootu a questů.",
         dungeonsFaction = "Jen %s", dungeonsInDb = "Otevřít quest v databázi", dungeonsPlayers = "Hráčů: %d", dungeonsIn = "V %s",
-        dungeonsLevel = "Úroveň %s", dungeonsPickup = "Od", dungeonsRewards = "Odměna"},
+        dungeonsLevel = "Úroveň %s", dungeonsPickup = "Od", dungeonsRewards = "Odměna", dungeonsNpcInDb = "Otevřít bosse v databázi",
+        dungeonsFloor = "Patro %d", dungeonsLearned = "úroveň viděná ve hře"},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
 -- ---------------------------------------------------------------- the data
 -- Evertally's own journal (no other add-on needed): dungeons, bosses and loot from DungeonData.lua (AtlasLoot facts), the quests of
--- each dungeon from QuestGuideData.lua (QuestieDB facts), the art a loading screen the game draws by file ID. Built once, in the
--- shape the page reads (DB, DUNGEON_HOME_ART, DUNGEON_HOME_TEXCOORD, QUEST_PREREQ_CHAINS).
+-- each dungeon from QuestGuideData.lua (QuestieDB facts), the art a loading screen the game draws by file ID, boss levels, portraits
+-- (a model the game draws by its display ID) and the floor maps (tiles the game draws by file ID, a mark where each boss stands).
+-- Built once, in the shape the page reads (DB, BOSS_LEVELS, DUNGEON_HOME_ART, DUNGEON_HOME_TEXCOORD, DUNGEON_MAPS, QUEST_PREREQ_CHAINS).
 local CLASS_BITS = {{1, "Warrior"}, {2, "Paladin"}, {4, "Hunter"}, {8, "Rogue"}, {16, "Priest"}, {64, "Shaman"}, {128, "Mage"}, {256, "Warlock"}, {1024, "Druid"}}
 local function classesOf(mask)
     mask = tonumber(mask) or 0
@@ -73,22 +76,38 @@ local function journal()
             if #before > 0 then chains[id] = before end
         end
     end
-    local db, art, coords = {}, {}, {}
+    local db, art, coords, levels, maps = {}, {}, {}, {}, {}
+    local allFloors = type(M.dungeonFloors) == "table" and M.dungeonFloors or {}
     for name, d in pairs(M.dungeonData) do
-        local bosses = {}
+        local bosses, bossLevels, marks, onFloor = {}, {}, {}, {}
         for _, b in ipairs(d.bosses or {}) do
             local loot = {}
             for _, row in ipairs(b.loot or {}) do loot[#loot + 1] = {row[1], row[2] or ("#" .. tostring(row[1])), row[3] ~= "" and row[3] or nil, row[4] or 1} end
-            bosses[#bosses + 1] = {name = b.name, npcID = b.npc, loot = loot}
+            bosses[#bosses + 1] = {name = b.name, npcID = b.npc, loot = loot, display = b.display}
+            if type(b.level) == "table" and b.level[1] then
+                bossLevels[b.name] = b.level[1] == b.level[2] and tostring(b.level[1]) or (tostring(b.level[1]) .. "-" .. tostring(b.level[2]))
+            end
+            if type(b.pos) == "table" and b.pos[1] then marks[#marks + 1] = {name = b.name, at = b.pos[1], x = b.pos[2], y = b.pos[3]}; onFloor[b.pos[1]] = true end
+        end
+        levels[name] = bossLevels
+        -- the floors this one uses (the wings of an instance share its floors: a wing shows those its bosses stand on)
+        local source = d.floors and allFloors[d.floors]
+        if type(source) == "table" and #marks > 0 then
+            local floors, index = {}, {}
+            for i, floor in ipairs(source) do
+                if onFloor[i] then floors[#floors + 1] = floor; index[i] = #floors end
+            end
+            for _, mark in ipairs(marks) do mark.floor = index[mark.at] end
+            maps[name] = {floors = floors, bosses = marks}
         end
         local list = byDungeon[name] or {}
         table.sort(list, function(a, b) if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end; return tostring(a.name) < tostring(b.name) end)
-        local level = d.level and (tostring(d.level[2]) .. "-" .. tostring(d.level[3])) or ""
+        local level = d.level and (d.level[2] == d.level[3] and tostring(d.level[2]) or (tostring(d.level[2]) .. "-" .. tostring(d.level[3]))) or ""
         db[name] = {level = level, location = "", isRaid = d.raid, bosses = bosses, quests = list}
         -- a loading screen is 4:3: the card shows its middle band
         if d.art then art[name] = d.art; coords[name] = {0, 1, 0.22, 0.72} end
     end
-    own = {DB = db, DUNGEON_HOME_ART = art, DUNGEON_HOME_TEXCOORD = coords, QUEST_PREREQ_CHAINS = chains, own = true}
+    own = {DB = db, BOSS_LEVELS = levels, DUNGEON_MAPS = maps, DUNGEON_HOME_ART = art, DUNGEON_HOME_TEXCOORD = coords, QUEST_PREREQ_CHAINS = chains, own = true}
     M.ownJournal = own
     return own
 end
@@ -157,11 +176,53 @@ function M.DungeonQuestRows(id)
 end
 
 local function portraitOf(boss) return boss.customIcon or BOSS_ICON end
--- a boss's level, when the journal has one (Evertally's own data does not list them yet)
+--- Draws the boss on `texture`: the game's portrait of its model when the journal knows the model, else the skull.
+local function paintBoss(texture, boss)
+    local display = boss and tonumber(boss.display)
+    if display and type(SetPortraitTextureFromCreatureDisplayID) == "function" and pcall(SetPortraitTextureFromCreatureDisplayID, texture, display) then
+        texture:SetTexCoord(0, 1, 0, 1); return
+    end
+    texture:SetTexture(portraitOf(boss or {})); texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+end
+M.PaintBoss = paintBoss
+-- what the game showed of a boss the data has no level for (Forever's own dungeons): its NPC ID -> level, -1 for a skull ("??")
+local function learned() return A.db and type(A.db.bossLevels) == "table" and A.db.bossLevels or nil end
+--- A boss's level: the journal's, else the one the game showed when the player saw it.
 local function bossLevel(entry, boss)
     local fdj = journal()
     local levels = fdj and type(fdj.BOSS_LEVELS) == "table" and fdj.BOSS_LEVELS[entry.name]
-    return type(levels) == "table" and levels[boss.name] or nil
+    local level = type(levels) == "table" and levels[boss.name] or nil
+    if level then return level end
+    local seen = boss.npcID and learned() and learned()[boss.npcID]
+    if seen then return seen == -1 and "??" or tostring(seen), true end
+end
+--- Remembers the level of a boss the player sees (target or mouse-over) when the journal has none for it.
+local wanted
+function M.LearnBossLevel(unit)
+    if not A.db then return end
+    if not wanted then
+        wanted = {}
+        local fdj = journal()
+        for name, d in pairs(fdj and fdj.DB or {}) do
+            local levels = fdj.BOSS_LEVELS and fdj.BOSS_LEVELS[name] or {}
+            for _, b in ipairs(d.bosses or {}) do if b.npcID and not levels[b.name] then wanted[b.npcID] = true end end
+        end
+    end
+    local guid = A.Text(A.Call(UnitGUID, unit), 100)
+    if not guid then return end
+    local kind, npc = guid:match("^(%a+)%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
+    npc = tonumber(npc)
+    if kind ~= "Creature" or not npc or not wanted[npc] then return end
+    local level = A.Number(A.Call(UnitLevel, unit), -1, 999)
+    if not level or level == 0 then return end
+    A.db.bossLevels = A.db.bossLevels or {}
+    A.db.bossLevels[npc] = level
+    return level
+end
+do
+    local watcher = CreateFrame("Frame")
+    for _, event in ipairs({"PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT"}) do pcall(watcher.RegisterEvent, watcher, event) end
+    watcher:SetScript("OnEvent", function(_, event) pcall(M.LearnBossLevel, event == "PLAYER_TARGET_CHANGED" and "target" or "mouseover") end)
 end
 --- The map of a dungeon with its floors and boss marks, when the journal has one.
 local function mapOf(entry)
@@ -174,8 +235,10 @@ end
 local function showBoss(dj, boss)
     local d = dj.detail
     d.SetTheme("parchment"); d.Reset("boss:" .. tostring(boss.npcID or boss.name)); d.model = nil
-    local level = bossLevel(dj.selected, boss)
+    local level, seen = bossLevel(dj.selected, boss)
     d.PortraitHeader(tostring(boss.name or "?") .. (level and ("   " .. string.format(A.L("dungeonsLv"), level)) or ""), portraitOf(boss))
+    if d.portrait and d.portrait.icon then paintBoss(d.portrait.icon, boss) end
+    if seen then d.Text(A.L("dungeonsLearned"), d.ink) end
     if boss.description then d.Text(boss.description) end
     if M.DungeonGuide then M.DungeonGuide.RenderBoss(d, dj.selected, boss) end
     d.Head(A.L("dungeonsLoot"))
@@ -189,6 +252,10 @@ local function showBoss(dj, boss)
         end
     end
     if shown == 0 then d.Text(A.L("dungeonsNoLoot"), d.ink) end
+    if tonumber(boss.npcID) then
+        d.Link({icon = BOSS_ICON, title = A.L("dungeonsNpcInDb"), sub = "#" .. boss.npcID,
+            onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("npc", tonumber(boss.npcID)) end end})
+    end
     d.Done()
 end
 
@@ -208,12 +275,28 @@ local function drawMap(dj)
     for _, mark in ipairs(m.marks) do mark:Hide() end
     m.single:Hide(); m.note:SetText("")
     local data = mapOf(dj.selected)
+    -- a button for each floor when there are more of them
+    local count = data and #data.floors or 0
+    for i = 1, math.max(count, #m.floorChips) do
+        local chip = m.floorChips[i]
+        if i <= count and count > 1 then
+            if not chip then
+                chip = dj.kit.Chip(dj.mapArea, function() dj.floorIndex = i; drawMap(dj) end)
+                if i == 1 then chip:SetPoint("TOPLEFT", 0, 0) else chip:SetPoint("LEFT", m.floorChips[i - 1], "RIGHT", 6, 0) end
+                m.floorChips[i] = chip
+            end
+            local label = data.floors[i].name
+            chip.SetLabel(label and label ~= "" and A.Plain(label) or string.format(A.L("dungeonsFloor"), i)); chip.SetOn(i == (dj.floorIndex or 1)); chip:Show()
+        elseif chip then chip:Hide() end
+    end
     local floor = data and data.floors and data.floors[dj.floorIndex or 1]
     if not floor then m.note:SetText(A.L("dungeonsNoMap")); return end
     local aspect = floor.texture and (1 / (floor.texBottom or 1)) or 1002 / 668
-    local w, h = m.area:GetWidth() or 400, m.area:GetHeight() or 300
+    -- (room for the floor buttons above the map)
+    local top = count > 1 and 32 or 0
+    local w, h = m.area:GetWidth() or 400, (m.area:GetHeight() or 300) - top
     local mw = math.min(w, h * aspect); local mh = mw / aspect
-    m.frame:ClearAllPoints(); m.frame:SetSize(mw, mh); m.frame:SetPoint("CENTER", m.area, "CENTER", 0, 0)
+    m.frame:ClearAllPoints(); m.frame:SetSize(mw, mh); m.frame:SetPoint("CENTER", m.area, "CENTER", 0, -top / 2)
     if floor.texture then
         m.single:SetTexture(floor.texture); m.single:SetTexCoord(0, 1, 0, floor.texBottom or 1); m.single:Show()
     elseif floor.tiles then
@@ -223,30 +306,44 @@ local function drawMap(dj)
             tile:ClearAllPoints()
             tile:SetPoint("TOPLEFT", m.frame, "TOPLEFT", col * 256 / 1002 * mw, -row * 256 / 668 * mh)
             tile:SetSize(math.min(256, 1002 - col * 256) / 1002 * mw, math.min(256, 668 - row * 256) / 668 * mh)
-            tile:SetTexture(floor.tiles .. i)
+            tile:SetTexture(type(floor.tiles) == "table" and floor.tiles[i] or (tostring(floor.tiles) .. i))
             tile:SetTexCoord(0, col == 3 and (1002 - 768) / 256 or 1, 0, row == 2 and (668 - 512) / 256 or 1)
             tile:Show()
         end
     end
     local at = 0
+    -- the number of a mark is the boss's place in the Bosses list
+    local order = {}
+    local byName = {}
+    for i, b in ipairs(dj.selected and dj.selected.data and dj.selected.data.bosses or {}) do order[b.name] = i; byName[b.name] = b end
     for i, boss in ipairs(data.bosses or {}) do
         if (boss.floor or 1) == (dj.floorIndex or 1) and tonumber(boss.x) and tonumber(boss.y) then
             at = at + 1
             local mark = m.marks[at]
             if not mark then
+                -- the boss's portrait in a gold ring, its number in the Bosses list in a small badge at the bottom
                 mark = CreateFrame("Button", nil, m.frame)
-                mark:SetSize(24, 24)
-                mark.bg = mark:CreateTexture(nil, "BACKGROUND"); mark.bg:SetAllPoints(); mark.bg:SetTexture("Interface\\AddOns\\Evertally_Map\\Media\\dot")
-                mark.num = dj.kit.label(mark, 11, {1, 1, 1}); mark.num:SetPoint("CENTER"); mark.num:SetJustifyH("CENTER")
+                mark:SetSize(34, 34)
+                mark.ring = mark:CreateTexture(nil, "BACKGROUND"); mark.ring:SetPoint("TOPLEFT", -2, 2); mark.ring:SetPoint("BOTTOMRIGHT", 2, -2)
+                mark.ring:SetTexture("Interface\\AddOns\\Evertally_Map\\Media\\dot"); mark.ring:SetVertexColor(GOLD[1], GOLD[2], GOLD[3])
+                mark.bg = mark:CreateTexture(nil, "ARTWORK"); mark.bg:SetAllPoints()
+                mark.round = mark.CreateMaskTexture and mark:CreateMaskTexture() or nil
+                if mark.round then
+                    mark.round:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE"); mark.round:SetAllPoints(mark.bg)
+                    pcall(mark.bg.AddMaskTexture, mark.bg, mark.round)
+                end
+                mark.badge = mark:CreateTexture(nil, "OVERLAY"); mark.badge:SetSize(15, 15); mark.badge:SetPoint("BOTTOMRIGHT", 4, -4)
+                mark.badge:SetTexture("Interface\\AddOns\\Evertally_Map\\Media\\dot"); mark.badge:SetVertexColor(0.12, 0.09, 0.06)
+                mark.num = dj.kit.label(mark, 9, {1, 0.86, 0.5}); mark.num:SetPoint("CENTER", mark.badge, "CENTER", 0, 0); mark.num:SetJustifyH("CENTER")
                 mark:SetScript("OnEnter", function(self) if GameTooltip then pcall(function() GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(self.bossName or "?"); GameTooltip:Show() end) end end)
                 mark:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
                 mark:SetScript("OnClick", function(self) if dj.OpenBossByName then dj.OpenBossByName(self.bossName) end end)
                 m.marks[at] = mark
             end
             mark.bossName = boss.name
-            mark.bg:SetVertexColor(0.55, 0.15, 0.15)
-            mark.num:SetText(tostring(i))
-            mark:ClearAllPoints(); mark:SetPoint("CENTER", m.frame, "TOPLEFT", boss.x * mw, -boss.y * mh)
+            paintBoss(mark.bg, byName[boss.name] or {name = boss.name})
+            mark.num:SetText(tostring(order[boss.name] or i))
+            mark:ClearAllPoints(); mark:SetPoint("CENTER", m.frame, "TOPLEFT", math.max(0, math.min(1, boss.x)) * mw, -math.max(0, math.min(1, boss.y)) * mh)
             mark:Show()
         end
     end
@@ -306,7 +403,7 @@ local function refreshList(dj)
         row.item = item
         row:SetShown(item ~= nil and i <= dj.visibleRows and dj.mode == "dungeon" and dj.tab ~= "map")
         if item then
-            row.icon:SetTexture(item.icon or BOSS_ICON)
+            if item.boss then paintBoss(row.icon, item.boss) else row.icon:SetTexture(item.icon or BOSS_ICON); row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
             row.name:SetText(A.Plain(item.title)); row.sub:SetText(A.Plain(item.sub or "")); row.badge:SetText(item.badge or "")
             row.bg:SetAlpha(item == dj.chosen and 0.18 or 0.025)
             row.accent:SetShown(item == dj.chosen)
@@ -522,7 +619,7 @@ function M.BuildDungeons(body, kit)
     dj.go:SetPoint("BOTTOMLEFT", dj.show, "BOTTOMRIGHT", 8, 0); dj.go:Hide()
     -- the map tab
     dj.mapArea = CreateFrame("Frame", nil, body); dj.mapArea:Hide()
-    local m = {area = dj.mapArea, tiles = {}, marks = {}}
+    local m = {area = dj.mapArea, tiles = {}, marks = {}, floorChips = {}}
     m.frame = CreateFrame("Frame", nil, dj.mapArea); m.frame:SetSize(400, 300)
     m.single = m.frame:CreateTexture(nil, "ARTWORK"); m.single:SetAllPoints(); m.single:Hide()
     for i = 1, 12 do m.tiles[i] = m.frame:CreateTexture(nil, "ARTWORK"); m.tiles[i]:Hide() end

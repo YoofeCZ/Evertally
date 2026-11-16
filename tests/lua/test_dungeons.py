@@ -14,6 +14,7 @@ FAKE_JOURNAL = """
 local M, A = ...
 local zones = {[1436] = "Westfall", [1413] = "The Barrens"}
 C_Map.GetMapInfo = function(id) return {name = zones[id] or ("Map " .. id)} end
+A.OpenDatabaseEntry = function(kind, id) OPENED = {kind, id} end
 M.dungeonData = {
   ["Wailing Caverns"] = {name = "Wailing Caverns", raid = false, level = {10, 15, 24}, art = 131882,
     bosses = {{name = "Lord Cobrahn", npc = 3669, loot = {{6460, "Cobrahn's Grasp", "Waist, Leather", 3}}}}},
@@ -30,10 +31,16 @@ A.questGuideData = {quests = {
   [1487] = {id = 1487, title = "Mage Only", level = 18, minLevel = 14, faction = "Horde", classMask = 128, dungeon = "Wailing Caverns"},
 }}
 """
+# levels, a portrait, places on the floors (the second floor of the three has no boss of this dungeon: not shown)
 FAKE_MAP = """
 local M = ...
-M.Journal().DUNGEON_MAPS = {["The Deadmines"] = {floors = {{texture = 1234567, texBottom = 683 / 1024}},
-  bosses = {{name = "Rhahk'Zor", x = 0.5, y = 0.7}, {name = "Cookie", x = 0.3, y = 0.2}}}}
+local dm = M.dungeonData["The Deadmines"]
+dm.floors = 36
+dm.bosses[1].level = {19, 19}; dm.bosses[1].display = 14403; dm.bosses[1].pos = {1, 0.5, 0.7}
+dm.bosses[2].level = {20, 21}; dm.bosses[2].pos = {3, 0.3, 0.2}
+local function tiles(base) local t = {} for i = 1, 12 do t[i] = base + i end return t end
+M.dungeonFloors = {[36] = {{tiles = tiles(100), name = "The Mine"}, {tiles = tiles(200)}, {tiles = tiles(300), name = "Ironclad Cove"}}}
+SetPortraitTextureFromCreatureDisplayID = function(texture, id) texture:SetTexture("portrait:" .. id) end
 """
 
 
@@ -139,8 +146,12 @@ class DungeonTests(unittest.TestCase):
         body, dj = self.page()
         self.open(dj, "The Deadmines")
         self.tab(dj, "bosses")
-        links = self.links(dj)
+        links = [r for r in self.links(dj) if r.spec.itemId]
         self.assertEqual([int(r.spec.itemId) for r in links], [872, 5187])
+        npc = [r for r in self.links(dj) if not r.spec.itemId][-1]
+        self.assertEqual(str(npc.sub.text), "#644", "a way into the database for the boss")
+        npc.scripts.OnClick(npc)
+        self.assertEqual(list(self.lua.globals().OPENED.values()), ["npc", 644])
         self.assertEqual(str(links[0].title.text), "Rockslicer")
         self.assertEqual(str(links[0].sub.text), "Two-Hand, Axe")
         self.assertEqual(links[0].icon.texture, 130872, "the item's own icon")
@@ -158,7 +169,7 @@ class DungeonTests(unittest.TestCase):
         self.tab(dj, "bosses")
         row = dj.rows[2]
         row.scripts.OnClick(row)
-        self.assertEqual([int(r.spec.itemId) for r in self.links(dj)], [5197, 5198])
+        self.assertEqual([int(r.spec.itemId) for r in self.links(dj) if r.spec.itemId], [5197, 5198])
 
     # ---- the guide ----
     def test_the_guide_has_an_overview_role_advice_and_class_tips_with_the_players_class_first(self):
@@ -239,12 +250,12 @@ class DungeonTests(unittest.TestCase):
         self.tab(dj, "bosses")
         row = dj.rows[2]
         row.scripts.OnClick(row)
-        before = [int(r.spec.itemId) for r in self.links(dj)]
+        before = [int(r.spec.itemId) for r in self.links(dj) if r.spec.itemId]
         for _ in range(5):
             self.m.RefreshDungeons(body)
         self.assertEqual(str(dj.mode), "dungeon")
         self.assertEqual(str(dj.tab), "bosses")
-        self.assertEqual([int(r.spec.itemId) for r in self.links(dj)], before, "the second boss is still the one shown")
+        self.assertEqual([int(r.spec.itemId) for r in self.links(dj) if r.spec.itemId], before, "the second boss is still the one shown")
         self.open(dj, "The Deadmines") if False else None
         dj.back.scripts.OnClick(dj.back)
         self.open(dj, "Wailing Caverns")
@@ -263,11 +274,42 @@ class DungeonTests(unittest.TestCase):
         self.tab(dj, "map")
         self.assertTrue(dj.mapArea.shown)
         self.assertTrue(dj.tabs["map"].shown, "a dungeon with a map has the tab")
-        self.assertEqual(dj.map.single.texture, 1234567)
+        self.assertEqual([dj.map.tiles[i].texture for i in (1, 12)], [101, 112], "the floor's tiles, drawn by file ID")
+        chips = [c for c in lst(dj.map.floorChips) if c.shown]
+        self.assertEqual(len(chips), 2, "a button for each floor a boss stands on")
         marks = [m for m in lst(dj.map.marks) if m.shown]
-        self.assertEqual([str(m.bossName) for m in marks], ["Rhahk'Zor", "Cookie"])
-        self.assertEqual([str(m.num.text) for m in marks], ["1", "2"])
-        self.open(dj, "Wailing Caverns") if False else None
+        self.assertEqual([str(m.bossName) for m in marks], ["Rhahk'Zor"])
+        self.assertEqual([str(m.num.text) for m in marks], ["1"])
+        chips[1].scripts.OnClick(chips[1])
+        self.assertEqual(dj.map.tiles[1].texture, 301, "the other floor")
+        marks = [m for m in lst(dj.map.marks) if m.shown]
+        self.assertEqual([(str(m.bossName), str(m.num.text)) for m in marks], [("Cookie", "2")], "numbered as in the Bosses list")
+        chips[0].scripts.OnClick(chips[0])
+        mark = [m for m in lst(dj.map.marks) if m.shown][0]
+        self.assertEqual(str(mark.bg.texture), "portrait:14403", "a mark is the boss's portrait, not a dot")
+
+    def test_bosses_have_their_levels_and_a_portrait_of_their_model(self):
+        self.fake(with_map=True)
+        body, dj = self.page()
+        self.open(dj, "The Deadmines")
+        self.tab(dj, "bosses")
+        items = lst(dj["items"])
+        self.assertEqual([str(i.badge) for i in items], ["LV 19", "LV 20-21"])
+        self.assertEqual(str(dj.rows[1].icon.texture), "portrait:14403", "the game draws the boss's model")
+        self.assertIn("Skull", str(dj.rows[2].icon.texture), "no model known: the skull")
+        self.assertEqual(str(dj.detail.portrait.icon.texture), "portrait:14403")
+
+    def test_a_boss_without_a_level_learns_it_when_the_player_sees_him(self):
+        self.fake()
+        self.lua.execute('UnitGUID=function() return "Creature-0-1-2-3-3669-0000ABCD" end; UnitLevel=function() return 20 end')
+        body, dj = self.page()
+        self.assertEqual(self.m.LearnBossLevel("target"), 20)
+        self.lua.execute('UnitGUID=function() return "Creature-0-1-2-3-9999-0000ABCD" end')
+        self.assertIsNone(self.m.LearnBossLevel("target"), "not a boss of the journal")
+        self.open(dj, "Wailing Caverns")
+        self.tab(dj, "bosses")
+        self.assertEqual(str(lst(dj["items"])[0].badge), "LV 20")
+        self.assertIn(self.a.L("dungeonsLearned"), self.texts(dj), "says where the level comes from")
 
     def test_a_dungeon_without_a_map_has_no_map_tab_and_the_map_says_so(self):
         self.fake()
@@ -281,11 +323,12 @@ class DungeonTests(unittest.TestCase):
     def test_a_boss_on_the_floor_map_opens_that_boss_and_his_loot(self):
         self.fake(with_map=True)
         body, dj = self.page(); self.open(dj, "The Deadmines"); self.tab(dj, "map")
-        mark = dj.map.marks[2]
+        chip = dj.map.floorChips[2]; chip.scripts.OnClick(chip)
+        mark = dj.map.marks[1]
         mark.scripts.OnClick(mark)
         self.assertEqual(dj.tab, "bosses")
         self.assertEqual(dj.chosen.boss.name, "Cookie")
-        self.assertEqual([int(r.spec.itemId) for r in self.links(dj)], [5197, 5198])
+        self.assertEqual([int(r.spec.itemId) for r in self.links(dj) if r.spec.itemId], [5197, 5198])
         self.assertTrue(dj.detail.portrait.shown)
 
     # ---- back, the entrance, the arrow ----

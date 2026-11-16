@@ -7,6 +7,9 @@ Only facts, from licensed or game sources (see THIRD_PARTY.md):
   * the client's Map table (shared/sources/Map.csv) + Wago LoadingScreens (build 1.60.1.70291)  the loading screen of each instance,
     drawn by the game by its file ID (no art is shipped)
   * the item cache (tools/db_sources.item_cache)  item names, quality and slot
+  * QuestieDB Forever (installed) + CMaNGOS ClassicDB  boss levels, NPC IDs of Forever's own bosses, model (display) IDs for the
+    portrait the game draws, spawn positions placed on the floor maps (tools/dungeon_facts.py), the level a raid's portal asks for
+  * OpenMap DungeonMaps (MIT) + the client's UiMap tables  the floor maps as tile file IDs the game draws (no art is shipped)
 Quests come at run time from QuestGuideData.lua (QuestieDB facts); the tactics and advice are Evertally's own (DungeonGuide*.lua).
 Nothing is taken from the DungeonJournal add-on (All Rights Reserved).
 """
@@ -22,10 +25,11 @@ import lupa
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import db_sources as D  # noqa: E402
+import dungeon_facts as F  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "addon" / "Evertally_Map" / "DungeonData.lua"
-LOADING = Path(sys.argv[1]) if len(sys.argv) > 1 else None   # LoadingScreens.csv from wago.tools (build 1.60.1.70291)
+LOADING = Path(sys.argv[1]) if len(sys.argv) > 1 else D.SOURCE / "wago-wowf-70938" / "LoadingScreens.csv"   # wago.tools, Forever's own build
 
 # AtlasLoot key -> (journal name, client map ID for the loading screen or None, raid?)
 DUNGEONS = {
@@ -101,6 +105,49 @@ def main() -> None:
     data = lua.execute(D._ATLAS_PRELUDE)((D.ATLASLOOT / "data.lua").read_text(encoding="utf8"), "data.lua")
     table = lambda v: v if lupa.lua_type(v) == "table" else None  # noqa: E731
     items, art = item_facts(), loading_art()
+    questie = D.Questie()
+    q_names: dict[str, list[int]] = {}
+    for nid in questie.ids["Npc"]:
+        n = questie.row("Npc", nid).get(1)
+        if isinstance(n, str):
+            q_names.setdefault(n, []).append(nid)
+    classic = F.ClassicDB()
+    floors = F.Floors()
+    displays = F.forever_displays()
+    used_floors: set[int] = set()
+
+    def enrich(b: dict, map_id) -> None:
+        """the NPC ID (Forever's own bosses: the only one of that name QuestieDB places somewhere), level, model and place"""
+        if not b["npc"]:
+            placed = [n for n in q_names.get(b["name"], []) if questie.field("Npc", n, 9) is not None]
+            if len(placed) == 1:
+                b["npc"] = placed[0]
+        npc = b["npc"]
+        if map_id:
+            where = floors.journal_place(map_id, b["name"])
+            if where:
+                b["pos"] = list(where)
+                used_floors.add(map_id)
+        if not npc:
+            return
+        row = questie.row("Npc", npc)
+        t = classic.templates.get(npc)
+        low, high = row.get(4), row.get(5)
+        if not (isinstance(low, int) and low > 0) and t:
+            low, high = t["min"], t["max"]
+        if isinstance(low, int) and 0 < low < 100:
+            b["level"] = [low, high if isinstance(high, int) and high >= low else low]
+        if t:
+            model = next((m for m in t["models"] if m in displays), None)
+            if model:
+                b["display"] = model
+        for spawn_map, x, y, z in classic.spawns.get(npc, []):
+            if map_id and spawn_map == map_id:
+                where = floors.place(map_id, x, y, z)
+                if where:
+                    b["pos"] = list(where)
+                    used_floors.add(map_id)
+                    break
     dungeons: dict[str, dict] = {}
     for key, (name, map_id, raid) in DUNGEONS.items():
         inst = table(data[key])
@@ -133,7 +180,12 @@ def main() -> None:
                         loot.append(int(item))
             npc = boss["npcID"]
             bosses.append({"name": label, "npc": int(npc) if isinstance(npc, (int, float)) else None, "loot": loot})
-        entry = {"name": name, "level": level, "raid": raid, "art": art.get(map_id) if map_id else None, "bosses": bosses}
+        if not level and raid and map_id and classic.portal_level.get(map_id):
+            level = [classic.portal_level[map_id], 60, 60]   # a vanilla raid: its portal's level, and level-60 content
+        for b in bosses:
+            enrich(b, map_id)
+        entry = {"name": name, "level": level, "raid": raid, "art": art.get(map_id) if map_id else None, "bosses": bosses,
+                 "floors": map_id if map_id in floors.floors else None}
         if key == "Stratholme":
             living = [b for b in bosses if b["name"] not in STRAT_UNDEAD]
             undead = [b for b in bosses if b["name"] in STRAT_UNDEAD]
@@ -153,6 +205,8 @@ def main() -> None:
             parts.append("level={%d,%d,%d}" % tuple(d["level"]))
         if d["art"]:
             parts.append(f"art={d['art']}")
+        if d["floors"] and d["floors"] in used_floors:
+            parts.append(f"floors={d['floors']}")
         bosses = []
         for b in d["bosses"]:
             loot = []
@@ -164,14 +218,31 @@ def main() -> None:
                     missing_items += 1
                     loot.append("{%d}" % item)
             npc = f",npc={b['npc']}" if b["npc"] else ""
+            if b.get("level"):
+                npc += ",level={%d,%d}" % tuple(b["level"])
+            if b.get("display"):
+                npc += f",display={b['display']}"
+            if b.get("pos"):
+                npc += ",pos={%d,%s,%s}" % (b["pos"][0] + 1, b["pos"][1], b["pos"][2])
             bosses.append("{name=%s%s,loot={%s}}" % (lua_string(b["name"]), npc, ",".join(loot)))
         parts.append("bosses={" + ",\n    ".join(bosses) + "}")
         lines.append(f"[{lua_string(name)}] = {{" + ", ".join(parts) + "},")
     lines.append("}")
+    # the floors of each instance: {tiles = 12 file IDs (4 x 3 of 256 px, the picture is the top left 1002 x 668), name}
+    lines.append("M.dungeonFloors = {")
+    for map_id in sorted(used_floors):
+        rows = []
+        for floor in floors.floors[map_id]:
+            name = f", name={lua_string(floor['name'])}" if floor.get("name") else ""
+            rows.append("{tiles={%s}%s}" % (",".join(str(t) for t in floor["tiles"]), name))
+        lines.append(f"[{map_id}] = {{" + ", ".join(rows) + "},")
+    lines.append("}")
     OUT.write_text("\n".join(lines) + "\n", encoding="utf8")
     print(f"{len(dungeons)} dungeons and raids, {sum(len(d['bosses']) for d in dungeons.values())} bosses, "
           f"{sum(len(b['loot']) for d in dungeons.values() for b in d['bosses'])} loot rows ({missing_items} without a cached name), "
-          f"{sum(1 for d in dungeons.values() if d['art'])} with art -> {OUT}")
+          f"{sum(1 for d in dungeons.values() if d['art'])} with art; bosses with a level {sum(1 for d in dungeons.values() for b in d['bosses'] if b.get('level'))}, "
+          f"a portrait {sum(1 for d in dungeons.values() for b in d['bosses'] if b.get('display'))}, a place {sum(1 for d in dungeons.values() for b in d['bosses'] if b.get('pos'))}; "
+          f"{len(used_floors)} instances with floor maps -> {OUT}")
 
 
 if __name__ == "__main__":

@@ -219,8 +219,9 @@ function A.RankingCatalog(filters)
   if observed then item.count=item.count+1 end
  end
  local kinds=referenceKinds();for name,kind in pairs(kinds) do add(name,kind) end
- local fdj=_G.ForeverDungeonJournal_NS
- if type(fdj)=="table" and type(fdj.DB)=="table" then for name,d in pairs(fdj.DB) do add(name,d.instanceType or (d.isRaid==true and "raid") or kinds[name]) end end
+ -- every dungeon and raid of Evertally's own journal (when the map module is loaded)
+ local journal=A.map and type(A.map.Journal)=="function" and A.map.Journal()
+ if type(journal)=="table" and type(journal.DB)=="table" then for name,d in pairs(journal.DB) do add(name,d.isRaid==true and "raid" or kinds[name] or "party") end end
  local seenRuns={}
  for _,e in ipairs(players(nil,filters)) do for _,r in ipairs(e.runs) do
   local key=r.runId or tostring(r)
