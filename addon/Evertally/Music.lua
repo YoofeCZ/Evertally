@@ -31,7 +31,9 @@ local words = {
         musicBadId = "A Spotify Client ID has 32 characters (0-9, a-f).", musicSection = "Music", musicOpenWindow = "Open the music player",
         musicIconTip = "Click: show or hide the player. Right-click: the library (service, playlists, search).", musicMini = "Small player",
         musicUntitled = "(untitled)", musicRowOpen = "Click: show or hide its songs. Double-click: play the playlist.",
-        musicRowPlay = "Double-click: play.", musicRowSong = "Double-click: play this song; the playlist goes on after it."},
+        musicRowPlay = "Double-click: play.",
+        musicRowNoSongs = "Double-click: play. To open playlists to their songs, press Refresh library, wait for the app's Windows notification and press Load library (needs the Evertally app 0.9.17 or newer).",
+        musicRowSong = "Double-click: play this song; the playlist goes on after it."},
     cs = {music = "Hudba", musicEnabled = "Přehrávač hudby: Spotify nebo YouTube Music přes aplikaci Evertally",
         musicDuck = "…při rozhovoru s NPC hudbu ztišit", musicTitle = "Hudba",
         musicBrowse = "Knihovna", musicSearch = "Hledat na Spotify / YouTube Music…", musicFilter = "Filtrovat moji knihovnu…",
@@ -54,7 +56,9 @@ local words = {
         musicBadId = "Spotify Client ID má 32 znaků (0-9, a-f).", musicSection = "Hudba", musicOpenWindow = "Otevřít přehrávač hudby",
         musicIconTip = "Klik: ukázat nebo skrýt přehrávač. Pravý klik: knihovna (služba, playlisty, hledání).", musicMini = "Mini přehrávač",
         musicUntitled = "(bez názvu)", musicRowOpen = "Klik: ukázat nebo schovat skladby. Dvojklik: přehrát playlist.",
-        musicRowPlay = "Dvojklik: přehrát.", musicRowSong = "Dvojklik: přehrát tuhle skladbu, playlist pak hraje dál."},
+        musicRowPlay = "Dvojklik: přehrát.",
+        musicRowNoSongs = "Dvojklik: přehrát. Aby šly playlisty rozkliknout na skladby, stiskni Obnovit knihovnu, počkej na oznámení aplikace ve Windows a stiskni Načíst knihovnu (potřebuje aplikaci Evertally 0.9.17 nebo novější).",
+        musicRowSong = "Dvojklik: přehrát tuhle skladbu, playlist pak hraje dál."},
 }
 for lang, entries in pairs(words) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
@@ -176,6 +180,11 @@ function M.Rows(part, filter)
         end
     end
     return out
+end
+--- Whether any playlist of the library came with its songs (a library from an app before 0.9.17 has none).
+function M.LibraryHasSongs()
+    for _, e in ipairs(M.Rows("playlists", nil)) do if e.tracks then return true end end
+    return false
 end
 --- The lines of the list: each entry, and under an opened playlist its songs (`parent` = the playlist).
 --- `opened` is what the player opened or closed by clicking; a playlist the filter found songs in is open unless closed.
@@ -382,7 +391,9 @@ function M.Browser()
         r:SetScript("OnEnter", function(self)
             if not GameTooltip or not self.id then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(A.L(self.hasTracks and "musicRowOpen" or self.parent and "musicRowSong" or "musicRowPlay"), 1, 1, 1, 1, true); GameTooltip:Show()
+            -- a library written before playlists carried their songs says how to get them, right where the player looks
+            local old = w.part == "playlists" and not M.LibraryHasSongs()
+            GameTooltip:SetText(A.L(self.hasTracks and "musicRowOpen" or self.parent and "musicRowSong" or old and "musicRowNoSongs" or "musicRowPlay"), 1, 1, 1, 1, true); GameTooltip:Show()
         end)
         r:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
         w.rows[i] = r

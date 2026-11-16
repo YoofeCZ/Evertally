@@ -14,6 +14,9 @@ no artwork is shipped. The map itself is OpenMap's (MIT), which this add-on depe
 
 Boat and zeppelin timetables (TransportData.lua) are taken from DockWatch 1.8.1 by Wyveryx (MIT); the MIT notice is
 kept at the top of TransportData.lua. They are computed from one real departure per route, not watched in game.
+The boat and zeppelin badges (Media/ship.tga, zeppelin.tga) use the silhouettes "Sailboat" by Delapouite and "Zeppelin"
+by Skoll from https://game-icons.net (CC BY 3.0, https://creativecommons.org/licenses/by/3.0/); the badge, colours and
+shading around them are drawn by tools/build_transport_icons.py.
 
 The libraries in Libs/ retain their own licenses; see Libs/NOTICE.txt.
 Game artwork belongs to Blizzard Entertainment. The software licenses above do

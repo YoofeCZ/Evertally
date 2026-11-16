@@ -90,6 +90,12 @@ class TransportTests(unittest.TestCase):
         for lang in ("en", "cs"):
             for key in ("dockToggle", "dockLeaves", "dockInPort", "dockArrives", "dockSource"):
                 self.assertIn(key, self.a.locale[lang], (lang, key))
+                # the source is credited in NOTICE.txt and THIRD_PARTY.md, never in the game's own texts
+                self.assertNotIn("dockwatch", str(self.a.locale[lang][key]).lower(), (lang, key))
+        code = (MAP_DIR / "Transports.lua").read_text(encoding="utf8")
+        self.assertNotIn("PocketWatch", code, "our own badges, not a borrowed icon")
+        for name in ("ship.tga", "zeppelin.tga"):
+            self.assertEqual((MAP_DIR / "Media" / name).read_bytes()[:3], bytes([0, 0, 2]), name)
         data = (MAP_DIR / "TransportData.lua").read_text(encoding="utf8")
         self.assertIn("Copyright (c) 2026 Wyveryx", data)
         self.assertIn("Permission is hereby granted", data)

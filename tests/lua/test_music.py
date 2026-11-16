@@ -240,6 +240,13 @@ class MusicWindowTests(unittest.TestCase):
         w.rows[1].scripts.OnClick(w.rows[1])
         self.assertEqual(len(shown()), 3, "a second click closes it")
 
+    def test_a_library_without_songs_says_how_to_get_them(self):
+        lua, a = runtime(); lua.execute(MOCK_UI_LUA); lua.execute(TIMER)
+        lua.execute('EvertallyMusicData={schemaVersion=1,playlists={{id="yt:playlist:PLa",name="Mix"}}}')
+        self.assertFalse(a.Music.LibraryHasSongs(), "written by an app before 0.9.17")
+        lua.execute('EvertallyMusicData={schemaVersion=1,playlists={{id="yt:playlist:PLa",name="Mix",tracks={{id="yt:video:v",name="S"}}}}}')
+        self.assertTrue(a.Music.LibraryHasSongs())
+
     def test_the_filter_finds_songs_inside_playlists(self):
         lua, a = runtime(); lua.execute(MOCK_UI_LUA); lua.execute(TIMER)
         lua.execute('''EvertallyMusicData={schemaVersion=1,playlists={

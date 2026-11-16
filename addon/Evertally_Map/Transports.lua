@@ -1,14 +1,15 @@
 local _, M = ...
 local A = _G.Evertally
 -- Boat and zeppelin timetables on the map: a pin at every dock with the time to the next departure ("~2:14"), and in its tooltip where
--- each boat goes, when it leaves and how long it sails. The times are DockWatch's (TransportData.lua, MIT): one real departure and the
--- length of the loop per route, so the next departure is that departure plus whole loops. Nothing is learned or watched in game; the
+-- each boat goes, when it leaves and how long it sails. The times come from TransportData.lua (its source and MIT notice are
+-- there and in NOTICE.txt, never in the game's UI): one real departure and the length of the loop per route, so the next
+-- departure is that departure plus whole loops. Nothing is learned or watched in game; the
 -- "~" says it is worked out, and after a server restart the boats may run at other times until the data is rebuilt.
 local Pins = LibStub("HereBeDragons-Pins-2.0")
 local REF = "EvertallyDocks"
 local MEDIA = "Interface\\AddOns\\Evertally_Map\\Media\\"
-local ICON = "Interface\\Icons\\INV_Misc_PocketWatch_01"
-local COLOR = {ship = {0.35, 0.72, 1}, zeppelin = {1, 0.62, 0.25}}
+-- our own badges (tools/build_transport_icons.py): gold rim, blue for boats, orange for zeppelins; colours are in the picture
+local ICONS = {ship = MEDIA .. "ship", zeppelin = MEDIA .. "zeppelin"}
 local NEAR = 80                                  -- docks closer than this (yards) share one pin
 local MAP_KINDS = {[1] = true, [2] = true, [3] = true}   -- world, continent, zone (a dungeon map may answer for the world outside)
 local T = {pool = {}, used = 0, key = nil, shownAt = 0}
@@ -17,11 +18,11 @@ M.transport = T
 local text = {
     en = {dockToggle = "Boat and zeppelin times", dockShip = "Boat", dockZeppelin = "Zeppelin", dockTo = "%s to %s",
         dockLeaves = "leaves in ~%s", dockInPort = "in port, leaves in ~%s", dockArrives = "arrives at %s ~%s after leaving",
-        dockSource = "Times from DockWatch (Wyveryx, MIT): worked out, not watched. After a server restart they can be off.",
+        dockSource = "Worked out, not watched: after a server restart the times can be off.",
         dockFaction_Alliance = "Alliance", dockFaction_Horde = "Horde", dockFaction_both = "everyone"},
     cs = {dockToggle = "Časy lodí a zeppelinů", dockShip = "Loď", dockZeppelin = "Zeppelin", dockTo = "%s do %s",
         dockLeaves = "odjíždí za ~%s", dockInPort = "v přístavu, odjíždí za ~%s", dockArrives = "do %s dorazí ~%s po odjezdu",
-        dockSource = "Časy z DockWatch (Wyveryx, MIT): vypočtené, ne sledované. Po restartu serveru můžou nesedět.",
+        dockSource = "Vypočtené, ne sledované: po restartu serveru můžou časy nesedět.",
         dockFaction_Alliance = "Aliance", dockFaction_Horde = "Horda", dockFaction_both = "všichni"},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
@@ -148,9 +149,8 @@ end
 
 local function newPin()
     local f = CreateFrame("Frame", nil, UIParent)
-    f:SetSize(18, 18); f:EnableMouse(true)
-    f.ring = f:CreateTexture(nil, "ARTWORK"); f.ring:SetPoint("TOPLEFT", -2, 2); f.ring:SetPoint("BOTTOMRIGHT", 2, -2); f.ring:SetTexture(MEDIA .. "dot")
-    f.tex = f:CreateTexture(nil, "OVERLAY"); f.tex:SetAllPoints(); f.tex:SetTexture(ICON); f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    f:SetSize(26, 26); f:EnableMouse(true)
+    f.tex = f:CreateTexture(nil, "OVERLAY"); f.tex:SetAllPoints()
     f.caption = f:CreateFontString(nil, "OVERLAY")
     f.caption:SetFont(A.FontPath and A.FontPath() or "Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
     f.caption:SetPoint("LEFT", f, "RIGHT", 4, 0)
@@ -181,8 +181,7 @@ local function paintCaptions(now)
         local f = T.pool[i]
         local info = T.Describe(f.dock, now)
         local vehicle = f.dock.legs[1].route.vehicle
-        local c = COLOR[vehicle] or COLOR.ship
-        f.ring:SetVertexColor(c[1], c[2], c[3])
+        f.tex:SetTexture(ICONS[vehicle] or ICONS.ship)
         f.caption:SetText(info.left and ("~" .. T.Clock(info.left)) or "")
         if info.inPort then f.caption:SetTextColor(0.45, 1, 0.5, 1) else f.caption:SetTextColor(1, 0.9, 0.55, 1) end
         if f.hover then pcall(showTooltip, f) end
@@ -221,7 +220,7 @@ end
 function T.RegisterWithOpenMap(api)
     if not api or type(api.RegisterMenuToggle) ~= "function" then return false end
     local label = A.locale and A.locale.en and A.locale.en.dockToggle or A.L("dockToggle")
-    pcall(api.RegisterMenuToggle, "Evertally", {id = "evertally_docks", label = label, section = "Evertally", tab = "show", icon = ICON,
+    pcall(api.RegisterMenuToggle, "Evertally", {id = "evertally_docks", label = label, section = "Evertally", tab = "show", icon = ICONS.ship,
         get = function() return T.Enabled() end, set = function(on) T.SetEnabled(on) end})
     return true
 end
