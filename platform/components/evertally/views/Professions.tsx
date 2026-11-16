@@ -13,12 +13,12 @@ type Cooldown = { recipeId: number; readyAt: number; observedAt: number };
 type ProfessionSource = { id: string; character: Character | null; professions: Profession[]; crafts: Craft[]; cooldowns: Cooldown[] };
 export type ProfessionResponse = { generatedAt: number; totalObservations: number; sampledObservations: number; truncated: boolean; characters: ProfessionSource[] };
 
-export function ProfessionsView({ user, signIn }: { user: User | null; signIn: string | null }) {
+export function ProfessionsView({ user, signIn, authReady }: { user: User | null; signIn: string | null; authReady: boolean }) {
   const { t } = useI18n();
   if (user) return <ProfessionData key={user.id} />;
   return <><PageHead title={t("prof.title")} lead={t("prof.lead")} /><div className="page-column"><section className="chapter-card tint-plum center">
     <span className="empty-icon"><Icon name="anvil" size={22} /></span><h2 className="serif-heading small">{t("prof.signInTitle")}</h2><p className="lead">{t("prof.signInText")}</p>
-    {!signIn ? <p className="notice error">{t("auth.discord_not_configured")}</p> : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
+    {!signIn ? (authReady && <p className="notice error">{t("auth.discord_not_configured")}</p>) : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
   </section></div></>;
 }
 

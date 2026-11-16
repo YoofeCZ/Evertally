@@ -10,7 +10,7 @@ import { useDungeonArt } from "../db/store";
 import type { Entity, Entry, Run, Status, View } from "../types";
 import { Empty, Icon, RunTable } from "../ui";
 import { DungeonGrid, Row } from "./Rankings";
-import { HomeHighlights } from "./Highlights";
+import { HomeHighlights, Spotlight } from "./Highlights";
 
 type PackagePlayer = { classId: number | null; raceId: number | null };
 const ART = "/media/dungeons/blackrock-depths.jpg";
@@ -52,6 +52,7 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
 
   return (
     <div className="page-column lb home">
+      <Spotlight key={status?.user?.id ?? "guest"} />
       <section className="home-hero" style={{ "--lb-art": `url("${ART}")` } as CSSProperties}>
         <span className="lb-eyebrow">{t("home.eyebrow")}</span>
         <h1>{t("home.title")}</h1>

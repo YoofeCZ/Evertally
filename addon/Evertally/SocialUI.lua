@@ -670,11 +670,11 @@ local function realmKey(realm) return (A.Text(realm, 100) or ""):gsub("[%s%-']",
 -- every person goes under the first category of the chosen view that fits; the other facts stay as small labels
 local PEOPLE_VIEWS = {
     all = {
-        {flags = {"friend"}, title = "peopleCatFriends"}, {flags = {"live"}, title = "peopleCatLive"}, {flags = {"group"}, title = "peopleCatGroup"},
+        {flags = {"friend"}, title = "peopleCatFriends"}, {flags = {"live"}, title = "peopleCatLive"}, {flags = {"online"}, title = "peopleCatOnline"}, {flags = {"group"}, title = "peopleCatGroup"},
         {flags = {"linked"}, title = "peopleCatLinked"}, {flags = {"user", "web"}, title = "peopleCatUsers"}, {flags = {"guild"}, title = "peopleCatGuild"},
         {flags = {"target"}, title = "peopleCatTarget"}, {flags = {"friendOff"}, title = "peopleCatFriendsOff"},
     },
-    evertally = {{flags = {"live"}, title = "peopleCatLive"}, {flags = {"linked", "user"}, title = "peopleCatSeen"}, {flags = {"web"}, title = "peopleCatWeb"}},
+    evertally = {{flags = {"live"}, title = "peopleCatLive"}, {flags = {"online"}, title = "peopleCatOnline"}, {flags = {"linked", "user"}, title = "peopleCatSeen"}, {flags = {"web"}, title = "peopleCatWeb"}},
     friends = {{flags = {"friend"}, title = "peopleCatFriends"}, {flags = {"friendOff"}, title = "peopleCatFriendsOff"}},
     group = {{flags = {"group"}, title = "peopleCatGroup"}},
     guild = {{flags = {"guild"}, title = "peopleCatGuild"}},
@@ -723,6 +723,11 @@ local function peopleRows(filter)
         if A.Call(UnitExists, unit) == true then note(fullName(A.Call(UnitFullName, unit)), "group", unitClass(unit), A.Call(UnitLevel, unit)) end
     end
     for _, p in ipairs(A.LivePeers()) do note(p.name, "live", p.class, nil, p.map and zoneName(p.map) or nil) end
+    -- online with Evertally: announced in the #Evertally room by players who chose to be seen (Presence.lua)
+    for _, p in ipairs(A.Presence and A.Presence.List() or {}) do
+        local q = note(p.name, "online", p.class, p.level, p.map and zoneName(p.map) or nil)
+        if q then q.whisperTo = p.name; q.seen = p.seen end
+    end
     if C_FriendList and type(C_FriendList.GetNumFriends) == "function" and type(C_FriendList.GetFriendInfoByIndex) == "function" then
         for i = 1, A.Number(A.Call(C_FriendList.GetNumFriends), 0, 500) or 0 do
             local info = A.Call(C_FriendList.GetFriendInfoByIndex, i)
@@ -832,18 +837,23 @@ local function peopleRows(filter)
                 local zone = live and live.map and zoneName(live.map) or p.zone
                 if zone then bits[#bits + 1] = plain(zone) end
                 if p.realm then bits[#bits + 1] = plain(p.realm) end
-                for _, flag in ipairs({"friend", "group", "guild", "user", "linked"}) do
-                    if p.flags[flag] and not mine[flag] and not (flag == "user" and p.flags.live) then bits[#bits + 1] = A.L("peopleFlag_" .. flag) end
+                for _, flag in ipairs({"online", "friend", "group", "guild", "user", "linked"}) do
+                    if p.flags[flag] and not mine[flag] and not (flag == "user" and (p.flags.live or p.flags.online)) then bits[#bits + 1] = A.L("peopleFlag_" .. flag) end
                 end
+                if mine.online and p.seen then bits[#bits + 1] = string.format(A.L("presenceSeen"), math.max(0, math.floor((A.Now() - p.seen) / 60))) end
                 if p.flags.web then bits[#bits + 1] = string.format(A.L("peopleFlag_web"), p.webRank or 0) end
                 if #bits == 0 then bits[1] = A.L(mine.friendOff and "peopleOffline" or "peopleNoPosition") end
                 local mark = markText(who)
                 local row = {title = plain(base(who)), sub = table.concat(bits, "  ·  "), class = p.class, icon = K().ICON.peers,
                     titleColor = p.class and K().classColor(p.class) or nil,
                     right = (mark and (mark .. "  ") or "") .. (distance and (math.floor(distance + 0.5) .. " yd") or "")}
-                if p.flags.live or p.flags.user or p.flags.linked or p.flags.web then row.tag, row.tagColor = "EVERTALLY", K().C.lilac end
+                if p.flags.live or p.flags.user or p.flags.linked or p.flags.web or p.flags.online then row.tag, row.tagColor = "EVERTALLY", K().C.lilac end
                 if mine.friendOff then row.titleColor = K().C.faint
                 elseif live then row.onClick = function() navigate(live.name) end
+                elseif p.flags.online and A.Chat and A.ChatUI and A.Chat.Enabled() then
+                    -- a player online with Evertally: open a whisper in the Evertally chat (invite and friend request are there)
+                    local to = p.whisperTo or who
+                    row.onClick = function() local conv = A.Chat.Whisper(to); if conv then A.ChatUI.Open(conv) end end
                 else row.onClick = function()
                     if page and page.name then page.name:SetText(who) end
                     page.mode = "ask"; A.Print(string.format(A.L("peopleNoPositionChat"), plain(base(who)))); A.RefreshUI()

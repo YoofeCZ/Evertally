@@ -42,6 +42,7 @@ function A.SetPublish(field, value)
     choice.chosenAt = A.Now()
     choice.revision = (tonumber(choice.revision) or 0) + 1
     A.SendPublish()
+    if A.MarkWebChanged then A.MarkWebChanged() end
     if A.Changed then A.Changed() end
 end
 

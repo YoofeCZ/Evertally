@@ -299,6 +299,7 @@ function M.Disable()
     pcall(Pins.RemoveAllWorldMapIcons, Pins, REF_LAYERS)
     for _, frame in ipairs(layerPool) do frame:Hide() end
     for _, frame in ipairs(extraPool) do frame:Hide() end
+    if M.transport then M.transport.Clear() end
     for id in pairs(pool) do remove(id) end
     pcall(Pins.RemoveAllWorldMapIcons, Pins, REF)
     pcall(Pins.RemoveAllMinimapIcons, Pins, REF)
@@ -315,6 +316,7 @@ function M.Enable()
                 if M.RefreshRoute then M.RefreshRoute() end
                 M.StepServices()
                 M.RefreshLayerPins(false)
+                if M.transport then M.transport.Refresh(false) end
             end)
             if not ok then A.errors.map_layers = (A.errors.map_layers or 0) + 1 end
         end)

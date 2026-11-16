@@ -71,7 +71,7 @@ class GearTests(unittest.TestCase):
         self.runlua('Item(1,{loc="INVTYPE_CHEST",stats={ITEM_MOD_STRENGTH_SHORT=3}});Item(2,{loc="INVTYPE_CHEST",ilevel=900,stats={ITEM_MOD_STRENGTH_SHORT=1}});EQUIPPED[5]=1')
         comparison = self.g.Compare("item:2")
         self.assertEqual(comparison.status, "downgrade")
-        self.assertAlmostEqual(comparison.delta, -3.6)
+        self.assertAlmostEqual(comparison.delta, -2)
         self.assertEqual(comparison.parts[1].stat, "strength")
 
     def test_get_item_info_price_and_class_are_not_truncated(self):
@@ -87,13 +87,13 @@ class GearTests(unittest.TestCase):
         comparison = self.g.Compare(3)
         self.assertEqual(comparison.status, "upgrade")
         self.assertEqual(comparison.slot, 12)
-        self.assertAlmostEqual(comparison.delta, 3.6)
+        self.assertAlmostEqual(comparison.delta, 2)   # 2 Strength at weight 1 (Enhancement)
 
     def test_two_hand_compares_both_hands(self):
         self.runlua('Item(1,{class=2,sub=0,loc="INVTYPE_WEAPON",stats={ITEM_MOD_DAMAGE_PER_SECOND_SHORT=4}});Item(2,{loc="INVTYPE_SHIELD",sub=6,stats={ITEM_MOD_STRENGTH_SHORT=8}});Item(3,{class=2,sub=1,loc="INVTYPE_2HWEAPON",stats={ITEM_MOD_DAMAGE_PER_SECOND_SHORT=5}});EQUIPPED[16]=1;EQUIPPED[17]=2')
         result = self.g.Compare(3)
         self.assertEqual(result.status, "downgrade")
-        self.assertAlmostEqual(result.baseline, 42.4)
+        self.assertAlmostEqual(result.baseline, 32)   # 4 dps x 6 + 8 Strength
 
     def test_one_hand_can_replace_weaker_offhand_only_after_dual_wield_is_known(self):
         self.runlua('''
@@ -271,6 +271,103 @@ class GearTests(unittest.TestCase):
         self.g.SetOption("tooltip", False)
         self.runlua('TIP.evertallyGearLink=nil')
         self.assertFalse(self.g.AppendTooltip(tooltip))
+
+    def tooltip_lines(self, link):
+        lines = self.g.TooltipLines(link)
+        return None if lines is None else [str(lines[i][1]) for i in range(1, len(lines) + 1)]
+
+    def test_tooltip_says_better_or_worse_for_the_role_and_shows_the_item_level_change(self):
+        self.runlua('''CLASS="WARRIOR";LEVEL=11;Evertally.Gear.SetProfile(3)
+        Item(1,{loc="INVTYPE_LEGS",class=4,sub=1,ilevel=8,stats={RESISTANCE0_NAME=22,ITEM_MOD_SPIRIT_SHORT=3}})
+        Item(2,{loc="INVTYPE_LEGS",class=4,sub=3,ilevel=12,stats={RESISTANCE0_NAME=73}})
+        EQUIPPED[7]=1;Evertally.Gear.cache={}''')
+        better = self.tooltip_lines("item:2")
+        self.assertIn("better for Protection (+2.", better[0], "more armour beats spirit a warrior does not use")
+        self.assertIn("Item level 8 -> 12", better[1], "no arrow glyph: the tooltip font lacks it")
+        self.a.db.settings.language = "cs"
+        self.runlua('EQUIPPED[7]=2;Evertally.Gear.cache={}')
+        self.assertIn("horší pro Protection", self.tooltip_lines("item:1")[0])
+
+    def test_a_leather_chest_with_much_more_armor_beats_cloth_with_one_more_stamina_for_enhancement(self):
+        # the case from the game: Embossed Leather Vest (62 armor, +2 Sta) worn, Banshee Armor (26 armor, +3 Sta) in the bag
+        self.runlua("""CLASS="SHAMAN";LEVEL=12;Evertally.Gear.SetProfile(2)
+        Item(2300,{loc="INVTYPE_CHEST",class=4,sub=2,ilevel=12,stats={RESISTANCE0_NAME=62,ITEM_MOD_STAMINA_SHORT=2}})
+        Item(5420,{loc="INVTYPE_CHEST",class=4,sub=1,ilevel=14,stats={RESISTANCE0_NAME=26,ITEM_MOD_STAMINA_SHORT=3}})
+        EQUIPPED[5]=2300;Evertally.Gear.cache={}""")
+        self.assertEqual(self.g.Profile().name, "Enhancement")
+        self.assertEqual(self.g.Compare("item:5420").status, "downgrade")
+
+    def test_enhancement_values_intellect_and_a_few_points_of_armor_are_not_an_upgrade(self):
+        # the case from the game: Thra's Friendship Bracelet (24 armor, +1 Int) worn, Lupine Cuffs (28 armor) in the bag
+        self.runlua("""CLASS="SHAMAN";LEVEL=12;Evertally.Gear.SetProfile(2)
+        Item(281270,{loc="INVTYPE_WRIST",class=4,sub=2,ilevel=10,stats={RESISTANCE0_NAME=24,ITEM_MOD_INTELLECT_SHORT=1}})
+        Item(15013,{loc="INVTYPE_WRIST",class=4,sub=2,ilevel=14,stats={RESISTANCE0_NAME=28}})
+        EQUIPPED[9]=281270;Evertally.Gear.cache={}""")
+        self.assertGreater(self.g.Profile().weights.intellect, 0)
+        self.assertEqual(self.g.Compare("item:15013").status, "downgrade")
+        self.runlua('Item(15014,{loc="INVTYPE_WRIST",class=4,sub=2,ilevel=14,stats={RESISTANCE0_NAME=28,ITEM_MOD_INTELLECT_SHORT=1}});Evertally.Gear.cache={}')
+        comparison = self.g.Compare("item:15014")
+        self.assertEqual(comparison.status, "same", "four more armor is noise, not an upgrade")
+        self.assertFalse(comparison.byItemLevel, "item level decides only truly equal stats")
+        self.runlua('CLASS="WARRIOR";Evertally.Gear.SetProfile(1)')
+        self.assertIsNone(self.g.Profile().weights.intellect, "a warrior has no use for intellect")
+        self.g.SetProfile(0)
+
+    def test_each_tree_has_its_own_main_stat_at_one_and_ranks_the_obvious_choices(self):
+        expectations = {
+            ("WARRIOR", 1): "strength", ("WARRIOR", 3): "stamina", ("PALADIN", 1): "intellect", ("PALADIN", 3): "strength",
+            ("HUNTER", 2): "agility", ("ROGUE", 2): "agility", ("PRIEST", 2): "spirit", ("PRIEST", 3): "spellPower",
+            ("SHAMAN", 1): "spellPower", ("SHAMAN", 2): "strength", ("SHAMAN", 3): "intellect", ("MAGE", 3): "spellPower",
+            ("WARLOCK", 1): "spellPower", ("DRUID", 2): "agility", ("DRUID", 4): "stamina",
+        }
+        for (cls, index), main in expectations.items():
+            self.runlua('CLASS="%s"' % cls); self.g.SetProfile(index)
+            weights = self.g.Profile().weights
+            self.assertEqual(weights[main], 1, (cls, index, main))
+            self.assertTrue(all(v <= 1 or k in ("crit", "hit", "haste", "spellCrit", "spellHit", "dodge", "parry", "block", "defense", "dps", "mp5")
+                                for k, v in weights.items()), (cls, index))
+        # the obvious: a warrior takes Strength over Intellect, a mage Intellect over Strength, a hunter Agility over Strength
+        self.runlua('''CLASS="WARRIOR";Evertally.Gear.SetProfile(1)
+        Item(31,{loc="INVTYPE_HAND",class=4,sub=1,stats={ITEM_MOD_STRENGTH_SHORT=3}});Item(32,{loc="INVTYPE_HAND",class=4,sub=1,stats={ITEM_MOD_INTELLECT_SHORT=3}})
+        EQUIPPED[10]=32;Evertally.Gear.cache={}''')
+        self.assertEqual(self.g.Compare("item:31").status, "upgrade")
+        self.runlua('CLASS="MAGE";Evertally.Gear.SetProfile(3);EQUIPPED[10]=31;Evertally.Gear.cache={}')
+        self.assertEqual(self.g.Compare("item:32").status, "upgrade")
+        self.runlua('''CLASS="HUNTER";Evertally.Gear.SetProfile(1)
+        Item(33,{loc="INVTYPE_HAND",class=4,sub=1,stats={ITEM_MOD_AGILITY_SHORT=3}});EQUIPPED[10]=31;Evertally.Gear.cache={}''')
+        self.assertEqual(self.g.Compare("item:33").status, "upgrade")
+        self.g.SetProfile(0)
+
+    def test_the_belt_case_from_the_game_three_intellect_beat_a_higher_item_level(self):
+        # Lupine Cord of Intellect (39 armor, +3 Int, ilvl 15) worn, Tanned Leather Belt (39 armor, ilvl 17) in the bag
+        self.runlua("""CLASS="SHAMAN";LEVEL=15;Evertally.Gear.SetProfile(2)
+        Item(15011,{loc="INVTYPE_WAIST",class=4,sub=2,ilevel=15,stats={RESISTANCE0_NAME=39,ITEM_MOD_INTELLECT_SHORT=3}})
+        Item(1843,{loc="INVTYPE_WAIST",class=4,sub=2,ilevel=17,stats={RESISTANCE0_NAME=39}})
+        EQUIPPED[6]=15011;Evertally.Gear.cache={}""")
+        comparison = self.g.Compare("item:1843")
+        self.assertEqual(comparison.status, "downgrade")
+        self.assertFalse(comparison.byItemLevel, "item level never outweighs stats the role uses")
+        self.g.SetProfile(0)
+
+    def test_every_role_values_armor(self):
+        for c, count in (("WARRIOR", 3), ("MAGE", 3), ("PRIEST", 3), ("ROGUE", 3), ("HUNTER", 3), ("DRUID", 4)):
+            self.runlua('CLASS="%s"' % c)
+            for i in range(1, count + 1):
+                self.g.SetProfile(i)
+                self.assertGreater(self.g.Profile().weights.armor or 0, 0, (c, i))
+        self.g.SetProfile(0)
+
+    def test_unwearable_gear_says_so_and_equal_stats_are_decided_by_item_level(self):
+        self.runlua('''CLASS="WARRIOR";LEVEL=11
+        Item(5,{loc="INVTYPE_2HWEAPON",class=2,sub=8,stats={}})
+        C_TooltipInfo={GetHyperlink=function(link) if link=="item:5" then return {lines={{leftText="Two-Hand",leftColor={r=1,g=.1,b=.1}}}} end end}
+        Item(6,{loc="INVTYPE_WRIST",class=4,sub=1,ilevel=5,stats={}});Item(7,{loc="INVTYPE_WRIST",class=4,sub=1,ilevel=9,stats={}})
+        EQUIPPED[9]=6;Evertally.Gear.cache={}''')
+        self.assertIn("you cannot equip this", self.tooltip_lines("item:5")[0])
+        comparison = self.g.Compare("item:7")
+        self.assertEqual((comparison.status, comparison.byItemLevel), ("upgrade", True))
+        self.assertIn("higher item level", self.tooltip_lines("item:7")[0])
+        self.assertIsNone(self.tooltip_lines("item:999"))
 
     def test_best_quest_reward_is_an_actual_role_upgrade_and_uncached_waits(self):
         self.runlua('Item(1,{loc="INVTYPE_CHEST",stats={ITEM_MOD_STRENGTH_SHORT=2}});Item(2,{loc="INVTYPE_CHEST",stats={ITEM_MOD_STRENGTH_SHORT=5}});QUESTCHOICES={1,2}')

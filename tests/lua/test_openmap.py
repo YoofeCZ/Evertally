@@ -317,8 +317,11 @@ class OpenMapTests(unittest.TestCase):
         toggles = lst(self.lua.globals().TOGGLES)
         ids = [str(t.spec.id) for t in toggles]
         self.assertEqual(ids[:10], ["evertally_gather", "evertally_gather_herb", "evertally_gather_ore", "evertally_gather_fishing", "evertally_gather_container", "evertally_gather_all", "evertally_resources", "evertally_marked", "evertally_search", "evertally_journey"])
-        self.assertTrue(all(i.startswith("evertally_res_") for i in ids[10:]), "after them one row for every resource (no kinds of trainers yet: the NPC database has not been read)")
-        self.assertEqual(len(ids) - 10, 70, "all 70 resources")
+        rest = ids[10:]
+        self.assertEqual(rest.count("evertally_docks"), 1, "one row for the boat and zeppelin times (Transports.lua)")
+        rest.remove("evertally_docks")
+        self.assertTrue(all(i.startswith("evertally_res_") for i in rest), "and one row for every resource (no kinds of trainers yet: the NPC database has not been read)")
+        self.assertEqual(len(rest), 70, "all 70 resources")
         self.a.ShowView = self.lua.eval("function(view) SHOWN=view end")
         marked, search = toggles[7].spec, toggles[8].spec
         self.assertFalse(marked.get())

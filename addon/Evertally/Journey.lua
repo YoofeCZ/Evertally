@@ -5,7 +5,7 @@ local _, A = ...
 -- ("own_track"), and never into the local history list. Quests, loot, zones, levels, dungeons and bosses are recorded by their own events.
 local J = {}
 A.Journey = J
-local MAX_MOMENTS, BATCH_SECONDS = 300, 300
+local MAX_MOMENTS, BATCH_SECONDS, MAX_BATCH_BYTES = 128, 300, 180 * 1024
 local current
 
 local function active()
@@ -21,16 +21,24 @@ function J.Flush()
 end
 function A.ResetJourney() current = nil end
 
-local function add(kind, fields)
+local function add(kind, fields, at)
     if not active() then current = nil; return end
-    local now = A.Now()
-    if current and (now - current.startedAt >= BATCH_SECONDS or #current.events >= MAX_MOMENTS) then J.Flush() end
-    current = current or {startedAt = now, events = {}}
+    local now = at or A.Now()
+    if current and (now < current.startedAt or now - current.startedAt >= BATCH_SECONDS or #current.events >= MAX_MOMENTS) then J.Flush() end
+    current = current or {startedAt = now, events = {}, bytes = 64}
     local moment = fields or {}
     moment.t, moment.k = now - current.startedAt, kind
-    local map, x, y = A.PlayerPosition()
+    local map, x, y = moment.mapId, moment.x, moment.y
+    if not map and not at then map, x, y = A.PlayerPosition() end
     if map and x and y then moment.mapId, moment.x, moment.y = map, round(x), round(y) end
+    if (kind == "kill" or kind == "death") and J.CurrentFightId then moment.fightId = J.CurrentFightId() end
+    local encoded = A.Encode(moment)
+    if not encoded or #encoded > MAX_BATCH_BYTES - 256 then A.errors["journey.oversize"] = (A.errors["journey.oversize"] or 0) + 1; return end
+    if current.bytes + #encoded + 1 > MAX_BATCH_BYTES then
+        J.Flush(); current = {startedAt = now, events = {}, bytes = 64}; moment.t = 0; encoded = A.Encode(moment)
+    end
     current.events[#current.events + 1] = moment
+    current.bytes = current.bytes + #encoded + 1
 end
 J.Add = add
 
@@ -52,7 +60,7 @@ A.On("CHAT_MSG_COMBAT_XP_GAIN", function(message)
         local name, xp = nil, nil
         if p then name, xp = message:match("^" .. p) end
         xp = tonumber(xp)
-        if name and xp and xp > 0 and xp < 1e7 then add("kill", {text = A.Text(name, 100), xp = xp}); return end
+        if name and xp and xp > 0 and xp < 1e7 then if J.NoteKill then J.NoteKill(name) end; add("kill", {text = A.Text(name, 100), xp = xp}); return end
     end
 end)
 

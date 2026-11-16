@@ -56,7 +56,7 @@ function A.RequirementsGuard()
     return false
 end
 function A.ShowRequirements()
-    if A.OpenOnboarding then A.OpenOnboarding(1) end
+    if A.OpenOnboarding then A.OpenOnboarding(A.ONBOARDING_INSTALL_STEP or 2) end
 end
 -- Installation is content of the first setup page, never another top-level window.
 function A.BuildInstallationControls(parent)
@@ -104,9 +104,9 @@ local labels={
     installTitle={"Complete your installation","Dokonči instalaci"},
     installSubtitle={"Evertally requires OpenMap and the Evertally app for Windows. Verify both before continuing.","Evertally vyžaduje OpenMap a aplikaci Evertally pro Windows. Než budeš pokračovat, ověř obě instalace."},
     install_bridge={"1. Evertally app for Windows","1. Aplikace Evertally pro Windows"},install_openmap={"2. OpenMap add-on","2. Addon OpenMap"},
-    installBody_bridge={"Install and start Bridge 0.9.9 or newer for this WoW folder. Pairing and web sharing remain optional.","Nainstaluj a spusť most 0.9.9 nebo novější pro tuto složku WoW. Párování a sdílení na web zůstávají volitelné."},
+    installBody_bridge={"Install and start the Evertally app for this WoW folder. The next step pairs it with the website.","Nainstaluj a spusť aplikaci Evertally pro tuto složku WoW. V dalším kroku ji spáruješ s webem."},
     installBody_openmap={"Install OpenMap for WoW Forever and enable it in the add-on list.","Nainstaluj OpenMap pro WoW Forever a zapni ho v seznamu addonů."},
-    installHelp={"Use the download buttons above. The app writes an installation receipt; after starting it, reload the interface to load the receipt. Restart WoW fully after adding OpenMap or new add-on files. Pairing is not required for verification.","Použij tlačítka pro stažení nahoře. Aplikace vytvoří potvrzení instalace; po jejím spuštění načti znovu rozhraní. Po přidání OpenMap nebo nových souborů addonu WoW úplně restartuj. Pro ověření nepotřebuješ párování."},
+    installHelp={"Use the download buttons above. The app writes an installation receipt; after starting it, reload the interface to load the receipt. Restart WoW fully after adding OpenMap or new add-on files. Pairing follows in the next step.","Použij tlačítka pro stažení nahoře. Aplikace vytvoří potvrzení instalace; po jejím spuštění načti znovu rozhraní. Po přidání OpenMap nebo nových souborů addonu WoW úplně restartuj. Párování následuje v dalším kroku."},
     installOpen_bridge={"Download app","Stáhnout aplikaci"},installOpen_openmap={"Get OpenMap","Získat OpenMap"},
     installLinkHelp={"WoW cannot open the browser directly. Press Ctrl+C, paste into your browser and press Enter.","WoW neumí přímo otevřít prohlížeč. Stiskni Ctrl+C, vlož do prohlížeče a potvrď Enterem."},
     installLinkClose={"Done","Hotovo"},

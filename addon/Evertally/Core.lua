@@ -146,6 +146,7 @@ function A.SetWeb(enabled)
     if A.OpticalClear then A.OpticalClear() end
     if enabled and A.ResendPublish then A.ResendPublish() end
     if not enabled then A.Print(A.L("revokeHint")) end
+    if A.MarkWebChanged then A.MarkWebChanged() end
     return true
 end
 function A.SetScope(scope,enabled)
@@ -183,6 +184,22 @@ function A.ExportEvent(event)
                     end
                     projection.payload.combat.players=players
                 end
+            elseif event.kind=="journey.chunk" then
+                for _,moment in ipairs(projection.payload.events or {}) do
+                    moment.roster=nil;moment.attrs=nil;moment.enh=nil;moment.ilvl=nil
+                    moment.copper=nil;moment.played=nil;moment.race=nil;moment.faction=nil;moment.guild=nil;moment.spec=nil;moment.skills=nil;moment.professions=nil;moment.equipped=nil
+                    moment.actor=nil;moment.target=nil;moment.actorClassId=nil
+                    if moment.encounterKind=="pvp" then moment.text="PvP" end
+                    if type(moment.summary)=="table" then
+                        local players={}
+                        for _,p in ipairs(moment.summary.players or {}) do
+                            if p.guid==original then p.guid=projection.character.id;p.name=nil;players[#players+1]=p end
+                        end
+                        moment.summary.players=players
+                    end
+                end
+                for i=#(projection.payload.events or {}),1,-1 do local m=projection.payload.events[i];if m.k=="speech" or m.actorSide and m.actorSide~="me" then table.remove(projection.payload.events,i) end end
+                if #projection.payload.events==0 then return end
             end
         else projection.character=nil end
     end
@@ -211,6 +228,20 @@ function A.Record(kind,payload,evidence,ownCharacter,exportOnly)
     A.db.events[#A.db.events+1]=event;A.ExportEvent(event);A.Changed();return event
 end
 
+function A.PruneUploadedExport()
+    local store=A.ExportStore();local ack=A.bridgeUploaded
+    if not store or type(store.events)~="table" or type(ack)~="table" then return end
+    local accepted=ack[tostring(store.producerId)..":"..tostring(store.consentEpoch)]
+    if type(accepted)~="table" then return end
+    local kept={}
+    for _,event in ipairs(store.events) do
+        local id=A.Field(event,"eventId")
+        if not id or accepted[id]~=true then kept[#kept+1]=event end
+    end
+    store.events=kept
+    if #kept<A.MAX_EXPORT then A.exportFull=false end
+end
+
 function A.Initialize()
     if type(EvertallyDB)~="table" then EvertallyDB={} end
     local db=EvertallyDB
@@ -232,6 +263,7 @@ function A.Initialize()
         for _,event in ipairs(store.events or {}) do if scopeFor[event.kind]=="world_facts" then event.payload=A.SafeWorldPayload(event.kind,event.payload) end end
         if not s.web then A.ResetExport()
         elseif store.producerId~=db.producerId or store.consentEpoch~=s.consentEpoch then A.ResetExport() end
+        A.PruneUploadedExport()
     end
     if A.RestoreRun then A.RestoreRun() end
     A.Print(A.L("loaded"))

@@ -23,7 +23,8 @@ const cooldownPayload=z.object({recipeId:entityId,readyAt:num}).strict();
 const combatAmount=num.max(1e15);
 const combatMetrics={damage:combatAmount.optional(),healing:combatAmount.optional(),overhealing:combatAmount.optional(),absorbs:combatAmount.optional(),damageTaken:combatAmount.optional(),interrupts:combatAmount.optional(),dispels:combatAmount.optional(),deaths:combatAmount.optional()};
 const runMember={guid:z.string().min(1).max(100),name:text.optional(),classId:entityId.max(100).optional(),raceId:entityId.max(100).optional(),level:integer.max(1000).optional(),role:z.string().max(20).optional()};
-const combatPayload=z.object({source:z.enum(["damage_meter","combat_log","unavailable"]),coverage:z.enum(["observed","partial","unavailable"]),coveredMs:num.max(604800000),activeMs:num.max(604800000),players:z.array(z.object({...runMember,...combatMetrics,activeMs:num.max(604800000).optional()}).strict()).max(80),...combatMetrics}).strict();
+const combatSpell=z.object({id:entityId.optional(),name:z.string().max(60),total:combatAmount,casts:integer.max(1e8).optional(),hits:integer.max(1e8).optional(),crits:integer.max(1e8).optional(),max:combatAmount.optional(),school:z.string().max(16).optional()}).strict();
+const combatPayload=z.object({source:z.enum(["damage_meter","combat_log","unavailable"]),coverage:z.enum(["observed","partial","unavailable"]),coveredMs:num.max(604800000),activeMs:num.max(604800000),players:z.array(z.object({...runMember,...combatMetrics,activeMs:num.max(604800000).optional(),dealt:z.array(combatSpell).max(300).optional(),healed:z.array(combatSpell).max(300).optional(),took:z.array(combatSpell).max(300).optional()}).strict()).max(80),...combatMetrics}).strict();
 const runPayload=z.object({runId:id,instanceId:integer.optional(),name:text.optional(),instanceType:z.enum(["party","raid"]).optional(),difficultyId:integer.optional(),startedAt:num,endedAt:num.optional(),durationMs:num.max(604800000).optional(),status:z.enum(["visiting","completed","interrupted","manual","abandoned"]),completion:z.enum(["unknown","last_boss","full_clear"]).optional(),rankEligible:z.boolean().optional(),rulesetId:text.optional(),groupSize:integer.max(80).optional(),maxLevel:integer.max(1000).optional(),minLevel:integer.max(1000).optional(),deaths:integer.optional(),bossCount:integer.max(1000).optional(),bosses:z.array(z.object({encounterId:integer.optional(),name:text.optional(),killedAt:num.optional(),durationMs:num.max(86400000).optional(),splitMs:num.max(604800000).optional()}).strict()).max(1000).optional(),roster:z.array(z.object(runMember).strict()).max(80).optional(),combat:combatPayload.optional()}).strict().superRefine((p,ctx)=>{if(p.endedAt!==undefined&&p.endedAt<p.startedAt)ctx.addIssue({code:z.ZodIssueCode.custom,message:"Run end precedes its start."});});
 const encounterPayload=z.object({encounterId:entityId,name:text.optional(),success:z.boolean(),durationMs:num.max(86400000).optional(),instanceId:integer.optional(),instanceName:text.optional()}).strict();
 const zonePayload=z.object({mapId:entityId,mapSystem:z.literal("ui_map"),mapName:text.optional()}).strict();
@@ -32,12 +33,34 @@ export const TRACK_MAX_POINTS=120;
 const trackPayload=z.object({mapId:entityId,mapSystem:z.literal("ui_map").optional(),startedAt:num,points:z.array(z.tuple([integer.max(86400),coordinate,coordinate])).min(1).max(TRACK_MAX_POINTS)}).strict();
 // The moments of a journey that no other event carries (kills, money, skills, deaths, groups, flights, battlegrounds), batched: one event holds a
 // few minutes of play, so a long session costs a handful of database rows, not thousands. `t` is seconds after `startedAt`; the place is the own route.
-export const JOURNEY_KINDS=["kill","money","skill","death","group","travel","pvp"] as const;
+export const JOURNEY_KINDS=["kill","money","skill","death","group","travel","pvp","combat","action","aura","state","speech"] as const;
 export const JOURNEY_MAX_MOMENTS=300;
-const journeyMoment=z.object({t:integer.max(86400),k:z.enum(JOURNEY_KINDS),text:z.string().max(120).optional(),a:z.string().max(16).optional(),
+const auraFields={id:entityId.optional(),text:z.string().max(120),helpful:z.boolean(),stacks:integer.max(10000).optional(),duration:num.max(604800).optional(),expiresAt:num.optional(),icon:entityId.optional()};
+const auraRow=z.object(auraFields).strict();
+const journeyMoment=z.object({t:num.max(86400),k:z.enum(JOURNEY_KINDS),text:z.string().max(120).optional(),a:z.string().max(24).optional(),
   n:z.number().finite().min(-1e12).max(1e12).optional(),max:integer.max(100000).optional(),xp:num.max(1e7).optional(),
-  mapId:entityId.optional(),x:coordinate.optional(),y:coordinate.optional(),d:num.max(86400).optional(),detail:z.string().max(200).optional()}).strict();
-const journeyPayload=z.object({startedAt:num,events:z.array(journeyMoment).min(1).max(JOURNEY_MAX_MOMENTS)}).strict();
+  mapId:entityId.optional(),x:coordinate.optional(),y:coordinate.optional(),d:num.max(86400).optional(),detail:z.string().max(200).optional(),
+  id:entityId.optional(),fightId:z.string().min(1).max(100).optional(),encounterKind:z.enum(["combat","boss","pvp"]).optional(),result:z.enum(["kill","wipe","win","loss","ended","interrupted"]).optional(),summary:combatPayload.optional(),
+  difficulty:z.string().max(80).optional(),size:integer.min(1).max(80).optional(),speaker:z.string().max(120).optional(),message:z.string().min(1).max(1000).optional(),
+  actor:z.string().max(120).optional(),target:z.string().max(120).optional(),actorClassId:entityId.max(100).optional(),actorSide:z.enum(["me","party","enemy"]).optional(),npcId:entityId.optional(),
+  helpful:z.boolean().optional(),stacks:auraFields.stacks,duration:auraFields.duration,expiresAt:auraFields.expiresAt,icon:auraFields.icon,
+  attrs:z.array(z.tuple([z.string().max(40),z.number().finite().min(-1e12).max(1e12)])).max(40).optional(),enh:z.array(z.tuple([z.string().max(40),z.string().max(60)])).max(40).optional(),ilvl:num.max(10000).optional(),
+  roster:z.array(z.object(runMember).strict()).max(80).optional(),groupType:z.enum(["solo","party","raid"]).optional(),auras:z.array(auraRow).max(160).optional(),aurasKnown:z.boolean().optional(),
+  copper:integer.max(1e12).optional(),played:num.max(1e10).optional(),race:z.string().max(80).optional(),faction:z.string().max(80).optional(),guild:z.string().max(80).optional(),spec:z.string().max(80).optional(),
+  skills:z.record(z.string().min(1).max(40),z.tuple([num.max(100000),num.max(100000)])).refine(v=>Object.keys(v).length<=100).optional(),professions:z.array(z.string().max(40)).max(20).optional(),equipped:z.array(z.object({slot:integer.min(1).max(19),itemId:entityId}).strict()).max(25).optional(),
+}).strict().superRefine((m,ctx)=>{
+  if(m.k==="combat"&&(!m.fightId||!['start','end'].includes(m.a??'')))ctx.addIssue({code:z.ZodIssueCode.custom,message:"Combat moments need a fight id and a start or end."});
+  if(m.k==="aura"&&(m.helpful===undefined||!['gain','loss','refresh'].includes(m.a??'')))ctx.addIssue({code:z.ZodIssueCode.custom,message:"Aura moments need their kind and change."});
+  if(m.k==='speech'&&(!m.message||!['say','yell','emote','boss_emote','boss_whisper'].includes(m.a??'')))ctx.addIssue({code:z.ZodIssueCode.custom,message:'Speech needs an NPC utterance and its channel.'});
+  const fields:Record<string,readonly string[]>={combat:['fightId','encounterKind','result','summary','difficulty','size','npcId'],action:['id','fightId','icon','actor','target','actorClassId','actorSide'],aura:['id','helpful','stacks','duration','expiresAt','icon'],state:['attrs','enh','ilvl','roster','groupType','auras','aurasKnown','copper','played','race','faction','guild','spec','skills','professions','equipped'],speech:['speaker','message']};
+  const extended=['id','encounterKind','result','summary','helpful','stacks','duration','expiresAt','icon','attrs','enh','ilvl','roster','groupType','auras','aurasKnown','copper','played','race','faction','guild','spec','skills','professions','equipped','difficulty','size','speaker','message','actor','target','actorClassId','actorSide','npcId'];
+  for(const key of extended)if((m as Record<string,unknown>)[key]!==undefined&&!fields[m.k]?.includes(key))ctx.addIssue({code:z.ZodIssueCode.custom,path:[key],message:"Field is not valid for this moment kind."});
+  if(m.aurasKnown===false&&m.auras?.length)ctx.addIssue({code:z.ZodIssueCode.custom,path:['auras'],message:"Unavailable auras cannot contain a known list."});
+});
+const journeyPayload=z.object({startedAt:num,events:z.array(journeyMoment).min(1).max(JOURNEY_MAX_MOMENTS)}).strict().superRefine((p,ctx)=>{
+  if(new TextEncoder().encode(JSON.stringify(p)).byteLength>200*1024)ctx.addIssue({code:z.ZodIssueCode.custom,message:"Journey batch exceeds 200 KiB."});
+});
+export { combatPayload as combatSummarySchema, journeyMoment as journeyMomentSchema };
 // Guild identity of the own character. Only a guild master (rankIndex 0) may send the roster.
 export const GUILD_ROSTER_MAX=1000;
 const guildPayload=z.object({left:z.literal(true).optional(),guildName:text.optional(),rankIndex:integer.max(100).optional(),rankName:text.optional(),

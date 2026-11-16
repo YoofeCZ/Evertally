@@ -2,7 +2,7 @@ local _, A = ...
 -- The player's own route and guild identity, for the website's map. Both are off by default and exported
 -- only while web export is on AND the matching scope is on (own_track, guild_share). Nothing here is
 -- kept in the local history list: it goes straight to the outbox, which the sync app uploads.
-local TICK,MOVED,IDLE,STALE,MAX_POINTS=4,0.002,120,60,100
+local TICK,MOVED,IDLE,STALE,MAX_POINTS,MAX_SPAN=4,0.002,120,60,100,300
 local MAX_TRACK_EVENTS,GUILD_REFRESH,MAX_ROSTER=500,7*86400,1000
 local current,pendingRoster
 
@@ -29,19 +29,19 @@ function A.FlushTrack()
     trimTracks(A.ExportStore())
     A.Record("track.path",{mapId=path.mapId,mapSystem="ui_map",startedAt=path.startedAt,points=path.points},"api_snapshot",nil,true)
 end
-function A.SampleTrack()
+function A.SampleTrack(force)
     if not active("own_track") then current=nil;return end
     local map,x,y=A.PlayerPosition()
     -- Instances and loading screens give no map position: close the stretch walked so far.
     if not map or not x or not y then A.FlushTrack();return end
     local now=A.Now()
-    if current and (current.mapId~=map or now-current.seen>STALE or #current.points>=MAX_POINTS) then A.FlushTrack() end
+    if current and (current.mapId~=map or now-current.seen>STALE or #current.points>=MAX_POINTS or now-current.startedAt>=MAX_SPAN) then A.FlushTrack() end
     if not current then current={mapId=map,startedAt=now,points={},seen=now} end
     x,y=round(x),round(y)
     local points=current.points;local last=points[#points]
     local moved=not last or math.abs(x-last[2])+math.abs(y-last[3])>=MOVED
     -- Standing still adds a heartbeat point only now and then, so the last known time stays fresh.
-    if moved or now-(current.startedAt+last[1])>=IDLE then points[#points+1]={now-current.startedAt,x,y} end
+    if moved or now-(current.startedAt+last[1])>=IDLE or force==true and (now~=current.startedAt+last[1] or x~=last[2] or y~=last[3]) then points[#points+1]={now-current.startedAt,x,y} end
     current.seen=now
 end
 
@@ -110,7 +110,7 @@ function A.ResetPeople()
     if C_Timer and type(C_Timer.After)=="function" then C_Timer.After(2,A.GuildSnapshot) end
 end
 
-A.On("PLAYER_LOGOUT",A.FlushTrack)
+A.On("PLAYER_LOGOUT",function()A.SampleTrack(true);A.FlushTrack()end)
 A.On("PLAYER_LOGIN",function() if C_Timer and type(C_Timer.After)=="function" then C_Timer.After(8,A.GuildSnapshot) end end)
 for _,event in ipairs({"PLAYER_GUILD_UPDATE","GUILD_RANKS_UPDATE"}) do A.On(event,A.GuildSnapshot) end
 A.On("GUILD_ROSTER_UPDATE",rosterUpdated)

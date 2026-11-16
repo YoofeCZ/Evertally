@@ -12,6 +12,9 @@ Coordinates describe reference locations, not current availability of an object.
 The picture of each gathering resource is the game's own item icon, named only by its file ID (GatherIcons.lua);
 no artwork is shipped. The map itself is OpenMap's (MIT), which this add-on depends on and does not redistribute.
 
+Boat and zeppelin timetables (TransportData.lua) are taken from DockWatch 1.8.1 by Wyveryx (MIT); the MIT notice is
+kept at the top of TransportData.lua. They are computed from one real departure per route, not watched in game.
+
 The libraries in Libs/ retain their own licenses; see Libs/NOTICE.txt.
 Game artwork belongs to Blizzard Entertainment. The software licenses above do
 not grant additional rights to Blizzard artwork or third-party source databases.

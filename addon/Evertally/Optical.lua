@@ -61,7 +61,7 @@ function A.OpticalBytes(p)
 end
 --- 6-bit symbols of the bytes (40 for 30 bytes).
 function A.OpticalSymbols(bytes)
-    if type(bytes)~="table" or #bytes<31 or #bytes>531 then return nil end
+    if type(bytes)~="table" or #bytes<5 or #bytes>531 then return nil end
     local out,acc,bits={},0,0
     for i=1,#bytes do
         acc=acc*256+bytes[i];bits=bits+8
@@ -99,9 +99,52 @@ local function physicalHeight()
     return 768
 end
 function A.OpticalClear() if frame then frame:Hide() end end
+
+-- Commands for the Windows app (music control), in the same strip: version 9, a sequence number, the text length, the
+-- text (ASCII, at most 120 bytes) and the checksum. A command stays on screen for 0.6 s, long enough for the app,
+-- which reads the strip several times a second; then the strip goes back to the live position (or away). Commands
+-- that come quicker wait their turn, at most five.
+local COMMAND_VERSION,COMMAND_SHOW=9,0.6
+local commandSeq,commandUntil,commandQueue=0,0,{}
+function A.OpticalCommandBytes(text,seq)
+    if type(text)~="string" or text=="" or #text>120 or text:find("[^\32-\126]") then return nil end
+    local bytes={COMMAND_VERSION,seq%256,#text}
+    for i=1,#text do bytes[#bytes+1]=text:byte(i) end
+    local count=#bytes;put(bytes,count+1,fletcher(bytes,count),2)
+    return bytes
+end
+local draw
+local function showNext()
+    if A.Monotonic()<commandUntil then return end
+    local text=table.remove(commandQueue,1)
+    if not text then if A.OpticalTick then A.OpticalTick() end;return end
+    commandSeq=(commandSeq+1)%256
+    local symbols=A.OpticalSymbols(A.OpticalCommandBytes(text,commandSeq))
+    if not symbols then return showNext() end
+    local pixels={}
+    for k=1,#LEVELS do pixels[#pixels+1]={LEVELS[k],LEVELS[k],LEVELS[k]} end
+    for _,symbol in ipairs(symbols) do pixels[#pixels+1]={LEVELS[math.floor(symbol/16)+1],LEVELS[math.floor(symbol/4)%4+1],LEVELS[symbol%4+1]} end
+    commandUntil=A.Monotonic()+COMMAND_SHOW
+    draw(pixels)
+    if C_Timer and C_Timer.After then C_Timer.After(COMMAND_SHOW+0.05,function() commandUntil=0;showNext() end) end
+end
+--- Sends a command to the app; false when it cannot be drawn (unknown characters, too long, queue full).
+function A.OpticalSendCommand(text)
+    if not A.OpticalCommandBytes(text,0) or #commandQueue>=5 then return false end
+    commandQueue[#commandQueue+1]=text
+    showNext()
+    return true
+end
+function A.OpticalCommandShown() return A.Monotonic()<commandUntil end
+
 function A.OpticalTick()
+    if A.Monotonic()<commandUntil then return end   -- a command is on screen
     local packet=A.OpticalPacket();local pixels=packet and A.OpticalPixels(packet)
     if not pixels then if frame then frame:Hide() end;return end
+    draw(pixels)
+end
+draw=function(pixels)
+    if type(CreateFrame)~="function" then return end
     if not frame then
         frame=CreateFrame("Frame","EvertallyLiveBridgeStrip",UIParent)
         frame:SetFrameStrata("TOOLTIP");frame:SetFrameLevel(999);frame:EnableMouse(false)

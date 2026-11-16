@@ -9,14 +9,14 @@ import { CLASSES, ConsoleWindow, DiscordGlyph, Empty, Icon, Tag } from "../ui";
 import { PageHead } from "./Data";
 import { SCOPE_ICON, SCOPE_ORDER } from "./Sync";
 
-function SignInCard({ signIn, text }: { signIn: string | null; text: string }) {
+function SignInCard({ signIn, authReady, text }: { signIn: string | null; authReady: boolean; text: string }) {
   const { t } = useI18n();
   return (
     <section className="chapter-card tint-plum center">
       <span className="empty-icon"><Icon name="user" size={22} /></span>
       <h2 className="serif-heading small">{t("account.signInTitle")}</h2>
       <p className="lead">{text}</p>
-      {!signIn ? <p className="notice error">{t("auth.discord_not_configured")}</p>
+      {!signIn ? (authReady && <p className="notice error">{t("auth.discord_not_configured")}</p>)
         : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph /> {t("nav.signIn")}</a>
         : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
     </section>
@@ -31,7 +31,7 @@ function useErrorText() {
   };
 }
 
-export function AccountView({ user, signIn, onChanged }: { user: User | null; signIn: string | null; onChanged: () => void }) {
+export function AccountView({ user, signIn, authReady, onChanged }: { user: User | null; signIn: string | null; authReady: boolean; onChanged: () => void }) {
   const { t, date } = useI18n();
   const errorText = useErrorText();
   const [version, setVersion] = useState(0);
@@ -54,7 +54,7 @@ export function AccountView({ user, signIn, onChanged }: { user: User | null; si
     }
   };
 
-  if (!user) return <><PageHead title={t("account.title")} lead={t("account.lead")} /><div className="page-column"><SignInCard signIn={signIn} text={t("account.signInText")} /></div></>;
+  if (!user) return <><PageHead title={t("account.title")} lead={t("account.lead")} /><div className="page-column"><SignInCard signIn={signIn} authReady={authReady} text={t("account.signInText")} /></div></>;
   const data = me.data;
   const grants = data?.grants.filter((g) => g.revokedAt === null) ?? [];
   return (
@@ -122,7 +122,7 @@ export function AccountView({ user, signIn, onChanged }: { user: User | null; si
   );
 }
 
-export function LinkView({ user, signIn, initialCode }: { user: User | null; signIn: string | null; initialCode: string }) {
+export function LinkView({ user, signIn, authReady, initialCode }: { user: User | null; signIn: string | null; authReady: boolean; initialCode: string }) {
   const { t } = useI18n();
   const errorText = useErrorText();
   const [code, setCode] = useState(initialCode);
@@ -150,7 +150,7 @@ export function LinkView({ user, signIn, initialCode }: { user: User | null; sig
     <>
       <PageHead title={t("link.title")} lead={t("link.lead")} />
       <div className="page-column link-column">
-        {!user ? <SignInCard signIn={signInHere} text={t("link.signIn")} /> : result ? (
+        {!user ? <SignInCard signIn={signInHere} authReady={authReady} text={t("link.signIn")} /> : result ? (
           <section className={`chapter-card center ${result.tone === "success" ? "tint-pine" : "tint-plum"}`}>
             <span className="empty-icon"><Icon name={result.tone === "success" ? "check" : "info"} size={22} /></span>
             <h2 className="serif-heading small">{result.text}</h2>

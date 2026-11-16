@@ -28,10 +28,14 @@ tao = { version = "0.37.2", optional = true }
 thiserror = "2.0.21"
 tray-icon = { version = "0.26.1", optional = true }
 ureq = { version = "3.5.1", features = ["json"] }
+getrandom = "0.4.3"
+tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_Globalization", "Win32_Security", "Win32_System_SystemInformation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_UI_HiDpi"] }
 winreg = "0.56.0"
+# Music: the Windows media controls (WinRT) and the volume of the playing app (Core Audio).
+windows = { version = "0.62.2", features = ["Media_Control", "Foundation", "Foundation_Collections", "Data_Xml_Dom", "UI_Notifications", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant"] }
 
 # Linux and macOS: list processes to find the Forever client (also under Wine / CrossOver).
 [target.'cfg(unix)'.dependencies]

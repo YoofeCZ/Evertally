@@ -6,6 +6,10 @@ local words = {
  en = {gear="Gear & junk",sub_gear="Compare equipment for your role, keep exceptions and review vendor sales.",gearUpgrades="Upgrades",gearJunk="Junk",gearKept="Keep",gearOptions="Options",gearAuto="Auto",gearRole="Gear for",gearEstimate="Weighted estimate, not a DPS percentage",gearLoading="Item information is not available yet.",gearUnusable="Not usable by this character",gearNoStats="The client has not supplied the required item statistics.",gearDelta="Score change",gearCurrent="Currently equipped",gearCandidate="Candidate",gearKeep="Keep this item",gearUnkeep="Allow this item in junk sales",gearEquip="Equip selected",gearPreview="Preview vendor sale",gearConfirm="Confirm sale",gearCancel="Cancel sale",gearMerchant="Open a merchant before confirming the sale.",gearEmpty="No matching items in your bags.",gearProtected="Kept: excluded from vendor sales",gearNoJunk="No safe grey junk to sell.",gearSaleHint="Only the stacks in this preview are authorised. Changed, locked or quest items are skipped.",gearSaleStopped="Sale stopped",gearSaleDone="Sale finished",gearTooltip="Comparison in item tooltips",gearLoot="Notify when you loot an upgrade",gearRewards="Mark the best quest reward",gearOn="On",gearOff="Off",gearBest="Best upgrade",gearBestVendor="Highest vendor value",gearLearned="Requirements or proficiency not met",gearBagChanged="Bag contents changed; review a new preview.",gearCombat="Unavailable in combat.",gearCursor="Clear the cursor first.",gearReady="Ready",gearWaiting="Waiting for the game to confirm the sale",gearUsefulGrey="Kept: useful equipment or unknown comparison",gearRewardLoading="Quest reward information is still loading."},
  cs = {gear="Výbava a odpad",sub_gear="Porovnání pro tvoji roli, chráněné předměty a náhled prodeje obchodníkovi.",gearUpgrades="Zlepšení",gearJunk="Odpad",gearKept="Ponechat",gearOptions="Nastavení",gearAuto="Automaticky",gearRole="Výbava pro",gearEstimate="Odhad podle vah, ne procento DPS",gearLoading="Informace o předmětu ještě nejsou dostupné.",gearUnusable="Tato postava předmět nemůže použít",gearNoStats="Klient neposkytl potřebné statistiky předmětu.",gearDelta="Změna skóre",gearCurrent="Právě nasazeno",gearCandidate="Nový předmět",gearKeep="Tento předmět ponechat",gearUnkeep="Povolit předmět v prodeji odpadu",gearEquip="Nasadit vybrané",gearPreview="Náhled prodeje odpadu",gearConfirm="Potvrdit prodej",gearCancel="Zastavit prodej",gearMerchant="Před potvrzením prodeje otevři obchodníka.",gearEmpty="V taškách nejsou odpovídající předměty.",gearProtected="Ponecháno: vyloučeno z prodeje",gearNoJunk="Žádný bezpečný šedý odpad k prodeji.",gearSaleHint="Schválené jsou jen stacky z tohoto náhledu. Změněné, zamčené a questové věci se přeskočí.",gearSaleStopped="Prodej zastaven",gearSaleDone="Prodej dokončen",gearTooltip="Porovnání v tooltipech předmětů",gearLoot="Upozornit na vylootené zlepšení",gearRewards="Označit nejlepší odměnu questu",gearOn="Zapnuto",gearOff="Vypnuto",gearBest="Nejlepší zlepšení",gearBestVendor="Nejvyšší prodejní cena",gearLearned="Nesplněné podmínky nebo znalost výbavy",gearBagChanged="Obsah tašek se změnil; vytvoř nový náhled.",gearCombat="V boji není tato akce dostupná.",gearCursor="Nejdřív uvolni kurzor.",gearReady="Připraveno",gearWaiting="Čekám na potvrzení prodeje hrou",gearUsefulGrey="Ponecháno: užitečná výbava nebo neznámé porovnání",gearRewardLoading="Načítají se informace o odměnách questu."},
 }
+words.en.gearBetter="better for %s";words.en.gearWorse="worse for %s";words.en.gearSame="about the same as worn for %s"
+words.en.gearCannot="you cannot equip this";words.en.gearItemLevel="Item level %s -> %s";words.en.gearByItemLevel="same stats, higher item level"
+words.cs.gearBetter="lepší pro %s";words.cs.gearWorse="horší pro %s";words.cs.gearSame="zhruba stejné jako nasazené pro %s"
+words.cs.gearCannot="tohle nemůžeš nasadit";words.cs.gearItemLevel="Item level %s -> %s";words.cs.gearByItemLevel="stejné statistiky, vyšší item level"
 for lang, entries in pairs(words) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 local function call(fn, ...) if type(fn) ~= "function" then return nil end; local r={pcall(fn,...)}; if r[1] then return r end end
 local function plain(v) if type(A.Plain)=="function" then return A.Plain(v) end;return v end
@@ -33,14 +37,37 @@ function G.SetOption(key,on)
 end
 function G.Kept(id) return G.Settings().keep[idOf(id)]==true end
 function G.SetKept(id,on) id=idOf(id);if not id then return false end;G.Settings().keep[id]=on and true or nil;G.preview=nil;changed();return true end
-local melee={strength=1.8,agility=1.1,stamina=.35,attackPower=.8,crit=10,hit=12,haste=8,dps=7}
-local ranged={strength=.05,agility=2,stamina=.3,attackPower=.7,rangedAttackPower=.8,crit=10,hit=12,haste=8,dps=8}
-local caster={intellect=.9,spirit=.2,stamina=.3,spellPower=1.8,spellCrit=9,spellHit=12,haste=8,mp5=.5}
-local healer={intellect=1,spirit=.9,stamina=.25,spellPower=1.2,healing=1.2,spellCrit=4,mp5=3}
-local tank={strength=.7,agility=.7,stamina=2,armor=.015,defense=12,dodge=10,parry=9,block=5,hit=5,dps=2}
-local agile={strength=1,agility=1.8,stamina=.4,attackPower=.8,crit=10,hit=12,haste=8,dps=7}
-local feral={strength=2,agility=1.8,stamina=.4,attackPower=.8,crit=10,hit=12,haste=8}
-local classes={WARRIOR={{"Arms",melee},{"Fury",melee},{"Protection",tank}},PALADIN={{"Holy",healer},{"Protection",tank},{"Retribution",melee}},HUNTER={{"Beast Mastery",ranged},{"Marksmanship",ranged},{"Survival",ranged}},ROGUE={{"Assassination",agile},{"Combat",agile},{"Subtlety",agile}},PRIEST={{"Discipline",healer},{"Holy",healer},{"Shadow",caster}},SHAMAN={{"Elemental",caster},{"Enhancement",melee},{"Restoration",healer}},MAGE={{"Arcane",caster},{"Fire",caster},{"Frost",caster}},WARLOCK={{"Affliction",caster},{"Demonology",caster},{"Destruction",caster}},DRUID={{"Balance",caster},{"Feral Combat",feral},{"Restoration",healer},{"Feral tank",tank}}}
+-- Stat weights for every class and talent tree, our own. Scale: the main stat of the tree is 1. The order of what
+-- matters follows the community's curated Classic/Forever scales (the ones Pawn ships, by HawsJon); the values are
+-- Evertally's and tuned for levelling: melee and tanks count armor several times more than raid scales do, because
+-- while questing it decides how often you stop to eat. Hit, crit and haste are per percent (Forever shows them so),
+-- dps is weapon damage per second.
+local W={
+ arms={strength=1,agility=.65,stamina=.35,armor=.02,attackPower=.45,crit=7,hit=7.5,haste=6,dps=6},
+ fury={strength=1,agility=.55,stamina=.35,armor=.02,attackPower=.45,crit=6.8,hit=7.5,haste=6,dps=6},
+ protWarrior={stamina=1,strength=.55,agility=.5,armor=.04,attackPower=.05,defense=1.2,dodge=6.5,parry=5.5,block=4,hit=5,crit=2.5,dps=4},
+ holyPaladin={intellect=1,spirit=.4,stamina=.15,armor=.005,healing=.55,spellPower=.3,spellCrit=3.7,mp5=1},
+ protPaladin={stamina=1,agility=.55,strength=.4,intellect=.45,armor=.04,spellPower=.4,defense=1.05,dodge=6.5,parry=5.5,block=5,hit=1.5,mp5=.8,dps=4},
+ retribution={strength=1,agility=.4,stamina=.35,intellect=.55,spirit=.05,armor=.02,attackPower=.45,spellPower=.4,crit=6,hit=7,mp5=.8,dps=6},
+ beastMastery={agility=1,intellect=.7,spirit=.35,stamina=.3,strength=.05,armor=.015,attackPower=.4,rangedAttackPower=.45,crit=6.5,hit=8.5,mp5=1.2,dps=6},
+ marksmanship={agility=1,intellect=.7,spirit=.35,stamina=.3,strength=.05,armor=.015,attackPower=.5,rangedAttackPower=.55,crit=5,hit=8.5,mp5=1.2,dps=6.5},
+ survival={agility=1,intellect=.7,spirit=.3,stamina=.35,strength=.3,armor=.015,attackPower=.5,rangedAttackPower=.55,crit=5.5,hit=8.5,mp5=1.5,dps=6},
+ rogue={agility=1,strength=.85,stamina=.35,armor=.02,attackPower=.75,crit=7.5,hit=9,haste=6,dps=6},
+ holyPriest={spirit=1,intellect=.9,stamina=.15,armor=.005,healing=.7,spellCrit=5.5,mp5=1.5},
+ shadow={spellPower=1,spirit=.7,intellect=.5,stamina=.2,armor=.005,spellHit=7,spellCrit=6,mp5=1.2},
+ elemental={spellPower=1,intellect=.6,spirit=.65,stamina=.2,armor=.01,spellHit=5.5,spellCrit=7,mp5=1.2},
+ enhancement={strength=1,agility=.35,stamina=.35,intellect=.55,spirit=.35,armor=.02,attackPower=.42,spellPower=.3,crit=7.5,hit=6,mp5=1,dps=6},
+ restoShaman={intellect=1,spirit=.85,stamina=.15,armor=.01,healing=.9,spellCrit=4.8,mp5=1.4},
+ arcane={spellPower=1,intellect=.6,spirit=.5,stamina=.15,armor=.005,spellHit=7,spellCrit=4.8,mp5=.75},
+ fireFrost={spellPower=1,intellect=.45,spirit=.5,stamina=.15,armor=.005,spellHit=8,spellCrit=6.4,mp5=.75},
+ warlock={spellPower=1,intellect=.55,spirit=.4,stamina=.25,armor=.005,spellHit=6.4,spellCrit=6,mp5=1},
+ balance={spellPower=1,intellect=.6,spirit=.65,stamina=.15,armor=.005,spellHit=8,spellCrit=7,mp5=1},
+ cat={agility=1,strength=1,stamina=.3,armor=.03,attackPower=.5,crit=7,hit=8},
+ bear={stamina=1,agility=.8,strength=.4,armor=.08,attackPower=.1,defense=1,dodge=7,hit=3},
+ restoDruid={spirit=1,intellect=.8,stamina=.15,armor=.005,healing=1.2,spellCrit=4,mp5=1.4},
+}
+local classes={WARRIOR={{"Arms",W.arms},{"Fury",W.fury},{"Protection",W.protWarrior}},PALADIN={{"Holy",W.holyPaladin},{"Protection",W.protPaladin},{"Retribution",W.retribution}},HUNTER={{"Beast Mastery",W.beastMastery},{"Marksmanship",W.marksmanship},{"Survival",W.survival}},ROGUE={{"Assassination",W.rogue},{"Combat",W.rogue},{"Subtlety",W.rogue}},PRIEST={{"Discipline",W.holyPriest},{"Holy",W.holyPriest},{"Shadow",W.shadow}},SHAMAN={{"Elemental",W.elemental},{"Enhancement",W.enhancement},{"Restoration",W.restoShaman}},MAGE={{"Arcane",W.arcane},{"Fire",W.fireFrost},{"Frost",W.fireFrost}},WARLOCK={{"Affliction",W.warlock},{"Demonology",W.warlock},{"Destruction",W.warlock}},DRUID={{"Balance",W.balance},{"Feral Combat",W.cat},{"Restoration",W.restoDruid},{"Feral tank",W.bear}}}
+G.Weights=W
 local defaults={WARRIOR=1,PALADIN=3,HUNTER=1,ROGUE=2,PRIEST=3,SHAMAN=2,MAGE=3,WARLOCK=1,DRUID=2}
 function G.Class() local r=call(UnitClass,"player");return r and plain(r[3]) end
 function G.Profiles() return classes[G.Class()] or {} end
@@ -98,10 +125,11 @@ function G.Item(reference)
   if type(value)=="boolean" then item.usable=value else item.usabilityUnknown=true end
  end
  local tip=tooltipData(item.link)
+ if type(tip)=="table" and type(tip.lines)=="table" and #tip.lines>0 then item.tooltipRead=true end
  for _,line in ipairs(type(tip)=="table" and type(tip.lines)=="table" and tip.lines or {}) do
   local left=plain(field(line,"leftText"));local color=field(line,"leftColor")
   if type(left)=="string" then
-   local lower=left:lower();local value=tonumber((lower:match("([%d]+[.,]?[%d]*)[^%d]*damage per second") or lower:match("([%d]+[.,]?[%d]*)[^%d]*dps") or ""):gsub(",","."))
+   local lower=left:lower();local value=tonumber(((lower:match("([%d]+[.,]?[%d]*)[^%d]*damage per second") or lower:match("([%d]+[.,]?[%d]*)[^%d]*dps") or ""):gsub(",",".")))
    if value then item.stats=item.stats or {};item.stats.dps=value end
    if color and (num(field(color,"r")) or 0)>.9 and (num(field(color,"g")) or 1)<.25 and (num(field(color,"b")) or 1)<.25 then item.unmet=true end
   end
@@ -111,8 +139,8 @@ end
 function G.CanUse(item)
  if not item or not item.known then return nil,"gearLoading" end
  if not slots[item.equipLoc] or item.equippable==false then return false,"gearUnusable" end
- if item.usable==false then return false,"gearLearned" end
- if item.usabilityUnknown then return nil,"gearLoading" end
+ if item.usable==false and not item.tooltipRead then return false,"gearLearned" end
+ if item.usabilityUnknown and not item.tooltipRead then return nil,"gearLoading" end
  local c=G.Class();local level=num(A.Call(UnitLevel,"player")) or 1
  if (item.minLevel or 0)>level or item.unmet then return false,"gearLearned" end
  if item.classId==4 and item.equipLoc~="INVTYPE_CLOAK" and item.subclassId and item.subclassId>=1 and item.subclassId<=4 then
@@ -171,7 +199,13 @@ function G.Compare(reference)
  end
  if best==nil then out.reason="gearLearned";return out end
  out.baseline,out.current,out.slot,out.delta=best,current,replace,score-best
- out.status=out.delta>.01 and "upgrade" or out.delta<-.01 and "downgrade" or "same"
+ -- A difference this small (a few points of armor) is noise in a weighted estimate: "about the same", no arrow.
+ local margin=math.max(.15,.03*math.max(math.abs(score),math.abs(best)))
+ out.status=out.delta>margin and "upgrade" or out.delta<-margin and "downgrade" or "same"
+ -- Truly equal weighted stats (often: none the role values): the higher item level is the better piece.
+ if out.status=="same" and math.abs(out.delta)<=.01 and current and item.itemLevel and current.itemLevel and item.itemLevel~=current.itemLevel then
+  out.status=item.itemLevel>current.itemLevel and "upgrade" or "downgrade";out.byItemLevel=true
+ end
  return out
 end
 local function bagSlots(bag) return math.min(200,num(A.Call(api(C_Container,"GetContainerNumSlots",GetContainerNumSlots),bag)) or 0) end
@@ -314,13 +348,36 @@ function G.MarkRewards()
  end
  return best,reason
 end
+-- One verdict line in the style of Pawn: an arrow, better or worse, for which role, by how much; then the item
+-- level change. Gear the character cannot wear says so instead of staying silent.
+local UP,DOWN="|TInterface\\Buttons\\UI-MicroStream-Green:14:14:0:0:32:32:0:32:32:0|t","|TInterface\\Buttons\\UI-MicroStream-Red:14:14|t"
+function G.TooltipLines(link)
+ local compare=G.Compare(link);local item=compare.item
+ if compare.status=="unusable" then
+  if not item or not slots[item.equipLoc] then return nil end
+  return {{"Evertally: "..A.L("gearCannot"),1,.35,.3}}
+ end
+ if compare.status=="unknown" then return nil end
+ local name=compare.profile.name;local lines={}
+ if compare.status=="upgrade" then
+  local detail=compare.byItemLevel and A.L("gearByItemLevel") or string.format("%+.1f",compare.delta)
+  lines[1]={UP.." Evertally: "..string.format(A.L("gearBetter"),name).." ("..detail..")",.4,1,.35}
+ elseif compare.status=="downgrade" then
+  local detail=compare.byItemLevel and "item level" or string.format("%+.1f",compare.delta)
+  lines[1]={DOWN.." Evertally: "..string.format(A.L("gearWorse"),name).." ("..detail..")",1,.55,.3}
+ else lines[1]={"Evertally: "..string.format(A.L("gearSame"),name),.8,.8,.8} end
+ local now=compare.current and compare.current.itemLevel
+ local hint=A.L("gearEstimate")
+ if now and item.itemLevel and now~=item.itemLevel then hint=string.format(A.L("gearItemLevel"),now,item.itemLevel).." · "..hint end
+ lines[2]={hint,.72,.72,.72}
+ return lines
+end
 function G.AppendTooltip(tooltip)
  if not G.Enabled("tooltip") or not tooltip or type(tooltip.GetItem)~="function" then return false end
  local r=call(tooltip.GetItem,tooltip);local link=r and plain(r[3]);if not link or tooltip.evertallyGearLink==link then return false end
- local compare=G.Compare(link);if compare.status=="unknown" or compare.status=="unusable" then return false end
+ local lines=G.TooltipLines(link);if not lines then return false end
  tooltip.evertallyGearLink=link
- local tint=compare.delta>0 and {.4,1,.35} or {1,.65,.35}
- tooltip:AddLine(string.format("Evertally · %s: %+.1f",compare.profile.name,compare.delta),unpack(tint));tooltip:AddLine(A.L("gearEstimate"),.72,.72,.72,true)
+ for _,l in ipairs(lines) do tooltip:AddLine(l[1],l[2],l[3],l[4],true) end
  tooltip:Show();return true
 end
 function G.HookTooltip()

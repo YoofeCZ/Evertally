@@ -17,7 +17,8 @@ struct Sessions {
 
 impl Sessions {
     fn update(&mut self, current: BTreeSet<u32>) -> bool {
-        let launch = current.difference(&self.previous).next().is_some();
+        let launch = current.difference(&self.previous).next().is_some()
+            || !self.previous.is_empty() && current.is_empty();
         self.previous = current;
         launch
     }
@@ -192,6 +193,8 @@ mod windows {
                         &format!("Background companion launch failed: {error}"),
                     );
                 }
+                // The final SavedVariables save is ready when the last game process exits.
+                evertally_sync::bridge::Action::Sync.request();
             }
             // SAFETY: valid event handle. A four-second wait is also the polling interval.
             if unsafe { WaitForSingleObject(stop_event.0, 4000) } == WAIT_OBJECT_0 {
@@ -256,6 +259,7 @@ mod unix {
                         &format!("Background companion launch failed: {error}"),
                     );
                 }
+                evertally_sync::bridge::Action::Sync.request();
             }
             // The poll interval is also the stop latency, so wait in short steps.
             for _ in 0..(POLL.as_millis() / 250) {
@@ -311,14 +315,23 @@ fn main() {
 mod tests {
     use super::*;
     #[test]
-    fn only_new_game_sessions_start_the_companion() {
+    fn game_starts_and_the_last_game_exit_wake_the_companion() {
         let mut sessions = Sessions::default();
         assert!(!sessions.update(BTreeSet::new()));
         assert!(sessions.update(BTreeSet::from([10])));
         assert!(!sessions.update(BTreeSet::from([10]))); // manual app closure stays respected
+        assert!(sessions.update(BTreeSet::new())); // final save also wakes the companion
         assert!(!sessions.update(BTreeSet::new()));
         assert!(sessions.update(BTreeSet::from([11])));
         assert!(!sessions.update(BTreeSet::from([11])));
+    }
+    #[test]
+    fn one_game_closing_does_not_count_as_the_last_client_exit() {
+        let mut sessions=Sessions::default();
+        assert!(sessions.update(BTreeSet::from([10,11])));
+        assert!(!sessions.update(BTreeSet::from([11])));
+        assert!(sessions.update(BTreeSet::new()));
+        assert!(!sessions.update(BTreeSet::new()));
     }
     #[cfg(windows)]
     #[test]

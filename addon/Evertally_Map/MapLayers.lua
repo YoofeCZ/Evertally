@@ -270,6 +270,7 @@ function M.RegisterWithOpenMap()
     add("evertally_marked", en("mapMarkedToggle"), "show", function() return #M.extra > 0 or M.route ~= nil end, function(on) if not on then M.ClearExtra() end end)
     add("evertally_search", en("mapSearch"), "more", function() return false end, function(on) if on and M.OpenWorldTab then M.OpenWorldTab("db") end end)
     add("evertally_journey", en("mapJourney"), "more", function() return false end, function(on) if on and M.OpenWorldTab then M.OpenWorldTab("plan") end end)
+    if M.transport then M.transport.RegisterWithOpenMap(api) end
     M.openMapRegistered = true
     -- every single resource, under a heading for its kind, with its own icon
     local rows = {}

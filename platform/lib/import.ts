@@ -96,17 +96,27 @@ export function projectExport(value:ExportEnvelope,scopes:Scope[]):ExportEnvelop
     const {character,...source}=event;
     const rest={...source,payload:scopeFor(event.kind)==="world_facts"?worldPayload(event.kind,event.payload):event.payload};
     if(includeCharacter)return {...rest,...(character?{character:{...character}}:{})};
-    if((scopeFor(event.kind)==="own_runs"||scopeFor(event.kind)==="own_track")&&character){
-      if(scopeFor(event.kind)==="own_runs"){
+    const ownPlayers=(combat:Record<string,unknown>)=>{
+      const players=Array.isArray(combat.players)?combat.players as Record<string,unknown>[]:[];
+      return {...combat,players:players.filter(p=>character&&p.guid===character.id).map(p=>{const clean:Record<string,unknown>={...p,guid:value.producerId+":own"};delete clean.name;return clean;})};
+    };
+    if(scopeFor(event.kind)==="own_runs"){
         rest.payload={...rest.payload};delete rest.payload.roster;
         const combat=rest.payload.combat as Record<string,unknown>|undefined;
-        if(combat&&typeof combat==="object"){
-          const players=Array.isArray(combat.players)?combat.players as Record<string,unknown>[]:[];
-          rest.payload.combat={...combat,players:players.filter(p=>p.guid===character.id).map(p=>{const clean:Record<string,unknown>={...p,guid:value.producerId+":own"};delete clean.name;return clean;})};
-        }
-      }
+        if(combat&&typeof combat==="object")rest.payload.combat=ownPlayers(combat);
+    }
+    if(event.kind==="journey.chunk"&&Array.isArray(rest.payload.events)){
+      rest.payload={...rest.payload,events:(rest.payload.events as Record<string,unknown>[]).filter(moment=>moment.k!=='speech' && (!moment.actorSide || moment.actorSide==='me')).map(moment=>{
+        const clean={...moment};
+        for(const key of ['roster','attrs','enh','ilvl','copper','played','race','faction','guild','spec','skills','professions','equipped','actor','target','actorClassId'])delete clean[key];
+        if(clean.encounterKind==='pvp')clean.text='PvP';
+        if(clean.summary&&typeof clean.summary==="object")clean.summary=ownPlayers(clean.summary as Record<string,unknown>);
+        return clean;
+      })};
+    }
+    if((scopeFor(event.kind)==="own_runs"||scopeFor(event.kind)==="own_track")&&character){
       return {...rest,character:{id:value.producerId+":own",...(character.classId!==undefined?{classId:character.classId}:{}),...(character.raceId!==undefined?{raceId:character.raceId}:{}),...(character.level!==undefined?{level:character.level}:{})}};
     }
     return rest;
-  })};
+  }).filter(event=>event.kind!=="journey.chunk"||Array.isArray(event.payload.events)&&event.payload.events.length>0)};
 }

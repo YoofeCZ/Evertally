@@ -24,6 +24,7 @@ Stav: 11. listopadu 2026. Platí pro webovou mapu a databázi (složky `platform
 | GatherLite (Wuild) | MIT (původní kód); celý addon se distribuuje jako GPL-3.0-or-later; **souřadnice uzlů vznikly z Wowhead seznamů a jejich licenci GatherLite neurčuje** | souřadnice bylinek, rud, beden a rybářských míst (`forever.lua`) a jména/minimální dovednost (`nodes.lua`); kód ani ikony se nepřebírají | `tools/build_gather.py` → `platform/public/media/gather/gather.json` |
 | wago.tools (herní tabulky UiMap, LoadingScreens …) | data Blizzard Entertainment | umístění map na mapě světa, odkazy na umění | `shared/sources/*.csv` |
 | Leaflet 1.9.4 | BSD-2-Clause | vykreslování mapy v prohlížeči | `platform/package.json` |
+| DockWatch 1.8.1 (Wyveryx) | MIT (text licence je v hlavičce `TransportData.lua`) | jízdní řády lodí a zeppelinů: přístavy, ověřené doby plavby a čekání, délka okruhu a jeden skutečný odjezd na trasu (data 13. 10. 2026); časy se jen dopočítávají, ve hře se nic nesleduje ani neučí | `tools/build_transport_data.py` → `addon/Evertally_Map/TransportData.lua`, `Transports.lua` |
 | HereBeDragons 2.0 + Pins (Nevcairiel) | BSD (podle X-License v jejím TOC) | body na světové mapě a minimapě v addonu; nezměněné kopie přibalené v GatherLite, commit 0547c95 | `addon/Evertally_Map/Libs/` |
 | CallbackHandler-1.0 (Ace3) | licence Ace3 (BSD s doložkou o samostatném šíření; zde je vložená do addonu, ne šířená samostatně) | závislost HereBeDragons | `addon/Evertally_Map/Libs/`, text v `Ace3-LICENSE.txt` |
 | LibStub | public domain (uvedeno v souboru) | závislost HereBeDragons | `addon/Evertally_Map/Libs/` |
@@ -51,6 +52,12 @@ Složka `addon/Evertally_Map` obsahuje číselné údaje odvozené z GPL-3.0 zdr
 Do projektu vstupují podklady s různými podmínkami včetně GPL-3.0, GPL-2.0 a CC BY 4.0. Prohlášení QuestieDB navíc upozorňuje na nevyjasněná historická práva; nelze proto tvrdit, že pro celý obsah stačí pouze zvolit GPL-3.0. U databáze uzlů z Wowheadu ani u herní grafiky se dosud nepodařilo doložit souhlas pro tuto distribuci. Konkrétní stav je potřeba předat právníkovi nebo vyjasnit s držiteli práv.
 
 ### Ověření podkladů 10. 11. 2026
+
+Přehrávač kronik navíc načítá metadata ikon kouzel z veřejného Classic tooltip rozhraní Wowhead a ID modelu NPC z
+[CMaNGOS ClassicDB z2815](https://github.com/cmangos/classic-db/blob/master/Full_DB/ClassicDB_1_12_1_z2815.sql.gz).
+Použije jen modelové záznamy s totožným ID a názvem v dosavadní referenční databázi. Obrázky ikon a náhledy modelů se zobrazují přímo ze CDN `wow.zamimg.com`; herní grafika pochází od
+Blizzard Entertainment. Vyhledání starších NPC podle jména používá stejná referenční fakta jako stávající databáze NPC
+(`tools/build_chronicle_npcs.py`); nejednoznačná jména se nedoplňují.
 
 - Nainstalovaný `QuestieDB/LICENSE.md` i [licence QuestieDB](https://github.com/Questie/QuestieDB/blob/master/LICENSE.md) rozlišují podmínky jednotlivých příspěvků a výslovně uvádějí nejistotu u starších přispěvatelů. Nejde tedy o jednoznačně doloženou licenci všech řádků databáze.
 - `GatherLite/plugins/database/data/forever.lua` identifikuje generátor `tools/update_forever_wowhead.py`. Licence kódu GatherLite sama o sobě neprokazuje licenci dat převzatých ze třetí strany.

@@ -20,6 +20,13 @@ export function validateUpload(grant:GrantPolicy,raw:unknown):ExportEnvelope{
   // Runs and tracks may carry a pseudonymous source-wide character, never a name or realm.
   if(!value.scopes.includes("own_character")&&value.events.some(event=>event.character!==undefined&&(!PSEUDONYMOUS.has(scopeFor(event.kind))||event.character.id!==value.producerId+":own"||event.character.name!==undefined||event.character.realm!==undefined)))throw new ApiError("identity_scope_denied","This upload does not allow character details.",403);
   if(!value.scopes.includes("own_character")&&value.events.some(event=>{
+    if(event.kind==="journey.chunk"&&Array.isArray(event.payload.events))return (event.payload.events as Record<string,unknown>[]).some(moment=>{
+      if(moment.k==='speech')return true;
+      if(moment.actor!==undefined||moment.target!==undefined||moment.actorClassId!==undefined||moment.actorSide!==undefined&&moment.actorSide!=='me')return true;
+      if(['attrs','enh','ilvl','copper','played','race','faction','guild','spec','skills','professions','equipped'].some(key=>moment[key]!==undefined)||Array.isArray(moment.roster)&&moment.roster.length)return true;
+      const summary=moment.summary as {players?:{guid?:string;name?:string}[]}|undefined;
+      return summary?.players?.some(p=>p.guid!==value.producerId+":own"||p.name!==undefined)??false;
+    });
     if(scopeFor(event.kind)!=="own_runs")return false;
     if(Array.isArray(event.payload.roster)&&event.payload.roster.length)return true;
     const combat=event.payload.combat as {players?:{guid?:string;name?:string}[]}|undefined;

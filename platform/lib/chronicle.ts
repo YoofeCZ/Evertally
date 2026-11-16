@@ -1,13 +1,13 @@
 // A recorded journey ("kronika") and everything the player needs to replay it. Pure functions, no browser and no server:
 // the recording is one file that is played back entirely in the visitor's browser.
 
-export type EventKind = "quest" | "kill" | "loot" | "money" | "level" | "skill" | "zone" | "death" | "dungeon" | "travel" | "boss" | "group" | "emote" | "pvp";
+export type EventKind = "quest" | "kill" | "loot" | "money" | "level" | "skill" | "zone" | "death" | "dungeon" | "travel" | "boss" | "group" | "emote" | "pvp" | "combat" | "action" | "aura" | "state" | "speech";
 /** The groups shown as filter chips next to the list of moments. */
 export type Category = "quests" | "combat" | "loot" | "professions" | "travel" | "character";
 export const CATEGORIES: readonly Category[] = ["quests", "combat", "loot", "professions", "travel", "character"];
 const CATEGORY_OF: Record<EventKind, Category> = {
   quest: "quests", kill: "combat", death: "combat", loot: "loot", money: "loot", skill: "professions",
-  zone: "travel", travel: "travel", dungeon: "travel", level: "character", boss: "combat", group: "character", emote: "character", pvp: "combat",
+  zone: "travel", travel: "travel", dungeon: "travel", level: "character", boss: "combat", group: "character", emote: "character", pvp: "combat", combat: "combat", action: "character", aura: "character", state: "character", speech: "character",
 };
 export const categoryOf = (kind: EventKind): Category => CATEGORY_OF[kind];
 
@@ -34,10 +34,17 @@ export type ChronicleEvent = {
   d?: number;
   /** A line of detail under the text (for example the damage of a fight, or the difficulty of a dungeon). */
   detail?: string;
+  /** Recorded aura data, never inferred from the current character. */
+  helpful?: boolean; stacks?: number; duration?: number; expiresAt?: number; icon?: number;
+  speaker?: string; message?: string;
+  actor?: string; target?: string; actorClassId?: number; actorSide?: "me" | "party" | "enemy";
+  encounterKind?: "combat" | "boss" | "pvp";
+  /** A whole dungeon/run aggregate, distinct from any single fight. Available only from summary.t onward. */
+  summary?: CombatSummary;
 };
 /** One line of a damage or healing meter: how often a spell was used and what it did. */
-export type SpellRow = { name: string; total: number; casts: number; hits?: number; crits?: number; max?: number; /** physical | nature | fire | frost | shadow | arcane | holy */ school?: string };
-export type Member = { name: string; classId: number; role?: "tank" | "healer" | "dps"; dmg: number; heal: number; taken: number; deaths?: number; me?: boolean };
+export type SpellRow = { id?: number; name: string; total: number; casts?: number; hits?: number; crits?: number; max?: number; /** physical | nature | fire | frost | shadow | arcane | holy */ school?: string };
+export type Member = { name: string; classId: number; role?: "tank" | "healer" | "dps"; dmg?: number; heal?: number; taken?: number; deaths?: number; me?: boolean };
 export type FightMark = { /** seconds from the start of the fight */ t: number; kind: "death" | "cooldown" | "phase" | "interrupt" | "lust"; text: string };
 /** Who takes part in a fight: the character, the people of the group, and the enemies. */
 export type Actor = { name: string; side: "me" | "party" | "enemy"; classId?: number; role?: "tank" | "healer" | "dps"; boss?: boolean };
@@ -47,9 +54,11 @@ export const LOG_KINDS: readonly LogKind[] = ["dmg", "heal", "cast", "aura", "in
 export type LogLine = [t: number, source: number, target: number, kind: number, spell: number, amount: number, crit: 0 | 1];
 /** A boss fight, an arena or a battleground: everything the window of the event shows. Times are journey seconds. */
 export type Fight = {
-  t: number; d: number; kind: "boss" | "pvp"; name: string; result: "kill" | "wipe" | "win" | "loss";
-  zone?: number; difficulty?: string; size?: number; attempt?: number;
-  me: { dmg: number; heal: number; taken: number; deaths: number; interrupts?: number; dispels?: number; dealt: SpellRow[]; healed: SpellRow[]; took: SpellRow[] };
+  t: number; d: number; kind: "boss" | "pvp" | "combat"; name: string; result: "kill" | "wipe" | "win" | "loss" | "ended" | "interrupted";
+  zone?: number; difficulty?: string; size?: number; attempt?: number; npcId?: number; displayId?: number;
+  source?: "damage_meter" | "combat_log" | "unavailable";
+  coverage?: "observed" | "partial" | "unavailable";
+  me: { dmg?: number; heal?: number; taken?: number; deaths?: number; interrupts?: number; dispels?: number; dealt: SpellRow[]; healed: SpellRow[]; took: SpellRow[] };
   group?: Member[];
   /** Damage, healing and damage taken of the character in steps of `step` seconds, for the graph and the live counters. */
   series?: { step: number; dmg: number[]; heal?: number[]; taken?: number[] };
@@ -58,8 +67,11 @@ export type Fight = {
   actors?: Actor[]; spells?: { name: string; school?: string }[]; log?: LogLine[];
   pvp?: { score?: [number, number]; kills: number; deaths: number; assists?: number; objectives?: number; honor?: number };
 };
+export type CombatSummary = Pick<Fight, "me" | "group" | "source" | "coverage"> & { t: number };
 /** What the character sheet showed from `t` on. */
-export type StatSnapshot = { t: number; ilvl?: number; attrs?: [name: string, value: number][]; enh?: [name: string, value: string][] };
+export type Aura = { id?: number; text: string; helpful: boolean; stacks?: number; duration?: number; expiresAt?: number; icon?: number };
+export type RosterMember = { guid?: string; name?: string; classId?: number; raceId?: number; level?: number; role?: string };
+export type StatSnapshot = { t: number; ilvl?: number; attrs?: [name: string, value: number][]; enh?: [name: string, value: string][]; roster?: RosterMember[]; groupType?: "solo" | "party" | "raid"; auras?: Aura[]; aurasKnown?: boolean; copper?: number; played?: number; playedAt?: number; race?: string; faction?: string; guild?: string; spec?: string; skills?: Record<string, [number, number]>; professions?: string[]; equipped?: {slot:number;itemId:number}[]; /** Last actual sheet observation; other state updates do not change it. */ sheetAt?: number };
 /** One play session: from journey time `t` on, the clock of the day is `at` (unix seconds). */
 export type Session = { t: number; at: number };
 /** One position sample: seconds, index into `zones`, x and y from 0 to 1 inside the zone. */
@@ -91,19 +103,29 @@ const unit = (v: unknown): v is number => finite(v) && v >= 0 && v <= 1;
 const short = (v: unknown, max = 160): v is string => typeof v === "string" && v.length <= max;
 
 const num = (v: unknown): v is number => finite(v) && v >= 0;
-const spellList = (v: unknown): boolean => Array.isArray(v) && v.length <= 300 && v.every(r => !!r && short(r.name, 60) && num(r.total) && num(r.casts)
+const optionalNum = (v: unknown): boolean => v === undefined || num(v);
+const spellList = (v: unknown): boolean => Array.isArray(v) && v.length <= 300 && v.every(r => !!r && short(r.name, 60) && num(r.total) && optionalNum(r.casts) && (r.id === undefined || Number.isInteger(r.id) && r.id > 0)
   && (r.hits === undefined || num(r.hits)) && (r.crits === undefined || num(r.crits)) && (r.max === undefined || num(r.max)) && (r.school === undefined || short(r.school, 16)));
 const series = (v: unknown): boolean => v === undefined || (Array.isArray(v) && v.length <= 5000 && v.every(num));
+const validAura = (a: Aura): boolean => !!a && short(a.text, 120) && typeof a.helpful === "boolean"
+  && (a.id === undefined || Number.isInteger(a.id) && a.id > 0) && optionalNum(a.stacks) && optionalNum(a.duration) && optionalNum(a.expiresAt)
+  && (a.icon === undefined || Number.isInteger(a.icon) && a.icon > 0);
+const validRoster = (list: unknown): boolean => Array.isArray(list) && list.length <= 80 && list.every((m: RosterMember) => !!m
+  && (m.guid === undefined || short(m.guid, 100)) && (m.name === undefined || short(m.name, 240))
+  && (m.classId === undefined || Number.isInteger(m.classId) && m.classId > 0) && (m.raceId === undefined || Number.isInteger(m.raceId) && m.raceId > 0)
+  && optionalNum(m.level) && (m.role === undefined || short(m.role, 20)));
 function validFights(list: unknown, zones: number, events: readonly ChronicleEvent[]): boolean {
   if (!Array.isArray(list) || list.length > 5000) return false;
   let at = -Infinity, lines = 0;
   for (const f of list as Fight[]) {
-    if (!f || !num(f.t) || f.t < at || !num(f.d) || (f.kind !== "boss" && f.kind !== "pvp") || !["kill", "wipe", "win", "loss"].includes(f.result) || !short(f.name, 80)) return false;
+    if (!f || !num(f.t) || f.t < at || !num(f.d) || !["boss", "pvp", "combat"].includes(f.kind) || !["kill", "wipe", "win", "loss", "ended", "interrupted"].includes(f.result) || !short(f.name, 80)) return false;
     at = f.t;
+    if ([f.npcId,f.displayId].some(id => id !== undefined && (!Number.isInteger(id) || id <= 0 || id > 1e9))) return false;
     if ((f.zone !== undefined && !(Number.isInteger(f.zone) && f.zone >= 0 && f.zone < zones)) || (f.difficulty !== undefined && !short(f.difficulty, 40)) || (f.size !== undefined && !num(f.size)) || (f.attempt !== undefined && !num(f.attempt))) return false;
     const me = f.me;
-    if (!me || !num(me.dmg) || !num(me.heal) || !num(me.taken) || !num(me.deaths) || !spellList(me.dealt) || !spellList(me.healed) || !spellList(me.took)) return false;
-    if (f.group !== undefined && (!Array.isArray(f.group) || f.group.length > 80 || !f.group.every(m => !!m && short(m.name, 40) && Number.isInteger(m.classId) && num(m.dmg) && num(m.heal) && num(m.taken) && (m.deaths === undefined || num(m.deaths)) && (m.role === undefined || ["tank", "healer", "dps"].includes(m.role))))) return false;
+    if (!me || !optionalNum(me.dmg) || !optionalNum(me.heal) || !optionalNum(me.taken) || !optionalNum(me.deaths) || !optionalNum(me.interrupts) || !optionalNum(me.dispels) || !spellList(me.dealt) || !spellList(me.healed) || !spellList(me.took)) return false;
+    if (f.source !== undefined && !["damage_meter", "combat_log", "unavailable"].includes(f.source) || f.coverage !== undefined && !["observed", "partial", "unavailable"].includes(f.coverage)) return false;
+    if (f.group !== undefined && (!Array.isArray(f.group) || f.group.length > 80 || !f.group.every(m => !!m && short(m.name, 80) && Number.isInteger(m.classId) && optionalNum(m.dmg) && optionalNum(m.heal) && optionalNum(m.taken) && (m.deaths === undefined || num(m.deaths)) && (m.role === undefined || ["tank", "healer", "dps"].includes(m.role))))) return false;
     if (f.series !== undefined && (!f.series || !(finite(f.series.step) && f.series.step > 0) || !Array.isArray(f.series.dmg) || !series(f.series.dmg) || !series(f.series.heal) || !series(f.series.taken))) return false;
     if (f.marks !== undefined && (!Array.isArray(f.marks) || f.marks.length > 500 || !f.marks.every(m => !!m && num(m.t) && ["death", "cooldown", "phase", "interrupt", "lust"].includes(m.kind) && short(m.text, 80)))) return false;
     if (f.actors !== undefined || f.spells !== undefined || f.log !== undefined) {
@@ -148,6 +170,11 @@ export function parseChronicle(raw: unknown): Chronicle | null {
     if (e.id !== undefined && !(Number.isInteger(e.id) && e.id > 0)) return null;
     if ((e.d !== undefined && !(finite(e.d) && e.d >= 0)) || (e.detail !== undefined && !short(e.detail, 300))) return null;
     if ((e.x !== undefined && !unit(e.x)) || (e.y !== undefined && !unit(e.y))) return null;
+    if (e.k === "aura" && !validAura(e as Aura)) return null;
+    if (e.speaker !== undefined && !short(e.speaker,120) || e.message !== undefined && !short(e.message,1000)) return null;
+    if (e.actor !== undefined && !short(e.actor,120) || e.target !== undefined && !short(e.target,120) || e.actorClassId !== undefined && (!Number.isInteger(e.actorClassId) || e.actorClassId <= 0 || e.actorClassId > 100) || e.actorSide !== undefined && !["me","party","enemy"].includes(e.actorSide)) return null;
+    if (e.encounterKind !== undefined && !["combat","boss","pvp"].includes(e.encounterKind)) return null;
+    if (e.summary !== undefined && (!num(e.summary.t) || !validFights([{ ...e.summary, d: 0, kind: "combat", name: "Run", result: "ended" }], zones, []))) return null;
     last = e.t;
   }
   if (c.fights !== undefined && !validFights(c.fights, zones, c.events)) return null;
@@ -165,6 +192,16 @@ export function parseChronicle(raw: unknown): Chronicle | null {
       at = x.t;
       if (x.attrs !== undefined && (!Array.isArray(x.attrs) || x.attrs.length > 40 || !x.attrs.every(a => Array.isArray(a) && short(a[0], 40) && finite(a[1])))) return null;
       if (x.enh !== undefined && (!Array.isArray(x.enh) || x.enh.length > 40 || !x.enh.every(a => Array.isArray(a) && short(a[0], 40) && short(a[1], 60)))) return null;
+      if (x.roster !== undefined && !validRoster(x.roster)) return null;
+      if (x.groupType !== undefined && !["solo", "party", "raid"].includes(x.groupType)) return null;
+      if (x.auras !== undefined && (!Array.isArray(x.auras) || x.auras.length > 160 || !x.auras.every(validAura))) return null;
+      if (x.aurasKnown !== undefined && typeof x.aurasKnown !== "boolean" || x.aurasKnown === false && x.auras?.length) return null;
+      if (x.sheetAt !== undefined && !num(x.sheetAt)) return null;
+      if (!optionalNum(x.copper) || !optionalNum(x.played) || !optionalNum(x.playedAt)) return null;
+      for (const field of ["race","faction","guild","spec"] as const) if (x[field] !== undefined && !short(x[field],80)) return null;
+      if (x.skills !== undefined && (!x.skills || typeof x.skills !== "object" || Array.isArray(x.skills) || Object.entries(x.skills).length > 100 || !Object.entries(x.skills).every(([k,v]) => short(k,40) && Array.isArray(v) && v.length === 2 && v.every(num)))) return null;
+      if (x.professions !== undefined && (!Array.isArray(x.professions) || x.professions.length > 20 || !x.professions.every(p => short(p,40)))) return null;
+      if (x.equipped !== undefined && (!Array.isArray(x.equipped) || x.equipped.length > 25 || !x.equipped.every(e => e && Number.isInteger(e.slot) && e.slot >= 1 && e.slot <= 19 && Number.isInteger(e.itemId) && e.itemId > 0))) return null;
     }
   }
   if (c.skills0 !== undefined) {
@@ -294,15 +331,20 @@ export function typeKey(e: ChronicleEvent): string {
     case "skill": return "prof.skill";
     case "zone": return "travel.zone";
     case "travel": return "travel.flight";
-    case "dungeon": return "travel.instance";
+    case "dungeon": return e.detail === "Raid" ? "travel.raid" : "travel.instance";
     case "level": return "char.level";
     case "group": return "char.group";
+    case "combat": return e.encounterKind === "pvp" ? "combat.pvp" : e.encounterKind === "boss" ? "combat.boss" : "combat.fight";
+    case "action": return e.a?.startsWith("cast") ? "action.cast" : e.a === "jump" ? "action.jump" : e.a === "mount" || e.a === "dismount" ? "action.mount" : e.a === "item" || e.a === "item_attempt" ? "action.item" : "action.other";
+    case "aura": return e.a === "loss" ? "aura.loss" : e.a === "refresh" ? "aura.refresh" : "aura.gain";
+    case "state": return "char.state";
+    case "speech": return "char.speech";
     default: return "char.emote";
   }
 }
 export const TYPE_KEYS: Record<Category, string[]> = {
-  quests: ["quest.accept", "quest.turnin", "quest.abandon"], combat: ["combat.kill", "combat.death", "combat.boss", "combat.pvp"], loot: ["loot.item", "loot.money"],
-  professions: ["prof.skill"], travel: ["travel.flight", "travel.instance", "travel.zone"], character: ["char.level", "char.group", "char.emote"],
+  quests: ["quest.accept", "quest.turnin", "quest.abandon"], combat: ["combat.kill", "combat.death", "combat.boss", "combat.pvp", "combat.fight"], loot: ["loot.item", "loot.money"],
+  professions: ["prof.skill"], travel: ["travel.flight", "travel.instance", "travel.raid", "travel.zone"], character: ["char.level", "char.group", "char.emote", "char.speech", "action.cast", "action.jump", "action.mount", "action.item", "action.other", "aura.gain", "aura.loss", "aura.refresh", "char.state"],
 };
 export const ALL_TYPES: string[] = Object.values(TYPE_KEYS).flat();
 export function countByType(c: Chronicle): Record<string, number> {
@@ -349,21 +391,21 @@ export function daysOf(c: Chronicle): Day[] {
   return [...days.values()].sort((a, b) => a.from - b.from);
 }
 
-export type Instance = { name: string; detail?: string; from: number; to: number | null; zone?: number };
+export type Instance = { name: string; detail?: string; from: number; to: number | null; zone?: number; summary?: CombatSummary };
 /** The dungeon and raid visits: from the moment of entering to the moment of leaving (open when the recording ends inside). */
 export function instances(c: Chronicle): Instance[] {
   const out: Instance[] = [];
   for (const e of c.events) {
     if (e.k !== "dungeon") continue;
     if (e.a === "enter") out.push({ name: e.text, detail: e.detail, from: e.t, to: null, zone: e.zone });
-    else if (e.a === "leave") { const last = out[out.length - 1]; if (last && last.to === null) last.to = e.t; }
+    else if (e.a === "leave") { const last = out[out.length - 1]; if (last && last.to === null) { last.to = e.t; if (e.summary) last.summary = e.summary; } }
   }
   return out;
 }
 export function instanceAt(list: readonly Instance[], t: number): Instance | null {
   for (let i = list.length - 1; i >= 0; i--) {
     const x = list[i];
-    if (x.from <= t) return x.to === null || t < x.to ? x : null;
+    if (x.from <= t) return x.to === null || t < x.to ? (x.summary && x.summary.t > t ? {...x,summary:undefined} : x) : null;
   }
   return null;
 }
@@ -372,13 +414,16 @@ export function fightAt(c: Chronicle, t: number): number {
   const list = c.fights;
   if (!list?.length) return -1;
   const i = upper(list, t, f => f.t) - 1;
-  return i >= 0 && t <= list[i].t + list[i].d ? i : -1;
+  // An encounter can be nested in the player's longer combat interval.
+  for (let n = i; n >= 0; n--) if (t <= list[n].t + list[n].d) return n;
+  return -1;
 }
 /** What the character had done, taken and healed `local` seconds into a fight (from the series, interpolated inside a step). */
-export function fightProgress(f: Fight, local: number): { dmg: number; heal: number; taken: number } {
+export function fightProgress(f: Fight, local: number): { dmg?: number; heal?: number; taken?: number } {
   const sr = f.series;
-  const sum = (a: number[] | undefined, total: number) => {
-    if (!a?.length || !sr) return total * Math.min(1, Math.max(0, local / Math.max(1, f.d)));
+  const sum = (a: number[] | undefined, total: number | undefined) => {
+    // Final meter totals do not tell us when the damage happened. Only reveal them once the fight ends.
+    if (!a?.length || !sr) return local >= f.d ? total : undefined;
     const x = Math.max(0, local) / sr.step, whole = Math.min(a.length, Math.floor(x));
     let out = 0;
     for (let i = 0; i < whole; i++) out += a[i];
@@ -393,15 +438,38 @@ export function instanceSummary(c: Chronicle, inst: Instance, t: number): Instan
   const out: InstanceSummary = { kills: 0, deaths: 0, items: 0, copper: 0, bosses: [] };
   for (const e of eventsBetween(c, inst.from - 1e-6, Math.min(t, inst.to ?? t))) {
     if (e.k === "kill") out.kills++; else if (e.k === "death") out.deaths++; else if (e.k === "loot") out.items += e.n ?? 1;
-    else if (e.k === "money") out.copper += e.n ?? 0; else if (e.k === "boss" || e.k === "pvp") out.bosses.push(e);
+    else if (e.k === "money") out.copper += e.n ?? 0;
+    else if (e.k === "boss" || e.k === "pvp" || e.k === "combat" && e.a !== "start") {
+      const previous = e.f === undefined ? -1 : out.bosses.findIndex(other=>other.f===e.f);
+      if (previous < 0) out.bosses.push(e);
+      else if (out.bosses[previous].k === "combat" && e.k !== "combat") out.bosses[previous]=e;
+    }
   }
   return out;
 }
+const stateMemo = new WeakMap<Chronicle, StatSnapshot[]>();
 export function statsAt(c: Chronicle, t: number): StatSnapshot | null {
   const s = c.stats;
   if (!s?.length) return null;
   const i = upper(s, t, x => x.t) - 1;
-  return s[Math.max(0, i)];
+  if (i < 0) return null;
+  let merged = stateMemo.get(c);
+  if (!merged) {
+    let previous: StatSnapshot = { t: 0 };
+    merged = s.map(snapshot => {
+      const next = { ...previous, ...snapshot };
+      if (snapshot.attrs !== undefined || snapshot.enh !== undefined || snapshot.ilvl !== undefined) next.sheetAt = snapshot.t;
+      if (snapshot.played !== undefined) next.playedAt = snapshot.t;
+      if (snapshot.aurasKnown === false) next.auras = undefined;
+      previous = next;
+      return next;
+    });
+    stateMemo.set(c, merged);
+  }
+  const state = merged[i];
+  if (!state.auras || state.aurasKnown === false) return state;
+  const at = whenOf(c, t);
+  return { ...state, auras: state.auras.filter(a => a.expiresAt === undefined || a.expiresAt === 0 || a.expiresAt > at) };
 }
 
 // ---- demo recording ---------------------------------------------------------------------------------------------
@@ -490,7 +558,7 @@ function makeFight(rand: () => number, o: { kind: "boss" | "pvp"; name: string; 
     for (const l of log) {
       if (!match(l)) continue;
       const row = by.get(l[4]) ?? { name: spells[l[4]].name, school: spells[l[4]].school, total: 0, casts: 0, hits: 0, crits: 0, max: 0 };
-      row.total += l[5]; row.casts++; row.hits = (row.hits ?? 0) + 1; row.crits = (row.crits ?? 0) + l[6]; row.max = Math.max(row.max ?? 0, l[5]);
+      row.total += l[5]; row.casts = (row.casts ?? 0) + 1; row.hits = (row.hits ?? 0) + 1; row.crits = (row.crits ?? 0) + l[6]; row.max = Math.max(row.max ?? 0, l[5]);
       by.set(l[4], row);
     }
     return [...by.values()].sort((a, b) => b.total - a.total);
@@ -505,7 +573,7 @@ function makeFight(rand: () => number, o: { kind: "boss" | "pvp"; name: string; 
     name: actors[i].name, classId: actors[i].classId ?? 0, role: actors[i].role, me: i === 0 || undefined,
     dmg: sumOf(rows(l => l[1] === i && l[3] === KIND.dmg)), heal: sumOf(rows(l => l[1] === i && l[3] === KIND.heal)), taken: sumOf(rows(l => l[2] === i && l[3] === KIND.dmg)),
     deaths: log.filter(l => l[3] === KIND.death && l[2] === i).length,
-  })).sort((a, b) => b.dmg - a.dmg);
+  })).sort((a, b) => (b.dmg ?? 0) - (a.dmg ?? 0));
   const step = 5, n = Math.max(1, Math.ceil(o.d / step));
   const bucket = (match: (l: LogLine) => boolean) => { const out = new Array<number>(n).fill(0); for (const l of log) if (match(l)) out[Math.min(n - 1, Math.floor(l[0] / step))] += l[5]; return out; };
   const marks: FightMark[] = [{ t: Math.round(o.d * 0.22), kind: "cooldown", text: "Innervate" }];
@@ -517,7 +585,8 @@ function makeFight(rand: () => number, o: { kind: "boss" | "pvp"; name: string; 
     marks: marks.sort((x, y) => x.t - y.t), actors, spells, log, pvp: o.pvp,
   };
 }
-const fightLine = (f: Fight) => `Dealt ${f.me.dmg.toLocaleString("en-US")} (${Math.round((f.me.dmg / Math.max(1, (f.group ?? []).reduce((a, m) => a + m.dmg, 0) || f.me.dmg)) * 100)}% of the group), took ${f.me.taken.toLocaleString("en-US")}, healed ${f.me.heal.toLocaleString("en-US")}`;
+// Used only by the generated demo, whose metrics are all known from its generated log.
+const fightLine = (f: Fight) => `Dealt ${f.me.dmg!.toLocaleString("en-US")} (${Math.round((f.me.dmg! / Math.max(1, (f.group ?? []).reduce((a, m) => a + (m.dmg ?? 0), 0) || f.me.dmg!)) * 100)}% of the group), took ${f.me.taken!.toLocaleString("en-US")}, healed ${f.me.heal!.toLocaleString("en-US")}`;
 
 export function demoChronicle(seed = 7): Chronicle {
   const rand = rng(seed);

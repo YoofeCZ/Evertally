@@ -29,6 +29,23 @@ pub fn set_status(text: String) { if let Ok(mut status) = STATUS.lock() { *statu
 #[must_use] pub fn status() -> String { STATUS.lock().map(|s| s.clone()).unwrap_or_default() }
 
 /// The desktop app registers its own version here; without it self-update stays off.
+/// After the app replaced itself: one notification with the new version (the last version that ran is kept next to
+/// the settings).
+pub fn announce_if_updated(dir: &Path, current: &str) {
+    let file = dir.join("last-app-version.txt");
+    let previous = fs::read_to_string(&file).ok().map(|t| t.trim().to_owned());
+    if previous.as_deref() != Some(current) {
+        let _ = fs::write(&file, current);
+        if previous.is_some_and(|p| is_newer(current, &p)) {
+            let cs = crate::platform::prefers_czech();
+            crate::notify::message(
+                &if cs { format!("Aplikace Evertally aktualizována na {current}") } else { format!("Evertally app updated to {current}") },
+                if cs { "Běží dál na pozadí." } else { "It keeps running in the background." },
+            );
+        }
+    }
+}
+
 pub fn set_current_version(version: &'static str) {
     let _ = CURRENT.set(version);
 }
@@ -90,8 +107,13 @@ pub fn check(dir: &Path, config: &crate::config::Config, force: bool) -> Result<
     let attempt = dir.join(ATTEMPT_FILE);
     if !force && !attempt_allowed(fs::read_to_string(&attempt).ok().as_deref(), &installer.version, now) { return Ok(Outcome::Nothing); }
 
-    let data = crate::addon_update::read_url(&agent, &format!("{origin}/downloads/EvertallySetup.exe"), MAX_INSTALLER)?;
+    let cs = crate::platform::prefers_czech();
+    let title = if cs { format!("Stahuji aplikaci Evertally {}", installer.version) } else { format!("Downloading the Evertally app {}", installer.version) };
+    let mut note = crate::notify::Progress::start("app", &title, if cs { "Stahuji…" } else { "Downloading…" });
+    let data = crate::addon_update::read_url_progress(&agent, &format!("{origin}/downloads/EvertallySetup.exe"), MAX_INSTALLER, installer.bytes,
+        |done, total| note.set(done, total, if cs { "Stahuji…" } else { "Downloading…" }))?;
     verify(&data, &installer)?;
+    note.set(1, 1, if cs { "Instaluji… aplikace se za chvíli spustí znovu." } else { "Installing… the app restarts in a moment." });
     let setup = dir.join(SETUP_FILE);
     let _ = fs::remove_file(&setup);
     fs::write(&setup, &data)?;

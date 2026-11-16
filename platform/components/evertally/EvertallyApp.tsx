@@ -71,6 +71,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   };
   const returnTo = initialView === "link" ? `/link${code ? `?code=${encodeURIComponent(code)}` : ""}` : `/#${view}`;
   const auth = status.data?.auth;
+  const authReady = Boolean(status.data);
   const signIn = auth?.discord ? `/auth/discord?return_to=${encodeURIComponent(returnTo)}` : auth?.devLogin ? `/auth/dev?return_to=${encodeURIComponent(returnTo)}` : null;
   const signOut = async () => {
     await fetch("/auth/logout", { method: "POST" });
@@ -132,12 +133,12 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
         {view === "chronicle" && <ChronicleView route={route} user={user} signIn={signIn} />}
         {view === "atlas" && <MapView route={route} user={user} signIn={signIn} />}
         {view === "database" && <DatabaseView route={route} />}
-        {view === "professions" && <ProfessionsView user={user} signIn={signIn} />}
-        {view === "armory" && <ArmoryView user={user} signIn={signIn} route={route} />}
+        {view === "professions" && <ProfessionsView user={user} signIn={signIn} authReady={authReady} />}
+        {view === "armory" && <ArmoryView user={user} signIn={signIn} authReady={authReady} route={route} />}
         {view === "forum" && <ForumView route={route} user={user} signIn={signIn} />}
         {view === "sync" && <SyncView user={user} signIn={signIn} />}
-        {view === "account" && <AccountView user={user} signIn={signIn} onChanged={() => setVersion((v) => v + 1)} />}
-        {view === "link" && <LinkView user={user} signIn={signIn} initialCode={code} />}
+        {view === "account" && <AccountView user={user} signIn={signIn} authReady={authReady} onChanged={() => setVersion((v) => v + 1)} />}
+        {view === "link" && <LinkView user={user} signIn={signIn} authReady={authReady} initialCode={code} />}
       </main>
 
       <footer className="footer page-column">

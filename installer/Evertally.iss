@@ -67,7 +67,7 @@ Source: "{#ProjectRoot}\addon\Evertally_Export\*"; DestDir: "{app}\addon\Evertal
 Source: "{#ProjectRoot}\addon\Evertally_Map\*"; DestDir: "{app}\addon\Evertally_Map"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Evertally — Web sync"; Filename: "{app}\Evertally.exe"; Parameters: "--connection-settings"
+Name: "{group}\Evertally — Web sync"; Filename: "{app}\Evertally.exe"; Parameters: "--connection-settings"; AppUserModelID: "AFStudio.Evertally"
 Name: "{group}\{cm:UninstallProgram,Evertally}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Evertally"; Filename: "{app}\Evertally.exe"; Parameters: "--connection-settings"; Tasks: desktopicon
 

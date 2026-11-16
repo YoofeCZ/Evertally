@@ -114,7 +114,7 @@ test("a dungeon visit is summed up with its attempts on the bosses", () => {
 
 test("the character sheet is the latest snapshot at or before the moment", () => {
   const c: Chronicle = { ...small(), stats: [{ t: 0, ilvl: 10 }, { t: 50, ilvl: 20 }] };
-  assert.equal(statsAt(c, 49)?.ilvl, 10); assert.equal(statsAt(c, 50)?.ilvl, 20); assert.equal(statsAt(c, -1)?.ilvl, 10);
+  assert.equal(statsAt(c, 49)?.ilvl, 10); assert.equal(statsAt(c, 50)?.ilvl, 20); assert.equal(statsAt(c, -1), null);
   assert.equal(statsAt(small(), 5), null);
 });
 
@@ -162,7 +162,7 @@ test("the fight in progress and its running counters follow the playhead", () =>
   const f = c.fights![0];
   assert.equal(fightAt(c, f.t - 1), -1); assert.equal(fightAt(c, f.t + f.d / 2), 0); assert.equal(fightAt(c, f.t + f.d + 1), -1);
   const half = fightProgress(f, f.d / 2), end = fightProgress(f, f.d);
-  assert.ok(half.dmg > 0 && half.dmg < f.me.dmg, "partway through");
+  assert.ok(half.dmg !== undefined && f.me.dmg !== undefined && half.dmg > 0 && half.dmg < f.me.dmg, "partway through");
   assert.equal(end.dmg, f.me.dmg); assert.equal(end.taken, f.me.taken);
   assert.equal(fightProgress(f, 0).dmg, 0);
 });

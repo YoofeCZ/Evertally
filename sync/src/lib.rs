@@ -4,6 +4,7 @@
 //! The tray bridge and its connection settings share this library.
 
 pub mod api;
+mod ack;
 pub mod addon_update;
 pub mod app_update;
 pub mod community;
@@ -11,8 +12,11 @@ pub mod bridge;
 pub mod config;
 pub mod forum;
 pub mod game;
+pub mod game_requests;
 pub mod lang;
 pub mod local;
+pub mod music;
+pub mod notify;
 pub mod optical;
 pub mod platform;
 pub mod ranking;
@@ -64,6 +68,8 @@ pub fn run() -> anyhow::Result<()> {
         &format!("start v{} server={origin}", env!("CARGO_PKG_VERSION")),
     );
 
+    // one notification after the app replaced itself with a newer version
+    crate::app_update::announce_if_updated(&paths.dir, env!("CARGO_PKG_VERSION"));
     let (tx, rx) = mpsc::channel();
     #[allow(unused_mut)] // only the macOS branch below mutates it
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();

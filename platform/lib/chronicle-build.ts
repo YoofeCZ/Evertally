@@ -1,13 +1,13 @@
 // A journey recording composed from what the website already stores about a character: the walked routes, the zones visited, the quests,
-// the loot, the levels, the dungeons and the bosses. No new data from the addon is needed. What is not stored (kills, money, skills,
-// deaths, spells) is not invented: the recording simply has none of it. See docs/KRONIKA-FORMAT.md, section 3b.
+// the loot, levels, dungeons and bosses, and the detailed journey batches. Missing measurements are never invented.
 import type { Db } from "./people";
 import { buildHighlights, type Highlights, type Subject as HighlightSubject } from "./chronicle-highlights";
-import { parseChronicle, type Chronicle, type ChronicleEvent, type PathPoint } from "./chronicle";
+import { parseChronicle, type Chronicle, type ChronicleEvent, type PathPoint, type Fight, type CombatSummary, type StatSnapshot, type Aura } from "./chronicle";
+import { combatSummarySchema, journeyMomentSchema } from "./contracts";
 
 export type Observation = { kind: string; observedAt: number; payload: Record<string, unknown> };
 export type MapKey = { key: string; uiMapIds: readonly number[] };
-export type Subject = { name: string; classId: number; raceId?: number; realm?: string; level: number };
+export type Subject = { id?: string; name: string; classId: number; raceId?: number; realm?: string; level: number };
 
 /** Silence longer than this (seconds) ends a play session, so a night away is not part of the recording. */
 export const SESSION_GAP = 300;
@@ -17,7 +17,22 @@ const unit = (v: unknown): v is number => finite(v) && v >= 0 && v <= 1;
 const positive = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
 const words = (v: unknown, fallback: string, max = 160): string => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : fallback);
 const round = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
-const JOURNEY_TEXT = { kill: "Kill", money: "Money", skill: "Skill", death: "You died", group: "Group", travel: "Travel", pvp: "PvP" } as const;
+const JOURNEY_TEXT = { kill: "Kill", money: "Money", skill: "Skill", death: "You died", group: "Group", travel: "Travel", pvp: "PvP", combat: "Combat", action: "Action", aura: "Effect", state: "Character state", speech: "NPC" } as const;
+const STAT_NAMES: Record<string,string> = {str:"Strength",agi:"Agility",sta:"Stamina",int:"Intellect",spi:"Spirit",armor:"Armor",ap:"Attack power",rap:"Ranged attack power",crit:"Melee crit %",scrit:"Spell crit %",dodge:"Dodge %",parry:"Parry %",block:"Block %",hp:"Health",mana:"Mana",holy:"Holy resistance",fire:"Fire resistance",nature:"Nature resistance",frost:"Frost resistance",shadow:"Shadow resistance",arcane:"Arcane resistance"};
+
+/** A final, observed summary. Its run totals are never used as a single boss's totals. */
+function summaryOf(raw: unknown, subject: Subject, t: number): CombatSummary | undefined {
+  const parsed = combatSummarySchema.safeParse(raw);
+  if (!parsed.success) return undefined;
+  const p = parsed.data;
+  const owner = subject.id !== undefined ? p.players.find(m => m.guid === subject.id)
+    : p.players.find(m => m.name === subject.name || subject.realm && m.name === `${subject.name}-${subject.realm}`);
+  const role = (value: string | undefined): "tank" | "healer" | "dps" | undefined => value?.toLowerCase() === "tank" ? "tank" : value?.toLowerCase() === "healer" ? "healer" : ["damager","damage","dps"].includes(value?.toLowerCase() ?? "") ? "dps" : undefined;
+  return {t, source:p.source, coverage:p.coverage,
+    me:{dmg:owner?.damage,heal:owner?.healing,taken:owner?.damageTaken,deaths:owner?.deaths,interrupts:owner?.interrupts,dispels:owner?.dispels,dealt:owner?.dealt??[],healed:owner?.healed??[],took:owner?.took??[]},
+    ...(p.players.length ? {group:p.players.map(m=>({name:words(m.name,"Unknown player",80),classId:m.classId??0,role:role(m.role),dmg:m.damage,heal:m.healing,taken:m.damageTaken,deaths:m.deaths,me:m===owner||undefined}))}:{}),
+  };
+}
 
 export function composeChronicle(subject: Subject, observations: readonly Observation[], maps: readonly MapKey[]): Chronicle | null {
   const keyOf = new Map<number, string>();
@@ -25,13 +40,42 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
 
   // ---- when anything happened: the stretches of play
   const stamps: number[] = [];
+  const span = (from: number, to: number) => {
+    if (!finite(from) || !finite(to) || to < from || to - from > 604800) return;
+    // A measured continuous combat/run interval must not be mistaken for a period offline.
+    const steps = Math.ceil((to-from)/SESSION_GAP);
+    for (let i = 0; i < steps; i++) stamps.push(from+i*SESSION_GAP);
+    stamps.push(to);
+  };
   for (const o of observations) {
     if (!finite(o.observedAt)) continue;
     const p = o.payload;
     if (o.kind === "track.path" && finite(p.startedAt) && Array.isArray(p.points)) { for (const pt of p.points) if (Array.isArray(pt) && finite(pt[0])) stamps.push(p.startedAt + pt[0]); }
-    else if (o.kind === "journey.chunk" && finite(p.startedAt) && Array.isArray(p.events)) { for (const m of p.events) if (m && typeof m === "object" && finite((m as { t?: unknown }).t)) stamps.push(p.startedAt + (m as { t: number }).t); }
-    else stamps.push(o.observedAt);
+    else if (o.kind === "journey.chunk" && finite(p.startedAt) && Array.isArray(p.events)) {
+      for (const raw of p.events) {
+        const m = raw as Record<string,unknown>;
+        if (!m || typeof m !== "object" || !finite(m.t)) continue;
+        const at = p.startedAt + m.t;
+        stamps.push(at);
+        if (m.k === "combat" && m.a === "end" && finite(m.d) && m.d >= 0 && m.d <= 86400) span(at - m.d, at);
+      }
+    } else {
+      stamps.push(o.observedAt);
+      if (o.kind === "raid.encounter_finished" && finite(p.durationMs) && p.durationMs >= 0 && p.durationMs <= 86400000) span(o.observedAt-p.durationMs/1000,o.observedAt);
+      if ((o.kind === "instance.entered" || o.kind === "run.finished" || o.kind === "run.interrupted") && finite(p.startedAt)) span(p.startedAt,finite(p.endedAt)?p.endedAt:o.observedAt);
+    }
   }
+  // Pair explicit boundaries across separate batches before constructing sessions.
+  const boundary = new Map<string,{from?:number;to?:number}>();
+  for (const o of observations) if (o.kind === "journey.chunk" && finite(o.payload.startedAt) && Array.isArray(o.payload.events)) for (const raw of o.payload.events) {
+    const m = raw as Record<string,unknown>;
+    if (!m || m.k !== "combat" || typeof m.fightId !== "string" || !finite(m.t)) continue;
+    const entry = boundary.get(m.fightId) ?? {};
+    if (m.a === "start") entry.from = o.payload.startedAt + m.t;
+    if (m.a === "end") entry.to = o.payload.startedAt + m.t;
+    boundary.set(m.fightId,entry);
+  }
+  for (const b of boundary.values()) if (b.from !== undefined && b.to !== undefined) span(b.from,b.to);
   if (!stamps.length) return null;
   stamps.sort((a, b) => a - b);
   const sessions: { start: number; end: number; t0: number }[] = [];
@@ -79,10 +123,20 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
 
   // ---- what happened
   const events: ChronicleEvent[] = [];
+  const stats: StatSnapshot[] = [];
+  const linked = new Map<ChronicleEvent,string>();
+  const fightParts = new Map<string,{start?:{at:number;m:Record<string,unknown>};end?:{at:number;m:Record<string,unknown>}}>();
+  const historicalBosses: {event:ChronicleEvent;from?:number;to:number}[] = [];
   const realTime = new Map<ChronicleEvent, number>(); // when (unix) each moment really happened
   let now = 0;
   const add = (e: ChronicleEvent, at = now) => { if (events.length < MAX_EVENTS) { events.push(e); realTime.set(e, at); } };
-  const sorted = [...observations].filter(o => finite(o.observedAt)).sort((a, b) => a.observedAt - b.observedAt);
+  const lastRun = new Map<string,Observation>();
+  for (const o of observations) if (finite(o.observedAt) && (o.kind === "run.finished" || o.kind === "run.interrupted") && typeof o.payload.runId === "string") {
+    const previous = lastRun.get(o.payload.runId);
+    const quality = (row: Observation) => ({observed:2,partial:1,unavailable:0})[String((row.payload.combat as {coverage?:unknown}|undefined)?.coverage) as "observed"] ?? 0;
+    if (!previous || o.observedAt > previous.observedAt || o.observedAt === previous.observedAt && quality(o) >= quality(previous)) lastRun.set(o.payload.runId,o);
+  }
+  const sorted = [...observations].filter(o => finite(o.observedAt) && !((o.kind === "run.finished" || o.kind === "run.interrupted") && typeof o.payload.runId === "string" && lastRun.get(o.payload.runId) !== o)).sort((a, b) => a.observedAt - b.observedAt);
   let level = 0;
   const firstLevel = sorted.find(o => o.kind === "character.level" && positive(o.payload.level));
   const startLevel = firstLevel && positive(firstLevel.payload.level) ? firstLevel.payload.level : undefined;
@@ -110,26 +164,88 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
       case "character.level":
         if (positive(p.level)) { if (level && p.level > level) add({ t, k: "level", text: `Reached level ${p.level}`, n: p.level }); level = Math.max(level, p.level); }
         break;
+      case "armory.snapshot": case "character.snapshot": {
+        const snapshot: StatSnapshot = {t};
+        const raw = p.stats;
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          const attrs: [string,number][] = [];
+          const enh: [string,string][] = [];
+          for (const [key,label] of Object.entries(STAT_NAMES)) {
+            const value = (raw as Record<string,unknown>)[key];
+            if (finite(value) && value >= 0 && value <= 1e7) {
+              if (["crit","scrit","dodge","parry","block"].includes(key)) enh.push([label,`${value}%`]); else attrs.push([label,value]);
+            }
+          }
+          if (attrs.length) snapshot.attrs=attrs;
+          if (enh.length) snapshot.enh=enh;
+        }
+        const extra: Record<string,unknown> = {t:0,k:"state"};
+        if (Array.isArray(p.equipped)) extra.equipped=p.equipped;
+        if (Array.isArray(p.professions)) {
+          const lines=p.professions as {name?:string;skill?:number;max?:number}[];
+          const valid=lines.filter(x=>x&&typeof x.name==="string"&&finite(x.skill)&&finite(x.max));
+          if (valid.length) {extra.skills=Object.fromEntries(valid.map(x=>[x.name!.slice(0,40),[x.skill,x.max]]));extra.professions=valid.map(x=>x.name!.slice(0,40));}
+        }
+        const parsed=journeyMomentSchema.safeParse(extra);
+        if (parsed.success) for (const key of ["skills","professions","equipped"] as const) if(parsed.data[key]!==undefined)Object.assign(snapshot,{[key]:parsed.data[key]});
+        if (Object.keys(snapshot).length>1)stats.push(snapshot);
+        break;
+      }
       case "instance.entered": {
         const name = words(p.name, "Instance", 100);
         if (typeof p.runId === "string") runs.set(p.runId, name);
         add({ t, k: "dungeon", a: "enter", text: name, detail: p.instanceType === "raid" ? "Raid" : "Dungeon" });
+        if (Array.isArray(p.roster)) {
+          const state = journeyMomentSchema.safeParse({t:0,k:"state",roster:p.roster,groupType:p.instanceType==="raid"?"raid":"party"});
+          if (state.success) stats.push({t,roster:state.data.roster,groupType:state.data.groupType});
+        }
         break;
       }
       case "run.finished": case "run.interrupted": {
-        const name = typeof p.runId === "string" ? runs.get(p.runId) : undefined;
-        if (name && typeof p.runId === "string") { add({ t, k: "dungeon", a: "leave", text: name }); runs.delete(p.runId); }
+        let name = typeof p.runId === "string" ? runs.get(p.runId) : undefined;
+        const end = finite(p.endedAt) ? p.endedAt : o.observedAt;
+        if (!name && typeof p.runId === "string" && typeof p.name === "string" && finite(p.startedAt) && p.startedAt <= end) {
+          name = words(p.name,"Instance",100);
+          add({t:tOf(p.startedAt),k:"dungeon",a:"enter",text:name,detail:p.instanceType==="raid"?"Raid":"Dungeon"},p.startedAt);
+        }
+        const summary = summaryOf(p.combat,subject,tOf(end));
+        if (name && typeof p.runId === "string") { add({ t:tOf(end), k: "dungeon", a: "leave", text: name, ...(p.instanceType === "raid" ? {detail:"Raid"} : {}), ...(summary?{summary}:{}) },end); runs.delete(p.runId); }
         break;
       }
       case "journey.chunk": {
         if (!finite(p.startedAt) || !Array.isArray(p.events)) break;
         for (const raw of p.events) {
-          const m = raw as Record<string, unknown>;
+          let m = raw as Record<string, unknown>;
           if (!m || typeof m !== "object" || !finite(m.t) || typeof m.k !== "string" || !(m.k in JOURNEY_TEXT)) continue;
+          if (["combat","action","aura","state","speech"].includes(m.k)) {
+            const parsed = journeyMomentSchema.safeParse(m);
+            if (!parsed.success) continue;
+            m = parsed.data;
+          }
           const kind = m.k as keyof typeof JOURNEY_TEXT;
-          add({ t: tOf(p.startedAt + m.t), k: kind, text: words(m.text, JOURNEY_TEXT[kind], 120), ...(typeof m.a === "string" ? { a: m.a.slice(0, 24) } : {}),
+          const at = p.startedAt + (m.t as number), time = tOf(at);
+          const event: ChronicleEvent = { t: time, k: kind, text: words(m.text, JOURNEY_TEXT[kind], 120), ...(typeof m.a === "string" ? { a: m.a.slice(0, 24) } : {}),
             ...(finite(m.n) ? { n: Math.round(m.n) } : {}), ...(finite(m.max) && m.max > 0 ? { max: Math.round(m.max) } : {}), ...(finite(m.xp) && m.xp > 0 ? { xp: Math.round(m.xp) } : {}),
-            ...(finite(m.d) && m.d >= 0 ? { d: round(m.d, 1) } : {}), ...(typeof m.detail === "string" ? { detail: m.detail.slice(0, 300) } : {}), ...(where(m) ?? {}) }, p.startedAt + m.t);
+            ...(positive(m.id) ? {id:m.id} : {}), ...(finite(m.d) && m.d >= 0 ? { d: round(m.d, 1) } : {}), ...(typeof m.detail === "string" ? { detail: m.detail.slice(0, 300) } : {}), ...(where(m) ?? {}) };
+          if (kind === "aura") for (const key of ["helpful","stacks","duration","expiresAt","icon"] as const) if (m[key] !== undefined) Object.assign(event,{[key]:m[key]});
+          if (kind === "speech") {if(typeof m.message==='string')event.message=m.message;if(typeof m.speaker==='string')event.speaker=m.speaker;}
+          if (typeof m.actor === "string") event.actor=m.actor;
+          if (typeof m.target === "string") event.target=m.target;
+          if (typeof m.actorClassId === "number") event.actorClassId=m.actorClassId;
+          if (m.actorSide === "me" || m.actorSide === "party" || m.actorSide === "enemy") event.actorSide=m.actorSide;
+          add(event, at);
+          if (typeof m.fightId === "string") linked.set(event,m.fightId);
+          if (kind === "combat" && typeof m.fightId === "string") {
+            const parts = fightParts.get(m.fightId) ?? {};
+            if (m.a === "start" && !parts.start) parts.start = {at,m};
+            if (m.a === "end") parts.end = {at,m};
+            fightParts.set(m.fightId,parts);
+          }
+          if (kind === "state") {
+            const snapshot: StatSnapshot = {t:time};
+            for (const key of ["attrs","enh","ilvl","roster","groupType","auras","aurasKnown","copper","played","race","faction","guild","spec","skills","professions","equipped"] as const) if (m[key] !== undefined) Object.assign(snapshot,{[key]:m[key]});
+            stats.push(snapshot);
+          }
         }
         break;
       }
@@ -138,13 +254,53 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
         const slot = `${p.instanceName ?? ""}:${p.encounterId}`;
         const attempt = (attempts.get(slot) ?? 0) + 1;
         attempts.set(slot, attempt);
-        add({ t, k: "boss", a: p.success === true ? "kill" : "wipe", text: words(p.name, `Encounter ${p.encounterId}`, 100), n: attempt,
-          ...(finite(p.durationMs) ? { d: round(p.durationMs / 1000, 1) } : {}), ...(typeof p.instanceName === "string" ? { detail: p.instanceName.slice(0, 200) } : {}) });
+        const event: ChronicleEvent = { t, k: "boss", a: p.success === true ? "kill" : "wipe", text: words(p.name, `Encounter ${p.encounterId}`, 100), n: attempt,
+          ...(finite(p.durationMs) ? { d: round(p.durationMs / 1000, 1) } : {}), ...(typeof p.instanceName === "string" ? { detail: p.instanceName.slice(0, 200) } : {}) };
+        add(event);
+        historicalBosses.push({event,...(finite(p.durationMs) && p.durationMs > 0 ? {from:o.observedAt-p.durationMs/1000} : {}),to:o.observedAt});
         break;
       }
     }
   }
+  const fights: Fight[] = [];
+  const byId = new Map<string,Fight>();
+  const eventFights = new Map<ChronicleEvent,Fight>();
+  const unknownMe = (): Fight["me"] => ({dealt:[],healed:[],took:[]});
+  for (const [id,parts] of fightParts) {
+    if (fights.length >= 5000) break;
+    const end = parts.end, start = parts.start;
+    if (!end && !start) continue;
+    const last = end ?? start!;
+    const d = end && finite(end.m.d) && end.m.d >= 0 ? end.m.d : undefined;
+    let from = start?.at ?? (end && d !== undefined ? end.at-d : end!.at);
+    const to = end?.at ?? sessions[sessions.length-1].end;
+    if (d !== undefined && (from >= to && d > 0 || Math.abs(to-from-d)>2)) from = to-d;
+    if (to < from) continue;
+    const summary = summaryOf(end?.m.summary,subject,tOf(to));
+    const kind = last.m.encounterKind === "boss" ? "boss" : last.m.encounterKind === "pvp" ? "pvp" : "combat";
+    const result = end && typeof end.m.result === "string" && ["kill","wipe","win","loss","ended","interrupted"].includes(end.m.result) ? end.m.result as Fight["result"] : end ? "ended" : "interrupted";
+    const f: Fight = {...(summary??{me:unknownMe(),source:"unavailable" as const,coverage:"unavailable" as const}),t:tOf(from),d:round(tOf(to)-tOf(from),1),kind,name:words(last.m.text,words(start?.m.text,"Combat",80),80),result,...(where(start?.m??last.m)??{})};
+    const context={...start?.m,...end?.m};
+    if(typeof context.difficulty==='string')f.difficulty=context.difficulty.slice(0,80);
+    if(positive(context.size)&&context.size<=80)f.size=context.size;
+    if(positive(context.npcId)&&(!start?.m.text||last.m.text===start.m.text||end?.m.npcId))f.npcId=context.npcId;
+    // Coordinates belong to moments/path; a fight keeps only its zone.
+    delete (f as unknown as Record<string,unknown>).x; delete (f as unknown as Record<string,unknown>).y;
+    fights.push(f);byId.set(id,f);
+  }
+  for (const b of historicalBosses) {
+    const existing = fights.find(f=>f.kind==="boss"&&f.name===b.event.text.slice(0,80)&&Math.abs(f.t+f.d-b.event.t)<=2);
+    if (existing) {eventFights.set(b.event,existing);continue;}
+    if (b.from === undefined || fights.length >= 5000) continue;
+    const f: Fight = {t:tOf(b.from),d:round(tOf(b.to)-tOf(b.from),1),kind:"boss",name:b.event.text.slice(0,80),result:b.event.a==="kill"?"kill":"wipe",attempt:b.event.n,me:unknownMe(),source:"unavailable",coverage:"unavailable"};
+    fights.push(f);eventFights.set(b.event,f);
+  }
+  fights.sort((a,b)=>a.t-b.t);
+  const fightIndices = new Map(fights.map((f,i)=>[f,i]));
+  for (const [event,id] of linked) { const f=byId.get(id);if(f)eventFights.set(event,f); }
+  for (const [event,f] of eventFights) {event.f=fightIndices.get(f);if(event.k==="combat")event.encounterKind=f.kind;}
   events.sort((a, b) => a.t - b.t);
+  stats.sort((a,b)=>a.t-b.t);
   // the website keeps no coordinates of quests and loot, so these moments take the place of the route at that time: the last point of the
   // route before the moment, but only when it is close in REAL time (the recording leaves out the breaks, so its own clock would not tell)
   const HEARTBEAT = 130;
@@ -162,6 +318,7 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
     character: { name: subject.name.slice(0, 64), classId: subject.classId, ...(subject.raceId ? { raceId: subject.raceId } : {}), ...(subject.realm ? { realm: subject.realm.slice(0, 80) } : {}), level: startLevel ?? subject.level },
     startedAt: sessions[0].start, duration, zones: zones.length ? zones : ["azeroth"], path, events,
     sessions: sessions.map(s => ({ t: s.t0, at: s.start })),
+    ...(fights.length ? {fights} : {}),...(stats.length ? {stats} : {}),
   };
   return parseChronicle(chronicle);
 }
@@ -180,7 +337,7 @@ export type ChronicleListing = { profileId: string; name: string; realm: string 
 
 /** The most events one chronicle is composed from (a very long history keeps its newest part). */
 const MAX_ROWS = 100_000;
-const PROFILE_COLUMNS = "id,user_id,name,realm,class_id,race_id,level,public,show_chronicle,last_seen";
+const PROFILE_COLUMNS = "id,user_id,character_key,name,realm,class_id,race_id,level,public,show_chronicle,last_seen";
 /** The recording of a character for the last `days` days, composed from what the owner's consents allow. */
 async function compose(db: Db, profile: Row, days: number, maps: readonly MapKey[], at: number): Promise<{ chronicle: Chronicle | null; observations: number }> {
   const userId = String(profile.user_id), profileId = String(profile.id);
@@ -190,7 +347,7 @@ async function compose(db: Db, profile: Row, days: number, maps: readonly MapKey
     WHERE o.user_id=? AND o.profile_id=? AND o.observed_at>=? AND g.revoked_at IS NULL AND (
       (o.kind IN ('track.path','journey.chunk') AND ${HAS("own_track")})
       OR (o.kind IN ('instance.entered','run.finished','run.interrupted','raid.encounter_finished') AND ${HAS("own_runs")})
-      OR (o.kind IN ('character.level','quest.accepted','quest.turned_in','quest.abandoned','loot.received','zone.visited') AND ${HAS("own_character")}))
+      OR (o.kind IN ('character.level','character.snapshot','armory.snapshot','quest.accepted','quest.turned_in','quest.abandoned','loot.received','zone.visited') AND ${HAS("own_character")}))
     ORDER BY o.observed_at DESC LIMIT ${MAX_ROWS}`).bind(userId, profileId, span ? at - span * 86400 : 0).all<Row>();
   const observations: Observation[] = [];
   // the newest rows are kept when a history is longer than the limit; they are put back in the order of time
@@ -198,6 +355,7 @@ async function compose(db: Db, profile: Row, days: number, maps: readonly MapKey
     try { const payload = JSON.parse(String(r.payload)); if (payload && typeof payload === "object" && !Array.isArray(payload)) observations.push({ kind: String(r.kind), observedAt: Number(r.observed_at), payload }); } catch { /* a damaged row is skipped */ }
   }
   const subject: Subject = {
+    ...(typeof profile.character_key === "string" ? {id:profile.character_key} : {}),
     name: typeof profile.name === "string" && profile.name ? profile.name : "?", classId: Number(profile.class_id) || 1, level: Number(profile.level) || 1,
     ...(profile.race_id ? { raceId: Number(profile.race_id) } : {}), ...(typeof profile.realm === "string" && profile.realm ? { realm: profile.realm } : {}),
   };

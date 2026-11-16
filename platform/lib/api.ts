@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { env } from "cloudflare:workers";
 import { isLoopbackHost } from "./auth-core";
+import { sameOrigin } from "./origin";
 import { discordConfigured, getSessionUser } from "./auth";
 import { SCOPES } from "./contracts";
 import { approvePairing, describePairing, deviceFromRequest, deviceUpload, listDevices, pollPairing, revokeDevice, startDevicePairing } from "./devices";
@@ -24,8 +25,7 @@ export const json = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 
 function requireSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin || origin !== new URL(request.url).origin) throw new ApiError("origin_denied", "This action must be confirmed on the Evertally website.", 403);
+  if (!sameOrigin(request.headers.get("origin"), request.url)) throw new ApiError("origin_denied", "This action must be confirmed on the Evertally website.", 403);
 }
 
 async function readBody(request: Request, limit = 1024 * 1024): Promise<unknown> {
@@ -110,6 +110,22 @@ async function handleDeviceApi(request: Request, operation: string): Promise<Res
   throw new ApiError("not_found", "Not found.", 404);
 }
 
+// Public answers that do not depend on who asks are kept for a short while: a page opens with several of them at
+// once and the Raspberry Pi answers one request at a time. New uploads show up at most PUBLIC_TTL later.
+const PUBLIC_TTL = 30_000;
+const publicCache = new Map<string, { at: number; value: Promise<unknown> }>();
+function cachedPublic<T>(operation: string, params: URLSearchParams, load: () => Promise<T>): Promise<T> {
+  const key = `${operation}?${[...params].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join("&")}`;
+  const now = Date.now();
+  const hit = publicCache.get(key);
+  if (hit && now - hit.at < PUBLIC_TTL) return hit.value as Promise<T>;
+  const value = load();
+  publicCache.set(key, { at: now, value });
+  value.catch(() => publicCache.delete(key));
+  if (publicCache.size > 200) for (const old of publicCache.keys()) { publicCache.delete(old); if (publicCache.size <= 150) break; }
+  return value;
+}
+
 export async function handleApi(request: Request, operation: string, id?: string): Promise<Response> {
   try {
     if (operation.startsWith("device-")) return await handleDeviceApi(request, operation);
@@ -125,7 +141,7 @@ export async function handleApi(request: Request, operation: string, id?: string
         capabilities: { browserImport: true, desktopSync: true, gameVerified: false, rankedRulesets: 0 },
       });
     }
-    if (operation === "atlas") return json({ entities: await getAtlas(params.get("kind") ?? "", (params.get("search") ?? "").slice(0, 200)) });
+    if (operation === "atlas") return json(await cachedPublic(operation, params, async () => ({ entities: await getAtlas(params.get("kind") ?? "", (params.get("search") ?? "").slice(0, 200)) })));
     if (operation === "profile-read" && id) return json(await profileHistory(id,user?.id));
     if (operation === "public-live") {
       // only what its owners chose to show to everyone, without any account identifier
@@ -138,18 +154,18 @@ export async function handleApi(request: Request, operation: string, id?: string
     if (operation === "forum-thread" && id) return json(await getThread(getBinding() as unknown as PeopleDb, id, user?.id ?? null, await forumAdmin()));
     // journey recordings: the ones their players made public, and (when signed in) the viewer's own
     if (operation === "chronicles") return json({ chronicles: await listChronicles(getBinding() as unknown as PeopleDb, user?.id ?? null, Number(params.get("days")) || 0, CHRONICLE_MAPS) });
-    if (operation === "highlights") return json(await publicHighlights(getBinding() as unknown as PeopleDb, Number(params.get("days")) || 0, CHRONICLE_MAPS));
+    if (operation === "highlights") return json(await cachedPublic(operation, params, () => publicHighlights(getBinding() as unknown as PeopleDb, Number(params.get("days")) || 0, CHRONICLE_MAPS)));
     if (operation === "chronicle") {
       const result = await readChronicle(getBinding() as unknown as PeopleDb, user?.id ?? null, params.get("profile") ?? "", Number(params.get("days")) || 0, CHRONICLE_MAPS);
       if (!result) throw new ApiError("not_found", "There is no such chronicle.", 404);
       return json(result);
     }
-    if (operation === "leaderboards") return json(await getLeaderboards(params));
+    if (operation === "leaderboards") return json(await cachedPublic(operation, params, () => getLeaderboards(params)));
     // public guilds: only what members of public characters chose to show
-    if (operation === "guilds") return json(await getGuilds(params));
+    if (operation === "guilds") return json(await cachedPublic(operation, params, () => getGuilds(params)));
     // the public leaderboard for the in-game tooltip, fetched by Evertally Sync without credentials
-    if (operation === "ranking-package") return json(await getRankingPackage());
-    if (operation === "runs" && !params.has("mine")) return json({ runs: await getRuns(), countingUnit: "participation" });
+    if (operation === "ranking-package") return json(await cachedPublic(operation, params, () => getRankingPackage()));
+    if (operation === "runs" && !params.has("mine")) return json(await cachedPublic(operation, params, async () => ({ runs: await getRuns(), countingUnit: "participation" })));
     if (operation === "export") {
       const runs = (await getRuns()).filter((run) => !params.get("instanceId") || String(run.instanceId) === params.get("instanceId")).slice(0, 100);
       return json({ schemaVersion: 1, generatedAt: Math.floor(Date.now() / 1000), runs, entities: (await getAtlas()).slice(0, 200) });

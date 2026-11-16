@@ -23,6 +23,7 @@ const LIVE_EVERY: Duration = Duration::from_secs(10);
 const LIVE_HEARTBEAT: Duration = Duration::from_mins(5);
 /// Catch-up and retry interval when nothing happens.
 const TICK: Duration = Duration::from_mins(5);
+const RETRY_EVERY: Duration = Duration::from_secs(30);
 /// How often the forum is exchanged with the website while the app runs (a save of the game's files triggers it at once).
 const FORUM_EVERY: Duration = Duration::from_mins(3);
 
@@ -76,7 +77,12 @@ pub struct Worker {
     watcher: Option<RecommendedWatcher>,
     dirs: Vec<PathBuf>,
     processed: HashMap<PathBuf, SystemTime>,
+    rejected: HashMap<PathBuf, (SystemTime, String)>,
+    retry_files: HashSet<PathBuf>,
+    retry_at: Instant,
     open_browser: bool,
+    /// The paired state last written for the addon (`None`: not yet).
+    told_paired: Option<bool>,
     live_poll: Instant,
     forum_poll: Instant,
     live_sent: Option<(String, u64)>,
@@ -122,7 +128,11 @@ impl Worker {
             watcher: None,
             dirs: Vec::new(),
             processed: HashMap::new(),
+            rejected: HashMap::new(),
+            retry_files: HashSet::new(),
+            retry_at: Instant::now(),
             open_browser,
+            told_paired: None,
             live_poll: Instant::now() - Duration::from_secs(5),
             forum_poll: Instant::now() - FORUM_EVERY,
             live_sent: None,
@@ -167,6 +177,9 @@ impl Worker {
         let update_tx=self.tx.clone();
         let config_path=self.paths.config.clone();
         let addon_lock=Arc::clone(&self.addon_forum_lock);
+        // Music control for the in-game player: commands from the pixel strip, the library back as MusicData.lua.
+        let music_tx=self.tx.clone();
+        crate::music::spawn(self.paths.config.clone(), move |note| { let _=music_tx.send(Command::AddonStatus(note)); });
         std::thread::spawn(move || {
             let mut updater=crate::addon_update::Updater::new(config_path.parent().unwrap_or_else(||std::path::Path::new(".")));let mut last=String::new();
             let mut community_at:Option<Instant>=None;
@@ -242,6 +255,12 @@ impl Worker {
         let mut settle_at: Option<Instant> = None;
         let mut last_rescan = Instant::now();
         loop {
+            self.tell_addon_paired();
+            if self.token.is_some() && !self.retry_files.is_empty() && self.retry_at.elapsed() >= RETRY_EVERY {
+                self.retry_at = Instant::now();
+                let files: Vec<_> = self.retry_files.iter().cloned().collect();
+                self.sync_paths(&files, true);
+            }
             if self.token.is_some() && self.live_poll.elapsed() >= LIVE_EVERY {
                 self.live_step();
                 self.live_poll = Instant::now();
@@ -295,6 +314,12 @@ impl Worker {
                 Err(RecvTimeoutError::Timeout) => {
                     if settle_at.is_some_and(|at| at <= Instant::now()) {
                         settle_at = None;
+                        let requests: Vec<PathBuf> = dirty.iter().filter(|path| wow::is_forum_file(path)).cloned().collect();
+                        for path in requests {
+                            if !self.game_requests(&path, rx) {
+                                return;
+                            }
+                        }
                         let paths: Vec<PathBuf> = dirty
                             .drain()
                             .filter(|path| wow::is_export_file(path))
@@ -454,6 +479,8 @@ impl Worker {
         self.watcher = None;
         self.dirs.clear();
         self.processed.clear();
+        self.rejected.clear();
+        self.retry_files.clear();
         self.refresh_watch();
         if self.token.is_some() {
             self.sync_all(true);
@@ -538,6 +565,12 @@ impl Worker {
             if !force && self.processed.get(path) == Some(&modified) {
                 continue;
             }
+            if !force && let Some((before, message)) = self.rejected.get(path) && before == &modified {
+                problem = Some(message.clone());
+                continue;
+            }
+            self.rejected.remove(path);
+            self.retry_files.remove(path);
             match self.sync_file(path) {
                 FileResult::Uploaded(count) => uploaded += count,
                 FileResult::UpToDate => {}
@@ -550,22 +583,30 @@ impl Worker {
                 }
                 FileResult::Retry => {
                     retry = true;
+                    if self.retry_files.is_empty() { self.retry_at = Instant::now(); }
+                    self.retry_files.insert(path.clone());
                     continue;
                 }
-                FileResult::Rejected(message) => problem = Some(message),
+                FileResult::Rejected(message) => {
+                    self.rejected.insert(path.clone(), (modified, message.clone()));
+                    problem = Some(message);
+                    continue;
+                }
             }
             self.processed.insert(path.clone(), modified);
         }
         let time = platform::local_time();
-        let status = if uploaded > 0 {
+        self.rejected.retain(|path, (before, _)| std::fs::metadata(path).and_then(|m|m.modified()).is_ok_and(|at|at==*before));
+        problem = problem.or_else(|| self.rejected.values().next().map(|(_,message)|message.clone()));
+        let status = if let Some(message) = problem {
+            message
+        } else if retry || !self.retry_files.is_empty() {
+            self.texts.offline.to_owned()
+        } else if uploaded > 0 {
             fill(
                 self.texts.uploaded,
                 &[("count", &uploaded.to_string()), ("time", &time)],
             )
-        } else if let Some(message) = problem {
-            message
-        } else if retry {
-            self.texts.offline.to_owned()
         } else if disabled {
             self.texts.export_off.to_owned()
         } else {
@@ -596,7 +637,7 @@ impl Worker {
         self.identity.absorb(&envelope);
         let (source, batches) = match upload::plan(&envelope, &self.state) {
             Ok(Plan::Disabled) => return FileResult::Disabled,
-            Ok(Plan::UpToDate) => return FileResult::UpToDate,
+            Ok(Plan::UpToDate) => { self.acknowledge(path, &envelope); return FileResult::UpToDate; }
             Ok(Plan::Send {
                 source, batches, ..
             }) => (source, batches),
@@ -615,6 +656,7 @@ impl Worker {
                         "uploaded batch: {} accepted, {} duplicates",
                         result.accepted, result.duplicates
                     ));
+                    self.acknowledge(path, &envelope);
                 }
                 Err(ApiError::Server { status: 401, .. }) => {
                     self.log("device token rejected; unpaired");
@@ -637,8 +679,70 @@ impl Worker {
         FileResult::Uploaded(accepted)
     }
 
+    fn acknowledge(&self, path: &std::path::Path, envelope: &serde_json::Value) {
+        let Some(folder)=path.parent() else {return};
+        let Ok(_guard)=self.addon_forum_lock.lock() else {return};
+        if let Err(error)=crate::ack::write(folder,envelope,&self.state) {
+            self.log(&format!("cannot acknowledge uploaded export: {error:#}"));
+        }
+    }
+
     /// Runs the pairing flow. Returns `false` when the app should quit.
     fn pair(&mut self, rx: &Receiver<Command>) -> bool {
+        let open = self.open_browser;
+        self.pair_opening(rx, open)
+    }
+
+    /// Acts on what the player asked for in the game (see [`crate::game_requests`]). Returns `false` when the app should quit.
+    fn game_requests(&mut self, path: &std::path::Path, rx: &Receiver<Command>) -> bool {
+        let Ok(text) = std::fs::read_to_string(path) else { return true };
+        let Some(requests) = crate::game_requests::extract(&text) else { return true };
+        let file = self.paths.dir.join("game-requests.json");
+        let mut handled = crate::game_requests::load(&file);
+        let (pair, autostart) = crate::game_requests::pending(requests, handled);
+        if pair.is_none() && autostart.is_none() {
+            return true;
+        }
+        if let Some((on, at)) = autostart {
+            handled.autostart_at = at;
+            if crate::platform::autostart_enabled() != on {
+                match crate::platform::set_autostart(on) {
+                    Ok(()) => self.log(&format!("start with WoW turned {} in the game", if on { "on" } else { "off" })),
+                    Err(error) => self.log(&format!("start with WoW could not be changed: {error:#}")),
+                }
+            }
+        }
+        if let Some(at) = pair {
+            handled.pair_at = at;
+        }
+        if let Err(error) = crate::game_requests::save(&file, handled) {
+            self.log(&format!("cannot remember the game's request: {error}"));
+        }
+        self.told_paired = None; // the autostart line changed too: write the file for the addon again
+        self.tell_addon_paired();
+        match pair {
+            Some(at) if self.token.is_none() && crate::game_requests::fresh(at, crate::bridge::now()) => {
+                self.log("pairing requested in the game");
+                self.pair_opening(rx, true)
+            }
+            _ => true,
+        }
+    }
+
+    /// Writes the paired state (and the start-with-WoW state) into the file the addon reads, when it changed.
+    fn tell_addon_paired(&mut self) {
+        let paired = self.token.is_some();
+        if self.told_paired == Some(paired) {
+            return;
+        }
+        self.told_paired = Some(paired);
+        crate::addon_update::set_paired(paired);
+        if let Err(error) = crate::addon_update::write_installation_receipts(&self.config, &self.addon_forum_lock) {
+            self.log(&format!("installation receipt: {error:#}"));
+        }
+    }
+
+    fn pair_opening(&mut self, rx: &Receiver<Command>, browser: bool) -> bool {
         if let Err(error) = self.config.server_origin() {
             self.show(format!("{error}"));
             return true;
@@ -661,7 +765,7 @@ impl Worker {
             "pairing started for {device}, code {}",
             pairing.user_code
         ));
-        if self.open_browser {
+        if browser {
             open_browser(&pairing.verification_uri_complete);
         }
         let code = pairing.user_code.clone();
@@ -753,6 +857,43 @@ fn open_browser(url: &str) {
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex, mpsc};
+
+    fn scratch_worker(label:&str)->(Worker,Arc<Mutex<Vec<UiState>>>,PathBuf){
+        let dir=std::env::temp_dir().join(format!("evertally-sync-{label}-{}",std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let paths=Paths{config:dir.join("config.json"),state:dir.join("state.json"),log:dir.join("sync.log"),dir:dir.clone()};
+        let states=Arc::new(Mutex::new(Vec::new()));let capture=Arc::clone(&states);
+        let (tx,_)=mpsc::channel();
+        let mut worker=Worker::new(&crate::lang::EN,paths,Config{server:"http://invalid.example".into(),wow_path:None},"http://127.0.0.1:9".into(),Box::new(move|state|capture.lock().unwrap().push(state)),tx,false);
+        worker.token=Some("fixture-token".into());
+        (worker,states,dir)
+    }
+
+    #[test]
+    fn rejected_unchanged_exports_never_turn_into_up_to_date_on_rescan(){
+        let (mut worker,states,dir)=scratch_worker("rejection");
+        let path=dir.join(wow::EXPORT_FILE);std::fs::write(&path,"fixture").unwrap();
+        let at=std::fs::metadata(&path).unwrap().modified().unwrap();
+        worker.rejected.insert(path.clone(),(at,"Batch refused".into()));
+        worker.sync_paths(&[path.clone()],false);
+        worker.sync_paths(&[],false);
+        assert!(states.lock().unwrap().iter().all(|s|s.status=="Batch refused"));
+        assert!(!worker.processed.contains_key(&path));
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn partial_save_is_queued_for_retry_and_cleared_only_after_a_readable_save(){
+        let (mut worker,states,dir)=scratch_worker("retry");
+        let path=dir.join(wow::EXPORT_FILE);std::fs::write(&path,[255]).unwrap();
+        worker.sync_paths(&[path.clone()],true);
+        assert!(worker.retry_files.contains(&path));assert!(!worker.processed.contains_key(&path));
+        assert_eq!(states.lock().unwrap().last().unwrap().status,crate::lang::EN.offline);
+        std::fs::write(&path,"EvertallyExportDB={enabled=true,producerId='fixture',consentEpoch=1,events={}}").unwrap();
+        worker.sync_paths(&[path.clone()],true);
+        assert!(!worker.retry_files.contains(&path));assert!(worker.processed.contains_key(&path));
+        std::fs::remove_file(path).unwrap();
+    }
 
     #[test]
     fn only_a_stored_live_reply_reports_sent_and_ignored_samples_are_not_retried() {

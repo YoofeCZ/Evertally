@@ -12,8 +12,38 @@ local T = {id = "navy-gold", colors = {
 }, metrics={width=1120,height=740,header=64,sidebar=224,navRow=34,body=13,title=24}}
 A.Theme = T
 T.reader = {ink=T.colors.text,mutedInk=T.colors.mist,heading=T.colors.bright}
+T.paint = nil -- set below, once the local helper exists
 
+-- Rounded shapes: white textures from Media (tools/make_shapes.py) tinted with the theme colours and stretched with
+-- 9-slice margins, so a corner keeps its radius at any size. Without 9-slice in the client every shape stays square.
+local MEDIA="Interface\\AddOns\\Evertally\\Media\\"
+local SHAPES={round={file="ShapeRound",margins={8,8,8,8}},ring={file="ShapeRing",margins={8,8,8,8}},
+    pill={file="ShapePill",margins={16,0,16,0}},dot={file="ShapeDot"}}
+function T.Shapes(tex)
+    if tex then return type(tex.SetTextureSliceMargins)=="function" end
+    if T.shapesSupported==nil then
+        local probe=type(CreateFrame)=="function" and CreateFrame("Frame")
+        local t=probe and probe.CreateTexture and probe:CreateTexture()
+        T.shapesSupported=t~=nil and type(t.SetTextureSliceMargins)=="function"
+    end
+    return T.shapesSupported
+end
+function T.Shape(tex,kind)
+    local shape=SHAPES[kind];if not shape or not tex or type(tex.SetTexture)~="function" then return false end
+    if shape.margins and not T.Shapes(tex) then return false end
+    if tex:SetTexture(MEDIA..shape.file)==false then return false end
+    if shape.margins then
+        if not pcall(tex.SetTextureSliceMargins,tex,unpack(shape.margins)) then return false end
+        local mode=type(Enum)=="table" and type(Enum.UITextureSliceMode)=="table" and Enum.UITextureSliceMode.Stretched or 0
+        if type(tex.SetTextureSliceMode)=="function" then pcall(tex.SetTextureSliceMode,tex,mode) end
+    end
+    if type(tex.SetTexCoord)=="function" then tex:SetTexCoord(0,1,0,1) end
+    tex.evertallyShape=kind
+    return true
+end
 local function paint(tex,c,alpha)
+    -- A shaped texture keeps its image and takes the colour as a tint.
+    if tex.evertallyShape then tex:SetVertexColor(c[1],c[2],c[3],alpha or c[4] or 1);return end
     if tex.SetColorTexture then tex:SetColorTexture(c[1],c[2],c[3],alpha or c[4] or 1)
     else tex:SetTexture("Interface\\Buttons\\WHITE8X8");tex:SetVertexColor(c[1],c[2],c[3],alpha or c[4] or 1) end
 end
@@ -42,13 +72,27 @@ function T.Surface(frame,role)
     local fill=role=="window" and C.canvas or role=="reader" and C.well or C.card
     local skin={role=role,lines={}}
     frame.evertallySkin=skin
+    skin.base=frame:CreateTexture(nil,"BACKGROUND");skin.base:SetAllPoints(frame)
+    if T.Shape(skin.base,"round") then
+        -- Rounded: one opaque tinted body and a thin outline, nothing else. Minimal like a modern panel.
+        skin.shaped=true;paint(skin.base,fill,1)
+        skin.top=frame:CreateTexture(nil,"BACKGROUND");skin.top:SetPoint("TOPLEFT");skin.top:SetPoint("TOPRIGHT");skin.top:SetHeight(role=="window" and 70 or 28)
+        T.Shape(skin.top,"round");gradient(skin.top,role=="window" and C.header or C.card,fill)
+        if role~="window" then skin.top:Hide() end
+        skin.ring=frame:CreateTexture(nil,"BORDER");skin.ring:SetAllPoints(frame);T.Shape(skin.ring,"ring")
+        local edge=role=="window" and C.gold or role=="primary" and C.bright or C.line
+        paint(skin.ring,edge,role=="window" and 0.55 or role=="primary" and 0.35 or 0.9)
+        skin.lines[1]=skin.ring
+        return skin
+    end
+    skin.base:Hide()
     -- The native backdrop remains a fallback for clients without color textures.
     if type(frame.SetBackdrop)~="function" and type(BackdropTemplateMixin)=="table" and type(Mixin)=="function" then pcall(Mixin,frame,BackdropTemplateMixin) end
     if type(frame.SetBackdrop)=="function" then
         pcall(frame.SetBackdrop,frame,{bgFile="Interface\\Buttons\\WHITE8X8",tile=false,insets={left=0,right=0,top=0,bottom=0}})
         if type(frame.SetBackdropColor)=="function" then pcall(frame.SetBackdropColor,frame,fill[1],fill[2],fill[3],1) end
     end
-    skin.base=frame:CreateTexture(nil,"BACKGROUND");skin.base:SetAllPoints(frame);paint(skin.base,fill,1)
+    skin.base:Show();paint(skin.base,fill,1)
     skin.top=frame:CreateTexture(nil,"BACKGROUND");skin.top:SetPoint("TOPLEFT",1,-1);skin.top:SetPoint("TOPRIGHT",-1,-1);skin.top:SetHeight(role=="window" and 70 or 28)
     gradient(skin.top,role=="window" and C.header or C.card,fill)
     local outer=role=="window" and C.gold or C.line
@@ -72,8 +116,12 @@ end
 
 function T.Button(button,primary)
     local C=T.colors;local skin=T.Surface(button,primary and "primary" or "button")
-    if primary then gradient(skin.base,{0.43,0.31,0.13},{0.23,0.16,0.065})
+    if skin.shaped then
+        -- flat and calm: gold for the main action, a quiet card for the rest
+        if primary then paint(skin.base,C.gold,1) else paint(skin.base,{0.067,0.169,0.235},1) end
+    elseif primary then gradient(skin.base,{0.43,0.31,0.13},{0.23,0.16,0.065})
     else gradient(skin.base,{0.075,0.19,0.26},{0.035,0.10,0.15}) end
     skin.top:Hide()
     return skin.base
 end
+T.paint=paint

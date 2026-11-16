@@ -24,6 +24,7 @@ pub enum ApiError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
 
     #[test]
     fn live_reply_distinguishes_stored_and_ignored_points() {
@@ -41,6 +42,37 @@ mod tests {
         ] {
             assert!(serde_json::from_value::<LiveResult>(malformed).is_err());
         }
+    }
+
+    #[test]
+    fn upload_sends_exact_compact_bytes_instead_of_pretty_json() {
+        let batch=json!({"events":vec![json!({"payload":{"points":vec![json!([0,0.5,0.6]);500]}});50]});
+        let expected=serde_json::to_vec(&json!({"export":batch})).unwrap();
+        assert!(expected.len()<900*1024);
+        assert!(serde_json::to_vec_pretty(&json!({"export":batch})).unwrap().len()>1024*1024);
+        let listener=std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address=listener.local_addr().unwrap();
+        let server=std::thread::spawn(move||{
+            let (mut socket,_)=listener.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut raw=Vec::new();let mut buffer=[0;8192];
+            let header_end=loop {
+                let n=socket.read(&mut buffer).unwrap();assert!(n>0);
+                raw.extend_from_slice(&buffer[..n]);
+                if let Some(at)=raw.windows(4).position(|v|v==b"\r\n\r\n"){break at+4;}
+            };
+            let header=String::from_utf8_lossy(&raw[..header_end]).to_lowercase();
+            assert!(header.contains("content-type: application/json"));
+            let length:usize=header.lines().find_map(|line|line.strip_prefix("content-length:")).unwrap().trim().parse().unwrap();
+            while raw.len()-header_end<length {let n=socket.read(&mut buffer).unwrap();assert!(n>0);raw.extend_from_slice(&buffer[..n]);}
+            assert_eq!(&raw[header_end..],expected.as_slice());
+            let reply=b"{\"accepted\":50,\"duplicates\":0}";
+            write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",reply.len()).unwrap();
+            socket.write_all(reply).unwrap();
+        });
+        let result=Client::new(format!("http://{address}")).upload("fixture-token",&batch).unwrap();
+        assert_eq!(result.accepted,50);
+        server.join().unwrap();
     }
 }
 
@@ -147,8 +179,12 @@ impl Client {
         if let Some(token) = token {
             request = request.header("Authorization", &format!("Bearer {token}"));
         }
+        // ureq's send_json pretty-prints; the upload planner budgets compact UTF-8 bytes.
+        // Keep the exact same serialization on the wire, including the request wrapper.
+        let bytes = serde_json::to_vec(body).map_err(|e| ApiError::Network(e.to_string()))?;
         let mut response = request
-            .send_json(body)
+            .header("Content-Type", "application/json; charset=utf-8")
+            .send(bytes.as_slice())
             .map_err(|e| ApiError::Network(e.to_string()))?;
         let status = response.status().as_u16();
         let text = response

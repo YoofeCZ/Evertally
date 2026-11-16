@@ -149,8 +149,8 @@ function A.ExtendKit(kit)
     function kit.Chip(parent, onClick)
         local b = CreateFrame("Button", nil, parent); b:SetHeight(24)
         A.NativeButton(b, C, false); outline(b, C.line)
-        b.bg = fill(b, C.off, 0.35, "ARTWORK")
-        local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(b); paint(hover, {1, 1, 1}, 0.07)
+        b.bg = fill(b, C.off, 0.35, "ARTWORK"); A.Theme.Shape(b.bg, "round"); paint(b.bg, C.off, 0.35)
+        local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(b); A.Theme.Shape(hover, "round"); paint(hover, {1, 1, 1}, 0.07)
         b.text = label(b, 11, C.mist); b.text:SetPoint("CENTER"); b.text:SetJustifyH("CENTER")
         function b.SetLabel(value) b.text:SetText(value); b:SetWidth(math.max(34, (b.text:GetStringWidth() or 30) + 22)) end
         function b.SetOn(on)
@@ -397,8 +397,9 @@ function A.ExtendKit(kit)
         local b = CreateFrame("Button", nil, parent); b:SetHeight(height or 40)
         b.bg = fill(b, C.card, 0.6)
         local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(b); paint(hover, {1, 1, 1}, 0.05)
-        b.track = b:CreateTexture(nil, "ARTWORK"); b.track:SetSize(34, 18); b.track:SetPoint("LEFT", 14, 0)
-        b.knob = b:CreateTexture(nil, "OVERLAY"); b.knob:SetSize(14, 14); paint(b.knob, C.text)
+        A.Theme.Shape(b.bg, "round"); paint(b.bg, C.card, 0.6); A.Theme.Shape(hover, "round"); paint(hover, {1, 1, 1}, 0.05)
+        b.track = b:CreateTexture(nil, "ARTWORK"); b.track:SetSize(36, 18); b.track:SetPoint("LEFT", 14, 0); A.Theme.Shape(b.track, "pill")
+        b.knob = b:CreateTexture(nil, "OVERLAY"); b.knob:SetSize(14, 14); A.Theme.Shape(b.knob, "dot"); paint(b.knob, C.text)
         b.title = label(b, 13, C.text); b.title:SetWordWrap(false)
         b.sub = label(b, 10, C.mist)
         b.on, b.enabled = false, true
@@ -416,7 +417,7 @@ function A.ExtendKit(kit)
             b.on = on and true or false
             if enabled ~= nil then b.enabled = enabled and true or false end
             paint(b.track, b.on and C.lilac or C.off, b.enabled and 1 or 0.4)
-            b.knob:ClearAllPoints(); b.knob:SetPoint("LEFT", b.track, "LEFT", b.on and 18 or 2, 0)
+            b.knob:ClearAllPoints(); b.knob:SetPoint("LEFT", b.track, "LEFT", b.on and 20 or 2, 0); paint(b.knob, b.on and C.bright or C.mist)
             local c = b.enabled and C.text or C.faint
             b.title:SetTextColor(c[1], c[2], c[3])
         end
@@ -436,8 +437,14 @@ function A.ExtendKit(kit)
             if def[3] then e:SetWidth(def[3]) else e:SetHeight(def[4]) end
             b.edges[#b.edges + 1] = e
         end
-        b.ring = b:CreateTexture(nil, "ARTWORK"); b.ring:SetSize(16, 16); b.ring:SetPoint("TOPLEFT", 14, -14)
-        b.dot = b:CreateTexture(nil, "OVERLAY"); b.dot:SetSize(8, 8); b.dot:SetPoint("CENTER", b.ring, "CENTER")
+        A.Theme.Shape(b.bg, "round"); A.Theme.Shape(hover, "round"); paint(hover, {1, 1, 1}, 0.05)
+        if A.Theme.Shapes() then
+            -- one rounded outline instead of four straight edges
+            for _, e in ipairs(b.edges) do e:Hide() end
+            local ring = b:CreateTexture(nil, "BORDER"); ring:SetAllPoints(b); A.Theme.Shape(ring, "ring"); b.edges = {ring}
+        end
+        b.ring = b:CreateTexture(nil, "ARTWORK"); b.ring:SetSize(16, 16); b.ring:SetPoint("TOPLEFT", 14, -14); A.Theme.Shape(b.ring, "dot")
+        b.dot = b:CreateTexture(nil, "OVERLAY"); b.dot:SetSize(8, 8); b.dot:SetPoint("CENTER", b.ring, "CENTER"); A.Theme.Shape(b.dot, "dot")
         b.title = label(b, 14, C.text); b.title:SetPoint("TOPLEFT", 42, -10); b.title:SetPoint("TOPRIGHT", -12, -10); b.title:SetWordWrap(false)
         b.sub = label(b, 11, C.mist); b.sub:SetPoint("TOPLEFT", 42, -32); b.sub:SetPoint("TOPRIGHT", -12, -32)
         function b.SetTexts(title, sub) b.title:SetText(title or ""); b.sub:SetText(sub or "") end

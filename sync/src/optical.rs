@@ -167,6 +167,84 @@ fn fletcher16(bytes: &[u8]) -> u16 {
     (c1 << 8) | c0
 }
 
+/// Reads the bytes of one frame from the pixels (BGRA, ramp first). `frame_len` gets the bytes read so far and returns how
+/// many the frame has once that is known (`Some(n)`), `None` to stop for an unknown frame, or `Some(usize::MAX)` to read on.
+/// The last two bytes of the frame are its Fletcher-16 checksum, which must match.
+fn read_frame(pixels: &[u8], min_pixels: usize, frame_len: impl Fn(&[u8]) -> Option<usize>) -> Option<Vec<u8>> {
+    if pixels.len() < min_pixels * 4
+        || pixels.len() > WIDTH * HEIGHT * 4
+        || !pixels.len().is_multiple_of(4)
+    {
+        return None;
+    }
+    let mut refs = [[0f32; REFS]; 3];
+    let mut tolerance = f32::MAX;
+    for (channel, row) in refs.iter_mut().enumerate() {
+        let offset = 2 - channel;
+        for (k, slot) in row.iter_mut().enumerate() {
+            *slot = f32::from(pixels[k * 4 + offset]);
+        }
+        for k in 1..REFS {
+            let gap = row[k] - row[k - 1];
+            if gap < 3.0 {
+                return None;
+            }
+            tolerance = tolerance.min(gap * 0.45);
+        }
+    }
+    let index = |channel: usize, value: u8| -> Option<u32> {
+        let v = f32::from(value);
+        let (best, distance) = refs[channel]
+            .iter()
+            .enumerate()
+            .map(|(k, r)| (k, (v - r).abs()))
+            .min_by(|a, b| a.1.total_cmp(&b.1))?;
+        (distance <= tolerance).then_some(best as u32)
+    };
+    let (mut bytes, mut acc, mut bits) = (Vec::with_capacity(64), 0u32, 0u32);
+    let mut needed = usize::MAX;
+    for i in 0..pixels.len() / 4 - REFS {
+        let p = (REFS + i) * 4;
+        let symbol = (index(0, pixels[p + 2])? << 4) | (index(1, pixels[p + 1])? << 2) | index(2, pixels[p])?;
+        acc = (acc << 6) | symbol;
+        bits += 6;
+        while bits >= 8 {
+            bits -= 8;
+            bytes.push(((acc >> bits) & 255) as u8);
+            needed = frame_len(&bytes)?;
+        }
+        acc &= (1 << bits) - 1;
+        if bytes.len() >= needed {
+            break;
+        }
+    }
+    if needed == usize::MAX || bytes.len() < needed || needed < 3 {
+        return None;
+    }
+    bytes.truncate(needed);
+    let checksum = needed - 2;
+    (fletcher16(&bytes[..checksum]) == u16::from_be_bytes([bytes[checksum], bytes[checksum + 1]])).then_some(bytes)
+}
+
+/// A command from the addon (`Optical.lua`, version 9): a sequence number and a short ASCII text such as `m:next`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandFrame {
+    pub seq: u8,
+    pub text: String,
+}
+
+/// Decodes a command frame: 9, sequence, length (1..=120), the text, Fletcher-16.
+#[must_use]
+pub fn decode_command(pixels: &[u8]) -> Option<CommandFrame> {
+    let bytes = read_frame(pixels, REFS + 7, |bytes| match bytes {
+        [9] | [9, _] => Some(usize::MAX),
+        [9, _, len, ..] if (1..=120).contains(len) => Some(3 + usize::from(*len) + 2),
+        _ => None,
+    })?;
+    let text = std::str::from_utf8(&bytes[3..bytes.len() - 2]).ok()?;
+    text.bytes().all(|b| (32..=126).contains(&b)).then(|| CommandFrame { seq: bytes[1], text: text.to_owned() })
+}
+
 /// Decodes the pixels (BGRA, `WIDTH` x `HEIGHT`).
 #[must_use]
 pub fn decode(pixels: &[u8]) -> Option<Marker> {
@@ -570,6 +648,12 @@ fn is_forever(exe: &Path, configured: Option<&Path>) -> bool {
 /// corners of the strip. Only this bounded rectangle is read, and decoding stops at the versioned frame length.
 #[cfg(windows)]
 pub fn capture(configured: Option<&Path>) -> Option<Marker> {
+    capture_with(configured, decode)
+}
+
+/// The strip of the visible Forever window run through `decoder` (the live position or a command).
+#[cfg(windows)]
+pub fn capture_with<T>(configured: Option<&Path>, decoder: impl Fn(&[u8]) -> Option<T>) -> Option<T> {
     use std::{
         mem::{size_of, zeroed},
         ptr,
@@ -718,7 +802,7 @@ pub fn capture(configured: Option<&Path>) -> Option<Marker> {
             DeleteDC(dc);
             ReleaseDC(ptr::null_mut(), screen);
             if read && visible() {
-                decode(&pixels)
+                decoder(&pixels)
             } else {
                 None
             }
@@ -727,6 +811,42 @@ pub fn capture(configured: Option<&Path>) -> Option<Marker> {
             SetThreadDpiAwarenessContext(previous);
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::*;
+
+    const COMMAND: &str = include_str!("../../tests/lua/fixtures/optical_command.json");
+
+    fn strip(fixture: &Value, shade: impl Fn(u64) -> u8) -> Vec<u8> {
+        let mut out = Vec::new();
+        for px in fixture["pixels"].as_array().unwrap() {
+            let c: Vec<u64> = px.as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
+            out.extend_from_slice(&[shade(c[2]), shade(c[1]), shade(c[0]), 255]);
+        }
+        // the rest of the strip as the game leaves it: black
+        out.resize(WIDTH * HEIGHT * 4, 0);
+        out
+    }
+
+    #[test]
+    fn a_command_drawn_by_the_addon_decodes_even_with_shifted_shades() {
+        let fixture: Value = serde_json::from_str(COMMAND).unwrap();
+        let expected = CommandFrame { seq: fixture["seq"].as_u64().unwrap() as u8, text: fixture["text"].as_str().unwrap().to_owned() };
+        assert_eq!(decode_command(&strip(&fixture, |v| v as u8)), Some(expected.clone()));
+        assert_eq!(decode_command(&strip(&fixture, |v| (v as f32 * 1.4 + 9.0) as u8)), Some(expected));
+    }
+
+    #[test]
+    fn a_command_is_not_a_position_and_a_damaged_one_is_refused() {
+        let fixture: Value = serde_json::from_str(COMMAND).unwrap();
+        let mut pixels = strip(&fixture, |v| v as u8);
+        assert!(decode(&pixels).is_none(), "version 9 is not a live position");
+        pixels[(REFS + 12) * 4 + 1] ^= 16;
+        assert!(decode_command(&pixels).is_none());
+        assert!(decode_command(&[0u8; WIDTH * HEIGHT * 4]).is_none());
     }
 }
 

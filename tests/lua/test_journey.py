@@ -76,7 +76,7 @@ class JourneyTests(unittest.TestCase):
         self.lua.execute("GROUPED=true; MEMBERS=3"); self.a.Dispatch("GROUP_ROSTER_UPDATE")
         self.a.Dispatch("GROUP_ROSTER_UPDATE")  # a change of members, not of the group
         self.lua.execute("GROUPED=false"); self.a.Dispatch("GROUP_ROSTER_UPDATE")
-        by = [(m.k, m.a, m.text) for m in self.moments()]
+        by = [(m.k, m.a, m.text) for m in self.moments() if m.k != "state"]
         self.assertEqual(by, [("death", None, "You died"), ("group", "join", "Joined a group of 3"), ("group", "leave", "Left the group")])
 
     def test_moments_are_batched_and_a_long_session_makes_several_batches(self):
@@ -88,8 +88,9 @@ class JourneyTests(unittest.TestCase):
         chunks = self.chunks()
         self.assertEqual(len(chunks), 2)
         first = chunks[0].payload
-        self.assertEqual(len(first.events), 5)
-        self.assertTrue(all(0 <= first.events[i].t <= 300 for i in range(1, 6)))
+        self.assertEqual(len(first.events), 6)  # initial state plus the five kills
+        self.assertEqual(sum(first.events[i].k == "kill" for i in range(1, len(first.events) + 1)), 5)
+        self.assertTrue(all(0 <= first.events[i].t <= 300 for i in range(1, len(first.events) + 1)))
         self.assertEqual(len(chunks[1].payload.events), 1)
         history = self.a.db.events
         self.assertEqual([history[i].kind for i in range(1, len(history) + 1) if history[i].kind == "journey.chunk"], [], "the batches stay out of the local history")
@@ -100,7 +101,7 @@ class JourneyTests(unittest.TestCase):
         self.a.Journey.Flush()
         sizes = [len(c.payload.events) for c in self.chunks()]
         self.assertTrue(all(n <= 300 for n in sizes), sizes)
-        self.assertEqual(sum(sizes), 650)
+        self.assertEqual(sum(sizes), 651)  # 650 deaths plus the initial state
 
     def test_a_new_consent_drops_what_was_not_yet_written(self):
         self.on()

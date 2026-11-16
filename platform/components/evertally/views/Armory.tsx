@@ -23,12 +23,12 @@ const STATS: Record<Lang, Record<string, string>> = {
   cs: { str: "Síla", agi: "Obratnost", sta: "Odolnost", int: "Inteligence", spi: "Duch", armor: "Brnění", ap: "Útočná síla", rap: "Útočná síla na dálku", crit: "Kritický zásah %", scrit: "Kritické kouzlo %", dodge: "Úhyb %", parry: "Odražení %", block: "Blok %", hp: "Zdraví", mana: "Mana", holy: "Odolnost Svatá", fire: "Odolnost Oheň", nature: "Odolnost Příroda", frost: "Odolnost Mráz", shadow: "Odolnost Stín", arcane: "Odolnost Tajná" },
 };
 
-export function ArmoryView({ user, signIn, route }: { user: User | null; signIn: string | null; route: string }) {
+export function ArmoryView({ user, signIn, authReady, route }: { user: User | null; signIn: string | null; authReady: boolean; route: string }) {
   const { t } = useI18n();
   if (user) return <ArmoryData key={user.id} route={route} />;
   return <><PageHead title={t("armory.title")} lead={t("armory.lead")} /><div className="page-column"><section className="chapter-card tint-plum center">
     <span className="empty-icon"><Icon name="user" size={22} /></span><h2 className="serif-heading small">{t("armory.signInTitle")}</h2><p className="lead">{t("armory.signInText")}</p>
-    {!signIn ? <p className="notice error">{t("auth.discord_not_configured")}</p> : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
+    {!signIn ? (authReady && <p className="notice error">{t("auth.discord_not_configured")}</p>) : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
   </section></div></>;
 }
 

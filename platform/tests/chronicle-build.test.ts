@@ -53,7 +53,8 @@ test("a recording is composed from stored events: the route, the zones, quests, 
   assert.deepEqual(bosses.map(b => [b.a, b.n, b.d]), [["wipe", 1, 74], ["kill", 2, 150.5]], "the second attempt is attempt 2");
   assert.deepEqual(c.events.filter(e => e.k === "dungeon").map(e => e.a), ["enter", "leave"]);
   assert.ok(c.events.every((e, i) => i === 0 || e.t >= c.events[i - 1].t), "events in order");
-  assert.equal(c.fights, undefined, "there are no per-fight numbers to show, so no fight windows");
+  assert.equal(c.fights?.length, 2, "known boss intervals open details even without per-fight measurements");
+  assert.ok(c.fights?.every(f => f.me.dmg === undefined && f.coverage === "unavailable"), "missing combat measurements remain unknown");
 });
 
 test("nothing recorded is no recording, and damaged or unknown data is left out instead of breaking it", () => {

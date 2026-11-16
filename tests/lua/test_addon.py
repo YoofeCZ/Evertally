@@ -49,7 +49,7 @@ def runtime(record_globals=False, enforce_requirements=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "Gear.lua", "GearUI.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "Gear.lua", "GearUI.lua", "BagHighlight.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -57,6 +57,13 @@ def runtime(record_globals=False, enforce_requirements=False):
         if record_globals:
             lua.eval("setfenv")(fn, lua.eval("ENVPROXY"))
         fn("Evertally", ns)
+    source = (ADDON / "JourneyDetails.lua").read_text(encoding="utf-8")
+    fn = lua.eval("loadstring")(source, "JourneyDetails.lua")
+    if isinstance(fn, tuple):
+        raise AssertionError(f"Failed compiling JourneyDetails.lua: {fn}")
+    if record_globals:
+        lua.eval("setfenv")(fn, lua.eval("ENVPROXY"))
+    fn("Evertally", ns)
     # Feature suites model a completed installation; requirement tests opt into the
     # actual gate, rather than making unrelated map mocks imply installed software.
     if not enforce_requirements:
@@ -155,7 +162,7 @@ class ReplayTests(unittest.TestCase):
         self.walk(0.1, 0.1); self.walk(0.2, 0.2); self.walk(0.3, 0.3, map_id=1430)
         self.assertEqual(len(self.exported("track.path")), 1)
         self.assertEqual(self.exported("track.path")[0].payload.mapId, 1429)
-        for i in range(110): self.walk(0.1 + (i % 2) * 0.3, 0.2 + i * 0.003, map_id=1430)
+        for i in range(110): self.walk(0.1 + (i % 2) * 0.3, 0.2 + i * 0.003, map_id=1430, seconds=1)
         self.a.FlushTrack()
         sizes = [len(e.payload.points) for e in self.exported("track.path")]
         self.assertTrue(all(n <= 100 for n in sizes)); self.assertEqual(sizes[1], 100)
@@ -175,6 +182,35 @@ class ReplayTests(unittest.TestCase):
         e = self.exported("track.path")[0]
         self.assertIsNone(e.character.name); self.assertIsNone(e.character.realm)
         self.assertNotEqual(e.character.id, "Player-TEST-own")
+
+    def test_logout_samples_the_final_position_even_below_the_regular_movement_threshold(self):
+        self.route_on(); self.walk(0.5,0.5)
+        self.lua.execute('NOW=NOW+1;MX=0.501;MY=0.5')
+        self.a.Dispatch("PLAYER_LOGOUT")
+        route=self.exported("track.path")[-1].payload
+        self.assertEqual([route.points[len(route.points)][i] for i in (1,2,3)],[1,0.501,0.5])
+
+    def test_idle_routes_are_flushed_in_bounded_stretches_before_logout(self):
+        self.route_on()
+        for _ in range(80): self.walk(0.5,0.5)
+        self.assertGreaterEqual(len(self.exported("track.path")),1)
+        route=self.exported("track.path")[0]
+        self.assertLessEqual(route.observedAt-route.payload.startedAt,300)
+
+    def test_only_acknowledged_export_ids_are_pruned_for_the_matching_consent(self):
+        self.route_on();self.walk(0.5,0.5);self.a.FlushTrack()
+        self.walk(0.6,0.6);self.a.FlushTrack()
+        store=self.lua.globals().EvertallyExportDB
+        first,second=store.events[1].eventId,store.events[2].eventId
+        source=str(store.producerId)+":"+str(store.consentEpoch)
+        self.a.bridgeUploaded=self.lua.table_from({source:self.lua.table_from({first:True})})
+        self.a.PruneUploadedExport()
+        self.assertEqual([event.eventId for event in self.exported("track.path")],[second])
+        self.a.bridgeUploaded=self.lua.table_from({source+"-other":self.lua.table_from({second:True})})
+        self.a.PruneUploadedExport()
+        self.assertEqual([event.eventId for event in self.exported("track.path")],[second])
+        self.walk(0.7,0.7);self.a.FlushTrack()
+        self.assertNotIn(self.exported("track.path")[-1].eventId,[first,second])
 
     def test_route_outbox_keeps_the_newest_500_routes(self):
         self.route_on()
@@ -247,7 +283,7 @@ class ReplayTests(unittest.TestCase):
         written={writes[i] for i in range(1,len(writes)+1)}
         # Only names that are ours and did not exist before: saved variables, the slash command words, and what Bindings.xml needs
         # (a header, two labels and the functions the two key bindings call). Anything else would be a write to a Blizzard-owned global.
-        own={"EvertallyDB","EvertallyPeersDB","SLASH_EVERTALLY1","SLASH_EVERTALLY2","BINDING_HEADER_EVERTALLY","BINDING_NAME_EVERTALLY_PING","BINDING_NAME_EVERTALLY_STOPNAV","Evertally_Ping","Evertally_StopNav"}
+        own={"EvertallyDB","EvertallyPeersDB","EvertallyMusicData","SLASH_EVERTALLY1","SLASH_EVERTALLY2","BINDING_HEADER_EVERTALLY","BINDING_NAME_EVERTALLY_PING","BINDING_NAME_EVERTALLY_STOPNAV","Evertally_Ping","Evertally_StopNav"}
         self.assertEqual(written-own,set())
         self.assertTrue(lua.eval("type(SlashCmdList.EVERTALLY)=='function'"))
 

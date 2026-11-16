@@ -238,6 +238,20 @@ def render(nodes, width, height, debug=False):
             clip = f"clip-path:inset({top:.1f}px {right:.1f}px {bottom:.1f}px {left:.1f}px);"
         box = f"left:{l:.1f}px;top:{t:.1f}px;width:{w:.1f}px;height:{h:.1f}px;{clip}"
         kind = n["kind"]
+        shape = re.search(r"Shape(Round|Ring|Pill|Dot)", str(n.get("path") or ""))
+        if kind == "Texture" and shape:
+            # Theme.lua's tinted shape textures: drawn as the rounded boxes they are in the game
+            radius = "7px" if shape.group(1) in ("Round", "Ring") else "999px"
+            tint = n.get("tint") or [1, 1, 1, 1]
+            if shape.group(1) == "Ring":
+                style = f"border:1.25px solid {color(tint, alpha)};border-radius:{radius};"
+            elif n.get("gradient"):
+                g = n["gradient"]
+                style = f"background:linear-gradient(to top,{color(g[1], alpha)},{color(g[2], alpha)});border-radius:{radius};"
+            else:
+                style = f"background:{color(tint, alpha)};border-radius:{radius};"
+            parts.append(f'<div class="r" style="{box}{style}"></div>')
+            continue
         if kind == "Texture":
             if n.get("gradient"):
                 g = n["gradient"]
@@ -329,6 +343,7 @@ def lint(nodes):
 
 
 def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
+    # the fixture levels the character up; the brag offer that follows is a toast above the window, not page layout
     """The add-on running on the layout mock with a realistic character; returns (lua, add-on table)."""
     lua, a = runtime()
     # The collision data uses the real client's packed-string codec. Model it
@@ -355,6 +370,9 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     lua.execute('TRAIT_NODES[100001].activeRank=4;TRAIT_NODES[100201].activeRank=0')
     a.db.settings.language = language
     a.db.settings.uiWidth, a.db.settings.uiHeight = ww, wh
+    a.db.settings.bragPrompt = False
+    if a.Announce.bar is not None:
+        a.Announce.bar.Hide(a.Announce.bar)
     # the map add-on, loaded the way the game does it on first use (with the stand-ins the unit tests use for the map libraries and QuestieDB)
     lua.execute(FAKE_LIBS)
     lua.execute(MapTests.FAKE_QUESTIE)
@@ -394,7 +412,7 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
 
 WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 # pages with more than one state worth looking at: view -> the states
-STATES = {"setup": ("1", "2", "3", "4", "5", "6", "7", "8:names", "8:icons", "8:position", "8:auras", "8:bars", "8", "9"), "settings": ("names", "icons", "auras", "bars", "position"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
+STATES = {"setup": ("1", "2", "3", "3:unpaired", "4", "5", "6", "7", "8", "9", "10:names", "10:icons", "10:position", "10:auras", "10:bars", "10", "11", "12"), "settings": ("names", "icons", "auras", "bars", "position", "sharing", "interface", "music"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
 def capture(lua, a, view, tab=None, quest_id=None, destination=None):
@@ -412,10 +430,14 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
         return nodes
     if view == "setup":   # the first-start setup, one step at a time
         step, _, group = (tab or "1").partition(":")
+        # the app reports a paired PC unless the state shows the pairing step before pairing
+        a.bridgeInstallation = lua.table(schemaVersion=1,kind="evertally-bridge-installation",bridgeVersion="0.9.13",createdAt=a.Now(),paired=group != "unpaired",autostart=False)
+        if group == "unpaired":
+            group = ""
         a.OpenOnboarding(int(step))
         if group:
             lua.execute('C_CVar={GetCVar=function() return "1" end,SetCVar=function() end}')
-            editor = a.onboarding.pages[8].plates
+            editor = a.onboarding.pages[10].plates
             editor.providers.evertally.GetScript(editor.providers.evertally,"OnClick")()
             editor.group = group
             editor.Update()
@@ -473,7 +495,10 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
         a.trainingPage.mode = tab
         a.trainingPage.Refresh()
     lua.execute("PREVIEW_SETTLE()")
-    if view == "settings" and tab:
+    if view == "settings" and tab in ("sharing", "interface", "music"):
+        a.settingsPage.SelectSection({"sharing": 1, "interface": 4, "music": 6}[tab])
+        lua.execute("PREVIEW_SETTLE()")
+    elif view == "settings" and tab:
         lua.execute('C_CVar={GetCVar=function() return "1" end,SetCVar=function() end}')
         a.db.settings.plateGameLook = True
         a.settingsPage.SelectSection(5)

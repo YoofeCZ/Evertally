@@ -1,7 +1,7 @@
 # Kronika — formát záznamu cesty (v1)
 
-Tohle je zadání pro toho, kdo píše **zápis záznamu v addonu** (a převod v aplikaci). Webový přehrávač je hotový a umí
-přehrát cokoli, co tomuto formátu odpovídá. Chybí zdroj skutečných dat.
+Záznam pořizuje addon a web ho skládá z uložených událostí. Od 0.9.32 obsahuje také běžné souboje, akce mimo boj,
+aury a historické snímky postavy. Přehled vydání: [`VYDANI-0.9.32.md`](../VYDANI-0.9.32.md).
 
 **Zdroj pravdy je kód, ne tento text:**
 
@@ -12,6 +12,52 @@ přehrát cokoli, co tomuto formátu odpovídá. Chybí zdroj skutečných dat.
 Když se tento dokument a kód rozcházejí, platí kód. Příklady v [`docs/kronika/`](kronika/) hlídá test, takže vždy projdou.
 
 ## 1. Co je ověřené a co ne
+
+### Aktuální doplnění 0.9.32
+
+`Journey.lua` dávkuje okamžiky do `journey.chunk`; `JourneyDetails.lua` přidává `combat`, `action`, `aura`, `state` a `speech`.
+Každá dávka addonu má nejvýš 128 okamžiků a přibližně 180 KiB. Server přijímá nejvýš 200 KiB na dávku.
+Snímky jsou částečné: nezměněné členy raidu a výbavu při každé změně buffu neopakují. Chybějící pole si zachová poslední
+pozorovanou hodnotu a její čas; známý prázdný seznam naopak předchozí seznam vyprázdní.
+
+- `combat`: `fightId`, `a=start|end`, `encounterKind=combat|boss|pvp`, skutečné `d`, výsledek a případný nativní `summary`.
+- `action`: vlastní sesílání, příkaz ke skoku, nasednutí/sesednutí a `item_attempt` (příkaz, nikoli potvrzení spotřeby).
+- `aura`: `gain|loss|refresh`, spell ID, čitelný název, druh, vrstvy, délka a unixový konec platnosti.
+- `speech`: hláška NPC/bosse, `speaker` a celý `message` do 1000 znaků. Není to hráčský chat a bez `own_character` se neposílá.
+- `state`: `attrs`, `enh`, `ilvl`, `roster`, `groupType`, `aurasKnown/auras`, `copper`, `played`, `race/faction/guild/spec`,
+  `skills`, `professions`, `equipped`. Identifikační a podrobné údaje postavy vyžadují vedle `own_track` i `own_character`.
+
+`Fight.kind` nově zahrnuje `combat`; výsledek může být `ended` nebo `interrupted`. Neznámé metriky a počty použití
+kouzel nejsou povinná čísla. Bez naměřené `series` nejsou průběžné součty k dispozici až do konce souboje.
+Celkový souhrn instance je zvlášť na události opuštění (`summary`), nikoli jako jediný souboj přes celý dungeon.
+
+Následující průzkum API popisuje výchozí stav před tímto rozšířením. Herní ověření nových událostí stále není nahrazené testy.
+
+### Doplnění 0.9.33
+
+Přehrávač při průchodu začátkem boje pozastaví cestu a automaticky otevře přehrání skutečně zaznamenaných akcí.
+Každá událost má samostatný čitelný krok i při stejném časovém razítku. Konec zůstává otevřený do pokračování uživatele.
+Průběh nepřidává nezaznamenané zásahy ani neodvozuje poškození ze seslaných kouzel.
+
+`action` může nést `actor`, `actorSide=me|party|enemy`, `actorClassId`, skutečný cíl z `UNIT_SPELLCAST_SENT` a číselné `icon`.
+Čitelné události sesílání viditelných bojujících jednotek se sbírají i pro cíleného protivníka, členy skupiny a bosse.
+Cizí účastníci vyžadují aktivní vlastní boj i `own_character`; odebrání tohoto souhlasu je odstraní také z exportu.
+Stejný cast GUID od více unit tokenů se započte jednou. `combat.npcId` pochází ze skutečného GUID cíle.
+
+Ikony kouzel se dohledají podle spell ID; podobizna protivníka podle pozorovaného NPC ID, u starších záznamů podle
+jednoznačného jména referenční databáze. Reference s jiným názvem (například vlastní Forever kouzlo se stejným ID) se nepoužije.
+Výška bočních panelů se měří vůči horním ovládacím prvkům a spodní časové ose, včetně změn za běhu.
+
+### Doplnění 0.9.34 / Bridge 0.9.12
+
+HTTP přenos používá stejné kompaktní JSON bajty jako výpočet limitu, včetně obálky `export`. `ureq::send_json` zde není
+použit: verze 3.5.1 volá `serde_json::to_vec_pretty`, což u skutečného čekajícího exportu změnilo asi 521 kB na 1,2 MB.
+Odmítnutá nezměněná verze exportu zůstává ve stavu chyby, dočasné problémy mají opakování po 30 s.
+
+Potvrzená ID se předají addonu přes existující lokální soubor `BridgeInstallation.lua` jako `A.bridgeUploaded`.
+Addon z fronty při inicializaci odstraní pouze tato ID se shodným `producerId:consentEpoch`. Bridge SavedVariables nepřepisuje.
+Ukončení posledního procesu hry vyvolá závěrečnou synchronizaci; addon na `PLAYER_LOGOUT` nejprve odečte dostupnou
+koncovou polohu a poté uzavře trasu. Nedostupnou polohu nenahrazuje odhadem.
 
 Rozlišuj **změřeno / ověřeno** od **domněnky**. Tabulka u každého zdroje dat říká, v jakém stavu je.
 

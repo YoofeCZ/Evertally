@@ -33,8 +33,8 @@ local NAV = {
 local VIEWS = {}
 for _, group in ipairs(NAV) do for _, view in ipairs(group) do VIEWS[#VIEWS + 1] = view end end
 local pageText = {
-    en = {pageSearch="Search by name or ID",pageResults="Results",pageProfessionCount="Saved professions",pageRecipeCount="Known recipes",pageCooldownCount="Active cooldowns",pageAreaCount="Visited areas",pageVisitCount="Recorded entries",pageQuestFacts="Quest observations",pageNpcFacts="NPC observations",pageItemFacts="Loot observations",pageAll="All",pageQuests="Quests",pageNpcs="NPCs",pageItems="Loot",pageAllFacts="Retained observations",pageCacheState="Cache",pageCacheFresh="Available offline",pageCacheEmpty="No snapshot",pageCacheExpired="Expired",pageOnlyOwn="Your own retained observations",pageNoMatch="No matching records.",pageActionHint="Sharing and export use only the permissions selected above.",pageLiveWebHint="For live web position enable Web export, My character, My route and Live position to website, then run the paired Windows bridge. History is saved separately on /reload or logout."},
-    cs = {pageSearch="Hledat podle názvu nebo ID",pageResults="Výsledky",pageProfessionCount="Uložené profese",pageRecipeCount="Známé recepty",pageCooldownCount="Aktivní cooldowny",pageAreaCount="Navštívené oblasti",pageVisitCount="Zaznamenané vstupy",pageQuestFacts="Pozorování questů",pageNpcFacts="Pozorování NPC",pageItemFacts="Záznamy lootu",pageAll="Vše",pageQuests="Questy",pageNpcs="NPC",pageItems="Loot",pageAllFacts="Uchovaná pozorování",pageCacheState="Mezipaměť",pageCacheFresh="Dostupná i offline",pageCacheEmpty="Bez vzorku",pageCacheExpired="Platnost vypršela",pageOnlyOwn="Vlastní uchovaná pozorování",pageNoMatch="Žádné odpovídající záznamy.",pageActionHint="Sdílení a export používají pouze oprávnění zvolená výše.",pageLiveWebHint="Pro živou polohu na web zapni Webový export, Moji postavu, Moji trasu a Živou polohu na web a spusť spárovaný Windows most. Historie se ukládá zvlášť při /reload nebo odhlášení."},
+    en = {pageSearch="Search by name or ID",pageResults="Results",pageProfessionCount="Saved professions",pageRecipeCount="Known recipes",pageCooldownCount="Active cooldowns",pageAreaCount="Visited areas",pageVisitCount="Recorded entries",pageQuestFacts="Quest observations",pageNpcFacts="NPC observations",pageItemFacts="Loot observations",pageAll="All",pageQuests="Quests",pageNpcs="NPCs",pageItems="Loot",pageAllFacts="Retained observations",pageCacheState="Cache",pageCacheFresh="Available offline",pageCacheEmpty="No snapshot",pageCacheExpired="Expired",pageOnlyOwn="Your own retained observations",pageNoMatch="No matching records.",pageActionHint="Sharing and export use only the permissions selected above.",pageLiveWebHint="For your position on the website enable Web export, My character, My route and Position on the website, with the paired Evertally app running. It is not live: sent on a zone change, login, /reload, a “Where are you?” from the website, and otherwise at most every 5 minutes."},
+    cs = {pageSearch="Hledat podle názvu nebo ID",pageResults="Výsledky",pageProfessionCount="Uložené profese",pageRecipeCount="Známé recepty",pageCooldownCount="Aktivní cooldowny",pageAreaCount="Navštívené oblasti",pageVisitCount="Zaznamenané vstupy",pageQuestFacts="Pozorování questů",pageNpcFacts="Pozorování NPC",pageItemFacts="Záznamy lootu",pageAll="Vše",pageQuests="Questy",pageNpcs="NPC",pageItems="Loot",pageAllFacts="Uchovaná pozorování",pageCacheState="Mezipaměť",pageCacheFresh="Dostupná i offline",pageCacheEmpty="Bez vzorku",pageCacheExpired="Platnost vypršela",pageOnlyOwn="Vlastní uchovaná pozorování",pageNoMatch="Žádné odpovídající záznamy.",pageActionHint="Sdílení a export používají pouze oprávnění zvolená výše.",pageLiveWebHint="Pro polohu na webu zapni Webový export, Moji postavu, Moji trasu a Polohu na webu a nech běžet spárovanou aplikaci Evertally. Není živá: posílá se při změně lokace, přihlášení, /reload, dotazu „Kde jsi?“ z webu a jinak nejvýš jednou za 5 minut."},
 }
 for lang,entries in pairs(pageText) do for key,value in pairs(entries) do A.locale[lang][key]=value end end
 
@@ -48,19 +48,28 @@ local showRun, showEvent, showProfession, showCommunityDetail
 
 local function paint(tex, c, alpha)
     local a = alpha or c[4] or 1
+    if tex.evertallyShape then tex:SetVertexColor(c[1], c[2], c[3], a); return end
     if tex.SetColorTexture then tex:SetColorTexture(c[1], c[2], c[3], a)
     else tex:SetTexture("Interface\\Buttons\\WHITE8X8"); tex:SetVertexColor(c[1], c[2], c[3], a) end
 end
 local function fill(parent, c, alpha, layer)
     local t = parent:CreateTexture(nil, layer or "BACKGROUND")
-    t:SetAllPoints(parent); paint(t, c, alpha); return t
+    t:SetAllPoints(parent)
+    if parent.evertallySkin and parent.evertallySkin.shaped then A.Theme.Shape(t, "round") end
+    paint(t, c, alpha); return t
 end
+local function shape(tex, kind) return A.Theme.Shape(tex, kind) end
 local function gradient(tex, top, bottom)
     -- Modern clients take colour objects, older ones take numbers; fall back to a flat fill.
     if type(CreateColor) == "function" and pcall(tex.SetGradient, tex, "VERTICAL", CreateColor(bottom[1], bottom[2], bottom[3], 1), CreateColor(top[1], top[2], top[3], 1)) then return end
     if tex.SetGradientAlpha and pcall(tex.SetGradientAlpha, tex, "VERTICAL", bottom[1], bottom[2], bottom[3], 1, top[1], top[2], top[3], 1) then return end
 end
 local function outline(f, c)
+    -- a rounded surface already carries its own outline
+    if f.evertallySkin and f.evertallySkin.shaped then
+        if c then paint(f.evertallySkin.ring, c, c[4] or 1) end
+        return
+    end
     for _, side in ipairs({{"TOPLEFT", "TOPRIGHT", nil, 1}, {"BOTTOMLEFT", "BOTTOMRIGHT", nil, 1}, {"TOPLEFT", "BOTTOMLEFT", 1, nil}, {"TOPRIGHT", "BOTTOMRIGHT", 1, nil}}) do
         local t = f:CreateTexture(nil, "BORDER"); paint(t, c or C.line)
         t:SetPoint(side[1]); t:SetPoint(side[2])
@@ -162,8 +171,9 @@ local function Button(parent, key, width, kind, onClick)
     A.NativeButton(b, C, primary)
     local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, primary and 0.9 or 0.45}
     outline(b, edge)
-    local glow = b:CreateTexture(nil, "ARTWORK"); glow:SetPoint("TOPLEFT", 1, -1); glow:SetPoint("BOTTOMRIGHT", -1, 1); paint(glow, C.gold, 0)
-    local text = label(b, 13, primary and C.bright or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
+    local glow = b:CreateTexture(nil, "ARTWORK"); glow:SetPoint("TOPLEFT", 1, -1); glow:SetPoint("BOTTOMRIGHT", -1, 1); shape(glow, "round"); paint(glow, C.gold, 0)
+    local shaped = b.evertallySkin and b.evertallySkin.shaped
+    local text = label(b, 13, primary and (shaped and C.canvas or C.bright) or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
     b.text, b.localeKey = text, key
     if key then text:SetText(A.L(key)); localeButtons[#localeButtons + 1] = b end
     b:SetScript("OnEnter", function() paint(glow, C.gold, 0.12) end)
@@ -177,14 +187,16 @@ end
 local function Toggle(parent, key, get, set)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(560, 36)
-    local track = b:CreateTexture(nil, "ARTWORK"); track:SetSize(30, 16); track:SetPoint("LEFT")
-    local knob = b:CreateTexture(nil, "OVERLAY"); knob:SetSize(12, 12); paint(knob, C.text)
-    local text = label(b, 12, parent.parchment and A.UIKit().ParchmentText.ink or C.text); text:SetPoint("LEFT", track, "RIGHT", 10, 0);text:SetPoint("RIGHT",b,"RIGHT",0,0);text:SetWordWrap(true)
+    -- A settings row: the label on the left, the switch at the right edge, a faint line under it.
+    local track = b:CreateTexture(nil, "ARTWORK"); track:SetSize(36, 18); track:SetPoint("RIGHT", -4, 0); shape(track, "pill")
+    local knob = b:CreateTexture(nil, "OVERLAY"); knob:SetSize(14, 14); shape(knob, "dot"); paint(knob, C.text)
+    local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetPoint("TOPLEFT", -6, 0); hover:SetPoint("BOTTOMRIGHT", 0, 0); shape(hover, "round"); paint(hover, {1, 1, 1}, 0.04)
+    local text = label(b, 12, parent.parchment and A.UIKit().ParchmentText.ink or C.text); text:SetPoint("LEFT", b, "LEFT", 0, 0);text:SetPoint("RIGHT",track,"LEFT",-16,0);text:SetWordWrap(true)
     b.localeKey, b.get = key, get
     function b.Update()
         local on = get() == true
         paint(track, on and C.lilac or C.off)
-        knob:ClearAllPoints(); knob:SetPoint("LEFT", track, "LEFT", on and 16 or 2, 0)
+        knob:ClearAllPoints(); knob:SetPoint("LEFT", track, "LEFT", on and 20 or 2, 0); paint(knob, on and C.bright or C.mist)
         text:SetText(A.L(key))
         b:SetAlpha(b.disabled and b.disabled() and 0.45 or 1)
     end
@@ -198,7 +210,7 @@ end
 
 local function Pill(parent)
     local f = CreateFrame("Frame", nil, parent); f:SetSize(80, 20)
-    f.bg = fill(f, C.off, 0.5)
+    f.bg = fill(f, C.off, 0.5); shape(f.bg, "pill")
     f.text = label(f, 10, C.text); f.text:SetPoint("CENTER")
     function f.Set(text, c)
         f.text:SetText(text); f.text:SetTextColor(c[1], c[2], c[3])
@@ -980,7 +992,9 @@ local function buildSettings(page)
     local function section(key)
         finish();card=CreateFrame("Frame",nil,body);card.parchment=true;card:SetPoint("TOPLEFT");card:SetPoint("TOPRIGHT");cy=-38
         page.settingCards[#page.settingCards+1]=card
-        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",12,-12);fs:SetTextColor(unpack(kit.ParchmentText.heading));page.sections[#page.sections+1]=fs
+        -- a small capitalised heading behind a gold mark, as section headings in modern addon settings
+        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",24,-15);fs:SetFont(fontPath("heading"),12,"");fs:SetTextColor(unpack(kit.ParchmentText.heading));fs.upper=true;page.sections[#page.sections+1]=fs
+        local mark=card:CreateTexture(nil,"ARTWORK");mark:SetSize(3,14);mark:SetPoint("TOPLEFT",13,-14);shape(mark,"pill");paint(mark,C.gold,1)
         local index=#page.settingCards
         local button=Button(categoryScroll.child,key,180,"ghost",function() page.SelectSection(index) end)
         button:ClearAllPoints();button:SetPoint("TOPLEFT",8,-10-(index-1)*46);button:SetPoint("TOPRIGHT",-8,-10-(index-1)*46);button:SetHeight(40)
@@ -1001,6 +1015,9 @@ local function buildSettings(page)
     local group=Toggle(card,"group",function() return s().group end,function(v) s().group=v end);group.disabled=function() return not s().ingame end;place(group,36,18)
     local guild=Toggle(card,"guild",function() return s().guild end,function(v) s().guild=v end);guild.disabled=function() return not s().ingame end;place(guild,36,18)
     place(Toggle(card,"socialEnabled",function() return s().social~=false end,function(v) s().social=v end))
+    place(Toggle(card,"partyAnnounce",function() return s().partyAnnounce~=false end,function(v) if A.Announce then A.Announce.SetEnabled(v) end end),40)
+    place(Toggle(card,"bragPrompt",function() return s().bragPrompt~=false end,function(v) if A.Announce then A.Announce.SetBragEnabled(v) end end),40)
+    place(Toggle(card,"presence",function() return s().presence==true end,function(v) if A.Presence then A.Presence.SetEnabled(v) end end),40)
 
     section("liveSection")
     place(Toggle(card,"liveParty",function() return s().liveParty==true end,function(v) A.SetLive("party",v) end))
@@ -1023,8 +1040,9 @@ local function buildSettings(page)
         local t=Toggle(card,which=="itemLevel" and "leaderboardItemLevel" or which=="guild" and "leaderboardGuild" or which=="chronicle" and "leaderboardChronicle" or "leaderboardGear",function() return A.PublishChoice and A.PublishChoice()[which]==true end,function(v) A.SetPublish(which,v) end)
         t.disabled=function() return publishOff() or A.PublishChoice().public~=true end;place(t,62,18)
     end
-    local liveWeb=Toggle(card,"liveWeb",function() return s().liveWeb==true end,function(v) s().liveWeb=v==true;if A.OpticalTick then A.OpticalTick() end end)
+    local liveWeb=Toggle(card,"liveWeb",function() return s().liveWeb==true end,function(v) s().liveWeb=v==true;if A.OpticalTick then A.OpticalTick() end;if A.MarkWebChanged then A.MarkWebChanged() end end)
     liveWeb.disabled=function() return not s().web end;place(liveWeb,40,18)
+    place(Toggle(card,"bridgeAutostart",function() return A.BridgeAutostart and A.BridgeAutostart() end,function(v) if A.SetBridgeAutostart then A.SetBridgeAutostart(v) end end),40)
     page.webLiveHint=note(60);page.webHint=note(60)
 
     section("interfaceSection")
@@ -1037,10 +1055,66 @@ local function buildSettings(page)
     cy=cy-38
     place(Toggle(card,"rankTooltip",function() return s().rankTooltip~=false end,function(v) s().rankTooltip=v==true end))
     place(Toggle(card,"minimap",function() return not s().hideMinimap end,function(v) s().hideMinimap=not v;if minimapButton then minimapButton:SetShown(v) end end))
+    place(Toggle(card,"bagHighlight",function() return s().bagHighlight~=false end,function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end),40)
+    place(Toggle(card,"chatEnabled",function() return A.Chat and A.Chat.Settings().enabled~=false end,function(v) if A.Chat then A.Chat.SetEnabled(v) end end),40)
+    local chatRedirect=Toggle(card,"chatRedirect",function() return A.Chat and A.Chat.Settings().redirect==true end,function(v) if A.Chat then A.Chat.SetRedirect(v) end end)
+    chatRedirect.disabled=function() return not (A.Chat and A.Chat.Settings().enabled~=false) end;place(chatRedirect,40,18)
 
     section("nameplatesSection")
     page.plates=A.BuildFriendlyPlateControls(book.paper)
     page.plates:SetPoint("TOPLEFT",12,-12);page.plates:SetPoint("BOTTOMRIGHT",-12,12);page.plates:Hide()
+
+    section("musicSection")
+    place(Toggle(card,"musicEnabled",function() return A.Music and A.Music.Enabled() end,function(v) if A.Music then A.Music.SetEnabled(v) end end),40)
+    local musicDuck=Toggle(card,"musicDuck",function() return A.Music and A.Music.DuckEnabled() end,function(v) if A.Music then A.Music.SetDuck(v) end end)
+    musicDuck.disabled=function() return not (A.Music and A.Music.Enabled()) end;place(musicDuck,36,18)
+    do
+        local k=A.UIKit()
+        page.musicSourceLabel=label(card,12,kit.ParchmentText.ink);page.musicSourceLabel:SetPoint("TOPLEFT",12,cy-8)
+        page.musicSources={}
+        for i,source in ipairs({"spotify","youtube"}) do
+            local chip=k.Chip(card,function() if A.Music then A.Music.SetSource(source) end;A.RefreshUI() end)
+            chip:SetPoint("TOPLEFT",132+(i-1)*130,cy-4);page.musicSources[source]=chip
+        end
+        cy=cy-40
+        page.musicIdLabel=label(card,12,kit.ParchmentText.ink);page.musicIdLabel:SetPoint("TOPLEFT",12,cy-8)
+        page.musicId=k.SearchBox(card,220,nil);page.musicId:SetPoint("TOPLEFT",132,cy-2);page.musicId:SetHeight(26);page.musicId:SetMaxLetters(40)
+        page.musicConnect=Button(card,nil,110,"ghost",function()
+            if not A.Music then return end
+            local ok,why=A.Music.ConnectSpotify(page.musicId:GetText())
+            if ok and not A.Music.toldCheck then A.Music.toldCheck=true;why="musicCheckApp" end
+            A.Print(A.L(why))
+        end)
+        page.musicConnect:SetHeight(26);page.musicConnect:SetPoint("LEFT",page.musicId,"RIGHT",8,0)
+        cy=cy-38
+        page.musicDashboardLabel=label(card,12,kit.ParchmentText.ink);page.musicDashboardLabel:SetPoint("TOPLEFT",12,cy-8)
+        page.musicDashboard=k.LinkBox(card);page.musicDashboard:SetPoint("TOPLEFT",132,cy-2);page.musicDashboard:SetWidth(338)
+        cy=cy-38
+        page.musicRedirectLabel=label(card,12,kit.ParchmentText.ink);page.musicRedirectLabel:SetPoint("TOPLEFT",12,cy-8)
+        page.musicRedirect=k.LinkBox(card);page.musicRedirect:SetPoint("TOPLEFT",132,cy-2);page.musicRedirect:SetWidth(338)
+        cy=cy-38
+        page.musicHelp=note(76)
+        page.musicOpen=Button(card,nil,200,"primary",function() if A.Music then A.Music.SetEnabled(true);A.Music.ToggleBrowser() end end)
+        page.musicOpen:ClearAllPoints();page.musicOpen:SetPoint("TOPLEFT",12,cy);page.musicOpen:SetHeight(32);cy=cy-44
+        function page.MusicRefresh()
+            local source=A.db.settings.music and A.db.settings.music.source or "spotify"
+            page.musicSourceLabel:SetText(A.L("musicSource"))
+            for name,chip in pairs(page.musicSources) do chip.SetLabel(A.L(name=="youtube" and "musicYoutube" or "musicSpotify"));chip.SetOn(name==source) end
+            local spotify=source~="youtube"
+            page.musicIdLabel:SetText(A.L("musicSpotifyId"));page.musicIdLabel:SetShown(spotify);page.musicId:SetShown(spotify);page.musicConnect:SetShown(spotify)
+            page.musicId.hint:SetText("0123456789abcdef…");page.musicConnect.text:SetText(A.L("musicSpotifyConnect"))
+            local saved=A.db.settings.music and A.db.settings.music.spotifyId
+            if saved and (page.musicId:GetText() or "")=="" and not (page.musicId.HasFocus and page.musicId:HasFocus()) then
+                page.musicId:SetText(saved);if page.musicId.SetCursorPosition then page.musicId:SetCursorPosition(0) end
+            end
+            page.musicDashboardLabel:SetText(A.L("musicDashboardShort"));page.musicDashboardLabel:SetShown(spotify)
+            page.musicDashboard.SetUrl(A.Music and A.Music.DASHBOARD or "");page.musicDashboard:SetShown(spotify)
+            page.musicRedirectLabel:SetText(A.L("musicRedirectShort"));page.musicRedirectLabel:SetShown(spotify)
+            page.musicRedirect.SetUrl(A.Music and A.Music.REDIRECT or "");page.musicRedirect:SetShown(spotify)
+            page.musicHelp:SetText(A.L(spotify and "musicSpotifyHelp" or "setupMusicYoutubeHelp"))
+            page.musicOpen.text:SetText(A.L("musicOpenWindow"))
+        end
+    end
 
     section("actionsSection")
     page.actions={
@@ -1071,11 +1145,12 @@ local function buildSettings(page)
     page.SelectSection(1)
     function page.Refresh()
         for _,t in ipairs(toggles) do t.Update() end
-        for _,fs in ipairs(page.sections) do fs:SetText(A.L(fs.localeKey)) end
+        for _,fs in ipairs(page.sections) do local t=A.L(fs.localeKey);fs:SetText(fs.upper and upper(t) or t) end
         for _,b in ipairs(page.actions) do b.text:SetText(A.L(b.localeKey)) end
         page.plates.Update()
         page.webHint:SetText(A.L("webHint"));page.webLiveHint:SetText(A.L("pageLiveWebHint"));page.liveHint:SetText(A.L("liveHint"));page.actionHint:SetText(A.L("pageActionHint"))
         page.langLabel:SetText(A.L("language"));for _,b in ipairs(page.langButtons) do b.text:SetTextColor(unpack(b.lang==s().language and C.lilac or C.mist)) end
+        if page.MusicRefresh then page.MusicRefresh() end
         page.diag:SetText(A.Diagnostics());scroll.UpdateThumb()
     end
 end
@@ -1090,6 +1165,8 @@ function A.Diagnostics()
     table.sort(unavailable)
     out[#out + 1] = A.L("unsupported") .. ": " .. (#unavailable > 0 and table.concat(unavailable, ", ") or "0")
     if A.lastUIError then out[#out + 1] = "ui: " .. plain(A.lastUIError) end
+    if A.Music and A.Music.lastError then out[#out + 1] = "music: " .. plain(A.Music.lastError) end
+    if A.lastOnboardingError then out[#out + 1] = "setup: " .. plain(A.lastOnboardingError) end
     return table.concat(out, "\n")
 end
 
@@ -1181,8 +1258,8 @@ end
 
 local function NavButton(parent, view)
     local b = CreateFrame("Button", nil, parent); b:SetHeight(34)
-    b.bg = fill(b, C.lilac, 1); b.bg:SetAlpha(0)   -- the tint is its alpha: it shows when the item is selected or hovered
-    b.bar = b:CreateTexture(nil, "ARTWORK"); b.bar:SetSize(3, 26); b.bar:SetPoint("LEFT"); paint(b.bar, C.gold)
+    b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetPoint("TOPLEFT", 6, -2); b.bg:SetPoint("BOTTOMRIGHT", -6, 2); shape(b.bg, "round"); paint(b.bg, C.lilac, 1); b.bg:SetAlpha(0)   -- the tint is its alpha: it shows when the item is selected or hovered
+    b.bar = b:CreateTexture(nil, "ARTWORK"); b.bar:SetSize(3, 18); b.bar:SetPoint("LEFT", 6, 0); shape(b.bar, "pill"); paint(b.bar, C.gold)
     b.icon = b:CreateTexture(nil, "ARTWORK"); b.icon:SetSize(20, 20); b.icon:SetPoint("LEFT", 14, 0); setIcon(b.icon, ICON[view])
     b.text = label(b, 13, C.mist); b.text:SetPoint("LEFT", b.icon, "RIGHT", 10, 0)
     b.viewKey, b.localeKey = view, view
@@ -1275,7 +1352,7 @@ local function build()
     A.NativeFrame(frame, C)
 
     local bar = CreateFrame("Frame", nil, frame); bar:SetPoint("TOPLEFT", 6, -6); bar:SetPoint("TOPRIGHT", -6, -6); bar:SetHeight(HEADER)
-    fill(bar, C.header, 0.97)
+    local barFill = fill(bar, C.header, 0.97); shape(barFill, "round"); paint(barFill, C.header, 0.97)
     local top = bar:CreateTexture(nil, "BORDER"); top:SetHeight(1); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); paint(top, {C.gold[1] * 0.7, C.gold[2] * 0.66, C.gold[3] * 0.8}, 0.65)
     local rule = bar:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); paint(rule, {C.gold[1] * 0.7, C.gold[2] * 0.66, C.gold[3] * 0.8}, 0.45)
     bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
@@ -1493,6 +1570,8 @@ local function slash(text)
     elseif text == "setup" then
         if A.OpenOnboarding then A.OpenOnboarding() end
     elseif text == "gear" then A.ShowView("gear")
+    elseif text == "music" then if A.Music then A.Music.SetEnabled(not A.Music.Enabled()) end
+    elseif text == "bags" then if A.BagHighlight then A.BagHighlight.Diagnose() end
     elseif text == "train" or text == "training" then A.ShowView("training")
     elseif text == "guide" or text == "questguide" then A.ShowView("questguide")
     elseif text == "map" then

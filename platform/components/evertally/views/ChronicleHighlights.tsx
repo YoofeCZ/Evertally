@@ -70,8 +70,8 @@ export function boardName(b: Named, w: Words): string {
     default: return b.title;
   }
 }
-const valueText = (e: { value: number; unit: Entry["unit"] }, w: Words, lang: string) => (e.unit === "seconds" ? exactText(e.value) : e.unit === "level" ? `${w.level} ${e.value}` : dateTimeText(e.value, lang));
-const detailText = (metric: Board["metric"], e: Entry, w: Words): string | null => {
+export const valueText = (e: { value: number; unit: Entry["unit"] }, w: Words, lang: string) => (e.unit === "seconds" ? exactText(e.value) : e.unit === "level" ? `${w.level} ${e.value}` : dateTimeText(e.value, lang));
+export const detailText = (metric: Board["metric"], e: Entry, w: Words): string | null => {
   if (e.detail === undefined) return null;
   return metric === "door" ? w.bosses(e.detail) : metric === "first" || metric === "deathless" ? exactText(e.detail) : null;
 };

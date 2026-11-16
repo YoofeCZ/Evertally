@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -107,7 +107,9 @@ pub fn plan(envelope: &Value, state: &UploadState) -> Result<Plan> {
 fn batches(envelope: &Value, pending: &[&Value]) -> Result<Vec<Value>> {
     let mut out = Vec::new();
     let mut current: Vec<Value> = Vec::with_capacity(MAX_BATCH_EVENTS.min(pending.len()));
-    let mut bytes = 0;
+    let overhead = serde_json::to_vec(&serde_json::json!({"export":with_events(envelope, Vec::new())}))?.len();
+    ensure!(overhead < MAX_BATCH_BYTES, "export metadata exceeds the upload limit");
+    let mut bytes = overhead;
     for event in pending {
         let mut projected = (*event).clone();
         let kind = projected["kind"].as_str().unwrap_or("").to_owned();
@@ -127,11 +129,12 @@ fn batches(envelope: &Value, pending: &[&Value]) -> Result<Vec<Value>> {
             payload.remove("z");
         }
         let size = serde_json::to_vec(&projected)?.len() + 1;
+        ensure!(overhead + size <= MAX_BATCH_BYTES, "one export event exceeds the upload limit");
         if !current.is_empty()
             && (current.len() == MAX_BATCH_EVENTS || bytes + size > MAX_BATCH_BYTES)
         {
             out.push(with_events(envelope, std::mem::take(&mut current)));
-            bytes = 0;
+            bytes = overhead;
         }
         bytes += size;
         current.push(projected);

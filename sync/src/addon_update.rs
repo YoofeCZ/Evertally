@@ -28,7 +28,7 @@ struct Journal { staging: String, backup: String, existed: Vec<bool> }
 /// `keep_existing`: a file the bridge writes itself; the bundle's copy is only a placeholder for a tree that lacks it.
 struct FileEntry { relative: PathBuf, data: Vec<u8>, keep_existing: bool }
 
-const BRIDGE_OWNED: [&str; 4] = ["evertally/forumdata.lua", "evertally/communitydata.lua", "evertally/rankingdata.lua", "evertally/bridgeinstallation.lua"];
+const BRIDGE_OWNED: [&str; 5] = ["evertally/forumdata.lua", "evertally/communitydata.lua", "evertally/rankingdata.lua", "evertally/bridgeinstallation.lua", "evertally/musicdata.lua"];
 
 /// What one installation did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +42,24 @@ pub enum Status {
     Updated { version: Option<String>, restart: bool },
     /// The game kept the folders from being swapped; the next try comes soon.
     Waiting,
+}
+
+/// Like [`read_url`], calling `progress(read, expected)` as the bytes come in (for the update notification).
+pub(crate) fn read_url_progress(agent: &ureq::Agent, url: &str, limit: u64, expected: u64, mut progress: impl FnMut(u64, u64)) -> Result<Vec<u8>> {
+    let mut response=agent.get(url).header("Cache-Control", "no-cache").call()?;
+    ensure!(response.status().is_success(), "HTTP {}", response.status());
+    let mut reader=response.body_mut().as_reader().take(limit+1);
+    let (mut bytes, mut chunk, mut last)=(Vec::with_capacity(usize::try_from(expected).unwrap_or(0)), vec![0u8; 64*1024], 0u64);
+    loop {
+        let n=reader.read(&mut chunk)?;
+        if n==0 {break;}
+        bytes.extend_from_slice(&chunk[..n]);
+        let read=bytes.len() as u64;
+        // a few updates per second are enough for a progress bar
+        if read-last>=256*1024 || read==expected {last=read;progress(read,expected);}
+    }
+    ensure!(bytes.len() as u64 <= limit, "download exceeds size limit");
+    Ok(bytes)
 }
 
 pub(crate) fn read_url(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Vec<u8>> {
@@ -99,7 +117,7 @@ fn safe_existing(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn safe_ancestors(path: &Path) -> Result<()> {
+pub(crate) fn safe_ancestors(path: &Path) -> Result<()> {
     for parent in path.ancestors() {
         if parent.exists() { safe_existing(parent)?; }
         // Linux and macOS: what lies above the game's `Interface` folder is the player's own layout (a symlinked
@@ -167,6 +185,15 @@ pub(crate) fn roots(config: &crate::config::Config)->Vec<PathBuf>{
 /// Writes a local installation receipt without contacting the web or requiring
 /// pairing. This proves a compatible Bridge ran for this addon folder; it is not
 /// a process heartbeat, credential or web-sharing consent.
+// Whether this PC is paired, for the addon's setup: 0 not known yet, 1 no, 2 yes. Only the yes/no travels to the game,
+// never the account or the token.
+static PAIRED: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+pub fn set_paired(paired: bool) { PAIRED.store(if paired {2} else {1}, std::sync::atomic::Ordering::Relaxed); }
+fn receipt_state() -> String {
+    let paired=match PAIRED.load(std::sync::atomic::Ordering::Relaxed) {2=>",paired=true",1=>",paired=false",_=>""};
+    format!("{paired},autostart={}",crate::platform::autostart_enabled())
+}
+
 pub fn write_installation_receipts(config: &crate::config::Config, lock: &std::sync::Mutex<()>) -> Result<()> {
     let Some(version)=crate::app_update::current_version() else {return Ok(())};
     ensure!(!version.is_empty() && version.len()<=32 && version.bytes().all(|c|c.is_ascii_digit() || c==b'.'),"invalid bridge version");
@@ -181,8 +208,9 @@ fn write_installation_receipt(addons: &Path, version: &str) -> Result<()> {
     safe_ancestors(&path)?;
     safe_ancestors(&path.with_extension("lua.tmp"))?;
     let now=SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    let body=format!("-- Local installation receipt. No tokens or account data.\nlocal _, A = ...\nA.bridgeInstallation = {{schemaVersion=1,kind=\"evertally-bridge-installation\",bridgeVersion=\"{version}\",createdAt={now}}}\n");
-    crate::forum::write_if_changed(&path,&body)?;
+    let body=format!("-- Local installation receipt. No tokens or account data.\nlocal _, A = ...\nA.bridgeInstallation = {{schemaVersion=1,kind=\"evertally-bridge-installation\",bridgeVersion=\"{version}\",createdAt={now}{}}}\n",receipt_state());
+    let previous=fs::read_to_string(&path).unwrap_or_default();
+    crate::forum::write_if_changed(&path,&crate::ack::preserve(&body,&previous)?)?;
     Ok(())
 }
 
@@ -277,7 +305,10 @@ pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::
         let data=match cache {
             Some(data)=>data,
             None=>{
-                let data=read_url(&agent,&format!("{origin}/downloads/Evertally.zip"),MAX_ARCHIVE)?;
+                let cs=crate::platform::prefers_czech();
+                let mut note=crate::notify::Progress::start("addon",if cs {"Stahuji novou verzi addonu Evertally"} else {"Downloading the new Evertally add-on"},if cs {"Stahuji…"} else {"Downloading…"});
+                let data=read_url_progress(&agent,&format!("{origin}/downloads/Evertally.zip"),MAX_ARCHIVE,manifest.addon.bytes,|done,total| note.set(done,total,if cs {"Stahuji…"} else {"Downloading…"}))?;
+                note.set(1,1,if cs {"Instaluji…"} else {"Installing…"});
                 ensure!(valid(&data),"archive checksum mismatch");
                 let temp=self.cache_file.with_extension("zip.tmp");
                 if fs::write(&temp,&data).is_ok() {let _=fs::remove_file(&self.cache_file);let _=fs::rename(temp,&self.cache_file);}
@@ -302,6 +333,14 @@ pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::
         }
     }
     let version=bundle_version(files);
+    if updated {
+        let cs=crate::platform::prefers_czech();
+        let shown=version.clone().unwrap_or_default();
+        crate::notify::message(
+            &if cs {format!("Evertally {shown} je nainstalovaný")} else {format!("Evertally {shown} is installed")},
+            if running { if cs {"Restartuj hru, ať se načte."} else {"Restart the game to load it."} } else if cs {"Při příštím spuštění hry se načte."} else {"It loads the next time you start the game."},
+        );
+    }
     Ok(Some(self.completed_status(running,updated,version)))
 }
 }
@@ -354,7 +393,7 @@ mod tests {
         if !path.exists(){return;}
         let entries=unpack(&fs::read(path).unwrap()).unwrap();
         assert!(entries.len()>20);
-        for name in ["ForumData.lua","CommunityData.lua","RankingData.lua","BridgeInstallation.lua"] {
+        for name in ["ForumData.lua","CommunityData.lua","RankingData.lua","BridgeInstallation.lua","MusicData.lua"] {
             assert!(entries.iter().filter(|e|e.relative.file_name().is_some_and(|n|n.eq_ignore_ascii_case(name))).all(|e|e.keep_existing),"{name} is bridge-owned");
         }
     }

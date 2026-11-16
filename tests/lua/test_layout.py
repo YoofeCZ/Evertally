@@ -56,6 +56,19 @@ class LayoutTests(unittest.TestCase):
                     self.assertGreater(len(nodes), 15, f"setup step {state} drew nothing")
                     self.assertEqual(serious(preview.lint(nodes)), [], f"setup step {state}, {language}, OpenMap {openmap}")
 
+    def test_the_music_step_with_spotify_chosen_is_laid_out_cleanly_in_both_languages(self):
+        for language in ("en", "cs"):
+            lua, a = preview.make_session(960, 620, language=language)
+            a.db.settings.music = lua.table_from({"enabled": True, "source": "spotify"})
+            nodes = preview.capture(lua, a, "setup", "11")
+            texts = [n.get("text") or "" for n in nodes if n["kind"] == "FontString"]
+            self.assertIn(a.L("musicDashboard"), texts, "the Spotify part is shown")
+            self.assertEqual(serious(preview.lint(nodes)), [], f"music step, {language}")
+            lua, a = preview.make_session(960, 620, language=language)
+            a.db.settings.music = lua.table_from({"enabled": True, "source": "spotify"})
+            nodes = preview.capture(lua, a, "settings", "music")
+            self.assertEqual(serious(preview.lint(nodes)), [], f"music settings, {language}")
+
     def test_the_map_tab_is_laid_out_cleanly_with_openmap_installed_too(self):
         for size in SIZES:
             lua, a = preview.make_session(*size, openmap=True)
