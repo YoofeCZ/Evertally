@@ -123,7 +123,8 @@ function M.GuideDetail(kit, parent)
         fs:SetTextColor(c[1], c[2], c[3], 1)
         if fs.SetShadowOffset then fs:SetShadowOffset(0, 0) end
         fs:SetText(value or "")
-        d.y = d.y + math.max(16, fs:GetStringHeight() or 16) + 6
+        -- the larger of the two: a wrapped line must never lie under the next one, whichever of them the client updates first
+        d.y = d.y + math.max(16, fs:GetStringHeight() or 16, fs.GetHeight and fs:GetHeight() or 0) + 6
         return fs
     end
     function d.Head(value)
@@ -223,8 +224,12 @@ function M.GuideDetail(kit, parent)
 end
 
 local questText = {
-    en = {questCardFrom = "Available from level %s", questCardLevel = "Level %s", questCardObjective = "Objective", questCardStarts = "Starts at", questCardTurnin = "Turn in", questCardChoose = "Choose one reward", questCardAlso = "You will also receive", questCardRewards = "Rewards", questCardNoObjective = "No objective text is recorded for this quest.", questCardChain = "Quest chain"},
-    cs = {questCardFrom = "Dostupné od úrovně %s", questCardLevel = "Úroveň %s", questCardObjective = "Cíl", questCardStarts = "Začíná u", questCardTurnin = "Odevzdat u", questCardChoose = "Vyber jednu odměnu", questCardAlso = "Dostaneš také", questCardRewards = "Odměny", questCardNoObjective = "U tohoto questu není zapsaný text cíle.", questCardChain = "Řetězec questů"},
+    en = {questCardNote = "Note", questCardWarning = "Watch out", questCardClass = "Only for: %s", questCardInside = "The quest starts inside the dungeon.", questCardStartItem = "Starts from an item",
+        questCardFirst = "Complete first",
+        questCardFrom = "Available from level %s", questCardLevel = "Level %s", questCardObjective = "Objective", questCardStarts = "Starts at", questCardTurnin = "Turn in", questCardChoose = "Choose one reward", questCardAlso = "You will also receive", questCardRewards = "Rewards", questCardNoObjective = "No objective text is recorded for this quest.", questCardChain = "Quest chain"},
+    cs = {questCardNote = "Poznámka", questCardWarning = "Pozor", questCardClass = "Jen pro povolání: %s", questCardInside = "Quest začíná uvnitř dungeonu.", questCardStartItem = "Začíná předmětem",
+        questCardFirst = "Nejdřív splň",
+        questCardFrom = "Dostupné od úrovně %s", questCardLevel = "Úroveň %s", questCardObjective = "Cíl", questCardStarts = "Začíná u", questCardTurnin = "Odevzdat u", questCardChoose = "Vyber jednu odměnu", questCardAlso = "Dostaneš také", questCardRewards = "Odměny", questCardNoObjective = "U tohoto questu není zapsaný text cíle.", questCardChain = "Řetězec questů"},
 }
 for lang, values in pairs(questText) do for key, value in pairs(values) do A.locale[lang][key] = value end end
 
@@ -266,6 +271,22 @@ function M.JournalQuestModel(quest)
     -- Forever exposes a quest-id argument here. A positive cached answer is authoritative; an uncached zero is not.
     local liveXP = A.Number(A.Call(GetQuestLogRewardXP, quest.id), 1, 1000000000)
     if liveXP then model.xp, model.xpLabel = liveXP, nil end
+    -- what the journal adds about doing it: a note, a warning, the class it is for, where it starts and what must come first
+    model.note = type(quest.note) == "string" and quest.note ~= "" and quest.note or nil
+    model.warning = type(quest.warning) == "string" and quest.warning ~= "" and quest.warning or nil
+    model.classOnly = type(quest.classOnly) == "string" and quest.classOnly ~= "" and quest.classOnly or nil
+    model.startsInDungeon = quest.startsInDungeon == true
+    if type(quest.startObject) == "table" and type(quest.startObject[1]) == "string" then
+        model.startItem = quest.startObject[1] .. (type(quest.startObject[3]) == "string" and (": " .. quest.startObject[3]) or "")
+    end
+    local fdj = rawget(_G, "ForeverDungeonJournal_NS")
+    local chains = type(fdj) == "table" and type(fdj.QUEST_PREREQ_CHAINS) == "table" and fdj.QUEST_PREREQ_CHAINS[quest.id]
+    if type(chains) == "table" then
+        model.chain, model.chainTitle = {}, "questCardFirst"
+        for _, link in ipairs(chains) do
+            if type(link) == "table" and tonumber(link.id) then model.chain[#model.chain + 1] = {id = tonumber(link.id), name = tostring(link.name or ("#" .. link.id))} end
+        end
+    end
     return model
 end
 
@@ -331,7 +352,12 @@ function M.RenderQuestCard(d, model)
             icon:Show(); icon:SetTexture("Interface\\PVPFrame\\PVP-Currency-" .. key); icon:SetSize(18, 18); icon:ClearAllPoints(); icon:SetPoint("TOPRIGHT", d.content, "TOPRIGHT", -((index - 1) * 22), -availableY + 1)
         end
     end
+    if model.classOnly then d.Text(string.format(A.L("questCardClass"), model.classOnly), d.heading, 12) end
     d.Head(A.L("questCardObjective")); d.Text(model.objective and model.objective ~= "" and model.objective or A.L("questCardNoObjective"))
+    if model.startsInDungeon then d.Text(A.L("questCardInside"), d.ink, 12) end
+    if model.startItem then d.Head(A.L("questCardStartItem")); d.Text(model.startItem) end
+    if model.warning then d.Head(A.L("questCardWarning")); d.Text(model.warning, d.kit and d.kit.C.peach or d.ink) end
+    if model.note then d.Head(A.L("questCardNote")); d.Text(model.note) end
     local function people(label, rows)
         if #(rows or {}) == 0 then return end
         d.Head(A.L(label))
@@ -370,7 +396,7 @@ function M.RenderQuestCard(d, model)
         for _, line in ipairs(model.extras or {}) do d.Text(line) end
     end
     if #(model.chain or {}) > 0 then
-        d.Head(A.L("questCardChain"))
+        d.Head(A.L(model.chainTitle or "questCardChain"))
         for _, link in ipairs(model.chain) do local id = link.id; d.Link({icon = "Interface\\GossipFrame\\AvailableQuestIcon", title = link.name, onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("quest", id) end end}) end
     end
     d.Done()

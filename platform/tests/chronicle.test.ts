@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildIndex, clock, countByCategory, demoChronicle, eventAt, moneyText, parseChronicle, pathWindow, positionAt, totalsAt, visits, type Chronicle, type ChronicleEvent } from "../lib/chronicle";
+import { buildIndex, clock, countByCategory, demoChronicle, eventAt, fightBlocks, moneyText, parseChronicle, pathWindow, positionAt, totalsAt, visits, type Chronicle, type ChronicleEvent } from "../lib/chronicle";
 
 const small = (): Chronicle => ({
   v: 1, character: { name: "Aria", classId: 8, level: 10 }, startedAt: 1000, duration: 100, zones: ["darkshore", "ashenvale"],
@@ -281,4 +281,12 @@ test("a real time is found again inside the session it was played in, and never 
   assert.equal(journeyTimeOf(c, 10), 0, "before the first session");
   assert.equal(journeyTimeOf(c, 99_999), 900, "and after the last");
   assert.equal(journeyTimeOf(c, whenOf(c, 450)), 450);
+});
+
+test("fights a minute or less apart are one block on the timeline", () => {
+  const fight = (t: number, d: number, name: string) => ({ t, d, kind: "combat" as const, name, result: "kill" as const, me: { dealt: [], healed: [], took: [] } });
+  const blocks = fightBlocks([fight(100, 10, "Wolf"), fight(150, 8, "Wolf"), fight(500, 5, "Bear"), fight(170, 20, "Boar")]);
+  assert.deepEqual(blocks.map(b => [b.t, b.end, b.indices]), [[100, 190, [0, 1, 3]], [500, 505, [2]]], "110→150 is 40 s, joined; 190→500 is not");
+  assert.deepEqual(fightBlocks([fight(0, 10, "A"), fight(71, 5, "B")]).length, 2, "61 s apart: two blocks");
+  assert.deepEqual(fightBlocks(undefined), []);
 });

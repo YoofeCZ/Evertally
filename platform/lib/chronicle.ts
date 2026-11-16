@@ -729,6 +729,26 @@ export function demoChronicle(seed = 7): Chronicle {
   };
 }
 
+/** Seconds between two fights that still make them one block on the timeline: a pull, a few steps, the next pull. */
+export const FIGHT_JOIN = 60;
+export type FightBlock = { t: number; end: number; indices: number[] };
+
+/**
+ * The fights joined into blocks for the timeline: a fight that starts at most `gap` seconds after the previous one ended goes
+ * into the same block, so "fight, a few steps, fight, a few steps" reads as one stretch of fighting. Oldest first.
+ */
+export function fightBlocks(fights: readonly Fight[] | undefined, gap = FIGHT_JOIN): FightBlock[] {
+  const order = (fights ?? []).map((f, index) => ({ f, index })).sort((a, b) => a.f.t - b.f.t);
+  const out: FightBlock[] = [];
+  for (const { f, index } of order) {
+    const last = out[out.length - 1];
+    const end = f.t + Math.max(0, f.d);
+    if (last && f.t - last.end <= gap) { last.end = Math.max(last.end, end); last.indices.push(index); }
+    else out.push({ t: f.t, end, indices: [index] });
+  }
+  return out;
+}
+
 /** The events with `from < t <= to`, oldest first. */
 export function eventsBetween(c: Chronicle, from: number, to: number): ChronicleEvent[] {
   const a = upper(c.events, from, e => e.t), b = upper(c.events, to, e => e.t);

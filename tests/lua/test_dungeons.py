@@ -113,6 +113,9 @@ class DungeonTests(unittest.TestCase):
         self.assertEqual(str(dj.mode), "dungeon")
         self.assertEqual(str(dj.title.text), "The Deadmines")
         self.assertIn("Westfall", str(dj.subtitle.text))
+        self.assertEqual(str(dj.tab), "guide", "a dungeon opens on its guide")
+        self.assertEqual([str(i.section) for i in lst(dj["items"])], ["overview", "tank", "healer", "dps", "classes"])
+        self.tab(dj, "bosses")
         items = lst(dj["items"])
         self.assertEqual([str(i.title) for i in items], ["Rhahk'Zor", "Cookie"])
         self.assertEqual([str(i.badge) for i in items], ["LV 19", "LV 20"])
@@ -122,6 +125,7 @@ class DungeonTests(unittest.TestCase):
         self.lua.execute(FAKE_JOURNAL)
         body, dj = self.page()
         self.open(dj, "The Deadmines")
+        self.tab(dj, "bosses")
         links = self.links(dj)
         self.assertEqual([int(r.spec.itemId) for r in links], [872, 5187])
         self.assertEqual(str(links[0].title.text), "Rockslicer")
@@ -138,9 +142,52 @@ class DungeonTests(unittest.TestCase):
         self.lua.execute(FAKE_JOURNAL)
         body, dj = self.page()
         self.open(dj, "The Deadmines")
+        self.tab(dj, "bosses")
         row = dj.rows[2]
         row.scripts.OnClick(row)
         self.assertEqual([int(r.spec.itemId) for r in self.links(dj)], [5197, 5198])
+
+    # ---- the guide ----
+    def test_the_guide_has_an_overview_role_advice_and_class_tips_with_the_players_class_first(self):
+        self.lua.execute(FAKE_JOURNAL)
+        self.lua.execute("UnitClass=function() return 'Priest','PRIEST',5 end")
+        body, dj = self.page()
+        self.open(dj, "The Deadmines")
+        texts = " ".join(self.texts(dj))
+        self.assertIn("Moonbrook", texts, "the written intro of a Classic dungeon")
+        self.assertIn(self.a.L("dgClassicNote"), texts)
+        self.assertIn("dominik.mracek@afstudio.dev", texts)
+        for section in ("tank", "healer", "dps"):
+            self.m.DungeonGuide.Render(dj.detail, dj.selected, section)
+            self.assertGreater(len(self.texts(dj)), 4, section)
+        self.m.DungeonGuide.Render(dj.detail, dj.selected, "classes")
+        texts = self.texts(dj)
+        self.assertIn(self.a.L("dgYourClass"), texts[1], "the player's class comes first")
+
+    def test_a_boss_has_its_tactic_before_the_loot_and_a_new_dungeons_boss_asks_for_one(self):
+        self.lua.execute(FAKE_JOURNAL)
+        body, dj = self.page()
+        self.open(dj, "The Deadmines")
+        self.tab(dj, "bosses")
+        texts = self.texts(dj)
+        tactic = texts.index(self.a.L("dgTactic"))
+        self.assertLess(tactic, texts.index(self.a.L("dungeonsLoot")))
+        self.assertIn("Rhahk'Zor Slam", texts[tactic + 1])
+        guide = self.m.DungeonGuide
+        entry = self.lua.eval('{name = "Krol\'dok Stronghold", data = {}}')
+        boss = self.lua.eval('{name = "Overlord Mugg"}')
+        dj.detail.Reset(); guide.RenderBoss(dj.detail, entry, boss)
+        joined = " ".join(self.texts(dj))
+        self.assertIn(self.a.L("dgBossUnknown"), joined)
+        self.assertIn("dominik.mracek@afstudio.dev", joined)
+
+    def test_every_guide_names_real_dungeons_and_bosses(self):
+        guides = self.m.dungeonGuides
+        self.assertEqual(len(list(guides.keys())), 35, "9 of Forever's own and 26 from Classic")
+        for name, guide in guides.items():
+            self.assertTrue(guide.intro.en and guide.intro.cs, name)
+            for boss, tactic in (guide.bosses or {}).items():
+                self.assertTrue(tactic.en and tactic.cs, (name, boss))
 
     # ---- quests ----
     def test_the_quests_tab_lists_them_and_the_detail_has_objective_starts_turn_in_and_the_rewards_to_choose_from(self):

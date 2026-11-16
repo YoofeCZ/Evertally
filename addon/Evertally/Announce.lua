@@ -173,7 +173,7 @@ end
 -- Bragging. The game lets an addon speak in /say (outside instances) or a public channel only inside the player's own
 -- click, so after a level, a cleared dungeon or a record a small bar offers it: one click says it, nothing is said
 -- otherwise. The guild button is there for players in a guild. The message is English, signed, and points to the
--- chronicle on the website when the player shows it there. The bar leaves by itself after 25 seconds.
+-- chronicle on the website when the player shows it there. The bar stays until the player answers it.
 function N.BragEnabled() return A.db ~= nil and A.db.settings.bragPrompt ~= false end
 function N.SetBragEnabled(on) if A.db then A.db.settings.bragPrompt = on == true end; if not on and N.bar then N.bar:Hide() end end
 function N.BragText(text)
@@ -219,9 +219,8 @@ function N.ShowBar()
     bar.text:SetText((N.pending:gsub("^{rt6} ", "")))
     bar.say.text:SetText(A.L("bragSay")); bar.guild.text:SetText(A.L("bragGuild")); bar.never.text:SetText(A.L("bragNever"))
     bar.guild:SetShown(A.Call(IsInGuild) == true)
+    -- it stays until the player answers: the x, a channel, or "never again" (a level-up mid-fight is easy to miss)
     bar:Show()
-    local shown = N.pending
-    if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(25, function() if N.pending == shown and N.bar then N.bar:Hide() end end) end
 end
 
 -- A.Record is the one place every observation passes; the note follows whatever was recorded.

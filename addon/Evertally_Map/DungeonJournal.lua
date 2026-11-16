@@ -110,6 +110,8 @@ local function showBoss(dj, boss)
     d.SetTheme("parchment"); d.Reset("boss:" .. tostring(boss.npcID or boss.name)); d.model = nil
     local level = bossLevel(dj.selected, boss)
     d.PortraitHeader(tostring(boss.name or "?") .. (level and ("   " .. string.format(A.L("dungeonsLv"), level)) or ""), portraitOf(boss))
+    if boss.description then d.Text(boss.description) end
+    if M.DungeonGuide then M.DungeonGuide.RenderBoss(d, dj.selected, boss) end
     d.Head(A.L("dungeonsLoot"))
     local shown = 0
     for _, item in ipairs(type(boss.loot) == "table" and boss.loot or {}) do
@@ -251,7 +253,8 @@ end
 local function chooseItem(dj, item)
     dj.chosen = item
     if item then
-        if dj.tab == "bosses" then showBoss(dj, item.boss) elseif dj.tab == "quests" then showQuest(dj, item.quest) end
+        if dj.tab == "bosses" then showBoss(dj, item.boss) elseif dj.tab == "quests" then showQuest(dj, item.quest)
+        elseif dj.tab == "guide" and M.DungeonGuide then M.DungeonGuide.Render(dj.detail, dj.selected, item.section) end
     else
         dj.detail.SetTheme("parchment"); dj.detail.Reset(); dj.detail.Text(A.L(dj.tab == "bosses" and "dungeonsNoBosses" or "dungeonsNoQuests")); dj.detail.Done()
     end
@@ -268,7 +271,11 @@ local function setTab(dj, tab)
     local d = entry and entry.data
     dj.items, dj.offset, dj.chosen = {}, 0, nil
     if entry and entry.source == "journal" and d then
-        if tab == "bosses" then
+        if tab == "guide" and M.DungeonGuide then
+            for _, section in ipairs(M.DungeonGuide.Sections(M.DungeonGuide.Of(entry.name))) do
+                dj.items[#dj.items + 1] = {title = section.title, icon = section.icon, section = section.key}
+            end
+        elseif tab == "bosses" then
             for _, boss in ipairs(type(d.bosses) == "table" and d.bosses or {}) do
                 local level = bossLevel(entry, boss)
                 dj.items[#dj.items + 1] = {title = boss.name or "?", icon = portraitOf(boss), badge = level and ("LV " .. level) or "", boss = boss}
@@ -310,7 +317,7 @@ local function openDungeon(dj, entry)
     showMode(dj)
     local hasData = entry.source == "journal"
     for _, chip in pairs(dj.tabs) do chip:SetShown(hasData) end
-    if hasData then setTab(dj, "bosses")
+    if hasData then setTab(dj, M.DungeonGuide and "guide" or "bosses")
     else
         dj.list:Hide(); dj.listBg:Hide(); dj.mapArea:Hide(); dj.detail.SetTheme("parchment"); detailShown(dj, true); dj.detail.Reset()
         local item = entry.item
@@ -330,10 +337,14 @@ local function refresh(dj)
     dj.results = {}
     for _, entry in ipairs(M.DungeonList()) do if matches(entry, query) then dj.results[#dj.results + 1] = entry end end
     dj.count:SetText(#dj.results > 0 and string.format(A.L("dungeonsCount"), #dj.results) or A.L("dungeonsNone"))
-    for key, chip in pairs(dj.tabs) do chip.SetLabel(A.L(key == "bosses" and "dungeonsBosses" or key == "quests" and "dungeonsQuests" or "dungeonsMap")) end
+    for key, chip in pairs(dj.tabs) do chip.SetLabel(A.L(key == "guide" and "dgGuide" or key == "bosses" and "dungeonsBosses" or key == "quests" and "dungeonsQuests" or "dungeonsMap")) end
     dj.back.text:SetText(A.L("dungeonsBack")); dj.show.text:SetText(A.L("dungeonsShow")); dj.go.text:SetText(A.L("dungeonsGo"))
     dj.noJournal:SetText(A.L("dungeonsNoJournal"))
     layout(dj)
+    -- a narrower or wider detail wraps its texts again: what is shown is drawn again so nothing lies on top of the next line
+    local width = dj.detail.width
+    if dj.detailWidth and dj.detailWidth ~= width and dj.mode == "dungeon" and dj.chosen and dj.tab ~= "map" then dj.detailWidth = width; chooseItem(dj, dj.chosen) end
+    dj.detailWidth = width
     if dj.mode == "dungeon" and dj.selected then
         -- (only the words are written again: the tab, the boss or quest and the scrolling stay as they are)
         for _, entry in ipairs(M.DungeonList()) do
@@ -395,7 +406,7 @@ function M.BuildDungeons(body, kit)
     dj.subtitle = kit.label(dj.head, 11, C.mist); dj.subtitle:SetPoint("TOPLEFT", dj.back, "TOPRIGHT", 14, -29); dj.subtitle:SetPoint("RIGHT", -4, 0); dj.subtitle:SetWordWrap(false); dj.subtitle:SetJustifyH("LEFT")
     dj.tabs = {}
     local previous
-    for _, key in ipairs({"bosses", "quests", "map"}) do
+    for _, key in ipairs({"guide", "bosses", "quests", "map"}) do
         local chip = kit.Chip(dj.head, function() setTab(dj, key) end)
         if previous then chip:SetPoint("LEFT", previous, "RIGHT", 6, 0) else chip:SetPoint("TOPLEFT", 0, -48) end
         dj.tabs[key] = chip; previous = chip

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 import {
-  ALL_TYPES, CATEGORIES, TYPE_KEYS, buildIndex, categoryOf, clock, countByCategory, countByType, daysOf, demoChronicle, eventAt, eventsBetween, fightAt, fightProgress,
+  ALL_TYPES, CATEGORIES, FIGHT_JOIN, TYPE_KEYS, buildIndex, categoryOf, clock, countByCategory, countByType, daysOf, demoChronicle, eventAt, eventsBetween, fightAt, fightBlocks, fightProgress,
   instanceAt, instanceSummary, instances, journeyTimeOf, moneyText, parseChronicle, passes, positionAt, sessionAt, statsAt, totalsAt, typeKey, visits, whenOf,
   type Aura, type Category, type Chronicle, type ChronicleEvent, type Day, type Instance,
 } from "@/lib/chronicle";
@@ -25,7 +25,11 @@ import { INK, IconChip, ItemIcon, MARK_COLOR, Portrait, SpellIcon, TypeIcon, cla
 const SPEEDS = [1, 5, 20, 60, 200] as const;
 const COLORS: Record<Category, string> = { quests: "#f2c04b", combat: "#e2786a", loot: "#c9c4d6", professions: "#5fb98d", travel: "#7fb2ff", character: "#a78bfa" };
 const QUALITY = ["#9d9d9d", "#ffffff", "#1eff00", "#0070dd", "#a335ee", "#ff8000"];
-const SHOWN_ON_TIMELINE = ["quest.accept", "quest.turnin", "quest.abandon", "combat.fight", "combat.boss", "combat.pvp", "combat.death", "action.cast", "action.jump", "action.mount", "aura.gain", "aura.loss", "travel.instance", "travel.raid", "travel.flight", "char.level", "char.group"];
+// Only what matters along the line of time: quests, dungeons, fights, deaths, levels, flights. Jumps, casts, mounts and auras
+// are a click away in the filters, not the default: hundreds of them drowned the rest.
+const SHOWN_ON_TIMELINE = ["quest.accept", "quest.turnin", "quest.abandon", "combat.fight", "combat.boss", "combat.pvp", "combat.death", "travel.instance", "travel.raid", "travel.flight", "char.level"];
+/** Marks of fights closer together than this (seconds of the journey) are one mark, like their block in the fight lane. */
+const FIGHT_KEYS = new Set(["combat.fight", "combat.kill", "combat.pvp"]);
 const SHOWN_ON_MAP = ["quest.accept", "quest.turnin", "quest.abandon", "combat.fight", "combat.kill", "combat.death", "combat.boss", "combat.pvp", "char.level", "travel.instance", "travel.raid", "travel.flight"];
 
 const TEXT = {
@@ -454,13 +458,14 @@ function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, onOpe
     const last: Record<string, number> = {};
     for (const e of eventsBetween(c, view.from, view.to)) {
       const key = typeKey(e);
-      if (!hasIcon(key) || !passes(e, types, minQ) || e.t - (last[key] ?? -1e9) < gap) continue;
+      if (!hasIcon(key) || !passes(e, types, minQ) || e.t - (last[key] ?? -1e9) < (FIGHT_KEYS.has(key) ? Math.max(gap, FIGHT_JOIN) : gap)) continue;
       last[key] = e.t; out.push({ t: e.t, key, label: e.text });
     }
     return out;
   }, [c, view.from, view.to, span, types, minQ]);
   const levels = useMemo(() => eventsBetween(c, view.from, view.to).filter(e => e.k === "level").map(e => ({ t: e.t, n: e.n ?? 0 })), [c, view.from, view.to]);
-  const fights = useMemo(() => (c.fights ?? []).map((f, index) => ({ f, index })).filter(({ f }) => f.t + f.d >= view.from && f.t <= view.to), [c, view.from, view.to]);
+  // fights that follow within a minute are one block: click it for its first fight
+  const fights = useMemo(() => fightBlocks(c.fights).filter(b => b.end >= view.from && b.t <= view.to), [c, view.from, view.to]);
   useEffect(() => {
     const el = bars.current;
     const ctx = el?.getContext("2d");
@@ -502,7 +507,12 @@ function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, onOpe
         {instanceList.filter(x => (x.to ?? c.duration) > view.from && x.from < view.to).map((x, i) => <span key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)}><TypeIcon k={x.detail === "Raid" ? "travel.raid" : "travel.instance"} size={12} /> {x.name}</span>)}
       </div>
       {fights.length > 0 && <div className="chr-combat-lane" role="group" aria-label={lang === "cs" ? "Souboje" : "Fights"}>
-        {fights.map(({ f, index }) => <button key={index} type="button" style={{ left: pct(f.t), width: `${(clamp(f.t + f.d, view.from, view.to) - clamp(f.t, view.from, view.to)) / span * 100}%` }} title={`${f.name} · ${clock(f.d)}`} aria-label={`${f.name} · ${clock(f.d)}`} onClick={() => { onSeek(f.t); onOpenFight(index); }} />)}
+        {fights.map(b => {
+          const list = b.indices.map(i => c.fights![i]);
+          const label = list.length === 1 ? `${list[0].name} · ${clock(list[0].d)}`
+            : `${lang === "cs" ? `${list.length} souboje` : `${list.length} fights`} · ${clock(b.end - b.t)}: ${[...new Set(list.map(f => f.name))].slice(0, 4).join(", ")}${list.length > 4 ? "…" : ""}`;
+          return <button key={b.indices[0]} type="button" style={{ left: pct(b.t), width: `${(clamp(b.end, view.from, view.to) - clamp(b.t, view.from, view.to)) / span * 100}%` }} title={label} aria-label={label} onClick={() => { onSeek(b.t); onOpenFight(b.indices[0]); }} />;
+        })}
       </div>}
       <div ref={track} className="chr-track" role="slider" tabIndex={-1} aria-label="Timeline" aria-valuemin={Math.round(dom.from)} aria-valuemax={Math.round(dom.to)} aria-valuenow={Math.round(time)} aria-valuetext={clock(time)}
         onPointerDown={down} onPointerMove={move} onPointerUp={() => { dragging.current = false; }} onPointerLeave={() => setHover(null)}>
