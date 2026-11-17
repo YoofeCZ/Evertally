@@ -57,7 +57,15 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
          '\t\t\tW.Painter(stage, paintStage)\n\t\t\tstage.Refresh = paintStage\n\t\t\tW.Bind(stage, "qol.targetPlate", "qol.targetButton")\n'
          '\t\t\tW.Bind(stage, "qol.targetSimple")\n\t\t\tW.Bind(stage, "qol.markTarget")\n', 1),
     ],
-    "Core/Init.lua": [('SLASH_EVERTALLYGUIDE3 = "/ps"', 'SLASH_EVERTALLYGUIDE3 = "/evertallyguide"', 1)],
+    "Core/Init.lua": [('SLASH_EVERTALLYGUIDE3 = "/ps"', 'SLASH_EVERTALLYGUIDE3 = "/evertallyguide"', 1),
+                      # Evertally's own Discord (reports, Install's last page, About), not Polestar's
+                      ('ns.DiscordURL = "https://discord.gg/polestar"', 'ns.DiscordURL = "https://discord.gg/Mjmj8gmAPT"', 1)],
+    # "While you're here" (the line under the step and its toast: a later goal close by, sell/repair before heading
+    # out) is off by default in Evertally; Settings turns it back on.
+    "Core/Engine.lua": [
+        ("\twhileHere = true, -- \"While you're here\"", "\twhileHere = false, -- (Evertally: off by default) \"While you're here\"", 1),
+        ("\twhileHereVendors = true, --", "\twhileHereVendors = false, -- (Evertally: off by default)", 1),
+    ],
     "Core/Materials.lua": [('local CALLER = "Polestar"', 'local CALLER = "Evertally Guide"', 1)],
     "Gear/Bags.lua": [('local ELLESMERE = "Polestar"', 'local ELLESMERE = "EvertallyGuide"', 1)],
     "Nav/Bridges.lua": [('local FLAG = "Polestar"', 'local FLAG = "EvertallyGuide"', 1),

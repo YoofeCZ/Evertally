@@ -119,6 +119,11 @@ class PolestarImportTests(unittest.TestCase):
         self.assertEqual(bindings - labels, set())
         self.assertEqual(importer.string_literal('"Usage: /polestar way <x> <y>"'), '"Usage: /etguide way <x> <y>"')
         self.assertEqual(importer.string_literal('"https://discord.gg/polestar"'), '"https://discord.gg/polestar"')
+        init = (ADDONS / "Evertally_Guide" / "Core" / "Init.lua").read_text(encoding="latin-1")
+        self.assertIn('ns.DiscordURL = "https://discord.gg/Mjmj8gmAPT"', init, "the fork links Evertally's Discord")
+        engine = (ADDONS / "Evertally_Guide" / "Core" / "Engine.lua").read_text(encoding="latin-1")
+        self.assertIn("\twhileHere = false,", engine, "While you're here is off by default")
+        self.assertIn("\twhileHereVendors = false,", engine)
 
     def test_ids_other_addons_key_us_by_differ_from_polestars(self):
         # Baganator asserts on a corner widget id registered twice ("API/Main.lua:230: assertion failed").

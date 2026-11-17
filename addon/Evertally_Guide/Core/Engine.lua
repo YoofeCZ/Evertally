@@ -44,13 +44,13 @@ ns.RegisterDefaults("behavior", {
 	dungeons = "skip", -- "skip" | "ask" | "run": "Dungeons in my route", the answer for a dungeon (`when dungeon`) the character has not answered one by one (Own.dungeonAnswer)
 	lostQuests = "ask", -- "ask" | "back" | "skip": a quest the route had passed that leaves the log (abandoned, failed): the window asks, or the guide goes back for it or skips it at once (Own.holdLost)
 	suggestFrom = "guides", -- pack id the suggestions come from (Guides.SuggestSource); ours fill in
-	whileHere = true, -- "While you're here": a quick objective of a later step close by, as one line under the step (Own.hereBuild)
+	whileHere = false, -- (Evertally: off by default) "While you're here": a quick objective of a later step close by, as one line under the step (Own.hereBuild)
 	whileHereRadius = 180, -- yards from the centre of a place its target spawns (Spots.dist, never the area's edge) at which it shows (60-400); it goes past 100/60 of that, at most Own.HERE_CLEAR_MAX
 	whileHereTurnins = true, -- also a quest ready to hand in whose NPC is little out of the way (Own.hereDetour)
 	whileHereTurninSeconds = 20, -- seconds of extra walking a hand-in may cost (0-60); an NPC in the town the player rests in counts whatever it costs
 	whileHereFlights = true, -- also a friendly flight master within the radius whose flight path the character has not learned (Own.hereFlights)
 	whileHereGather = false, -- also a spot within the radius where a herb, ore vein or fishing pool the character gathers can spawn (Own.hereGather, Core/Gather.lua)
-	whileHereVendors = true, -- also a merchant or repairer on the way when the route heads out with the bags nearly full or the gear worn (Own.hereVendor, #2344)
+	whileHereVendors = false, -- (Evertally: off by default) also a merchant or repairer on the way when the route heads out with the bags nearly full or the gear worn (Own.hereVendor, #2344)
 	whileHereSellSlots = 4, -- ... sell when fewer bag slots are free than this or than the next steps' loot (0-16; 0: the loot alone)
 	whileHereRepairPercent = 30, -- ... repair when an equipped piece is under this share of its durability (0-90; 0: never)
 	whileHereSound = true, -- a soft chime for each line that appears, at least 5 s apart (UI/WhileHere.lua)
