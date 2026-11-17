@@ -26,7 +26,7 @@ ns.RegisterDefaults("maps", {
 	-- gamepad interface has no slash commands (Core/Init.lua, ns.GamepadUI).
 	-- Turning it off stores false (a value equal to the default is never
 	-- stored), so it stays off.
-	minimapButton = true,
+	minimapButton = false, -- (Evertally: its own button is the one on the minimap)
 	minimapButtonAngle = 225, -- where on the edge, degrees (0 = east, counter-clockwise)
 	reveal = "tint",        -- unexplored areas: "off" | "on" (revealed) | "tint" (revealed, tinted)
 	dungeonPins = false,    -- dungeon entrances on the world map (from the Codex pack)

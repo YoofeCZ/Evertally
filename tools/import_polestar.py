@@ -118,6 +118,15 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
         ('if UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Characters"',
          '-- (Evertally: no section on the rail, see SHOW_ALTS above)\nif false and UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Characters"', 1),
     ],
+    # One button on the minimap, Evertally's (left: the Evertally menu, right: hide): the guide's own is off by default
+    # (still in its Buttons settings), and its menu, wherever it opens (that button, the floating one, the addon
+    # compartment), is the Evertally menu (addon/Evertally/EvertallyMenu.lua).
+    "Maps/Maps.lua": [("\tminimapButton = true,\n", "\tminimapButton = false, -- (Evertally: its own button is the one on the minimap)\n", 1)],
+    "Maps/MinimapButton.lua": [
+        ("function Maps.ShowMenu(anchor)\n\tlocal W = ns.Widgets\n",
+         "function Maps.ShowMenu(anchor)\n\tlocal E = rawget(_G, \"Evertally\")\n"
+         "\tif type(E) == \"table\" and E.ShowEvertallyMenu then return E.ShowEvertallyMenu(anchor) end\n\tlocal W = ns.Widgets\n", 1),
+    ],
     # The settings window's sidebar groups are fixed; Evertally's own settings (addon/Evertally/EvertallySettings.lua)
     # register pages with group = "evertally", which leads the list.
     "UI/Options.lua": [

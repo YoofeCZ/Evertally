@@ -471,6 +471,19 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
         win = a.onboarding.window
         lua.execute("PREVIEW_SETTLE()")
         return to_py(lua.eval("PREVIEW_EXPORT")(win))
+    if view == "menu":   # the Evertally menu (minimap button, left click); --tab hidden: while Evertally is hidden
+        # TEST FIXTURE: the guide's switches in an invented state, so every group of the menu shows
+        lua.execute('''HIDDEN=false; ARROW=true; KEEP=false; PAUSED=nil
+          EvertallyGuide={Fire=function() end, SetHidden=function(on) HIDDEN=on end, Hidden=function() return HIDDEN end,
+            HideKeepsArrow=function() return KEEP end, SetHideKeepsArrow=function(on) KEEP=on end,
+            Paused=function() return PAUSED end, TogglePaused=function() end, GuideShown=function() return true end,
+            Get=function(path) if path=="nav.arrow" then return ARROW end end,
+            Nav={ToggleArrow=function() end, ClearTarget=function() end}}''')
+        if tab == "hidden":
+            lua.execute("HIDDEN=true")
+        a.ShowEvertallyMenu(None)
+        lua.execute("PREVIEW_SETTLE()")
+        return to_py(lua.eval("PREVIEW_EXPORT")(lua.globals().EvertallyMenuPanel))
     if view == "viewer":   # the window that opens when somebody shows you their things
         a.OpenUI()
         ok, ident = a.RequestInspect("Thalia-Valdren", "ip")

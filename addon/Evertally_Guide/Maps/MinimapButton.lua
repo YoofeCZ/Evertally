@@ -114,6 +114,8 @@ end
 -- (nav.arrow), hiding Polestar and whether that keeps the arrow, Pause,
 -- then the windows, which bring a hidden Polestar back first.
 function Maps.ShowMenu(anchor)
+	local E = rawget(_G, "Evertally")
+	if type(E) == "table" and E.ShowEvertallyMenu then return E.ShowEvertallyMenu(anchor) end
 	local W = ns.Widgets
 	if not (W and W.ShowMenu and anchor) then return end
 	if W.MenuShown(anchor) then return W.HideMenu() end

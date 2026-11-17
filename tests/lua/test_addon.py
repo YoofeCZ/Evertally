@@ -49,7 +49,7 @@ def runtime(record_globals=False, enforce_requirements=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "GuideHub.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "NativeTalents.lua", "Gear.lua", "GearUI.lua", "BagHighlight.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "SpellbookTraining.lua", "LfgJournal.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua", "EvertallySettings.lua", "GuideShell.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "GuideHub.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "NativeTalents.lua", "Gear.lua", "GearUI.lua", "BagHighlight.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "SpellbookTraining.lua", "LfgJournal.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua", "EvertallySettings.lua", "GuideShell.lua", "EvertallyMenu.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -816,7 +816,7 @@ class ReplayTests(unittest.TestCase):
         self.lua.globals().INCOMBAT=True
         self.assertFalse(self.a.OpenRecordedMap(places[2]))
 
-    def test_minimap_button_toggles_window(self):
+    def test_minimap_button_left_opens_the_menu_right_hides(self):
         self.lua.execute('''
         UIParent={}; UISpecialFrames={}
         function object(parent)
@@ -834,9 +834,14 @@ class ReplayTests(unittest.TestCase):
         self.a.CreateMinimapButton()
         button=self.lua.globals().EvertallyMinimapButton
         self.assertIsNotNone(button)
-        self.lua.execute("EvertallyMinimapButton.scripts.OnClick(EvertallyMinimapButton)")
+        # left: the Evertally menu; its EVERTALLY MENU button opens the window
+        self.lua.execute("EvertallyMinimapButton.scripts.OnClick(EvertallyMinimapButton, 'LeftButton')")
+        self.assertTrue(self.lua.globals().EvertallyMenuPanel.shown)
+        self.lua.execute("EvertallyMenuPanel.open.scripts.OnClick(EvertallyMenuPanel.open)")
+        self.assertFalse(self.lua.globals().EvertallyMenuPanel.shown)
         self.assertTrue(self.lua.globals().EvertallyFrame.IsShown(self.lua.globals().EvertallyFrame))
-        self.lua.execute("EvertallyMinimapButton.scripts.OnClick(EvertallyMinimapButton)")
+        # right: hide Evertally
+        self.lua.execute("EvertallyMinimapButton.scripts.OnClick(EvertallyMinimapButton, 'RightButton')")
         self.assertFalse(self.lua.globals().EvertallyFrame.IsShown(self.lua.globals().EvertallyFrame))
 
     def test_dead_candidate_npc_is_not_used_as_encounter_id(self):

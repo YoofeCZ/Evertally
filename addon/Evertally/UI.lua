@@ -1673,6 +1673,7 @@ function A.HideUI()
     if A.guideShell then A.guideShell.Hide() end
     if frame then frame:Hide() end
 end
+A.CloseUI = A.HideUI
 
 --- Opens the window on one of its pages.
 function A.ShowView(view)
@@ -1737,13 +1738,25 @@ end
 function A.CreateMinimapButton()
     if minimapButton or type(Minimap) ~= "table" or not A.db then return end
     local b = CreateFrame("Button", "EvertallyMinimapButton", Minimap)
+    -- The guide's tooltip when it is there: its font has the Czech letters the game's font lacks on an English client.
+    local function guideWidgets() local g = rawget(_G, "EvertallyGuide"); local W = type(g) == "table" and g.Widgets; return type(W) == "table" and W.Tooltip and W or nil end
     b:SetSize(31, 31); b:SetFrameStrata("MEDIUM"); b:SetFrameLevel(8)
     local bg = b:CreateTexture(nil, "BACKGROUND"); bg:SetSize(22, 22); bg:SetPoint("CENTER"); paint(bg, C.canvas)
-    local icon = b:CreateTexture(nil, "ARTWORK"); icon:SetSize(20, 20); icon:SetPoint("CENTER"); setLogo(icon)
+    local icon = b:CreateTexture(nil, "ARTWORK"); icon:SetSize(20, 20); icon:SetPoint("CENTER"); setLogo(icon); b.icon = icon
     local ring = b:CreateTexture(nil, "OVERLAY"); ring:SetSize(53, 53); ring:SetPoint("TOPLEFT"); ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp"); b:RegisterForDrag("LeftButton")
-    b:SetScript("OnClick", function() A.ToggleUI() end)
+    -- left: the Evertally menu (EvertallyMenu.lua); right: hide Evertally (the guide's hiding and this window) or show it
+    b:SetScript("OnClick", function(self, which)
+        if GameTooltip then GameTooltip:Hide() end
+        local W = guideWidgets(); if W and W.HideTooltip then pcall(W.HideTooltip, self) end
+        -- before the requirements are met any click leads to the installation check (A.OpenUI's guard)
+        if A.RequirementsReady and not A.RequirementsReady() then return A.ToggleUI() end
+        if which == "RightButton" then
+            if A.ToggleEvertallyHidden then A.ToggleEvertallyHidden() else A.ToggleUI() end
+        elseif A.ShowEvertallyMenu then A.ShowEvertallyMenu(self)
+        else A.ToggleUI() end
+    end)
     b:SetScript("OnDragStart", function(self)
         self:SetScript("OnUpdate", function()
             local mx, my = Minimap:GetCenter()
@@ -1755,16 +1768,34 @@ function A.CreateMinimapButton()
     end)
     b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
     b:SetScript("OnEnter", function(self)
+        local hidden = A.EvertallyHidden and A.EvertallyHidden()
+        local lines = {}
+        for _, key in ipairs({"minimapLeft", hidden and "minimapRightShow" or "minimapRight", "minimapDrag"}) do lines[#lines + 1] = A.L(key) end
+        local W = guideWidgets()
+        if W and pcall(W.Tooltip, self, "ANCHOR_LEFT", "Evertally", lines) then return end
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT"); GameTooltip:AddLine("Evertally")
-        GameTooltip:AddLine(A.L("openHint"), 1, 1, 1); GameTooltip:Show()
+        for _, line in ipairs(lines) do GameTooltip:AddLine(line, 1, 1, 1) end
+        GameTooltip:Show()
     end)
-    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnLeave", function(self)
+        local W = guideWidgets()
+        if W and W.HideTooltip then pcall(W.HideTooltip, self) end
+        if GameTooltip then GameTooltip:Hide() end
+    end)
     minimapButton = b
     placeMinimap()
+    if A.PaintMinimapHidden then A.PaintMinimapHidden() end
     b:SetShown(not A.db.settings.hideMinimap or (A.RequirementsReady and not A.RequirementsReady()))
 end
 A.On("PLAYER_LOGIN", function() A.CreateMinimapButton() end)
+--- While Evertally is hidden the button stays as the way back, its logo greyed and dimmed.
+function A.PaintMinimapHidden()
+    if not (minimapButton and minimapButton.icon) then return end
+    local hidden = A.EvertallyHidden and A.EvertallyHidden() or false
+    if minimapButton.icon.SetDesaturated then minimapButton.icon:SetDesaturated(hidden) end
+    minimapButton.icon:SetAlpha(hidden and 0.45 or 1)
+end
 
 -- ---------- slash ----------
 
