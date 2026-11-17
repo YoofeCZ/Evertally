@@ -407,6 +407,34 @@ function N.Update()
     groundPin()
 end
 
+-- ---------------------------------------------------------------- the guide's arrow
+-- With Evertally Guide loaded (the Evertally_Guide add-ons, Polestar's navigation), one arrow guides: the guide's, which plans
+-- the walk, the flights and the boats itself and draws its own route. Evertally hands it the goal (map, x and y in 0..100)
+-- and, for a player who moves, the goal again whenever they have moved on. Off (settings.guideArrow = false) or without the
+-- guide, Evertally's own arrow and planner below do it as before.
+local FOLLOW_EVERY, FOLLOW_MOVED = 2, 0.004
+local function guideNav()
+    local guide = rawget(_G, "EvertallyGuide")
+    local nav = type(guide) == "table" and guide.Nav
+    return type(nav) == "table" and type(nav.SetTarget) == "function" and nav or nil
+end
+--- Whether navigation goes through the guide's arrow.
+function M.UsesGuideArrow()
+    return not (A.db and A.db.settings and A.db.settings.guideArrow == false) and guideNav() ~= nil
+end
+local function percent(v) v = tonumber(v); return v and (v <= 1 and v * 100 or v) end
+local function handToGuide(target, force)
+    local nav = guideNav()
+    local map, x, y, label = resolve(target)
+    if not (nav and map and x and y) then return false end
+    local last = N.guideGoal
+    if not force and last and last.map == map and math.abs(last.x - x) < FOLLOW_MOVED and math.abs(last.y - y) < FOLLOW_MOVED then return true end
+    local ok, set = pcall(nav.SetTarget, map, percent(x), percent(y), label or target.label or target.name)
+    if not (ok and set) then return false end
+    N.guideGoal = {map = map, x = x, y = y}
+    return true
+end
+
 -- ---------------------------------------------------------------- public
 --- target = {kind="player", name=} or {kind="point", map=, x=, y=, label=}
 function M.Navigate(target)
@@ -421,6 +449,18 @@ function M.Navigate(target)
     end
     clearGround()
     M.route = nil   -- a route that was only shown gives way to the one navigation draws
+    if M.UsesGuideArrow() then
+        if ticker then ticker:Cancel(); ticker = nil end
+        if frame then frame:Hide() end
+        N.target, N.plan, N.planned, N.guideGoal, N.viaGuide = target, nil, false, nil, true
+        if not handToGuide(target, true) then N.target, N.viaGuide = nil, nil; return false, "refused" end
+        -- a player moves: give the guide their new place every few seconds
+        if target.kind == "player" and C_Timer and C_Timer.NewTicker then
+            ticker = C_Timer.NewTicker(FOLLOW_EVERY, function() if N.target == target then handToGuide(target, false) end end)
+        end
+        return true
+    end
+    N.viaGuide = nil
     N.target, N.plan, N.planned, N.planTo, N.arrivedAt, N.force = target, nil, false, nil, nil, true
     local f = ensureFrame()
     if M.ArrowShown and not M.ArrowShown() then f:Hide(); A.Print(A.L("arrowHiddenNote")) else f:Show() end
@@ -435,6 +475,11 @@ function M.Navigate(target)
 end
 
 function M.Stop()
+    if N.viaGuide then
+        local nav = guideNav()
+        if nav and type(nav.ReleaseTarget) == "function" then pcall(nav.ReleaseTarget) end
+        N.viaGuide, N.guideGoal = nil, nil
+    end
     clearGround()
     if N.journey and M.Journey then M.Journey.Cancel(N.journey) end
     N.journey=nil

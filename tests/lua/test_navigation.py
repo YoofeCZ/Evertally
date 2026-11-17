@@ -417,6 +417,36 @@ class MapTests(unittest.TestCase):
         self.a.map.nav.Update()
         self.assertAlmostEqual(tracker.arrow.rotation, math.pi / 2, places=3)
 
+    def test_with_evertally_guide_loaded_its_arrow_guides_and_follows_a_moving_player(self):
+        self.lua.execute("""
+          GUIDE_SET={}; GUIDE_RELEASED=0
+          C_Timer={NewTicker=function(_, fn) LAST_TICK=fn; return {Cancel=function() LAST_TICK=nil end} end, After=function() end}
+          EvertallyGuide={Nav={SetTarget=function(map,x,y,label) GUIDE_SET[#GUIDE_SET+1]={map=map,x=x,y=y,label=label}; return {} end,
+                               ReleaseTarget=function() GUIDE_RELEASED=GUIDE_RELEASED+1 end}}
+        """)
+        self.enable()
+        self.stand(ELWYNN, 0.40, 0.65)
+        self.beacon("Bran-Fixture Realm", ELWYNN, 0.50, 0.65)
+        self.assertTrue(ok(self.a.map.Navigate(self.lua.table(kind="player", name="Bran"))))
+        g = self.lua.globals()
+        first = g.GUIDE_SET[1]
+        self.assertEqual((first.map, round(first.x, 3), round(first.y, 3)), (ELWYNN, 50.0, 65.0), "the guide's arrow takes 0..100")
+        self.assertIn("Bran", str(first.label))
+        tracker = self.tracker()
+        self.assertFalse(tracker is not None and tracker.IsShown(tracker), "only one arrow: Evertally's own stays hidden")
+        # Bran walks on: the guide gets his new place; standing still gives it nothing new
+        self.beacon("Bran-Fixture Realm", ELWYNN, 0.55, 0.60)
+        self.lua.execute("LAST_TICK()")
+        self.assertEqual(len(g.GUIDE_SET), 2, "Bran moved: the guide is told where he is now")
+        self.assertEqual((round(g.GUIDE_SET[2].x, 3), round(g.GUIDE_SET[2].y, 3)), (55.0, 60.0))
+        self.lua.execute("LAST_TICK()")
+        self.assertEqual(len(g.GUIDE_SET), 2, "he stands still: nothing new")
+        self.assertTrue(self.a.map.UsesGuideArrow())
+        self.a.map.Stop()
+        self.assertEqual(g.GUIDE_RELEASED, 1, "stopping lets the guide's arrow go")
+        self.a.db.settings.guideArrow = False
+        self.assertFalse(self.a.map.UsesGuideArrow(), "the setting turns it back to Evertally's arrow")
+
     def test_arrow_points_north_when_the_target_is_north_and_you_face_north(self):
         self.enable()
         self.stand(ELWYNN, 0.5, 0.7)
