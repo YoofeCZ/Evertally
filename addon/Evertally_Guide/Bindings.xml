@@ -1,0 +1,51 @@
+<Bindings>
+	<Binding name="EVERTALLYGUIDE_TOGGLE" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Toggle()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_HIDE" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Hide()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_NEXT" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Next()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_PREV" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Prev()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_FOCUS" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Focus()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_MENU" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Menu()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_OPTIONS" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Options()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_REPORT" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Report()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_NEXT_WAYPOINT" category="EvertallyGuide">
+		EvertallyGuide.Bindings.NextWaypoint()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_PREV_WAYPOINT" category="EvertallyGuide">
+		EvertallyGuide.Bindings.PrevWaypoint()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_REOPEN_TAB" category="EvertallyGuide">
+		EvertallyGuide.Bindings.ReopenTab()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_PAUSE" category="EvertallyGuide">
+		EvertallyGuide.Bindings.Pause()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_MARK_JUNK" category="EvertallyGuide">
+		EvertallyGuide.Bindings.MarkJunk()
+	</Binding>
+	<Binding name="EVERTALLYGUIDE_MARK_KEEP" category="EvertallyGuide">
+		EvertallyGuide.Bindings.MarkKeep()
+	</Binding>
+	<Binding name="CLICK EvertallyGuideQuestItemButton:LeftButton" category="EvertallyGuide"/>
+	<Binding name="CLICK EvertallyGuideTargetButton:LeftButton" category="EvertallyGuide"/>
+	<Binding name="CLICK EvertallyGuideRareButton:LeftButton" category="EvertallyGuide"/>
+	<Binding name="CLICK EvertallyGuideHearthButton:LeftButton" category="EvertallyGuide"/>
+	<Binding name="CLICK EvertallyGuideStepButton:LeftButton" category="EvertallyGuide"/>
+	<Binding name="CLICK EvertallyGuideTravelButton:LeftButton" category="EvertallyGuide"/>
+	<Binding name="CLICK EvertallyGuideBagButton:LeftButton" category="EvertallyGuide"/>
+</Bindings>

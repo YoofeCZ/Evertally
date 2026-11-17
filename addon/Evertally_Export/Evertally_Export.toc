@@ -4,5 +4,6 @@
 ## Group: Evertally
 ## Notes: Separate optional export storage. No network access.
 ## Version: 0.9.58
+## X-License: GPL-3.0-or-later (LICENSE.txt)
 ## SavedVariables: EvertallyExportDB
 Export.lua

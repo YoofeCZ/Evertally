@@ -1,0 +1,9 @@
+This folder is part of Evertally. It was generated on 2026-11-17 from Polestar_Guides of Polestar 0.4.0.1
+(https://github.com/fitzforge/polestar, Copyright (c) 2026 The Polestar authors, GPL-3.0-only) by
+Evertally's tools/import_polestar.py, which changed it as follows:
+  - the folder and file names: Polestar -> Evertally_Guide;
+  - globals, frames, saved variables and key bindings: Polestar -> EvertallyGuide, POLESTAR -> EVERTALLYGUIDE;
+  - the add-on's name shown to players: Polestar -> Evertally (the guides' author is still Polestar);
+  - the patches listed in tools/import_polestar.py.
+Everything else is Polestar's work, under its licence (LICENSE) and notices (THIRD_PARTY.md, CREDITS.md,
+LICENSE-DATA.txt where present). This modified version is distributed under the GNU GPL, version 3.
