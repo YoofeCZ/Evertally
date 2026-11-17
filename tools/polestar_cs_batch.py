@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DIR = ROOT / "tools" / "polestar-cs"
 BATCH = DIR / "batch"
 MEMORY = {"interface": DIR / "interface.json", "texts": DIR / "texts.json"}
-MARKS = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[sdifgxXc%]|\{\w+:\d+\}|\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t|\|H[^|]*\|h|\n")
+MARKS = re.compile(r"%[-+#0]*\d*(?:\.\d+)?[sdifgxXc%]|\{\w+:\d+\}|\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t|\|H[^|]*\|h|\n")
 
 
 def load(name):

@@ -148,7 +148,7 @@ class PolestarImportTests(unittest.TestCase):
             path = ROOT / "tools" / "polestar-cs" / name
             if path.is_file():
                 memory.update(json.loads(path.read_text(encoding="utf8")))
-        marks = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[sdifgxXc%]|\{\w+:\d+\}|\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t|\|H[^|]*\|h|\n")
+        marks = re.compile(r"%[-+#0]*\d*(?:\.\d+)?[sdifgxXc%]|\{\w+:\d+\}|\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t|\|H[^|]*\|h|\n")
         bad = [k for k, v in memory.items() if v and sorted(marks.findall(k)) != sorted(marks.findall(v))]
         self.assertEqual(bad[:10], [], f"{len(bad)} translations change a placeholder")
 
