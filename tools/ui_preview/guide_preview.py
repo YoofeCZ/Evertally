@@ -14,7 +14,8 @@ assert '"addons" in path' in _src, "patch failed"
 exec(_src, PV.__dict__)
 from lupa.lua51 import LuaRuntime
 lua = LuaRuntime(unpack_returned_tuples=True, encoding="utf-8")
-lua.execute("SCREEN_W, SCREEN_H = 900, 700")
+import os as _os0
+lua.execute("SCREEN_W, SCREEN_H = 900, %d" % (900 if _os0.environ.get("SETUP") else 700))  # (the setup at full size: no fit to the screen)
 lua.execute((ROOT/"tools/ui_preview/layout_mock.lua").read_text(encoding="utf8"))
 lua.execute(r'''
 STUB = setmetatable({}, {__call=function() return nil end, __index=function(t,k) return t end})
@@ -78,8 +79,11 @@ function RUN_PENDING() for i=1,5 do local p=PENDING or {}; PENDING={}; for _,f i
 ''')
 lua.execute(r"""
 EVENTS={}
+-- (an animation group of the preview: every call is a no-op that returns it again)
+ANIMSTUB=setmetatable({}, {__index=function(t,k) return function() return t end end})
 local mt=getmetatable(CreateFrame("Frame")); local old=mt.__index
 mt.__index=function(t,k)
+  if k=="CreateAnimationGroup" then return function() return ANIMSTUB end end
   if k=="RegisterEvent" then return function(self,e) EVENTS[e]=EVENTS[e] or {}; table.insert(EVENTS[e], self); return true end end
   if k=="RegisterUnitEvent" then return function(self,e) EVENTS[e]=EVENTS[e] or {}; table.insert(EVENTS[e], self); return true end end
   if k=="IsEventRegistered" then return function(self,e) for _,f in ipairs(EVENTS[e] or {}) do if f==self then return true end end return false end end
@@ -223,6 +227,42 @@ if os.environ.get("QUESTS"):
     lua.execute("RUN_PENDING(); TICK(10); RUN_PENDING(); PREVIEW_SETTLE()")
 F.ClearAllPoints(F); F.SetPoint(F, "TOPLEFT", G.UIParent, "TOPLEFT", 20, -20)
 lua.execute("PREVIEW_SETTLE()")
+if os.environ.get("SETUP"):
+    # One setup: Evertally's pages in the guide's Install window (SetupPages.lua); SETUP=<page key>, e.g. et-website
+    if "Evertally" not in NS:
+        NS["Evertally"] = lua.eval("{}")
+        load("Evertally", NS["Evertally"])
+    A = G.Evertally
+    if not A.db:
+        A.db = lua.eval("{settings={}}")
+    A.db.settings.language = "cs" if os.environ.get("CS") else "en"
+    print("hosted:", A.setupHosted is not None)
+    WEL = G.EvertallyGuide.UI.Welcome
+    try:
+        A.OpenOnboarding(None)
+        WEL.Show(os.environ["SETUP"])
+    except Exception as e: print("SETUP ERR", e)
+    lua.execute("RUN_PENDING(); TICK(30); RUN_PENDING(); PREVIEW_SETTLE()")
+    WF = G.EvertallyGuideWelcome
+    # (laid out at full size in the top left corner: the picture is the window, not the screen's fit)
+    # (the harness loses the window's width somewhere in its skinning; the page itself is 600 wide: UI/Welcome.lua WIDTH)
+    WF.SetWidth(WF, 600); WF.SetScale(WF, 1)
+    G.EvertallyGuide.UI.WelcomeKit.refresh(); WF.SetScale(WF, 1); WF.SetWidth(WF, 600)
+    WF.ClearAllPoints(WF); WF.SetPoint(WF, "TOPLEFT", G.UIParent, "TOPLEFT", 20, -20)
+    lua.execute("PREVIEW_SETTLE()")
+    print("page:", WEL.Page(), "size", WF.GetWidth(WF), WF.GetHeight(WF))
+    lua.execute('''for _, pg in ipairs(Evertally.setupPages.pages) do local P = EvertallyGuideWelcome and nil end''')
+    lua.execute('''local W = EvertallyGuide.UI.Welcome; local F = EvertallyGuideWelcome
+      for key, P in pairs(F.pages) do
+        if key:find("^et%-") or key == "questing" then print("PAGEH", key, P:GetHeight(), P.Hero:GetHeight(), P.Body:GetHeight()) end
+      end''')
+    wn = PV.to_py(lua.eval("PREVIEW_EXPORT")(WF))
+    wout = Path("D:/addon/output/guide-preview/setup").with_name("setup-" + os.environ["SETUP"])
+    wpage = wout.with_suffix(".html"); wpage.write_text(PV.render(wn, 640, int(WF.GetHeight(WF)) + 40), encoding="utf8")
+    subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(wpage), str(wout.with_suffix(".png")), "640", str(int(WF.GetHeight(WF)) + 40)], check=True)
+    for n in wn:
+        if n.get("text"): print("SETUPTXT", repr(n["text"])[:70])
+    sys.exit(0)
 nodes = PV.to_py(lua.eval("PREVIEW_EXPORT")(F))
 print("nodes", len(nodes), "size", F.GetWidth(F), F.GetHeight(F))
 import os; out = Path(os.environ.get("OUT", r"D:\addon\output\guide-preview\tracker"))

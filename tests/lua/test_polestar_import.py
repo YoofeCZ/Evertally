@@ -138,6 +138,10 @@ class PolestarImportTests(unittest.TestCase):
         alts = (ADDONS / "Evertally_Guide" / "Alts" / "View.lua").read_text(encoding="latin-1")
         self.assertIn('if false and UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Characters"', alts, "no Characters on the rail")
         self.assertIn('E.ShowView("overview")', alts)
+        welcome = (ADDONS / "Evertally_Guide" / "UI" / "Welcome.lua").read_text(encoding="latin-1")
+        for part in ("function UI.WelcomeHost(spec)", "UI.WelcomeKit = {", "pg.blocked and pg.blocked()", "UI.WelcomeOnFinish", "UI.WelcomeOnOpen",
+                     "if UI.WelcomeOwner then return end", "function makePage(pg)"):
+            self.assertIn(part, welcome, "one setup: Evertally's pages in the guide's Install window")
         layout = (ADDONS / "Evertally_Guide" / "UI" / "GuideFrameLayout.lua").read_text(encoding="latin-1")
         self.assertIn("if layoutQuests(width, showStrip, SH) then return end", layout, "the window's Quests tab (Evertally.QuestTracker)")
         maps = (ADDONS / "Evertally_Guide" / "Maps" / "Maps.lua").read_text(encoding="latin-1")

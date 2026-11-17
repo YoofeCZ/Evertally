@@ -2898,8 +2898,26 @@ PAGES[#PAGES + 1] = {
 	title = function(P) return P.Hero.Title:GetText() end,
 }
 
+-- Evertally: pages another add-on hosts here (UI.WelcomeHost), each after the page it names; placed once,
+-- before the pages are first listed.
+local hosted = {}
+local function placeHosted()
+	if #hosted == 0 then return end
+	for _, spec in ipairs(hosted) do
+		local at = #PAGES - 1 -- before the last page (finish) when the one it names is missing
+		for i, pg in ipairs(PAGES) do if pg.key == spec.after then at = i end end
+		table.insert(PAGES, at + 1, spec)
+	end
+	hosted = {}
+end
+function UI.WelcomeHost(spec)
+	hosted[#hosted + 1] = spec
+	return true
+end
+
 -- The pages shown now, in order.
 function pageList()
+	placeHosted()
 	local out = {}
 	for _, pg in ipairs(PAGES) do
 		if not pg.shown or pg.shown() then out[#out + 1] = pg end
@@ -2912,6 +2930,23 @@ end
 ---------------------------------------------------------------------------
 
 local render -- forward
+local makePage -- forward (build): a page's frames, built as it first shows
+
+-- Evertally: what a hosted page builds with (this window's own parts and sizes), and its redraw.
+UI.WelcomeKit = {
+	CW = CW, W = W, Theme = Theme,
+	compactHero = compactHero, layoutCompactHero = layoutCompactHero,
+	toggleRow = toggleRow, toggleRowHeight = toggleRowHeight, layRows = layRows,
+	optionGroup = optionGroup, layGroup = layGroup, keepLine = keepLine, para = para, place = place,
+	refresh = function() if F and F:IsShown() and render then render() end end,
+	shown = function() return F ~= nil and F:IsShown() end,
+	current = function() return current end,
+}
+-- Finish: the host first (it applies its own choices), then the close.
+local function finish()
+	if UI.WelcomeOnFinish then pcall(UI.WelcomeOnFinish) end
+	return close()
+end
 
 -- The hero settles 8px up as it fades in (on open).
 local function settle(P)
@@ -2922,6 +2957,12 @@ end
 
 local function go(delta)
 	local list = pageList()
+	-- Evertally: a page that holds Next back (blocked) is not left forward
+	if delta > 0 then
+		for _, pg in ipairs(list) do
+			if pg.key == current and pg.blocked and pg.blocked() then return end
+		end
+	end
 	local at = 1
 	for i, pg in ipairs(list) do if pg.key == current then at = i end end
 	local to = at + delta
@@ -2944,7 +2985,7 @@ end
 -- The footer's main button: Next, or Finish on the last page.
 local function primary()
 	local _, at, count = WEL.Page()
-	if at and count and at >= count then return close() end
+	if at and count and at >= count then return finish() end
 	go(1)
 end
 
@@ -3031,7 +3072,7 @@ local function build()
 	F.Back = W.Button(foot, L["Back"], function() go(-1) end)
 	F.Back.psTip = L["Back"]
 	F.Back.psTipLines = { keyName("BACKSPACE") }
-	F.Finish = W.Button(foot, L["Finish"], close, { primary = true })
+	F.Finish = W.Button(foot, L["Finish"], function() finish() end, { primary = true })
 	F.Finish:SetPoint("RIGHT", foot, "RIGHT", -FOOT_PAD, 0)
 	F.Finish.psTip = L["Finish"]
 	F.Finish.psTipLines = { L["Everything you chose works already, with no reload."], keyName("ENTER") }
@@ -3045,7 +3086,9 @@ local function build()
 	F.Dots.list = {}
 	-- The pages: each its hero and the page under it on the 32 edge.
 	F.pages = {}
-	for _, pg in ipairs(PAGES) do
+	-- (Evertally: one page at a time, so a page that shows up later, a hosted one or one whose add-on loaded
+	-- after the window was built, is built as it first shows: render)
+	function makePage(pg)
 		local P = CreateFrame("Frame", nil, F)
 		P:SetWidth(INNER)
 		P:SetHeight(1)
@@ -3063,6 +3106,7 @@ local function build()
 		pg.build(P)
 		F.pages[pg.key] = P
 	end
+	for _, pg in ipairs(PAGES) do makePage(pg) end
 	if W.Rim then F.Rim = W.Rim(F) end
 	-- Enter and Backspace (onKey); the rest goes on to the game. Every key
 	-- goes on again once let go, so none stays held back.
@@ -3179,6 +3223,7 @@ end
 -- under the hero. The look page's looks load as it first shows.
 function render(from)
 	local list = pageList()
+	for _, pg in ipairs(list) do if not F.pages[pg.key] then makePage(pg) end end
 	local at
 	for i, pg in ipairs(list) do if pg.key == current then at = i end end
 	if not at then
@@ -3250,6 +3295,10 @@ function render(from)
 	F.Step:SetText((L["Install  \194\183  Step %d of %d"]):format(at, #list))
 	F.Skip:SetShown(not last)
 	F.Next:SetShown(not last)
+	-- Evertally: held back while the page says so (blocked)
+	local held = list[at].blocked and list[at].blocked() and true or false
+	F.Next:SetEnabled(not held)
+	F.Next:SetAlpha(held and 0.45 or 1)
 	F.Finish:SetShown(last)
 	-- Start guide while there is a guide to start that is not the one open.
 	F.Start:SetShown(last and not F.Start.psOpen)
@@ -3311,6 +3360,7 @@ local function open(why, deferred)
 		current = PAGES[1].key
 	end
 	if not F then build() end
+	if UI.WelcomeOnOpen then pcall(UI.WelcomeOnOpen, why) end
 	unasked = deferred and true or false
 	render()
 	F:Show()
@@ -3415,6 +3465,7 @@ ns.OnLogin(function()
 	local db = ns.DB()
 	db.betaNoticeSeen = nil -- the beta notice's flag; Install has its own
 	if seen() then return end
+	if UI.WelcomeOwner then return end -- (Evertally: its setup decides when this window opens)
 	pending = "login"
 	if C_Timer and C_Timer.After then ns.After(DELAY, try) else try() end
 end)

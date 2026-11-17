@@ -4,7 +4,8 @@ local _, A = ...
 -- summary. Nothing is chosen for
 -- the player: every switch that sends something anywhere starts off, the wizard only shows what the current choices are (a quick choice for
 -- the website sets the switches, and they stay visible). Nameplate choices are live; other choices apply at Finish.
-local VERSION = 7   -- 7: the music step (Spotify or YouTube Music), so the setup opens once more for everyone
+local VERSION = 8   -- 8: one setup, in Evertally Guide's Install window with its own pages (SetupPages.lua), so it opens once more for everyone
+                    -- (7: the music step)
 local W, H, HEADER, FOOTER, PAD = 880, 672, 64, 72, 28
 A.DOWNLOAD_URL = "https://evertally.afstudio.dev/#sync"                  -- the Download page of the website (the app for Windows)
 A.OPENMAP_URL = "https://www.curseforge.com/wow/addons/openmap"          -- OpenMap on CurseForge
@@ -338,6 +339,14 @@ end
 
 -- ---------------------------------------------------------------- the window
 local f, pages, draft, step = nil, {}, nil, 1
+
+-- In Evertally Guide's Install window (SetupPages.lua: A.setupHosted, the guide's UI) the steps are its pages and the
+-- draft is the same; this file's own window is the setup only without the guide.
+--- The draft the setup edits (made from the present choices when there is none).
+function A.SetupDraft() if not draft then draft = A.OnboardingDraft() end; return draft end
+--- A new draft from the present choices (the window opened again).
+function A.SetupResetDraft() if A.db then draft = A.OnboardingDraft() end end
+local function hostedWindow() return A.setupHosted and A.setupHosted.Welcome or nil end
 A.onboarding = {}   -- (state the tests and the layout preview read)
 
 local function place(widget, y, height, indent)
@@ -708,6 +717,16 @@ end
 --- Opens the setup on its first step, with the present choices.
 function A.OpenOnboarding(startStep)
     if not A.db then return end
+    local hosted = hostedWindow()
+    if hosted and A.setupPages then
+        if A.HideUI then A.HideUI() end
+        draft = A.OnboardingDraft()
+        A.onboarding.dismissed = false
+        A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.web == true or A.db.settings.ingame == true or A.db.settings.mapPins == true
+        local name = STEPS[tonumber(startStep) or 0]
+        hosted.Show(name and A.setupPages.KEYS[name] or nil)
+        return
+    end
     if not f then build() end
     if A.HideUI then A.HideUI() end
     draft = A.OnboardingDraft()
@@ -718,7 +737,11 @@ function A.OpenOnboarding(startStep)
 end
 function A.OnboardingGo(n) go(n) end
 function A.OnboardingState() return step, draft end
-function A.OnboardingShown() return f ~= nil and f:IsShown() end
+function A.OnboardingShown()
+    local hosted = hostedWindow()
+    if hosted and hosted.IsShown and hosted.IsShown() then return true end
+    return f ~= nil and f:IsShown()
+end
 
 --- Applies the choices and closes.
 function A.OnboardingFinish()
@@ -738,6 +761,8 @@ end
 --- Closing only hides the window. It does not complete setup or unlock the addon.
 function A.OnboardingClose()
     if f then f:Hide();A.onboarding.dismissed=true end
+    local hosted = hostedWindow()
+    if hosted and hosted.IsShown and hosted.IsShown() then hosted.Hide(); A.onboarding.dismissed = true end
     if A.installationLinkWindow then A.installationLinkWindow:Hide() end
 end
 A.OnboardingSkip=A.OnboardingClose -- compatibility; no skip button is offered

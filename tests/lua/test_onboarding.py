@@ -80,7 +80,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertFalse(s.mapLayers.gather); self.assertTrue(s.mapLayers.trainer, "the other layers are left as they were")
         self.assertFalse(s.gatherTypes.ore); self.assertTrue(s.gatherTypes.herb)
         self.assertTrue(s.hideMinimap); self.assertAlmostEqual(self.a.GetUIScale(), 1.2)
-        self.assertEqual(s.onboarded, 7)
+        self.assertEqual(s.onboarded, 8)
 
     def test_nothing_changes_for_what_was_not_touched(self):
         s = self.a.db.settings
@@ -148,7 +148,7 @@ class OnboardingTests(unittest.TestCase):
         self.a.OnboardingGo(12)
         f.next.scripts.OnClick(f.next)
         self.assertFalse(self.a.OnboardingShown())
-        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 7)
+        self.assertTrue(self.a.db.settings.web); self.assertEqual(self.a.db.settings.onboarded, 8)
 
     def test_the_music_step_turns_the_player_on_with_the_chosen_service(self):
         self.open()
@@ -346,7 +346,7 @@ class OnboardingTests(unittest.TestCase):
 
     def test_it_does_not_open_for_someone_who_has_done_it(self):
         self.lua.execute("C_Timer={After=function(s,fn) fn() end}")
-        self.a.db.settings.onboarded = 7
+        self.a.db.settings.onboarded = 8
         self.a.Dispatch("PLAYER_ENTERING_WORLD")
         self.assertFalse(self.a.OnboardingShown())
         self.lua.execute('SlashCmdList.EVERTALLY("setup")')

@@ -56,6 +56,81 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
          '\t\t\tW.Bind(stage, "qol.targetSimple")\n\t\t\tW.Bind(stage, "qol.markTarget")\n\t\t\tstage.Refresh = paintStage\n',
          '\t\t\tW.Painter(stage, paintStage)\n\t\t\tstage.Refresh = paintStage\n\t\t\tW.Bind(stage, "qol.targetPlate", "qol.targetButton")\n'
          '\t\t\tW.Bind(stage, "qol.targetSimple")\n\t\t\tW.Bind(stage, "qol.markTarget")\n', 1),
+        # Evertally: one setup. Evertally's own steps (addon/Evertally/SetupPages.lua) are pages of this window
+        # (UI.WelcomeHost), built from its own widgets (UI.WelcomeKit); a page may hold Next back (blocked: the
+        # installation check, the pairing); Finish tells the host (UI.WelcomeOnFinish), an opening too
+        # (UI.WelcomeOnOpen); with a host the login opening is the host's (UI.WelcomeOwner).
+        ('-- The pages shown now, in order.\nfunction pageList()\n\tlocal out = {}\n',
+         '-- Evertally: pages another add-on hosts here (UI.WelcomeHost), each after the page it names; placed once,\n'
+         '-- before the pages are first listed.\n'
+         'local hosted = {}\n'
+         'local function placeHosted()\n'
+         '\tif #hosted == 0 then return end\n'
+         '\tfor _, spec in ipairs(hosted) do\n'
+         '\t\tlocal at = #PAGES - 1 -- before the last page (finish) when the one it names is missing\n'
+         '\t\tfor i, pg in ipairs(PAGES) do if pg.key == spec.after then at = i end end\n'
+         '\t\ttable.insert(PAGES, at + 1, spec)\n'
+         '\tend\n'
+         '\thosted = {}\n'
+         'end\n'
+         'function UI.WelcomeHost(spec)\n'
+         '\thosted[#hosted + 1] = spec\n'
+         '\treturn true\n'
+         'end\n\n'
+         '-- The pages shown now, in order.\nfunction pageList()\n\tplaceHosted()\n\tlocal out = {}\n', 1),
+        ('local render -- forward\n',
+         'local render -- forward\n'
+         'local makePage -- forward (build): a page\'s frames, built as it first shows\n\n'
+         '-- Evertally: what a hosted page builds with (this window\'s own parts and sizes), and its redraw.\n'
+         'UI.WelcomeKit = {\n'
+         '\tCW = CW, W = W, Theme = Theme,\n'
+         '\tcompactHero = compactHero, layoutCompactHero = layoutCompactHero,\n'
+         '\ttoggleRow = toggleRow, toggleRowHeight = toggleRowHeight, layRows = layRows,\n'
+         '\toptionGroup = optionGroup, layGroup = layGroup, keepLine = keepLine, para = para, place = place,\n'
+         '\trefresh = function() if F and F:IsShown() and render then render() end end,\n'
+         '\tshown = function() return F ~= nil and F:IsShown() end,\n'
+         '\tcurrent = function() return current end,\n'
+         '}\n'
+         '-- Finish: the host first (it applies its own choices), then the close.\n'
+         'local function finish()\n'
+         '\tif UI.WelcomeOnFinish then pcall(UI.WelcomeOnFinish) end\n'
+         '\treturn close()\n'
+         'end\n', 1),
+        ('local function go(delta)\n\tlocal list = pageList()\n',
+         'local function go(delta)\n\tlocal list = pageList()\n'
+         '\t-- Evertally: a page that holds Next back (blocked) is not left forward\n'
+         '\tif delta > 0 then\n'
+         '\t\tfor _, pg in ipairs(list) do\n'
+         '\t\t\tif pg.key == current and pg.blocked and pg.blocked() then return end\n'
+         '\t\tend\n'
+         '\tend\n', 1),
+        ('\tif at and count and at >= count then return close() end\n\tgo(1)\nend',
+         '\tif at and count and at >= count then return finish() end\n\tgo(1)\nend', 1),
+        ('\tF.Finish = W.Button(foot, L["Finish"], close, { primary = true })',
+         '\tF.Finish = W.Button(foot, L["Finish"], function() finish() end, { primary = true })', 1),
+        ('\tF.Next:SetShown(not last)\n',
+         '\tF.Next:SetShown(not last)\n'
+         '\t-- Evertally: held back while the page says so (blocked)\n'
+         '\tlocal held = list[at].blocked and list[at].blocked() and true or false\n'
+         '\tF.Next:SetEnabled(not held)\n'
+         '\tF.Next:SetAlpha(held and 0.45 or 1)\n', 1),
+        ('\tF.pages = {}\n\tfor _, pg in ipairs(PAGES) do\n\t\tlocal P = CreateFrame("Frame", nil, F)\n',
+         '\tF.pages = {}\n\t-- (Evertally: one page at a time, so a page that shows up later, a hosted one or one whose add-on loaded\n'
+         '\t-- after the window was built, is built as it first shows: render)\n'
+         '\tfunction makePage(pg)\n\t\tlocal P = CreateFrame("Frame", nil, F)\n', 1),
+        ('\t\tpg.build(P)\n\t\tF.pages[pg.key] = P\n\tend\n\tif W.Rim then',
+         '\t\tpg.build(P)\n\t\tF.pages[pg.key] = P\n\tend\n\tfor _, pg in ipairs(PAGES) do makePage(pg) end\n\tif W.Rim then', 1),
+        ('function render(from)\n\tlocal list = pageList()\n',
+         'function render(from)\n\tlocal list = pageList()\n'
+         '\tfor _, pg in ipairs(list) do if not F.pages[pg.key] then makePage(pg) end end\n', 1),
+        ('\tif not F then build() end\n\tunasked = deferred and true or false\n',
+         '\tif not F then build() end\n'
+         '\tif UI.WelcomeOnOpen then pcall(UI.WelcomeOnOpen, why) end\n'
+         '\tunasked = deferred and true or false\n', 1),
+        ('\tif seen() then return end\n\tpending = "login"\n',
+         '\tif seen() then return end\n'
+         '\tif UI.WelcomeOwner then return end -- (Evertally: its setup decides when this window opens)\n'
+         '\tpending = "login"\n', 1),
     ],
     "Core/Init.lua": [('SLASH_EVERTALLYGUIDE3 = "/ps"', 'SLASH_EVERTALLYGUIDE3 = "/evertallyguide"', 1),
                       # Evertally's own Discord (reports, Install's last page, About), not Polestar's
