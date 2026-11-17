@@ -73,6 +73,8 @@ Name: "{autodesktop}\Evertally"; Filename: "{app}\Evertally.exe"; Parameters: "-
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "EvertallySync"; ValueData: """{app}\EvertallyBackground.exe"""; Tasks: startwow; Flags: uninsdeletevalue
+; The app's own "Start with Windows" setting writes this value; uninstalling removes it.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "EvertallyStartup"; Flags: uninsdeletevalue dontcreatekey
 
 [Run]
 Filename: "{app}\EvertallyBackground.exe"; Tasks: startwow; Flags: nowait runhidden

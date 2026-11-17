@@ -195,6 +195,67 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
     Ok(())
 }
 
+/// Run value that starts the tray app itself when the user signs in to Windows (independent of the WoW watcher).
+#[cfg(windows)]
+const LOGIN_VALUE: &str = "EvertallyStartup";
+
+/// The tray app (`Evertally.exe`) beside the running executable.
+#[cfg(windows)]
+fn tray_executable() -> Result<std::path::PathBuf> {
+    Ok(std::env::current_exe()
+        .context("locate executable")?
+        .with_file_name("Evertally.exe"))
+}
+
+/// Whether the tray app starts when the user signs in to Windows.
+#[cfg(windows)]
+#[must_use]
+pub fn login_start_enabled() -> bool {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(RUN_KEY)
+        .and_then(|key| key.get_value::<String, _>(LOGIN_VALUE))
+        .is_ok_and(|registered| {
+            tray_executable()
+                .is_ok_and(|exe| registered.eq_ignore_ascii_case(&format!("\"{}\"", exe.display())))
+        })
+}
+
+/// Starts (or stops starting) the tray app at sign-in. Nothing is launched now: the app is already running.
+///
+/// # Errors
+/// Fails when the per-user Run key cannot be written or the app is missing.
+#[cfg(windows)]
+pub fn set_login_start(enabled: bool) -> Result<()> {
+    use winreg::{RegKey, enums::HKEY_CURRENT_USER};
+    let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey(RUN_KEY)
+        .context("open Run key")?;
+    if enabled {
+        let exe = tray_executable()?;
+        anyhow::ensure!(exe.is_file(), "Evertally.exe is missing. Reinstall Evertally.");
+        key.set_value(LOGIN_VALUE, &format!("\"{}\"", exe.display()))
+            .context("write Run value")?;
+    } else if key.get_value::<String, _>(LOGIN_VALUE).is_ok() {
+        key.delete_value(LOGIN_VALUE).context("delete Run value")?;
+    }
+    Ok(())
+}
+
+/// Start at sign-in is offered on Windows only; elsewhere the WoW watcher covers it.
+#[cfg(not(windows))]
+#[must_use]
+pub fn login_start_enabled() -> bool {
+    false
+}
+
+/// # Errors
+/// Always on Linux and macOS: not offered there.
+#[cfg(not(windows))]
+pub fn set_login_start(_enabled: bool) -> Result<()> {
+    anyhow::bail!("Start with the system is available on Windows only.")
+}
+
 /// Label of the launchd agent on macOS.
 #[cfg(not(windows))]
 const LAUNCH_AGENT_LABEL: &str = "dev.afstudio.evertally.background";

@@ -19,6 +19,8 @@ struct ConnectionSettings {
     wow: String,
     autostart: bool,
     original_autostart: bool,
+    login_start: bool,
+    original_login_start: bool,
     cs: bool,
     message: Option<(String, bool)>,
     stop: Option<shutdown::StopSignal>,
@@ -34,6 +36,7 @@ struct ConnectionSettings {
 impl ConnectionSettings {
     fn new(config_path: PathBuf, config: Config, cs: bool, preview: bool) -> Self {
         let autostart = !preview && platform::autostart_enabled();
+        let login_start = !preview && platform::login_start_enabled();
         Self {
             config_path,
             server: config.server,
@@ -43,6 +46,8 @@ impl ConnectionSettings {
                 .unwrap_or_default(),
             autostart,
             original_autostart: autostart,
+            login_start,
+            original_login_start: login_start,
             cs,
             message: None,
             stop: if preview {
@@ -138,6 +143,10 @@ impl ConnectionSettings {
             ui.add_space(12.0);
             let label = self.t("Start the bridge automatically with WoW", "Spouštět most automaticky s WoW");
             ui.checkbox(&mut self.autostart, label);
+            if cfg!(windows) {
+                let label = self.t("Start with Windows (in the tray, no window)", "Spouštět při startu Windows (v liště, bez okna)");
+                ui.checkbox(&mut self.login_start, label);
+            }
             ui.add_space(14.0);
             ui.label(self.t("Map, database, rankings and your history are on the website. The addon works inside the game.", "Mapu, databázi, žebříčky a historii najdeš na webu. Addon funguje přímo ve hře."));
             ui.weak(self.t("Live position reads the addon marker while the game corner is visible, including on a second monitor. Enable Website export, My character, My route and Live position on the website.", "Živá poloha čte značku addonu, když je vidět levý horní roh hry, i na druhém monitoru. Zapni Webový export, Moji postavu, Moji trasu a Živou polohu na webu."));
@@ -147,6 +156,7 @@ impl ConnectionSettings {
                     let candidate = Config { server: self.server.clone(), wow_path: (!self.wow.trim().is_empty()).then(|| PathBuf::from(self.wow.trim())) };
                     let result = validate(&candidate).and_then(|()| {
                         if self.autostart != self.original_autostart { platform::set_autostart(self.autostart).map_err(|e| e.to_string())?; self.original_autostart = self.autostart; }
+                        if self.login_start != self.original_login_start { platform::set_login_start(self.login_start).map_err(|e| e.to_string())?; self.original_login_start = self.login_start; }
                         save_config(&self.config_path, &candidate)
                     });
                     self.message = Some(match result { Ok(()) => { shutdown::request(shutdown::BRIDGE_RELOAD); (self.t("Saved. The bridge will apply the connection.", "Uloženo. Most použije nové spojení.").to_owned(), false) }, Err(error) => (error, true) });
