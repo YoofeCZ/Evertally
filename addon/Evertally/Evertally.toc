@@ -6,7 +6,7 @@
 ## Author: Evertally contributors
 ## Version: 0.10.0
 ## X-License: GPL-3.0-or-later (LICENSE.txt); see THIRD_PARTY.md for the material it carries
-## OptionalDeps: Evertally_Export, OpenMap
+## OptionalDeps: Evertally_Export, OpenMap, Evertally_Guide
 ## SavedVariables: EvertallyDB, EvertallyPeersDB
 Locale.lua
 Codec.lua
@@ -75,3 +75,4 @@ LfgJournal.lua
 QuestGuideData.lua
 QuestGuide.lua
 QuestGuideUI.lua
+GuideShell.lua

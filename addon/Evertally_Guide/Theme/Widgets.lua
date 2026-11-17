@@ -4599,16 +4599,21 @@ function W.ShellRail(f, items, bottom, active, onSelect)
 	for k = 1, #(bottom or {}) do
 		i = i + 1
 		place(bottom[k], i, y, true)
+		railButton(f, i):SetHeight(RAIL_ROW)
 		y = y + RAIL_ROW
 	end
 	local limit = f:GetHeight() - 2 - y -- the top of the bottom group
 	y = f.psNavTop -- the first section level with the sidebar's first row
+	-- Evertally: more sections than rows close up (to 46 px) before one is dropped.
+	local step = RAIL_ROW
+	if #items > 0 and y + #items * step > limit then step = max(46, math.floor((limit - y) / #items)) end
 	for k = 1, #items do
-		if y + RAIL_ROW > limit then break end
+		if y + step > limit then break end
 		i = i + 1
 		n = n + 1
 		place(items[k], i, y)
-		y = y + RAIL_ROW
+		railButton(f, i):SetHeight(step)
+		y = y + step
 	end
 	for k = i + 1, #f.railButtons do f.railButtons[k]:Hide() end
 	f.psRailFloor = limit

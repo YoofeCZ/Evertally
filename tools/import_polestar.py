@@ -56,6 +56,24 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
     "Nav/Handoff.lua": [('local OWNER = "Polestar"', 'local OWNER = "EvertallyGuide"', 1)],
     "Nav/Pins.lua": [('section = "Polestar",', 'section = "Evertally Guide",', 1)],
     "UI/GameMenu.lua": [('button:SetText("Polestar")', 'button:SetText("Evertally Guide")', 1)],
+    # The hub's rail drops the sections past its foot group (rows of 56 px); with Evertally's own section the 640 px
+    # hub of the Halo and Hearth skins is 2 px short. Close the rows up (to 46 px: icon and caption) before dropping.
+    "Theme/Widgets.lua": [
+        ("\tfor k = 1, #(bottom or {}) do\n\t\ti = i + 1\n\t\tplace(bottom[k], i, y, true)\n\t\ty = y + RAIL_ROW\n\tend\n"
+         "\tlocal limit = f:GetHeight() - 2 - y -- the top of the bottom group\n"
+         "\ty = f.psNavTop -- the first section level with the sidebar's first row\n"
+         "\tfor k = 1, #items do\n\t\tif y + RAIL_ROW > limit then break end\n\t\ti = i + 1\n\t\tn = n + 1\n"
+         "\t\tplace(items[k], i, y)\n\t\ty = y + RAIL_ROW\n\tend\n",
+         "\tfor k = 1, #(bottom or {}) do\n\t\ti = i + 1\n\t\tplace(bottom[k], i, y, true)\n"
+         "\t\trailButton(f, i):SetHeight(RAIL_ROW)\n\t\ty = y + RAIL_ROW\n\tend\n"
+         "\tlocal limit = f:GetHeight() - 2 - y -- the top of the bottom group\n"
+         "\ty = f.psNavTop -- the first section level with the sidebar's first row\n"
+         "\t-- Evertally: more sections than rows close up (to 46 px) before one is dropped.\n"
+         "\tlocal step = RAIL_ROW\n"
+         "\tif #items > 0 and y + #items * step > limit then step = max(46, math.floor((limit - y) / #items)) end\n"
+         "\tfor k = 1, #items do\n\t\tif y + step > limit then break end\n\t\ti = i + 1\n\t\tn = n + 1\n"
+         "\t\tplace(items[k], i, y)\n\t\trailButton(f, i):SetHeight(step)\n\t\ty = y + step\n\tend\n", 1),
+    ],
 }
 # Slash commands: Polestar's own words would clash with an installed Polestar (the game picks one of the two).
 SLASH_WORDS = [(re.compile(r"(?<![\w./])/polestar\b"), "/etguide"), (re.compile(r"(?<![\w./])/pole\b"), "/etg")]

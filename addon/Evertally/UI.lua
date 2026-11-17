@@ -1481,6 +1481,46 @@ local function buildExternal(view, builder, errorKey, fallback)
     if not page.Refresh then page.Refresh = function() end end
 end
 
+-- Draws one page into pages[view] (made by the caller: this window's content, or a section of Evertally Guide's hub).
+local function buildPage(view)
+    if view == "overview" then buildExternal("overview", A.BuildOverviewPage, "overview_page", overviewFallback)
+    elseif view == "journal" then buildExternal("journal", A.BuildJournalPage, "journal_page")
+    elseif view == "history" then buildHistory(pages.history)
+    elseif view == "professions" then buildProfessions(pages.professions)
+    elseif view == "places" then buildPlaces(pages.places)
+    elseif view == "facts" then buildFacts(pages.facts)
+    elseif view == "rankings" then buildExternal("rankings", A.BuildRankingsPage, "rankings_page", function(page) buildList(page, "rankings", function() return rankingItems(), A.L("noData") end) end)
+    -- the Community page is the forum (ForumUI.lua); the old sample of website facts lives on its own page
+    elseif view == "community" then buildExternal("community", A.BuildForumPage, "forum_page")
+    elseif view == "webfacts" then buildCommunity(pages.webfacts)
+    elseif view == "settings" then buildSettings(pages.settings)
+    -- the Social page lives in SocialUI.lua, the World page in WorldHost.lua (its code in Evertally_Map, loaded on first use)
+    elseif view == "social" then buildExternal("social", A.BuildSocialPage, "social_page")
+    elseif view == "world" then buildExternal("world", A.BuildWorldPage, "world_page")
+    elseif view == "database" then buildExternal("database", A.BuildDatabasePage, "database_page")
+    elseif view == "dungeons" then buildExternal("dungeons", A.BuildDungeonsPage, "dungeons_page")
+    elseif view == "recipes" then buildExternal("recipes", A.BuildRecipesPage, "recipes_page")
+    elseif view == "talents" then buildExternal("talents", A.BuildTalentsPage, "talents_page")
+    elseif view == "guides" then buildExternal("guides", A.BuildGuidesPage, "guides_page")
+    elseif view == "gear" then buildExternal("gear", A.BuildGearPage, "gear_page")
+    elseif view == "training" then buildExternal("training", A.BuildTrainingPage, "training_page")
+    elseif view == "questguide" then buildExternal("questguide", A.BuildQuestGuidePage, "questguide_page")
+    elseif view == "leveling" then buildExternal("leveling", A.BuildLevelingPage, "leveling_page") end
+end
+
+-- One page's title and contents drawn again; a page that fails is counted, never passed on.
+local function refreshPage(view)
+    local page = pages[view]
+    if not page then return end
+    if page.title then page.title:SetText(A.L(page.titleKey)); page.subtitle:SetText(A.L("sub_" .. page.titleKey)) end
+    local ok, err = pcall(page.Refresh)
+    if not ok then A.errors.ui_refresh = (A.errors.ui_refresh or 0) + 1; A.lastUIError = view .. ": " .. tostring(err) end
+end
+
+-- With Evertally Guide loaded the pages live in its hub (GuideShell.lua sets A.guideShell); this window is the way
+-- without it. The hub reads the menu and builds pages through these.
+A.UIShell = {NAV = NAV, ICON = ICON, pages = pages, buildPage = function(view) return buildPage(view) end, refreshPage = refreshPage}
+
 local function build()
     A.Theme.ApplyScheme()
     local width, height = A.GetUISize()
@@ -1562,30 +1602,8 @@ local function build()
     for _, view in ipairs(VIEWS) do
         local page = CreateFrame("Frame", nil, content); page:SetAllPoints(content); page:Hide()
         pages[view] = page
+        buildPage(view)
     end
-    buildExternal("overview", A.BuildOverviewPage, "overview_page", overviewFallback)
-    buildExternal("journal", A.BuildJournalPage, "journal_page")
-    buildHistory(pages.history)
-    buildProfessions(pages.professions)
-    buildPlaces(pages.places)
-    buildFacts(pages.facts)
-    buildExternal("rankings", A.BuildRankingsPage, "rankings_page", function(page) buildList(page, "rankings", function() return rankingItems(), A.L("noData") end) end)
-    -- the Community page is the forum (ForumUI.lua); the old sample of website facts lives on its own page
-    buildExternal("community", A.BuildForumPage, "forum_page")
-    buildCommunity(pages.webfacts)
-    buildSettings(pages.settings)
-    -- the Social page lives in SocialUI.lua, the World page in WorldHost.lua (its code in Evertally_Map, loaded on first use)
-    buildExternal("social", A.BuildSocialPage, "social_page")
-    buildExternal("world", A.BuildWorldPage, "world_page")
-    buildExternal("database", A.BuildDatabasePage, "database_page")
-    buildExternal("dungeons", A.BuildDungeonsPage, "dungeons_page")
-    buildExternal("recipes", A.BuildRecipesPage, "recipes_page")
-    buildExternal("talents", A.BuildTalentsPage, "talents_page")
-    buildExternal("guides", A.BuildGuidesPage, "guides_page")
-    buildExternal("gear", A.BuildGearPage, "gear_page")
-    buildExternal("training", A.BuildTrainingPage, "training_page")
-    buildExternal("questguide", A.BuildQuestGuidePage, "questguide_page")
-    buildExternal("leveling", A.BuildLevelingPage, "leveling_page")
     if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyFrame" end
 
     -- the corner that resizes the window
@@ -1606,6 +1624,7 @@ local function build()
 end
 
 function A.RefreshUI()
+    if A.guideShell then return A.guideShell.Refresh() end
     if not frame or not frame:IsShown() or not A.db then return end
     local s = A.db.settings
     header.web.Set(A.L(s.web and "webOn" or "webOff"), s.web and C.green or C.mist)
@@ -1625,32 +1644,45 @@ function A.RefreshUI()
         for _, view in ipairs(b.group) do if view == selected then on = true end end
         b.SetTint(on and C.gold or C.faint); b.mark:SetShown(on)
     end
-    local page = pages[selected]
-    page.title:SetText(A.L(page.titleKey)); page.subtitle:SetText(A.L("sub_" .. page.titleKey))
     -- a page that fails to draw is counted and reported by /etally diag; it must not take the event that asked for the redraw down with it
-    local ok, err = pcall(page.Refresh)
-    if not ok then A.errors.ui_refresh = (A.errors.ui_refresh or 0) + 1; A.lastUIError = selected .. ": " .. tostring(err) end
+    refreshPage(selected)
 end
 
 function A.OpenUI()
     if not A.db then return end
     if A.RequirementsGuard and not A.RequirementsGuard() then if frame then frame:Hide() end;return end
     if A.OnboardingClose then A.OnboardingClose() end
+    if A.guideShell then return A.guideShell.Open() end
     if not frame then build() end
     frame:Show(); A.RefreshUI()
 end
-function A.HideUI() if frame then frame:Hide() end end
+function A.HideUI()
+    if A.guideShell then A.guideShell.Hide() end
+    if frame then frame:Hide() end
+end
 
 --- Opens the window on one of its pages.
 function A.ShowView(view)
+    if A.guideShell then
+        if A.RequirementsGuard and not A.RequirementsGuard() then return end
+        if A.OnboardingClose then A.OnboardingClose() end
+        return A.guideShell.Open(view)
+    end
     A.OpenUI()
     if pages[view] then select(view) end
 end
 
 function A.ToggleUI()
+    if A.guideShell then
+        if A.guideShell.Shown() then A.guideShell.Hide() else A.OpenUI() end
+        return
+    end
     if frame and frame:IsShown() then frame:Hide() else A.OpenUI() end
 end
-function A.OverviewShown() return frame ~= nil and frame:IsShown() and selected == "overview" end
+function A.OverviewShown()
+    if A.guideShell then return A.guideShell.Shown("overview") end
+    return frame ~= nil and frame:IsShown() and selected == "overview"
+end
 
 --- The language of the add-on ("en" or "cs"): kept, the fonts that carry the letters follow it and every page is drawn again.
 function A.SetLanguage(language)
