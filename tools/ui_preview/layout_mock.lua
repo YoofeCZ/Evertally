@@ -138,7 +138,15 @@ function O.GetWidth(self) local _, _, w = rectOf(self); return w end
 function O.GetHeight(self) local _, _, _, h = rectOf(self); return h end
 function O.GetSize(self) local _, _, w, h = rectOf(self); return w, h end
 function O.GetParent(self) return self._parentFrame end
-function O.SetParent(self, p) self._parentFrame = p; dirty() end
+function O.SetParent(self, p)
+    -- (a reparented frame is drawn with its new parent: out of the old one's list, into the new one's)
+    local old = self._parentFrame
+    if old and old._children and old ~= p then
+        for i = #old._children, 1, -1 do if old._children[i] == self then table.remove(old._children, i) end end
+    end
+    if p and p._children and old ~= p then p._children[#p._children + 1] = self end
+    self._parentFrame = p; dirty()
+end
 -- (the client runs OnShow and OnHide when a frame's visibility changes)
 local function setShown(self, v)
     v = v and true or false

@@ -346,15 +346,48 @@ ns.UI.GuideFrame.Part(function(GF)
 	end
 	GF.ToolsH = function() return (GF.tools and GF.tools:IsShown()) and TOOLS_H or 0 end
 
-	-- The header: the guide's title on the left, "< 8 / 29 >" on the right.
+	-- Evertally: the window's two tabs, Guide | Quests, at the left of the header; the Quests tab is Evertally's
+	-- quest tracker (addon/Evertally/QuestTracker.lua, Evertally.QuestTracker). The live window's alone.
+	local function evertallyQT()
+		if not GF.live then return nil end
+		local E = rawget(_G, "Evertally")
+		local QT = type(E) == "table" and E.QuestTracker or nil
+		if type(QT) == "table" and QT.Mode and QT.Attach and QT.Layout and QT.BuildSwitch then return QT end
+		return nil
+	end
+	local function modeSwitch()
+		local QT = evertallyQT()
+		local sw = GF.modeSwitch
+		if not QT then
+			if sw then sw:Hide() end
+			return nil
+		end
+		if not sw then
+			sw = QT.BuildSwitch(nav)
+			GF.modeSwitch = sw
+		end
+		sw.Refresh()
+		sw:ClearAllPoints()
+		sw:SetPoint("LEFT", nav, "LEFT", PAD - 6, 0)
+		sw:Show()
+		return sw
+	end
+
+	-- The header: the tabs (Evertally), the guide's title, "< 8 / 29 >" on the right.
 	local function header(width)
 		nav.Steps:ClearAllPoints()
 		nav.Steps:SetPoint("RIGHT", nav, "RIGHT", -(PAD - 6), 0)
 		nav.Title:ClearAllPoints()
-		nav.Title:SetPoint("LEFT", nav, "LEFT", PAD, 0)
+		local sw = modeSwitch()
+		if sw then
+			nav.Title:SetPoint("LEFT", sw, "RIGHT", 10, 0)
+		else
+			nav.Title:SetPoint("LEFT", nav, "LEFT", PAD, 0)
+		end
 		W.Color(nav.Title, "text")
 		local stepsW = nav.Steps:IsShown() and nav.Steps:GetWidth() + 8 or 0
-		nav.Title:SetWidth(max(40, width - PAD * 2 - stepsW))
+		local swW = sw and sw:GetWidth() + 4 or 0
+		nav.Title:SetWidth(max(40, width - PAD * 2 - stepsW - swW))
 	end
 
 	local function placeBars(showFoot)
@@ -442,6 +475,45 @@ ns.UI.GuideFrame.Part(function(GF)
 		return top * uiScale / scale - bottom
 	end
 
+	-- Evertally: the Quests tab in place of the guide's steps: the tracker under the header, the window as tall as it
+	-- (within the cap), no progress bar and no tools bar. -> true when it laid the window out
+	local function layoutQuests(width, showStrip, SH)
+		local QT = evertallyQT()
+		if not (QT and QT.Mode() == "quests") then
+			if QT and QT.frame then QT.frame:Hide() end
+			return false
+		end
+		for _, f in ipairs({ card, after, along, GF.here, upnext, empty, banner, GF.party, GF.xp, UI.JourneyPanel and UI.JourneyPanel.frame }) do
+			if f then f:Hide() end
+		end
+		if UI.StepList and UI.StepList.Place then UI.StepList.Place(body, false) end
+		nav.Steps:Hide()
+		nav.Title:SetShown(not showStrip)
+		header(width)
+		-- Skip, Lookup and the menu live on the tools bar (Evertally): the bar goes, they with it
+		toolsBar():Hide()
+		foot:Hide()
+		fit.n = 0
+		fit.from = nil
+		local stripH = showStrip and SH or 0
+		fit.outer = stripH + NAV_H
+		fit.limit = roomAbove()
+		local room = min(capHeight(), fit.limit or math.huge) - fit.outer
+		local qf = QT.Attach(body)
+		qf:Show()
+		local y = stack(qf, 0, QT.Layout(width, room))
+		if QT.Title then nav.Title:SetText(QT.Title()) end
+		sizeWindow(y)
+		placeBars(false)
+		band:SetHeight(stripH + NAV_H)
+		local x0, x1, y0, y1 = Theme.BandCoords(width - 2, stripH + NAV_H, 30)
+		if barsBottom() then y0, y1 = y1, y0 end
+		band:SetTexCoord(x0, x1, y0, y1)
+		if showStrip then GF.RenderTabs() end
+		GF.PaintShades()
+		return true
+	end
+
 	function GF.Layout()
 		local state = GF.State()
 		if not F then return end
@@ -462,6 +534,7 @@ ns.UI.GuideFrame.Part(function(GF)
 		-- At the minimum width the controls take the row; the title must not sit
 		-- behind Skip (notably in compact mode with one guide, where no strip shows).
 		nav.Title:SetShown(not showStrip and nav.Title:GetText() ~= nil and nav.Title:GetText() ~= "")
+		if layoutQuests(width, showStrip, SH) then return end
 		header(width)
 		toolsBar():SetShown(state ~= "noguide" and state ~= "noguides")
 		card:SetWidth(width)

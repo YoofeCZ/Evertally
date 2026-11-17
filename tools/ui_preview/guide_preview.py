@@ -192,6 +192,35 @@ try:
     F.Show(F); GF.Render()
 except Exception as e: print("Render ERR", e)
 lua.execute("RUN_PENDING(); TICK(60); RUN_PENDING(); PREVIEW_SETTLE()")
+import os
+if os.environ.get("QUESTS"):
+    # TEST FIXTURE: Evertally over the guide and a quest log of invented states (the Quests tab of the window)
+    lua.execute(r"""
+      QLOG={{h="Silverpine Forest"},
+        {id=421,t="Prove Your Worth",l=12,objs={{text="Moonrage Whelp slain: 4/6",n=4,r=6}}},
+        {id=422,t="Arugal's Folly",l=14,objs={{text="Remedy of Arugal: 1/1",n=1,r=1,f=true}},done=true},
+        {id=425,t="Ivar the Foul",l=14,objs={{text="Ivar's Head: 0/1",n=0,r=1}}},
+        {h="Tirisfal Glades"},
+        {id=356,t="Rear Guard Patrol",l=8,objs={{text="Bleeding Horror slain: 7/8",n=7,r=8},{text="Wandering Spirit slain: 8/8",n=8,r=8,f=true}}},
+        {h="Dungeons"},
+        {id=1098,t="Deathstalkers in Shadowfang",l=25,g=5,objs={{text="Deathstalker Adamant found: 0/1",n=0,r=1}}}}
+      C_QuestLog={GetNumQuestLogEntries=function() return #QLOG end,
+        GetInfo=function(i) local q=QLOG[i]; if q.h then return {isHeader=true,title=q.h} end
+          return {questID=q.id,title=q.t,level=q.l,suggestedGroup=q.g or 0,isComplete=q.done and 1 or nil} end,
+        GetQuestObjectives=function(id) for _,q in ipairs(QLOG) do if q.id==id then local o={}; for k,v in ipairs(q.objs) do o[k]={text=v.text,finished=v.f or false,numFulfilled=v.n,numRequired=v.r} end; return o end end end,
+        IsComplete=function(id) for _,q in ipairs(QLOG) do if q.id==id then return q.done end end end,
+        GetTimeAllowed=function(id) if id==425 then return 900, 312 end end}
+      GetRealZoneText=function() return "Silverpine Forest" end
+    """)
+    G.EvertallyGuide.Compat.IsQuestReadyForTurnIn = lua.eval("function(id) return id==422 end")
+    NS["Evertally"] = lua.eval("{}")
+    load("Evertally", NS["Evertally"])
+    A = G.Evertally
+    if not A.db:
+        A.db = lua.eval("{settings={}}")
+    A.db.settings.language = "cs" if os.environ.get("CS") else "en"
+    A.QuestTracker.SetMode("guide" if os.environ.get("QUESTS") == "guide" else "quests")
+    lua.execute("RUN_PENDING(); TICK(10); RUN_PENDING(); PREVIEW_SETTLE()")
 F.ClearAllPoints(F); F.SetPoint(F, "TOPLEFT", G.UIParent, "TOPLEFT", 20, -20)
 lua.execute("PREVIEW_SETTLE()")
 nodes = PV.to_py(lua.eval("PREVIEW_EXPORT")(F))

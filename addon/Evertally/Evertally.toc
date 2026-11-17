@@ -80,4 +80,5 @@ QuestGuideUI.lua
 EvertallySettings.lua
 GuideShell.lua
 EvertallyMenu.lua
+QuestTracker.lua
 GuideSkin.lua
