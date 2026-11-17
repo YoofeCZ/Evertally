@@ -36,7 +36,7 @@ for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale
 -- {label, hint, the guide's command}
 local ITEMS = {
     {"lvShow", "lvShowHint", "show"}, {"lvGuides", "lvGuidesHint", "guides"}, {"lvLookup", "lvLookupHint", "lookup"},
-    {"lvRares", "lvRaresHint", "rares"}, {"lvAlts", "lvAltsHint", "alts"}, {"lvDungeons", "lvDungeonsHint", "dungeons"},
+    {"lvRares", "lvRaresHint", "rares"},
     {"lvGear", "lvGearHint", "gear"}, {"lvTalents", "lvTalentsHint", "talents"}, {"lvOptions", "lvOptionsHint", "options"},
     {"lvInstall", "lvInstallHint", "install"},
 }

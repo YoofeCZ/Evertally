@@ -737,6 +737,24 @@ function M.RefreshDungeons(body)
     if dj then refresh(dj) end
 end
 
+--- Opens the journal on the dungeon Evertally Guide calls `key` (SHOW_DUNGEON: map pins, the dungeon toast, Lookup); its
+--- home when no page matches or `key` is nil. -> true (the journal is shown), false without the page.
+function M.OpenGuideDungeon(key)
+    if A.ShowView then A.ShowView("dungeons") end
+    local body = A.dungeonsBody
+    local dj = body and body.dungeons
+    if not dj then return false end
+    dj.query = ""; if dj.box then dj.box:SetText("") end
+    dj.mode = "home"
+    refresh(dj)
+    if key ~= nil then
+        for _, entry in ipairs(dj.results) do
+            if M.GuideDungeonKey(entry) == key then openDungeon(dj, entry); return true end
+        end
+    end
+    return true
+end
+
 --- Opens the journal on one dungeon by its name (the arrow's click on a journey to a dungeon's entrance).
 function M.OpenDungeonEntry(name)
     if A.ShowView then A.ShowView("dungeons") end

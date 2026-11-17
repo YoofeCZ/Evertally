@@ -95,6 +95,29 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
         ('if UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Talents"',
          'if UI.RegisterSection and not T.SOON then\n\tUI.RegisterSection({\n\t\tkey = "Talents"', 1),
     ],
+    # The hub has no Dungeons section: its attunements, quest state and pick-up/hand-in runs are a tab of Evertally's
+    # Dungeon Journal (Evertally_Map/DungeonJournal.lua), and SHOW_DUNGEON (map pins, the dungeon toast, Lookup,
+    # /etguide dungeons) opens the journal at that dungeon. Without Evertally the hub opens as before (on its guides).
+    "UI/Dungeons.lua": [
+        ('ns.On("SHOW_DUNGEON", function(key) DS.Show(key) end)',
+         'ns.On("SHOW_DUNGEON", function(key)\n'
+         '\tlocal E = rawget(_G, "Evertally")\n'
+         '\tif type(E) == "table" and E.OpenGuideDungeon and E.OpenGuideDungeon(key) then return end\n'
+         '\tDS.Show(key)\nend)', 1),
+        ('if UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Dungeons"',
+         '-- (Evertally: no section on the rail, see SHOW_DUNGEON above)\nif false and UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Dungeons"', 1),
+    ],
+    # No Characters section either: Evertally's own pages show the characters. The alts are still recorded
+    # (Alts/Snapshot.lua) for the tooltips and the gold total; SHOW_ALTS opens Evertally's Overview.
+    "Alts/View.lua": [
+        ('ns.On("SHOW_ALTS", AV.Show)',
+         'ns.On("SHOW_ALTS", function(...)\n'
+         '\tlocal E = rawget(_G, "Evertally")\n'
+         '\tif type(E) == "table" and E.ShowView then return E.ShowView("overview") end\n'
+         '\treturn AV.Show(...)\nend)', 1),
+        ('if UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Characters"',
+         '-- (Evertally: no section on the rail, see SHOW_ALTS above)\nif false and UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Characters"', 1),
+    ],
     # The settings window's sidebar groups are fixed; Evertally's own settings (addon/Evertally/EvertallySettings.lua)
     # register pages with group = "evertally", which leads the list.
     "UI/Options.lua": [

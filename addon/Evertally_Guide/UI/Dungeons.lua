@@ -2492,7 +2492,11 @@ DS.cards, DS.blocks, DS.bossRows, DS.ties, DS.givers = cards, blocks, bossRows, 
 DS.atts, DS.attSteps = atts, attSteps
 function DS.Frames() return root, home, pg, segs end
 
-ns.On("SHOW_DUNGEON", function(key) DS.Show(key) end)
+ns.On("SHOW_DUNGEON", function(key)
+	local E = rawget(_G, "Evertally")
+	if type(E) == "table" and E.OpenGuideDungeon and E.OpenGuideDungeon(key) then return end
+	DS.Show(key)
+end)
 -- The dungeon list carries names: a late names pack sorts and names it anew.
 local function listChanged()
 	listCache = nil
@@ -2525,7 +2529,8 @@ for _, ev in ipairs({ "BAG_UPDATE_DELAYED", "UPDATE_FACTION" }) do
 	ns.RegisterEvent(ev, ownedChanged)
 end
 
-if UI.RegisterSection then
+-- (Evertally: no section on the rail, see SHOW_DUNGEON above)
+if false and UI.RegisterSection then
 	UI.RegisterSection({
 		key = "Dungeons", label = L["Dungeons"], icon = "icon-dungeon", order = 30,
 		build = DS.Build,

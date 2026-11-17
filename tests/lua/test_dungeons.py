@@ -401,6 +401,21 @@ class DungeonTests(unittest.TestCase):
         self.assertEqual(str(dj.mode), "dungeon")
         self.assertFalse(self.m.OpenDungeonEntry("No Such Place"))
 
+    def test_the_guides_show_dungeon_opens_the_journal_at_that_dungeon(self):
+        # SHOW_DUNGEON(key) of Evertally Guide (map pins, the dungeon toast, Lookup) has no hub section: it lands here
+        self.fake()
+        body, dj = self.page()
+        self.lua.execute("""EvertallyGuide={Dungeons={Load=function() return true end,
+            Find=function(text) if text=="Wailing Caverns" then return "WC" end end, Open=function() end}}""")
+        self.assertTrue(self.m.OpenGuideDungeon("WC"))
+        self.assertEqual(self.lua.globals().SHOWN, "dungeons")
+        self.assertEqual(str(dj.selected.name), "Wailing Caverns")
+        self.assertEqual(str(dj.mode), "dungeon")
+        self.assertTrue(self.m.OpenGuideDungeon("NOPE"), "an unknown key: the journal's home")
+        self.assertEqual(str(dj.mode), "home")
+        self.assertTrue(self.m.OpenGuideDungeon(None))
+        self.assertEqual(str(dj.mode), "home")
+
     def test_a_dungeon_quest_that_questiedb_lacks_is_still_explained_in_a_record(self):
         self.fake()
         rows = lst(self.m.DatabaseRows("quest", 1486))

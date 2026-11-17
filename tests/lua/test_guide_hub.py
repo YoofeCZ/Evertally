@@ -35,7 +35,7 @@ class GuideHubTests(unittest.TestCase):
         for row in rows:
             row.button.scripts.OnClick(row.button)
         ran = [self.lua.globals().RAN[i] for i in range(1, len(rows) + 1)]
-        self.assertEqual(ran, ["show", "guides", "lookup", "rares", "alts", "dungeons", "gear", "talents", "options", "install"])
+        self.assertEqual(ran, ["show", "guides", "lookup", "rares", "gear", "talents", "options", "install"])
         self.assertEqual(str(rows[2].button.text.text), self.a.L("lvLookup"))
 
     def test_the_page_is_in_the_menu_in_both_languages(self):

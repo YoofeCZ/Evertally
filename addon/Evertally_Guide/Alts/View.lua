@@ -438,10 +438,15 @@ function AV.Show()
 	AV.Render()
 end
 
-ns.On("SHOW_ALTS", AV.Show)
+ns.On("SHOW_ALTS", function(...)
+	local E = rawget(_G, "Evertally")
+	if type(E) == "table" and E.ShowView then return E.ShowView("overview") end
+	return AV.Show(...)
+end)
 ns.On("ALTS_UPDATED", function() if root and root:IsVisible() then repaint() end end)
 
-if UI.RegisterSection then
+-- (Evertally: no section on the rail, see SHOW_ALTS above)
+if false and UI.RegisterSection then
 	UI.RegisterSection({
 		key = "Characters", label = L["Characters"], icon = "house", order = 60,
 		build = AV.Build, render = AV.Render,

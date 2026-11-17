@@ -34,6 +34,14 @@ function A.DatabaseRows(kind, id)
     end
     return {{title = A.L("dbUnavailable"), sub = A.L("dbUnavailableSub")}}
 end
+--- Opens the Dungeon Journal at the dungeon Evertally Guide knows by `key` (its Dungeons.Open / SHOW_DUNGEON; nil: the
+--- journal's home). -> true when the journal opened, false when its add-on could not be loaded (the guide's hub then opens).
+function A.OpenGuideDungeon(key)
+    local ok, loaded = pcall(A.LoadGuide)
+    if not (ok and loaded and A.map and A.map.OpenGuideDungeon) then return false end
+    local good, opened = pcall(A.map.OpenGuideDungeon, key)
+    return good and opened == true
+end
 --- Opens the database page on one entry.
 function A.OpenDatabaseEntry(kind, id)
     local ok, loaded = pcall(A.LoadGuide)
