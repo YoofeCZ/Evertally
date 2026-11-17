@@ -30,6 +30,7 @@ CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 ICON_FILES = {}
 STORAGE_FULL = False
+PREP_ATTUNE = False   # dungeons --tab prep: the second row (an attunement) instead of the overview
 GUIDE_LOOK = False
 # Evertally Guide's default look (Polestar's house skin, its Dusk scheme and accent: Evertally_Guide/Theme/House.lua),
 # so the pages can be seen in the colours they take inside the guide's hub. Only the palette and a font are stood in.
@@ -438,7 +439,7 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
 
 WORLD_TABS = ("map", "plan", "gather", "services", "instances")
 # pages with more than one state worth looking at: view -> the states
-STATES = {"setup": ("1", "2", "3", "3:unpaired", "4", "5", "6", "7", "8", "9", "10:names", "10:icons", "10:position", "10:auras", "10:bars", "10", "11", "12"), "settings": ("names", "icons", "auras", "bars", "position", "sharing", "interface", "music"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
+STATES = {"setup": ("1", "2", "3", "3:unpaired", "4", "5", "6", "7", "8", "9", "10:names", "10:icons", "10:position", "10:auras", "10:bars", "10", "11", "12"), "settings": ("names", "icons", "auras", "bars", "position", "sharing", "interface", "music"), "viewer": ("equipped", "bags", "professions"), "world": WORLD_TABS, "database": ("npc", "quest", "item"), "dungeons": ("home", "bosses", "quests", "map", "prep"), "overview": ("activity", "areas", "loot"), "rankings": ("runs", "level", "fastest", "dungeons"), "journal": ("all", "quests")}
 
 
 def capture(lua, a, view, tab=None, quest_id=None, destination=None):
@@ -595,13 +596,60 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
     elif view == "journal" and tab:
         a.journalPage.filter = tab
     a.RefreshUI()
-    if view == "dungeons" and tab and tab != "home":
+    if view == "dungeons" and tab == "prep":
+        # TEST FIXTURE: Evertally Guide's Dungeons for Blackrock Depths (a level 54 Horde character); the shape of
+        # EvertallyGuide.Dungeons, invented states, not the guide's real data.
+        lua.execute(PREVIEW_GUIDE_DUNGEONS)
+        dj = a.dungeonsBody.dungeons
+        a.map.OpenGuideDungeon("BRD")
+        dj.tabs["prep"].GetScript(dj.tabs["prep"], "OnClick")()
+        if PREP_ATTUNE:
+            row = dj.rows[2]
+            row.GetScript(row, "OnClick")(row)
+        a.RefreshUI()
+        lua.execute("PREVIEW_SETTLE()")
+    elif view == "dungeons" and tab and tab != "home":
         dj = a.dungeonsBody.dungeons
         dj.cards[1].GetScript(dj.cards[1], "OnClick")(dj.cards[1])
         dj.tabs[tab].GetScript(dj.tabs[tab], "OnClick")()
         a.RefreshUI()
         lua.execute("PREVIEW_SETTLE()")
     return to_py(lua.eval("PREVIEW_EXPORT")(None))
+
+
+PREVIEW_GUIDE_DUNGEONS = r"""
+  UnitFactionGroup=function() return "Horde" end; UnitLevel=function() return 54 end
+  local function q(id, title, level, minLevel) return {id=id, title=title, level=level, minLevel=minLevel} end
+  local quests = {q(4136, "Ribbly Screwspigot", 53, 48), q(4201, "The Love Potion", 54, 50), q(4134, "Lost Thunderbrew Recipe", 55, 50),
+    q(4123, "The Heart of the Mountain", 55, 50), q(4262, "Overmaster Pyron", 52, 48), q(4263, "Incendius!", 56, 48),
+    q(4981, "Operation: Death to Angerforge", 58, 52), q(7201, "The Last Element", 54, 48), q(3906, "Disharmony of Flame", 52, 48)}
+  local done = {[4262]=true, [4263]=true}
+  local log = {[4123]=true, [4136]=true, [7201]=true}
+  local ready = {[4136]=true}
+  local key = {id=1, name="Shadowforge Key", kind="key", need="one", level=52, item={id=11000, name="Shadowforge Key", quality=1},
+    steps={{kind="quest", id=3802, title="Dark Iron Legacy", level=52, start={map=1418, x=50, y=60, name="Franclorn Forgewright"}},
+           {kind="drop", item={id=10999, name="Ironfel"}, npc={name="Fineous Darkvire"}, chance=100, instance="BRD"},
+           {kind="quest", id=3803, title="Dark Iron Legacy (turn in)", level=52, start={map=1418, x=50, y=60, name="Franclorn Forgewright"}}}}
+  local core = {id=2, name="Attunement to the Core", kind="attunement", need="each", level=55,
+    steps={{kind="quest", id=7848, title="Attunement to the Core", level=60, minLevel=55, start={map=1428, x=29, y=38, name="Lothos Riftwaker"}}}}
+  EvertallyGuide={L={}, Lookup={Guide={}},
+    Compat={IsQuestCompleted=function(id) return done[id] end, IsOnQuest=function(id) return log[id] end, IsQuestReadyForTurnIn=function(id) return ready[id] end},
+    Dungeons={Load=function() return true end, Open=function() end,
+      Find=function(text) if text=="Blackrock Depths" then return "BRD" end end,
+      Get=function(k) if k=="BRD" then return {key="BRD", name="Blackrock Depths", minLevel=52, maxLevel=60, entrance={map=1428, x=34, y=84}} end end,
+      BestAt=function() return 56 end,
+      QuestXP=function() return {levels=3.2, ready={levels=1.6}} end,
+      Quests=function() return quests end, QuestFor=function() return nil end,
+      PickupPlan=function() return {take={4201, 4134}, carried={}, later=1} end,
+      WaitingLines=function() return {"Operation: Death to Angerforge - level 52"} end,
+      HandinPlan=function() return {hand={4136}, errands={}, unfinished={4123, 7201}, inside={}, unplaced={}} end,
+      PickUp=function() end, HandIn=function() end, GuideTo=function() end, GuideToPoint=function() end, Attune=function() end,
+      Attunements=function() return {key, core} end,
+      AttunementState=function(a)
+        if a.id==1 then return {done=false, owned=false, left=2, steps={{step=a.steps[1], state="done"}, {step=a.steps[2], state="open"}, {step=a.steps[3], state="locked"}}} end
+        return {done=false, owned=false, left=1, steps={{step=a.steps[1], state="level"}}}
+      end}}
+"""
 
 
 def main():
@@ -619,9 +667,12 @@ def main():
     ap.add_argument("--openmap", action="store_true", help="draw it as if OpenMap were installed")
     ap.add_argument("--guide-look", action="store_true", help="draw in the colours of Evertally Guide (its hub)")
     ap.add_argument("--storage-full", action="store_true", help="show the overview's storage limit warning")
+    ap.add_argument("--prep-attune", action="store_true", help="dungeons --tab prep: show the attunement instead of the overview")
     args = ap.parse_args()
     global STORAGE_FULL, GUIDE_LOOK
     STORAGE_FULL = args.storage_full
+    global PREP_ATTUNE
+    PREP_ATTUNE = args.prep_attune
     GUIDE_LOOK = args.guide_look
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

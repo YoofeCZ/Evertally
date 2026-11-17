@@ -63,6 +63,7 @@ DungeonGuideForever.lua
 DungeonGuideClassic1.lua
 DungeonGuideClassic2.lua
 DungeonGuide.lua
+DungeonPrep.lua
 GuideData.lua
 WorldCatalog.lua
 DungeonJournal.lua

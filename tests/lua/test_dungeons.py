@@ -471,8 +471,85 @@ class DungeonTests(unittest.TestCase):
         self.assertEqual(self.m.GuideDungeonKey(self.lua.eval("{name='Wailing Caverns'}")), "WC")
         self.assertEqual(self.m.GuideDungeonKey(self.lua.eval("{name='Scarlet Monastery: Library'}")), "SM")
         self.assertIsNone(self.m.GuideDungeonKey(self.lua.eval("{name='Hall of Thanes'}")))
+
+    FAKE_GUIDE = """CALLED={}
+      local function q(id, title, minLevel) return {id=id, title=title, level=minLevel+2, minLevel=minLevel} end
+      local quests = {q(1, "Done one", 10), q(2, "In the log", 10), q(3, "Finished", 10), q(4, "Open", 10), q(5, "Later", 40), q(6, "Warlocks", 10)}
+      local att = {id=7, name="The Key", kind="key", need="each", item={id=5396, name="Key to Searing Gorge", quality=1},
+        steps={{kind="quest", id=11, title="First step", start={map=1426, x=50, y=50, name="Giver"}}, {kind="drop", item={id=9, name="Shard"}, npc={name="Ogre"}}}}
+      EvertallyGuide={L={},
+        Compat={IsQuestCompleted=function(id) return id==1 end, IsOnQuest=function(id) return id==2 or id==3 end,
+          IsQuestReadyForTurnIn=function(id) return id==3 end},
+        Lookup={Guide={}},
+        Dungeons={Load=function() return true end,
+          Find=function(text) if text=="Wailing Caverns" then return "WC" end end, Open=function() end,
+          Get=function(key) if key=="WC" then return {key="WC", name="Wailing Caverns", minLevel=15, maxLevel=25, entrance={map=1413, x=46, y=36}} end end,
+          BestAt=function() return 19 end,
+          QuestXP=function() return {levels=2.4, ready={levels=1.1}} end,
+          Quests=function() return quests end,
+          QuestFor=function(q) if q.id==6 then return "Warlock", "class" end end,
+          PickupPlan=function() return {take={4}, carried={}, later=1} end,
+          WaitingLines=function() return {"Later: level 40"} end,
+          HandinPlan=function() return {hand={3}, errands={}, unfinished={2}, inside={}, unplaced={}} end,
+          PickUp=function(key) CALLED[#CALLED+1]="pickup:"..key end,
+          HandIn=function(key) CALLED[#CALLED+1]="handin:"..key end,
+          GuideTo=function(key) CALLED[#CALLED+1]="go:"..key end,
+          GuideToPoint=function(p, label) CALLED[#CALLED+1]="point:"..label end,
+          Attunements=function() return {att} end,
+          AttunementState=function(a) return {done=false, owned=false, left=2, steps={{step=a.steps[1], state="open"}, {step=a.steps[2], state="locked"}}} end,
+          Attune=function(key, id) CALLED[#CALLED+1]="attune:"..key..":"..id end}}"""
+
+    def test_the_for_you_tab_has_the_quest_state_runs_and_attunements_of_the_guide(self):
+        self.fake()
+        self.lua.execute(self.FAKE_GUIDE)
+        self.lua.execute("UnitFactionGroup=function() return 'Horde' end; UnitLevel=function() return 18 end")
+        body, dj = self.page()
+        self.open(dj, "Wailing Caverns")
+        self.assertTrue(dj.tabs["prep"].shown, "the guide knows Wailing Caverns")
+        self.assertEqual(str(dj.tabs["prep"].text.text), self.a.L("prepTab"))
+        self.tab(dj, "prep")
+        self.assertEqual([str(i.title) for i in lst(dj["items"])], [self.a.L("prepOverview"), "The Key"])
+        texts = self.texts(dj)
+        self.assertIn(self.a.L("prepXP") % 2.4, texts)
+        counts = "  ·  ".join(self.a.L("prepCount_" + key) % 1 for key in ("ready", "log", "open", "low", "done", "other"))
+        self.assertIn(counts, texts, "every state counted, on one line")
+        links = {str(r.spec.title): r for r in self.links(dj)}
+        for title, called in ((self.a.L("prepPickup") % 1, "pickup:WC"), (self.a.L("prepHandin") % 1, "handin:WC")):
+            links[title].scripts.OnClick(links[title])
+            self.assertEqual(self.lua.globals().CALLED[len(self.lua.globals().CALLED)], called)
+        # an attunement: its item, the guide through it, each step with its state; a step with a place sets the arrow
+        row = next(r for r in lst(dj.rows) if r.item and str(r.item.title) == "The Key")
+        row.scripts.OnClick(row)
+        links = {str(r.spec.title): r for r in self.links(dj)}
+        self.assertIn("Key to Searing Gorge", links)
+        self.assertEqual(str(links["Key to Searing Gorge"].spec.sub), self.a.L("prepHaveNot"))
+        guide = links[self.a.L("prepAttGuide")]
+        guide.scripts.OnClick(guide)
+        self.assertEqual(self.lua.globals().CALLED[len(self.lua.globals().CALLED)], "attune:WC:7")
+        self.assertIn(self.a.L("prepState_open"), str(links["First step"].spec.sub))
+        links["First step"].scripts.OnClick(links["First step"])
+        self.assertEqual(self.lua.globals().CALLED[len(self.lua.globals().CALLED)], "point:Giver")
+        self.assertEqual(str(links[self.a.L("prepFrom") % ("Shard", "Ogre")].spec.sub), self.a.L("prepState_locked"))
+        self.assertIsNone(links[self.a.L("prepFrom") % ("Shard", "Ogre")].spec.onClick, "no place: no arrow")
+
+    def test_the_quests_tab_says_which_quests_are_done_or_in_the_log(self):
+        self.fake()
+        self.lua.execute("EvertallyGuide={Compat={IsQuestCompleted=function(id) return id==1486 end, IsOnQuest=function() return false end}}")
+        body, dj = self.page()
+        self.open(dj, "Wailing Caverns")
+        self.tab(dj, "quests")
+        badges = {str(i.title): (str(i.badge) if i.badge else None) for i in lst(dj["items"])}
+        self.assertEqual(badges["Deviate Hides"], self.a.L("prepBadge_done"))
+
+    def test_without_the_guide_there_is_no_for_you_tab(self):
+        self.fake()
+        body, dj = self.page()
+        self.open(dj, "Wailing Caverns")
+        self.assertFalse(dj.tabs["prep"].shown)
+        self.assertTrue(dj.tabs["bosses"].shown)
         for lang in ("en", "cs"):
-            self.assertTrue(self.a.locale[lang]["dungeonsGuide"])
+            for key in ("prepTab", "prepOverview", "prepPickup", "prepHandin", "prepAttGuide", "prepUnknown"):
+                self.assertTrue(self.a.locale[lang][key], (lang, key))
     def test_the_database_hands_its_search_to_the_guides_lookup(self):
         # Lookup (Evertally Guide) has its own Codex and needs no QuestieDB; the Database keeps browsing and the card.
         self.assertFalse(self.m.OpenGuideLookup("Linen Cloth"), "no guide: no Lookup")
