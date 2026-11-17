@@ -14,6 +14,7 @@ local text = {
     en = {dgGuide = "Guide", dgOverview = "Overview", dgTank = "Tank", dgHealer = "Healer", dgDps = "Damage", dgClasses = "Classes", dgTips = "Tips",
         dgTactic = "Tactic", dgRoute = "Route", dgClassicNote = "Written from the Classic version of this fight. Forever may have changed it: if something differs, let us know.",
         dgNewDungeon = "This dungeon is new in Forever and no tactics have been published for it yet. What follows is general advice from dungeons of the same level and kind, not a description of these fights.",
+        dgPublished = "This dungeon is new in Forever. The boss tactics follow the guides published for it in November 2026 (Wowhead, Warcraft Tavern), in our own words; Forever may still change the fights. The rest is general advice from dungeons of the same level and kind.",
         dgSend = "Do you know how a boss here works? Send the tactic (abilities, what to avoid, what worked) to %s and it goes into the guide for everyone.",
         dgBossUnknown = "The abilities of this boss are not described anywhere yet. General advice: pull it into a clear room, keep it facing away from the group, interrupt casts you have not seen before and save cooldowns for the second half.",
         dgYourClass = "Your class", dgMobs = "Enemies here: %s", dgCleanse = "Remove from the group: %s",
@@ -22,6 +23,7 @@ local text = {
     cs = {dgGuide = "Návod", dgOverview = "Přehled", dgTank = "Tank", dgHealer = "Healer", dgDps = "DPS", dgClasses = "Povolání", dgTips = "Tipy",
         dgTactic = "Taktika", dgRoute = "Postup", dgClassicNote = "Napsáno podle verze tohoto souboje z Classicu. Forever ho mohl změnit: když se něco liší, dej vědět.",
         dgNewDungeon = "Tenhle dungeon je ve Forever nový a taktiky k němu zatím nikde nevyšly. Dál jsou obecné rady z dungeonů stejné úrovně a druhu, ne popis zdejších soubojů.",
+        dgPublished = "Tenhle dungeon je ve Forever nový. Taktiky bossů vycházejí z návodů, které k němu vyšly v listopadu 2026 (Wowhead, Warcraft Tavern), napsané vlastními slovy; Forever souboje ještě může měnit. Zbytek jsou obecné rady z dungeonů stejné úrovně a druhu.",
         dgSend = "Víš, jak tu některý boss funguje? Pošli taktiku (schopnosti, čemu se vyhnout, co fungovalo) na %s a dostane se do návodu pro všechny.",
         dgBossUnknown = "Schopnosti tohohle bosse zatím nikde popsané nejsou. Obecně: stáhni ho do čisté místnosti, natoč ho od skupiny, přerušuj kouzla, která neznáš, a cooldowny si nech na druhou polovinu souboje.",
         dgYourClass = "Tvoje povolání", dgMobs = "Nepřátelé: %s", dgCleanse = "Čistit ze skupiny: %s",
@@ -154,7 +156,7 @@ function G.Render(d, entry, section)
         local data = entry.data or {}
         if data.description then d.Text(data.description) end
         if guide.intro then d.Text(G.Pick(guide.intro)) end
-        if new then d.Text(A.L("dgNewDungeon"), C.peach or d.ink, 12) end
+        if new then d.Text(A.L(guide.published and "dgPublished" or "dgNewDungeon"), C.peach or d.ink, 12) end
         if guide.route then d.Head(A.L("dgRoute")); d.Text(G.Pick(guide.route)) end
         if guide.mobs and #guide.mobs > 0 then d.Text(string.format(A.L("dgMobs"), names(guide.mobs, "dgMob_")), d.ink, 12) end
         if guide.dispel and #guide.dispel > 0 then d.Text(string.format(A.L("dgCleanse"), names(guide.dispel, "dgDispel_")), d.ink, 12) end

@@ -198,12 +198,32 @@ class DungeonTests(unittest.TestCase):
         self.assertLess(tactic, texts.index(self.a.L("dungeonsLoot")))
         self.assertIn("Rhahk'Zor Slam", texts[tactic + 1])
         guide = self.m.DungeonGuide
-        entry = self.lua.eval('{name = "Krol\'dok Stronghold", data = {}}')
-        boss = self.lua.eval('{name = "Overlord Mugg"}')
+        entry = self.lua.eval('{name = "Blackmaw Hold", data = {}}')
+        boss = self.lua.eval('{name = "Withermaw"}')
         dj.detail.Reset(); guide.RenderBoss(dj.detail, entry, boss)
         joined = " ".join(self.texts(dj))
         self.assertIn(self.a.L("dgBossUnknown"), joined)
         self.assertIn("dominik.mracek@afstudio.dev", joined)
+        # a published fight of a new dungeon: its tactic, and the overview says where the tactics come from
+        entry = self.lua.eval('{name = "Krol\'dok Stronghold", data = {}}')
+        dj.detail.Reset(); guide.RenderBoss(dj.detail, entry, self.lua.eval('{name = "Overlord Mugg"}'))
+        self.assertIn("Crushing Slam", " ".join(self.texts(dj)))
+        guide.Render(dj.detail, entry, "overview")
+        self.assertIn(self.a.L("dgPublished"), self.texts(dj))
+
+    def test_the_new_dungeons_have_a_tactic_for_every_boss_the_guides_describe(self):
+        guides = self.m.dungeonGuides
+        data = self.m.dungeonData
+        missing = {}
+        for name in ("Hall of Thanes", "Ruins of Lordaeron", "Excavation Site: Wetlands", "City of Dalaran", "The Drowned City",
+                     "Krol'dok Stronghold", "Alcaz Prison", "Shaper's Terrace"):
+            self.assertTrue(guides[name].published, name)
+            bosses = [str(b.name) for b in lst(data[name].bosses) if not str(b.name).startswith("Trash")]
+            lacking = [b for b in bosses if guides[name].bosses[b] is None]
+            if lacking:
+                missing[name] = lacking
+        # the published guides say nothing about him
+        self.assertEqual(missing, {"Ruins of Lordaeron": ["Lordaeron Captain"]})
 
     def test_every_guide_names_real_dungeons_and_bosses(self):
         guides = self.m.dungeonGuides
