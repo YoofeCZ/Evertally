@@ -25,3 +25,4 @@
 # Reproducible data packages and copied third-party sources are kept locally.
 /shared/assets/
 /shared/sources/
+/tools/polestar-cs/batch/
