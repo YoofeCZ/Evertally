@@ -17,21 +17,21 @@ local Engine = ns.Engine
 -- tainted every search, and the game blocked the Discord sign-in row's
 -- C_Discord.IsUserOAuthed() in its results, blaming Polestar or the
 -- Recorder (#1996, #2207). The search finds a binding by its name.
-BINDING_NAME_POLESTAR_TOGGLE = L["Toggle guide window"]
-BINDING_NAME_POLESTAR_HIDE = L["Hide/show Evertally"]
-BINDING_NAME_POLESTAR_NEXT = L["Next step"]
-BINDING_NAME_POLESTAR_PREV = L["Previous step"]
-BINDING_NAME_POLESTAR_FOCUS = L["Browse guide (gamepad)"]
-BINDING_NAME_POLESTAR_MENU = L["Open the guide menu"]
-BINDING_NAME_POLESTAR_OPTIONS = L["Open Evertally options"]
-BINDING_NAME_POLESTAR_REPORT = L["Report a problem"]
-BINDING_NAME_POLESTAR_NEXT_WAYPOINT = L["Next waypoint"]
-BINDING_NAME_POLESTAR_PREV_WAYPOINT = L["Previous waypoint"]
-BINDING_NAME_POLESTAR_REOPEN_TAB = L["Reopen closed tab"]
-BINDING_NAME_POLESTAR_PAUSE = L["Pause the guide"]
+BINDING_NAME_EVERTALLYGUIDE_TOGGLE = L["Toggle guide window"]
+BINDING_NAME_EVERTALLYGUIDE_HIDE = L["Hide/show Evertally"]
+BINDING_NAME_EVERTALLYGUIDE_NEXT = L["Next step"]
+BINDING_NAME_EVERTALLYGUIDE_PREV = L["Previous step"]
+BINDING_NAME_EVERTALLYGUIDE_FOCUS = L["Browse guide (gamepad)"]
+BINDING_NAME_EVERTALLYGUIDE_MENU = L["Open the guide menu"]
+BINDING_NAME_EVERTALLYGUIDE_OPTIONS = L["Open Evertally options"]
+BINDING_NAME_EVERTALLYGUIDE_REPORT = L["Report a problem"]
+BINDING_NAME_EVERTALLYGUIDE_NEXT_WAYPOINT = L["Next waypoint"]
+BINDING_NAME_EVERTALLYGUIDE_PREV_WAYPOINT = L["Previous waypoint"]
+BINDING_NAME_EVERTALLYGUIDE_REOPEN_TAB = L["Reopen closed tab"]
+BINDING_NAME_EVERTALLYGUIDE_PAUSE = L["Pause the guide"]
 -- The item under the cursor (QoL/Marks.lua, Marks.Press).
-BINDING_NAME_POLESTAR_MARK_JUNK = L["Mark as junk"]
-BINDING_NAME_POLESTAR_MARK_KEEP = L["Mark to keep"]
+BINDING_NAME_EVERTALLYGUIDE_MARK_JUNK = L["Mark as junk"]
+BINDING_NAME_EVERTALLYGUIDE_MARK_KEEP = L["Mark to keep"]
 -- Labels for the QoL secure buttons' CLICK bindings (QoL/Buttons.lua). The
 -- client looks these names up as globals; they contain spaces and a colon,
 -- so they can only be set through _G.
@@ -74,7 +74,7 @@ ns.Bindings = {
 
 local function needGuide()
 	if Engine.GetGuide() then return true end
-	ns.Print(L["No guide selected. Use /polestar guides to pick one."])
+	ns.Print(L["No guide selected. Use /etguide guides to pick one."])
 	return false
 end
 
@@ -87,7 +87,7 @@ ns.RegisterCommand("hide", function(rest)
 		return
 	end
 	ns.ToggleHidden()
-	if ns.Hidden() then ns.Print(L["Evertally is hidden: /polestar hide or the minimap button shows it again."]) end
+	if ns.Hidden() then ns.Print(L["Evertally is hidden: /etguide hide or the minimap button shows it again."]) end
 end, L["Hide or show everything Evertally shows (hide arrow: keep the arrow when hidden)"], true)
 ns.RegisterCommand("guides", function() ns.Fire("SHOW_PICKER") end, L["Choose a guide"])
 ns.RegisterCommand("options", function(rest) ns.Fire("SHOW_OPTIONS", rest ~= "" and rest or nil) end, L["Open settings"])
@@ -207,7 +207,7 @@ end, L["Choose (or change) where to level next"])
 -- before, still opens it.
 local function showInstall() ns.Fire("SHOW_WELCOME") end
 ns.RegisterCommand("install", showInstall, L["Set Evertally up again, a page at a time (Install)"])
-ns.RegisterCommand("welcome", showInstall, L["Opens Install, as /polestar install does"])
+ns.RegisterCommand("welcome", showInstall, L["Opens Install, as /etguide install does"])
 
 ns.RegisterCommand("whatsnew", function()
 	ns.Fire("SHOW_WHATSNEW")

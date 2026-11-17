@@ -557,7 +557,7 @@ end
 -- The waypoint and the target start together: a refused target leaves no
 -- waypoint for the caller to remove.
 local function start(map, x, y, title, opts)
-	if not shimActive or type(opts) == "table" and (opts.from == "Polestar" or opts.corpse) then return nil end
+	if not shimActive or type(opts) == "table" and (opts.from == "EvertallyGuide" or opts.corpse) then return nil end
 	if type(title) ~= "string" then title = nil end
 	if not API.Navigate(OWNER, map, x, y, title) then return nil end
 	local uid = { map, x, y, title = title }
@@ -703,7 +703,7 @@ local live = false
 local fromTomTom = false -- true while a followed waypoint is being set as the target
 
 local function follow(uid)
-	if type(uid) ~= "table" or uid.corpse or uid.from == "Polestar" then return end
+	if type(uid) ~= "table" or uid.corpse or uid.from == "EvertallyGuide" then return end
 	if not live then
 		restored = uid
 		return
@@ -881,7 +881,7 @@ local function wayTaken()
 	if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("TomTom") then return true end
 	for key, value in pairs(_G) do
 		if type(value) == "string" and type(key) == "string" and key:find("^SLASH_") and lower(value) == "/way"
-			and key ~= "SLASH_POLESTARWAY1" then
+			and key ~= "SLASH_EVERTALLYGUIDEWAY1" then
 			return true
 		end
 	end
@@ -891,8 +891,8 @@ end
 -- Every addon has loaded by login, so whoever owns /way is there to be seen.
 -- No slash command with the gamepad interface (Core/Init.lua).
 local function claimWay()
-	if SLASH_POLESTARWAY1 or ns.GamepadUI() or not ns.Get("nav.answerTomTom") or Nav.HandedOff() or wayTaken() then return end
-	SLASH_POLESTARWAY1 = "/way"
+	if SLASH_EVERTALLYGUIDEWAY1 or ns.GamepadUI() or not ns.Get("nav.answerTomTom") or Nav.HandedOff() or wayTaken() then return end
+	SLASH_EVERTALLYGUIDEWAY1 = "/way"
 	SlashCmdList.EVERTALLYGUIDEWAY = Journey.Way
 end
 

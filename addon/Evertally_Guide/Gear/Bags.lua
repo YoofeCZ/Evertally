@@ -59,7 +59,7 @@ Gear.Bags = Bags
 local BADGE = 20 -- the arrow texture's size, as on the reward panel
 local LAYER = 3 -- OVERLAY sublevel: over IconOverlay2, under searchOverlay
 local REDRAW = 0.2 -- seconds: GEAR_UPDATED repaints at most this often
-local WIDGET = "polestar_upgrade" -- bag addon corner widget id
+local WIDGET = "evertally_guide_upgrade" -- bag addon corner widget id
 
 -- Pawn draws its own arrows on bag items: gear.hideForPawn leaves the bags to
 -- it while Pawn is installed and enabled. None while Polestar is hidden.
@@ -207,7 +207,7 @@ if not (registeredBags.Baganator and registeredBags.BagSmith) then ns.RegisterEv
 -- EllesmereUI Bags
 ---------------------------------------------------------------------------
 
-local ELLESMERE = "Polestar" -- the painter's name in EUI_Bags.itemOverlayIcons
+local ELLESMERE = "EvertallyGuide" -- the painter's name in EUI_Bags.itemOverlayIcons
 local ellesmere = false
 local marks = setmetatable({}, { __mode = "k" }) -- item button -> arrow texture
 local painted = setmetatable({}, { __mode = "k" }) -- item button -> link it last painted (false: none)

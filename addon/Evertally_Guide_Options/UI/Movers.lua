@@ -1569,7 +1569,7 @@ do
 		page = L["Guide"], tab = L["Window"], section = L["Position"],
 		controls = {
 			{ kind = "button", icon = "resize", button = L["Unlock"], label = L["Move frames"], new = "0.3.8",
-				help = L["A box over each of Evertally's frames (the guide window, the arrow, the buttons, the alerts and the trackers) to drag where you want it, with a grid and snapping. Also /polestar unlock."],
+				help = L["A box over each of Evertally's frames (the guide window, the arrow, the buttons, the alerts and the trackers) to drag where you want it, with a grid and snapping. Also /etguide unlock."],
 				search = "move, unlock, drag, position, place, layout, edit mode, mover, movers, arrange, reposition, anchor, grid, snap, align, nudge",
 				onClick = function() M.Unlock() end },
 			{ kind = "toggle", key = "movers.snap", label = L["Snap while moving"], new = "0.3.8",

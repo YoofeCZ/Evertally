@@ -79,7 +79,7 @@ local NOTES = {
 				return L["In 9 languages, now with German and Latin American Spanish guides. Thanks, translators!"]
 			end },
 			{ glyph = "check", color = "success", head = L["Fixes from your reports"], text = function()
-				return L["Caves, cities, flights and more. Found something off? Type %s."]:format(cmd("/polestar report"))
+				return L["Caves, cities, flights and more. Found something off? Type %s."]:format(cmd("/etguide report"))
 			end },
 		},
 	},
@@ -114,7 +114,7 @@ local NOTES = {
 				return L["All of 0.3.7 in 9 languages, with thanks to our translators."]
 			end },
 			{ glyph = "check", color = "success", head = L["Fixes from your reports"], text = function()
-				return L["Routes, trainers, dungeons and more. Found something off? Type %s."]:format(cmd("/polestar report"))
+				return L["Routes, trainers, dungeons and more. Found something off? Type %s."]:format(cmd("/etguide report"))
 			end },
 		},
 	},
@@ -149,7 +149,7 @@ local NOTES = {
 				return L["In 9 languages, with thanks to our translators."]
 			end },
 			{ glyph = "check", color = "success", head = L["Fixes from your reports"], text = function()
-				return L["Gear spec, trainers, map spots and more. Found something off? Type %s."]:format(cmd("/polestar report"))
+				return L["Gear spec, trainers, map spots and more. Found something off? Type %s."]:format(cmd("/etguide report"))
 			end },
 		},
 	},

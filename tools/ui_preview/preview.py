@@ -29,6 +29,7 @@ from test_forever_traits import FOREVER_TRAITS  # noqa: E402
 CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 ICON_FILES = {}
+STORAGE_FULL = False
 VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "leveling", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
 
 FIXTURE = r'''
@@ -568,6 +569,8 @@ def capture(lua, a, view, tab=None, quest_id=None, destination=None):
         if quest_id:
             frame.db.selected = lua.table_from({"kind": "quest", "id": int(quest_id)})
             a.map.WorldDbDetail(frame)
+    if view == "overview" and STORAGE_FULL:
+        a.storageFull = True
     if view == "overview" and tab:
         a.overviewPage.recentMode = tab
     elif view == "rankings" and tab:
@@ -597,7 +600,10 @@ def main():
     ap.add_argument("--quest-id", type=int, help="show an actual local quest card in the database reader")
     ap.add_argument("--destination", help="select a real travel destination in the journey tab")
     ap.add_argument("--openmap", action="store_true", help="draw it as if OpenMap were installed")
+    ap.add_argument("--storage-full", action="store_true", help="show the overview's storage limit warning")
     args = ap.parse_args()
+    global STORAGE_FULL
+    STORAGE_FULL = args.storage_full
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     sw, sh = (int(v) for v in args.screen.split("x"))

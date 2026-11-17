@@ -628,4 +628,4 @@ ns.RegisterCommand("profile", function(rest)
 	end
 	P.Switch(found)
 	ns.Print((L["Profile in use: %s."]):format(P.Label(found)))
-end, L["Switch to a settings profile: /polestar profile <name>"])
+end, L["Switch to a settings profile: /etguide profile <name>"])

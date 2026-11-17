@@ -61,7 +61,7 @@ if Nav.nearby then
 		return {
 			{ kind = "toggle", key = "nav.nearbyMenu", label = L["Nearby services in map menus"],
 				search = "nearest vendor, repair, trainer, mailbox, bank, inn, find npc, tracking",
-				help = L["The world map's and minimap's tracking menus find the nearest trainer, vendor, inn, bank and more (/polestar near)."] },
+				help = L["The world map's and minimap's tracking menus find the nearest trainer, vendor, inn, bank and more (/etguide near)."] },
 			{ kind = "toggle", key = "nav.nearbyButton", label = L["Nearby services button"],
 				search = "nearest vendor, repair, trainer, inn, flight master, find npc",
 				help = L["A button in the guide window's header, left of the menu, finds the nearest vendor, repair, inn, flight master or trainer and points the arrow there."] },

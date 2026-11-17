@@ -300,13 +300,13 @@ function Restock.Command(rest)
 			ns.Print(format(L["Restock: %s to %d"], link, v))
 			any = true
 		end
-		if not any then ns.Print(L["Nothing to restock. Set amounts on the options page, or: /polestar restock <item> <amount>."]) end
+		if not any then ns.Print(L["Nothing to restock. Set amounts on the options page, or: /etguide restock <item> <amount>."]) end
 		return
 	end
 	local kind = WORDS[what:lower()]
 	local id = not kind and (Client.ItemIDFromLink(what) or tonumber(what))
 	if not (kind or id) or not n then
-		ns.Print(L["Usage: /polestar restock [drink|food|ammo|<item>] <amount>"])
+		ns.Print(L["Usage: /etguide restock [drink|food|ammo|<item>] <amount>"])
 		return
 	end
 	if kind then

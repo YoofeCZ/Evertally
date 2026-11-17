@@ -4921,8 +4921,8 @@ function Own.acceptNotice(s, g, goal, status)
 	if nl then
 		local N = ns.Names
 		local who = N.Npc(goal.npc) or goal.npcName or N.Object(goal.object) or goal.objName or L["the quest giver"]
-		if nl.chat then return L["Not in %s's quest list: try a chat option, or report it with /polestar if none offers it"]:format(who) end
-		return L["Not offered by %s? Report it with /polestar"]:format(who)
+		if nl.chat then return L["Not in %s's quest list: try a chat option, or report it with /etguide if none offers it"]:format(who) end
+		return L["Not offered by %s? Report it with /etguide"]:format(who)
 	end
 	return nil
 end

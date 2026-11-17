@@ -74,7 +74,7 @@ local function build(menu, template)
 	button = CreateFrame("Button", "EvertallyGuideGameMenuButton", UIParent, template)
 	button:SetParent(menu)
 	button:SetSize(144, 21)
-	button:SetText("Polestar")
+	button:SetText("Evertally Guide")
 	-- Left: the guide menu; right: the settings window.
 	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	button:SetScript("OnClick", function(_, which)

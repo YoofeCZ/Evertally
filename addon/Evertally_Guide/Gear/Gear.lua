@@ -1674,7 +1674,7 @@ function Gear.PrintScales()
 	local class = Gear.GetPlayer().class
 	local list = class and Gear.Scales.List(class) or {}
 	if #list == 0 then
-		ns.Print(L["No custom scales yet. /polestar gear import adds one."])
+		ns.Print(L["No custom scales yet. /etguide gear import adds one."])
 		return
 	end
 	local chosen = class and Gear.Scales.Chosen(class)
@@ -1715,7 +1715,7 @@ ns.RegisterCommand("gear", function(rest)
 	if rest == nil or rest == "" then
 		ns.Print(L["Gear weights"] .. ": " .. tostring(label) .. " (" .. (SPEC_SOURCE[source] or tostring(source)) .. ")")
 		if scoredBy then DEFAULT_CHAT_FRAME:AddMessage("  " .. Gear.ScoredFor()) end
-		DEFAULT_CHAT_FRAME:AddMessage("  " .. L["Choose them in Settings > Questing > Rewards & gear > Stat weights. /polestar gear spec: how Automatic picks them."])
+		DEFAULT_CHAT_FRAME:AddMessage("  " .. L["Choose them in Settings > Questing > Rewards & gear > Stat weights. /etguide gear spec: how Automatic picks them."])
 		return
 	end
 	local r = Gear.CompareToEquipped(rest)

@@ -1,9 +1,12 @@
 local addonName, A = ...
 _G.Evertally = A
 A.handlers, A.capabilities, A.errors = {}, {}, {}
-A.MAX_EVENTS, A.MAX_RUNS, A.MAX_EXPORT = 5000, 1000, 4000
+A.MAX_EVENTS, A.MAX_RUNS, A.MAX_EXPORT = 50000, 1000, 4000
 -- Soft limits stop only repeated low-priority sampling; results keep recording up to the hard cap.
-A.HARD_EVENTS, A.HARD_EXPORT = 6000, 4800
+-- The local history is never pruned. 60 000 events stay well inside what Evertally Sync reads (sync/src/local.rs
+-- MAX_HISTORY_BYTES 64 MiB, savedvars.rs MAX_NODES_HISTORY 4M and MAX_INDEX 100 000): measured 2026-11-17 on a real
+-- file, 5 027 events took 3.6 MB and ~165 000 lines, so 60 000 come to ~43 MB at most.
+A.HARD_EVENTS, A.HARD_EXPORT = 60000, 4800
 local sampling={["npc.observed"]=true,["vendor.snapshot"]=true,["profession.snapshot"]=true,
     ["cooldown.snapshot"]=true,["character.snapshot"]=true,["track.path"]=true,["journey.chunk"]=true,["armory.snapshot"]=true,["armory.view"]=true}
 local function overLimit(count,soft,hard,kind) return count>=hard or (count>=soft and sampling[kind]==true) end

@@ -810,9 +810,9 @@ function Nav.SayGuideHidden()
 	if ns.ArrowHidden() then
 		ns.Print(L["Evertally is hidden, the arrow with it: \"Keep the arrow when hidden\" in the minimap button's menu keeps it."])
 	elseif Nav.HiddenWithGuide() then
-		ns.Print(L["The guide is hidden and \"Hide the arrow with the guide\" is on, so the arrow is hidden too: /polestar show brings them back."])
+		ns.Print(L["The guide is hidden and \"Hide the arrow with the guide\" is on, so the arrow is hidden too: /etguide show brings them back."])
 	elseif ns.PauseHides("arrow") and not (hold or override) then
-		ns.Print(L["Evertally is paused: the arrow follows the guide again once you leave the dungeon alive, or after /polestar resume."])
+		ns.Print(L["Evertally is paused: the arrow follows the guide again once you leave the dungeon alive, or after /etguide resume."])
 	elseif arrowOutOfSight() then
 		ns.SayOutOfSight()
 	end
@@ -869,7 +869,7 @@ ns.RegisterCommand("way", function(rest)
 		if (rest or ""):match("^%s*$") then
 			Nav.ClearTarget()
 		else
-			ns.Print(L["Usage: /polestar way <x> <y> [label]"])
+			ns.Print(L["Usage: /etguide way <x> <y> [label]"])
 		end
 		return
 	end

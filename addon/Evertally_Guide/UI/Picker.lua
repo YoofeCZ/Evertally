@@ -2047,9 +2047,9 @@ function P.Render()
 					empty = L["No guides: Evertally Guides is installed but unticked in the game's AddOns list."]
 					turnOn = true
 				elseif Pk and Pk.OursSwitchedOff() then
-					empty = L["No guides shown: Evertally's own guides are switched off. Turn them on under Options, Community guides (/polestar packs)."]
+					empty = L["No guides shown: Evertally's own guides are switched off. Turn them on under Options, Community guides (/etguide packs)."]
 				elseif Pk and Pk.AnySwitchedOff() then
-					empty = L["No guides shown: the community addons are switched off. Turn one on under Options, Community guides (/polestar packs)."]
+					empty = L["No guides shown: the community addons are switched off. Turn one on under Options, Community guides (/etguide packs)."]
 				else
 					empty = L["No guides installed. Enable Evertally Guides or a community addon in the AddOns list on the character screen, then reload."]
 				end

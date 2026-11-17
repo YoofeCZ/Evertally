@@ -109,7 +109,7 @@ local function needed(link)
 end
 
 -- Baganator and BagSmith: a corner widget, top-right, placed by the addon.
-local WIDGET = "polestar_quest_needed"
+local WIDGET = "evertally_guide_quest_needed"
 local registeredBags = {}
 
 local function cornerAPI(name)

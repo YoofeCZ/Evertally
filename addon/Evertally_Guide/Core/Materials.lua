@@ -60,7 +60,7 @@ local MODES = { gather = true, buy = true, mix = true }
 Materials.LOW, Materials.PAST = 2, 5
 local PRICE_DAYS = 14
 local PRICE_ROWS = 40 -- listings kept per item, cheapest first: enough to price a bracket's cloth
-local CALLER = "Polestar" -- the caller id Auctionator's API asks for
+local CALLER = "Evertally Guide" -- the caller id Auctionator's API asks for
 
 ---------------------------------------------------------------------------
 -- State

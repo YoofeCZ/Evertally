@@ -1357,7 +1357,7 @@ local function showHelp()
 	ns.Print(L["Commands"])
 	for i = 1, #commandOrder do
 		local name = commandOrder[i]
-		DEFAULT_CHAT_FRAME:AddMessage(("  /polestar %s  |cff8a8f98%s|r"):format(name, commands[name].help or ""))
+		DEFAULT_CHAT_FRAME:AddMessage(("  /etguide %s  |cff8a8f98%s|r"):format(name, commands[name].help or ""))
 	end
 end
 
@@ -1382,13 +1382,13 @@ function ns.RunCommand(msg)
 	call(c.fn, rest)
 end
 if not gamepadUI then
-	SLASH_POLESTAR1 = "/polestar"
-	SLASH_POLESTAR2 = "/pole"
-	SLASH_POLESTAR3 = "/ps"
+	SLASH_EVERTALLYGUIDE1 = "/etguide"
+	SLASH_EVERTALLYGUIDE2 = "/etg"
+	SLASH_EVERTALLYGUIDE3 = "/evertallyguide"
 	SlashCmdList.EVERTALLYGUIDE = ns.RunCommand
 end
-if not gamepadUI and not SLASH_POLESTAR_RL1 then
-	SLASH_POLESTAR_RL1 = "/rl"
+if not gamepadUI and not SLASH_EVERTALLYGUIDE_RL1 then
+	SLASH_EVERTALLYGUIDE_RL1 = "/rl"
 	SlashCmdList.EVERTALLYGUIDE_RL = function()
 		if C_UI and C_UI.Reload then
 			C_UI.Reload()

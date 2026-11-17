@@ -105,6 +105,39 @@ class PolestarImportTests(unittest.TestCase):
         self.assertEqual(importer.lua('local x = Polestar.Nav; PolestarDB = {}'), 'local x = EvertallyGuide.Nav; EvertallyGuideDB = {}')
         self.assertEqual(importer.lua('-- Polestar wrote this\nlocal y = 1'), '-- Polestar wrote this\nlocal y = 1')
 
+    def test_slash_commands_and_binding_labels_are_the_forks_own(self):
+        # SLASH_POLESTAR1 slipped past \bPOLESTAR: the fork's commands were never registered and its key bindings had
+        # no labels; and with Polestar installed both would have answered /polestar.
+        init = (ADDONS / "Evertally_Guide" / "Core" / "Init.lua").read_text(encoding="latin-1")
+        self.assertIn('SLASH_EVERTALLYGUIDE1 = "/etguide"', init)
+        self.assertIn("SlashCmdList.EVERTALLYGUIDE = ", init)
+        self.assertNotRegex(init, r'"/(polestar|pole|ps)"')
+        bindings = set(re.findall(r'<Binding name="(\w+)"', (ADDONS / "Evertally_Guide" / "Bindings.xml").read_text(encoding="utf8")))
+        labels = set(re.findall(r"^BINDING_NAME_(\w+) =", (ADDONS / "Evertally_Guide" / "Core" / "Commands.lua").read_text(encoding="latin-1"), re.M))
+        self.assertTrue(bindings)
+        self.assertEqual(bindings - labels, set())
+        self.assertEqual(importer.string_literal('"Usage: /polestar way <x> <y>"'), '"Usage: /etguide way <x> <y>"')
+        self.assertEqual(importer.string_literal('"https://discord.gg/polestar"'), '"https://discord.gg/polestar"')
+
+    def test_ids_other_addons_key_us_by_differ_from_polestars(self):
+        # Baganator asserts on a corner widget id registered twice ("API/Main.lua:230: assertion failed").
+        self.assertEqual(importer.string_literal('"polestar_quest_needed"'), '"evertally_guide_quest_needed"')
+        self.assertEqual(importer.string_literal('"polestar"'), '"polestar"', "the default skin's id is ours alone")
+        left = []
+        for folder in FOLDERS:
+            for path in folder.rglob("*.lua"):
+                for m in re.finditer(r"\"(polestar_[a-z_]+)\"", path.read_bytes().decode("latin-1")):
+                    left.append(f"{path.relative_to(ADDONS)}: {m.group(1)}")
+        self.assertEqual(left, [])
+        nav = ADDONS / "Evertally_Guide" / "Nav"
+        for name, needle in (("Handoff.lua", 'OWNER = "EvertallyGuide"'), ("Bridges.lua", 'FLAG = "EvertallyGuide"')):
+            self.assertIn(needle, (nav / name).read_text(encoding="latin-1"))
+
+    def test_the_welcome_stage_can_refresh_before_it_is_bound(self):
+        # Polestar 0.4.0.1: W.Bind(stage, ...) ran before stage.Refresh existed ("Theme/Widgets.lua:1114").
+        text = (ADDONS / "Evertally_Guide" / "UI" / "Welcome.lua").read_text(encoding="latin-1")
+        self.assertLess(text.index("stage.Refresh = paintStage"), text.index('W.Bind(stage, "qol.targetPlate"'))
+
 
 if __name__ == "__main__":
     unittest.main()

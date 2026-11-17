@@ -133,7 +133,8 @@ function A.BuildOverviewPage(page, kit)
     end
     page.moneyLabel = label(hero, 11, muted); page.moneyLabel:SetPoint("BOTTOMLEFT", 14, 40)
     page.money = label(hero, 15, ink); page.money:SetPoint("BOTTOMLEFT", 14, 18)
-    page.warning = label(hero, 10, C.red); page.warning:SetPoint("BOTTOMRIGHT", -14, 18)
+    -- Its own full-width row above the money: anchored only at the right it grew left over the money.
+    page.warning = label(hero, 10, C.red); page.warning:SetJustifyH("LEFT"); page.warning:SetWordWrap(true)
 
     local function layoutDossier()
         local width = math.max(160, tonumber(hero:GetWidth()) or 250)
@@ -145,6 +146,9 @@ function A.BuildOverviewPage(page, kit)
         page.xpLabel:ClearAllPoints();page.xpLabel:SetPoint("TOPLEFT",14,compact and -86 or -99);page.xpLabel:SetPoint("TOPRIGHT",-14,compact and -86 or -99)
         page.xpBar:ClearAllPoints();page.xpBar:SetPoint("TOPLEFT",14,compact and -106 or -120);page.xpBar:SetPoint("TOPRIGHT",-14,compact and -106 or -120)
         page.dossierTitle:SetShown(not compact);rule:SetShown(not compact);page.moneyLabel:SetShown(not compact)
+        page.compact = compact
+        local warnY = compact and 40 or 62
+        page.warning:ClearAllPoints();page.warning:SetPoint("BOTTOMLEFT",14,warnY);page.warning:SetPoint("BOTTOMRIGHT",-14,warnY)
         for i, entry in ipairs(page.stats) do
             entry:ClearAllPoints(); entry.icon:ClearAllPoints(); entry.caption:ClearAllPoints(); entry.value:ClearAllPoints()
             if compact then
@@ -205,7 +209,12 @@ function A.BuildOverviewPage(page, kit)
         for i, key in ipairs({"dashQuests", "dashRuns", "dashPlaces", "dashEvents"}) do page.stats[i].value:SetText(grouped(figures[i])); page.stats[i].caption:SetText(A.L(key)) end
         local money = A.Number(A.Call(GetMoney), 0)
         page.moneyLabel:SetText(money and A.L("dashMoney") or ""); page.money:SetText(money and A.FormatMoney(money) or "")
-        page.warning:SetText((A.storageFull or A.exportFull) and A.L("capped") or "")
+        -- The full sentence on its own row; the compact ledger has no room for it, so there the stored-records tile says it.
+        local full = A.storageFull or A.exportFull
+        page.warning:SetText(full and A.L("capped") or ""); page.warning:SetShown(full and not page.compact)
+        local stored = page.stats[4]
+        stored.value:SetTextColor(unpack(full and C.red or heading))
+        if full and page.compact then stored.caption:SetText(A.L("cappedShort")) end
         local names = {}; for i, key in ipairs(SERIES_KEYS) do names[i] = A.L(key) end
         page.chartTitle:SetText(A.L("dashChart")); page.legend.Set(colors, names); page.chart.SetData(A.ActivityByDay(14), colors, names)
         for _, entry in ipairs(page.legend.items) do entry.text:SetTextColor(unpack(muted)) end

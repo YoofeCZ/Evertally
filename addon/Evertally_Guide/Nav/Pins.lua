@@ -1199,7 +1199,7 @@ do
 			pcall(OM.RegisterMenuToggle, ADDON, {
 				id = "trailDots",
 				label = L["Evertally trail dots"],
-				section = "Polestar",
+				section = "Evertally Guide",
 				icon = MEDIA .. "pin-fill",
 				get = function() return ns.Get("nav.openmapDots") and true or false end,
 				set = function(on) ns.Set("nav.openmapDots", on and true or false) end,

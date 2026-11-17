@@ -58,7 +58,7 @@ Nav.handoff = Handoff
 
 ns.RegisterDefaults("nav", { spfHandoff = false })
 
-local OWNER = "Polestar"
+local OWNER = "EvertallyGuide"
 local PLACE = 15 -- yards: a target this close to a flight master, inn or portal stands at it
 local DOCK = 30  -- yards: ... to a boat, zeppelin, lift or tram's landing
 

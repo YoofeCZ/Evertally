@@ -116,7 +116,7 @@ if ns.Party then
 			{ kind = "toggle", key = "party.lootNeeds", label = L["Say who still needs quest loot"], search = SEARCH, disabled = notShown,
 				help = L["On a loot window or roll, a line under a quest item a party member still needs and you don't. Nothing is passed or said for you."] },
 			{ kind = "toggle", key = "party.panel", label = L["Party panel"], search = SEARCH, move = "party",
-				help = L["Opens by itself when someone in your party runs Evertally too: each member's level, step and what they still need of yours; click a name to point the arrow at them. Closed, it stays closed; /polestar party opens it again."] },
+				help = L["Opens by itself when someone in your party runs Evertally too: each member's level, step and what they still need of yours; click a name to point the arrow at them. Closed, it stays closed; /etguide party opens it again."] },
 		},
 	})
 	-- What Polestar says in party chat for you, and what it shows of the others'.

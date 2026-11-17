@@ -1606,7 +1606,7 @@ GF.Part(function(GF)
 			-- Our own guides switched off on the Community guides page: one
 			-- click turns them back on.
 			empty.Title:SetText(L["No guides shown"])
-			empty.Text:SetText(L["Evertally's own guides are switched off on the Community guides page (/polestar packs)."])
+			empty.Text:SetText(L["Evertally's own guides are switched off on the Community guides page (/etguide packs)."])
 			W.SetButtonText(empty.Primary, L["Show Evertally's guides"])
 			empty.Primary.psAction = function()
 				if G and G.SetPackShown then G.SetPackShown("guides", true) end
@@ -1627,7 +1627,7 @@ GF.Part(function(GF)
 		elseif kind == "noguides" and UI.Packs and UI.Packs.AnySwitchedOff() then
 			-- Installed but switched off on the Community guides page.
 			empty.Title:SetText(L["No guides shown"])
-			empty.Text:SetText(L["The community addons are switched off. Turn one on under Options, Community guides (/polestar packs)."])
+			empty.Text:SetText(L["The community addons are switched off. Turn one on under Options, Community guides (/etguide packs)."])
 			W.SetButtonText(empty.Primary, L["Community guides"])
 			empty.Primary.psAction = function() UI.ShowOptions("guidepacks") end
 			empty.Primary:Show()
@@ -2796,7 +2796,7 @@ GF.Part(function(GF)
 		nav.Close:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 		nav.Close:SetScript("OnClick", function()
 			ns.Set("ui.shown", false)
-			ns.Print(L["Guide window hidden. Type /polestar to bring it back."])
+			ns.Print(L["Guide window hidden. Type /etguide to bring it back."])
 		end)
 		nav.Close:Hide()
 		nav.Steps = CreateFrame("Frame", nil, nav)

@@ -521,7 +521,7 @@ function Nearby.Go(key, line)
 	if not place then
 		local why = seconds
 		if why == "kind" then
-			ns.Print(L["Usage: /polestar near trainer [profession] | class | weapon | repair | reagents | vendor | food | general | arrows | bullets | ranged | innkeeper | bank | mailbox | auction | flight | stable"])
+			ns.Print(L["Usage: /etguide near trainer [profession] | class | weapon | repair | reagents | vendor | food | general | arrows | bullets | ranged | innkeeper | bank | mailbox | auction | flight | stable"])
 		elseif why == "combat" then
 			ns.Print(L["Nearby services can be looked up after combat."])
 		elseif why == "missing" then
@@ -560,7 +560,7 @@ function Nearby.Command(rest)
 	local text = lower((rest or ""):match("^%s*(.-)%s*$"))
 	local word, more = text:match("^(%S+)%s*(.-)$")
 	if not word then
-		ns.Print(L["Usage: /polestar near trainer [profession] | class | weapon | repair | reagents | vendor | food | general | arrows | bullets | ranged | innkeeper | bank | mailbox | auction | flight | stable"])
+		ns.Print(L["Usage: /etguide near trainer [profession] | class | weapon | repair | reagents | vendor | food | general | arrows | bullets | ranged | innkeeper | bank | mailbox | auction | flight | stable"])
 		return
 	end
 	local key = ALIAS[word] or word

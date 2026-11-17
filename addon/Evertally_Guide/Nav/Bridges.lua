@@ -41,7 +41,7 @@ local wuiSet = false   -- a Waypoint UI pin of ours
 local wuiLast         -- the pin last set: label, map, x, y (an unchanged target is not sent again)
 local questSet         -- the quest we super-tracked
 
-local FLAG = "Polestar"
+local FLAG = "EvertallyGuide"
 
 -- Waypoint UI's public navigation API, when the addon is loaded.
 local function waypointUI()
@@ -122,7 +122,7 @@ local function syncTomTom(target, onRoute)
 	tomtomAt = at
 	tomtomUid = T:AddWaypoint(map, x / 100, y / 100, {
 		title = label,
-		from = "Polestar",
+		from = "EvertallyGuide",
 		persistent = false,
 		silent = true,
 		-- TomTom draws its own pins only where Polestar's are switched off.

@@ -270,7 +270,7 @@ local BUILTIN = {
 	-- Following the guide: the window, the arrow and routes, automation.
 	{ page = GUIDE, key = "guide", icon = "window", order = 10, tab = L["Window"], section = L["What it shows"],
 		subtitle = L["The guide window, the arrow and its routes, and what Evertally does for you."], controls = {
-		{ kind = "toggle", key = "ui.shown", label = L["Show the window"], help = L["Also /polestar, or the key binding."], search = "show guide, hide guide, toggle window, open window" },
+		{ kind = "toggle", key = "ui.shown", label = L["Show the window"], help = L["Also /etguide, or the key binding."], search = "show guide, hide guide, toggle window, open window" },
 		{ kind = "toggle", key = "ui.compact", label = L["Compact mode"], help = L["Only the header and the current step's goals."], search = "minimal, small, smaller window, simple" },
 		{ kind = "toggle", key = "ui.wholeStep", label = L["Show the whole step"],
 			help = L["Every goal of the step at once, finished ones kept, instead of one person at a time with the others on one line each."] },
@@ -358,7 +358,7 @@ local BUILTIN = {
 		{ kind = "dropdown", key = "ui.combat", label = L["In combat"], help = L["What the window does while you fight."], search = "hide in combat, fade in combat, fighting",
 			choices = { { value = "show", label = L["Keep visible"] }, { value = "fade", label = L["Fade out"] }, { value = "hide", label = L["Hide"] } } },
 		{ kind = "dropdown", key = "ui.instance", label = L["In dungeons and battlegrounds"],
-			help = L["What the window, its buttons and alerts do in dungeons, raids, battlegrounds and arenas. Guide window in the minimap button's menu, the key binding or /polestar opens it there until you leave."],
+			help = L["What the window, its buttons and alerts do in dungeons, raids, battlegrounds and arenas. Guide window in the minimap button's menu, the key binding or /etguide opens it there until you leave."],
 			search = "dungeon, raid, battleground, arena, instance, hide, pvp, healer",
 			choices = { { value = "show", label = L["Keep visible"] }, { value = "hide", label = L["Hide"] } } },
 		{ kind = "toggle", key = "ui.launcher", label = L["Floating button"], move = "launcher",
@@ -483,7 +483,7 @@ local BUILTIN = {
 		{ kind = "toggle", key = "behavior.autoSelectGuide", label = L["Pick a guide for me"], help = L["Opens the suggested guide when no tab is open."], search = "auto guide, choose guide, suggested guide" },
 		{ kind = "dropdown", key = "behavior.guideEnd", label = L["When a leveling guide ends"], help = L["Ask me: a window says the guide is done and offers the next one. Continue automatically: the next guide loads in the same tab."],
 			choices = { { value = "ask", label = L["Ask me"] }, { value = "continue", label = L["Continue automatically"] } } },
-		{ kind = "dropdown", key = "behavior.routeChoice", label = L["Where to level next"], help = L["Where a guide offers more than one zone to continue in (/polestar path)."],
+		{ kind = "dropdown", key = "behavior.routeChoice", label = L["Where to level next"], help = L["Where a guide offers more than one zone to continue in (/etguide path)."],
 			choices = { { value = "ask", label = L["Let me choose"] }, { value = "recommended", label = L["Take the recommended zone"] } } },
 		-- Polestar's experimental guides (Polestar_Experimental; Core/Guides.lua, Guides.OWN_EXTRA): on until switched off.
 		-- Mount Hyjal is the one left there: the Riverglades and Shen'dralas are in the leveling route since 0.4.0.
@@ -522,7 +522,7 @@ local BUILTIN = {
 			search = "alts, other characters, bank, mail, materials, reagents, count" },
 		{ kind = "button", button = L["Show"], label = L["Materials window"], new = "0.4.0",
 			help = L["Show how the profession guide gets its materials"],
-			search = "materials window, shopping list, reagents, gather, buy, mix, prices, /polestar materials",
+			search = "materials window, shopping list, reagents, gather, buy, mix, prices, /etguide materials",
 			onClick = function() ns.UI.Materials.Show() end,
 			needs = function() return ns.UI and ns.UI.Materials end },
 	} },
@@ -804,12 +804,12 @@ local function buildAbout(view)
 	whyText:SetText(table.concat(paras, "\n\n"))
 	local whyClose = W.Text(view, "title", "text")
 	whyClose:SetText(L["Open source and free is the future."])
-	local cmdH, cmdText = block(L["Commands"], hex .. "/polestar|r   " .. L["show or hide the guide window"] .. "\n"
-		.. hex .. "/polestar guides|r   " .. L["choose a guide"] .. "\n"
-		.. hex .. "/polestar next, prev, skip|r   " .. L["move through steps"] .. "\n"
-		.. hex .. "/polestar install|r   " .. L["set Evertally up again, a page at a time"] .. "\n"
-		.. hex .. "/polestar report|r   " .. L["report a problem with a step on the Evertally Discord"] .. "\n"
-		.. hex .. "/polestar help|r   " .. L["every command"])
+	local cmdH, cmdText = block(L["Commands"], hex .. "/etguide|r   " .. L["show or hide the guide window"] .. "\n"
+		.. hex .. "/etguide guides|r   " .. L["choose a guide"] .. "\n"
+		.. hex .. "/etguide next, prev, skip|r   " .. L["move through steps"] .. "\n"
+		.. hex .. "/etguide install|r   " .. L["set Evertally up again, a page at a time"] .. "\n"
+		.. hex .. "/etguide report|r   " .. L["report a problem with a step on the Evertally Discord"] .. "\n"
+		.. hex .. "/etguide help|r   " .. L["every command"])
 	-- Install (UI/Welcome.lua) and what's new, first under the hero: the
 	-- setup a new character gets, again whenever the player wants it.
 	local install = W.ActionTile(view, "palette", L["Install"],

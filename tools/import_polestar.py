@@ -35,7 +35,34 @@ INSTALLED = {".lua", ".toc", ".xml", ".md", ".txt", ".tga", ".blp", ".ttf", ".og
 KEEP = {"PolestarT1"}
 INTEROP = re.compile(r"Polestar (Pack|Community)|import string|^\^Polestar")
 # Exact edits after the renames, per file (relative to the new folder): (old, new, expected count).
-PATCHES: dict[str, list[tuple[str, str, int]]] = {}
+# Names other add-ons key us by (Auctionator caller, EllesmereUI painter, Waypoint UI flag, TomTom `from`, the SPF
+# handoff owner) must differ from Polestar's: with both installed, the same name would overwrite or cancel the other's.
+PATCHES: dict[str, list[tuple[str, str, int]]] = {
+    # Polestar 0.4.0.1 bug: W.Bind calls stage:Refresh() before stage.Refresh is set ("Theme/Widgets.lua:1114:
+    # attempt to call a nil value" on the Welcome page). Set it first.
+    "UI/Welcome.lua": [
+        ('\t\t\tW.Painter(stage, paintStage)\n\t\t\tW.Bind(stage, "qol.targetPlate", "qol.targetButton")\n'
+         '\t\t\tW.Bind(stage, "qol.targetSimple")\n\t\t\tW.Bind(stage, "qol.markTarget")\n\t\t\tstage.Refresh = paintStage\n',
+         '\t\t\tW.Painter(stage, paintStage)\n\t\t\tstage.Refresh = paintStage\n\t\t\tW.Bind(stage, "qol.targetPlate", "qol.targetButton")\n'
+         '\t\t\tW.Bind(stage, "qol.targetSimple")\n\t\t\tW.Bind(stage, "qol.markTarget")\n', 1),
+    ],
+    "Core/Init.lua": [('SLASH_EVERTALLYGUIDE3 = "/ps"', 'SLASH_EVERTALLYGUIDE3 = "/evertallyguide"', 1)],
+    "Core/Materials.lua": [('local CALLER = "Polestar"', 'local CALLER = "Evertally Guide"', 1)],
+    "Gear/Bags.lua": [('local ELLESMERE = "Polestar"', 'local ELLESMERE = "EvertallyGuide"', 1)],
+    "Nav/Bridges.lua": [('local FLAG = "Polestar"', 'local FLAG = "EvertallyGuide"', 1),
+                        ('from = "Polestar",', 'from = "EvertallyGuide",', 1)],
+    "Nav/Journey.lua": [('opts.from == "Polestar"', 'opts.from == "EvertallyGuide"', 1),
+                        ('uid.from == "Polestar"', 'uid.from == "EvertallyGuide"', 1)],
+    "Nav/Handoff.lua": [('local OWNER = "Polestar"', 'local OWNER = "EvertallyGuide"', 1)],
+    "Nav/Pins.lua": [('section = "Polestar",', 'section = "Evertally Guide",', 1)],
+    "UI/GameMenu.lua": [('button:SetText("Polestar")', 'button:SetText("Evertally Guide")', 1)],
+}
+# Slash commands: Polestar's own words would clash with an installed Polestar (the game picks one of the two).
+SLASH_WORDS = [(re.compile(r"(?<![\w./])/polestar\b"), "/etguide"), (re.compile(r"(?<![\w./])/pole\b"), "/etg")]
+# Ids other add-ons key us by, spelled in lower case ("polestar_quest_needed": a Baganator corner widget). Registering
+# Polestar's id a second time fails ("Baganator API/Main.lua:230: assertion failed"). Plain "polestar" (the default
+# skin's id) is ours alone and stays.
+LOWER_ID = re.compile(r"^polestar_([a-z_]+)$")
 # Everywhere: a few literals that name the add-on itself or are shown as its name.
 GLOBAL_PATCHES = [
     ('GetAddOnMemoryUsage, "Polestar"', 'GetAddOnMemoryUsage, "Evertally_Guide"'),
@@ -60,7 +87,7 @@ def folder_name(name: str) -> str:
 def identifiers(text: str, code: bool) -> str:
     text = re.sub(r"AddOns(\\\\|\\|/)Polestar(?=\\|/|\")", r"AddOns\1Evertally_Guide", text)
     text = re.sub(r"\bPolestar_", "Evertally_Guide_", text)
-    text = re.sub(r"\bPOLESTAR", "EVERTALLYGUIDE", text)
+    text = re.sub(r"(?<![A-Za-z0-9])POLESTAR", "EVERTALLYGUIDE", text)   # also SLASH_POLESTAR1, BINDING_NAME_POLESTAR_X
     text = re.sub(r"\bPolestar(?=[A-Za-z0-9])", "EvertallyGuide", text)
     if code:
         text = re.sub(r"\bPolestar\b", "EvertallyGuide", text)
@@ -71,7 +98,10 @@ def string_literal(token: str) -> str:
     quote, body = token[0], token[1:-1]
     if body in KEEP or body == "Polestar":
         return token
+    body = LOWER_ID.sub(r"evertally_guide_\1", body)
     body = identifiers(body, code=False)
+    for pattern, word in SLASH_WORDS:
+        body = pattern.sub(word, body)
     if re.search(r"\bPolestar\b", body) and not INTEROP.search(body):
         body = re.sub(r"\bPolestar\b", "Evertally", body)
     return quote + body + quote
@@ -154,6 +184,8 @@ def main() -> None:
             "  - the folder and file names: Polestar -> Evertally_Guide;\n"
             "  - globals, frames, saved variables and key bindings: Polestar -> EvertallyGuide, POLESTAR -> EVERTALLYGUIDE;\n"
             "  - the add-on's name shown to players: Polestar -> Evertally (the guides' author is still Polestar);\n"
+            "  - slash commands /polestar, /pole, /ps -> /etguide, /etg, /evertallyguide, and the ids other add-ons know\n"
+            "    us by (polestar_* bag widgets, waypoint owners) -> evertally_guide_* / EvertallyGuide;\n"
             "  - the patches listed in tools/import_polestar.py.\n"
             "Everything else is Polestar's work, under its licence (LICENSE.txt) and notices (THIRD_PARTY.md, CREDITS.md,\n"
             "LICENSE-DATA.txt where present). This modified version is distributed under the GNU GPL, version 3.\n",

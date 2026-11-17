@@ -1658,10 +1658,10 @@ do
 				end
 			end
 			W.Painter(stage, paintStage)
+			stage.Refresh = paintStage
 			W.Bind(stage, "qol.targetPlate", "qol.targetButton")
 			W.Bind(stage, "qol.targetSimple")
 			W.Bind(stage, "qol.markTarget")
-			stage.Refresh = paintStage
 			p.Stage = stage
 			F.TargetButton = toggleRow(p, L["Show a button that targets the step's mobs and NPCs"], "qol.targetButton",
 				L["Each name it can target is a row with the creature's face and the item it drops for the step."])
@@ -2878,7 +2878,7 @@ PAGES[#PAGES + 1] = {
 		p.Next:SetHeight(10 + p.Next.Head:GetStringHeight() + 3 + p.Next.Text:GetStringHeight() + 12)
 		y = y + p.Next:GetHeight() + 14
 
-		p.Later.Text:SetText((L["Every choice here is in Settings, and its search finds any setting by name. Install opens again from there, or with %s."]):format(cmd("/polestar install")))
+		p.Later.Text:SetText((L["Every choice here is in Settings, and its search finds any setting by name. Install opens again from there, or with %s."]):format(cmd("/etguide install")))
 		y = layNote(p, p.Later, y, true)
 
 		local beta = ns.routesBeta and true or false
@@ -3021,7 +3021,7 @@ local function build()
 	F.Skip = W.Button(foot, L["Skip install"], close, { ghost = true })
 	F.Skip:SetPoint("LEFT", foot, "LEFT", FOOT_PAD, 0)
 	F.Skip.psTip = L["Skip install"]
-	F.Skip.psTipLines = { L["Keeps every setting as it is. Install opens again from Settings, or with /polestar install."], keyName("ESCAPE") }
+	F.Skip.psTipLines = { L["Keeps every setting as it is. Install opens again from Settings, or with /etguide install."], keyName("ESCAPE") }
 	F.Next = W.Button(foot, L["Next"], function() go(1) end, { primary = true })
 	chevron(F.Next)
 	setChevronText(F.Next, L["Next"])

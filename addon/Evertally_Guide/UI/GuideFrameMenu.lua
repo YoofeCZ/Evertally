@@ -70,7 +70,7 @@ ns.UI.GuideFrame.Part(function(GF)
 				onClick = function() ns.TogglePaused() end },
 			{ text = L["Hide window"], icon = "close", onClick = function()
 				ns.Set("ui.shown", false)
-				ns.Print(L["Guide window hidden. Type /polestar to bring it back."])
+				ns.Print(L["Guide window hidden. Type /etguide to bring it back."])
 			end },
 		}) do items[#items + 1] = it end
 		-- The Recorder's window, while the Recorder addon is loaded.

@@ -35,10 +35,10 @@ QoL.BagGlow = BagGlow
 local TEXTURE = "Interface\\Buttons\\UI-ActionButton-Border"
 local SCALE = 1.9 -- the border texture's size against the item button's
 local LAYER = 2 -- OVERLAY sublevel: under the upgrade arrow (3) and the search overlay (4)
-local WIDGET = "polestar_step_item" -- bag addon corner widget id
+local WIDGET = "evertally_guide_step_item" -- bag addon corner widget id
 local LOCK = "Interface\\PetBattles\\PetBattle-LockIcon"
 local LOCK_SIZE = 14
-local KEEP_WIDGET = "polestar_kept_item" -- bag addon corner widget id of the lock
+local KEEP_WIDGET = "evertally_guide_kept_item" -- bag addon corner widget id of the lock
 
 local function paint(t)
 	local T = ns.Theme

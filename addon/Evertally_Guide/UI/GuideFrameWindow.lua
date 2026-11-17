@@ -361,8 +361,8 @@ ns.UI.GuideFrame.Part(function(GF)
 			if key then return L["Press %s to show it."]:format(key) end
 			return L["Turn on the minimap button or bind a key to show it."]
 		end
-		if key then return L["Press %s or type /polestar to show it."]:format(key) end
-		return L["Type /polestar to show it."]
+		if key then return L["Press %s or type /etguide to show it."]:format(key) end
+		return L["Type /etguide to show it."]
 	end
 
 	-- The first time on this account the window hides itself on the way in, a

@@ -821,7 +821,7 @@ ns.RegisterCommand("import", function(rest)
 	elseif sub == "delete" then
 		local id = rest:match("^%s*%S+%s+(.-)%s*$")
 		if not id or id == "" then
-			ns.Print(L["Usage: /polestar import delete <guide-id>"])
+			ns.Print(L["Usage: /etguide import delete <guide-id>"])
 			return
 		end
 		if Import.Delete(id) then

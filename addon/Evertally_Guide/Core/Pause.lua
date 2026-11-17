@@ -141,7 +141,7 @@ function ns.PauseHowToEnd()
 	if key then return L["Press %s to resume, or open the guide window."]:format(key) end
 	if ns.Get("maps.minimapButton") then return L["Right-click the minimap button and pick Pause to resume, or open the guide window."] end
 	if ns.GamepadUI() then return L["Open the guide window to resume."] end
-	return L["Type /polestar resume, or open the guide window."]
+	return L["Type /etguide resume, or open the guide window."]
 end
 
 -- One chat line for every change but the way in (and a notice at the top of
@@ -194,7 +194,7 @@ ns.RegisterCommand("pause", function(rest)
 		if not ns.Paused() then return notPaused() end
 		ns.SetPaused(false, "hand")
 	else
-		ns.Print(L["Usage: /polestar pause [on | off]"])
+		ns.Print(L["Usage: /etguide pause [on | off]"])
 	end
 end, L["Pause the guide: the arrow and the guide window step aside, and it resumes by itself when you leave the dungeon alive (on, off)"], true)
 
