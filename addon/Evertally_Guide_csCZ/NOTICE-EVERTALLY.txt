@@ -1,4 +1,4 @@
 This folder is part of Evertally. It was generated on 2026-11-17 by Evertally's tools/import_polestar.py. It is a Czech
 translation of the interface and guide texts of Polestar 0.4.0.1 (https://github.com/fitzforge/polestar, Copyright (c)
 2026 The Polestar authors, GPL-3.0-only), made for Evertally from the English strings Polestar's own language folders
-list. Translated: 4325 interface strings, 4248 guide texts. Distributed under the GNU GPL, version 3.
+list. Translated: 4325 interface strings, 4630 guide texts. Distributed under the GNU GPL, version 3.
