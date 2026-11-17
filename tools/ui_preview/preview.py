@@ -30,6 +30,20 @@ CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 ICON_FILES = {}
 STORAGE_FULL = False
+GUIDE_LOOK = False
+# Evertally Guide's default look (Polestar's house skin, its Dusk scheme and accent: Evertally_Guide/Theme/House.lua),
+# so the pages can be seen in the colours they take inside the guide's hub. Only the palette and a font are stood in.
+GUIDE_THEME_LUA = r"""
+EvertallyGuide = EvertallyGuide or {}
+local PAL = {
+  bg = {0.095, 0.115, 0.178, 0.97}, panel = {0.11, 0.133, 0.203, 0.98}, panelAlt = {0.139, 0.166, 0.249, 1},
+  sidebar = {0.072, 0.088, 0.14, 1}, sky = {0.156, 0.196, 0.329, 1},
+  text = {0.967, 0.974, 0.991, 1}, textDim = {0.765, 0.793, 0.868, 1}, textMuted = {0.606, 0.637, 0.726, 1},
+  accent = {0.9, 0.73, 0.4, 1}, border = {1, 1, 1, 0.1}, divider = {1, 1, 1, 0.1},
+}
+EvertallyGuide.Theme = {Palette = function() return PAL end, FontSpec = function() return "Fonts\\ARIALN.TTF", 13, "" end,
+  OnChanged = function() end}
+"""
 VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "leveling", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
 
 FIXTURE = r'''
@@ -379,6 +393,9 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     lua.execute('TRAIT_NODES[100001].activeRank=4;TRAIT_NODES[100201].activeRank=0')
     a.db.settings.language = language
     a.db.settings.uiWidth, a.db.settings.uiHeight = ww, wh
+    if GUIDE_LOOK:
+        lua.execute(GUIDE_THEME_LUA)
+        a.Theme.ApplyScheme()
     a.db.settings.bragPrompt = False
     if a.Announce.bar is not None:
         a.Announce.bar.Hide(a.Announce.bar)
@@ -600,10 +617,12 @@ def main():
     ap.add_argument("--quest-id", type=int, help="show an actual local quest card in the database reader")
     ap.add_argument("--destination", help="select a real travel destination in the journey tab")
     ap.add_argument("--openmap", action="store_true", help="draw it as if OpenMap were installed")
+    ap.add_argument("--guide-look", action="store_true", help="draw in the colours of Evertally Guide (its hub)")
     ap.add_argument("--storage-full", action="store_true", help="show the overview's storage limit warning")
     args = ap.parse_args()
-    global STORAGE_FULL
+    global STORAGE_FULL, GUIDE_LOOK
     STORAGE_FULL = args.storage_full
+    GUIDE_LOOK = args.guide_look
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     sw, sh = (int(v) for v in args.screen.split("x"))

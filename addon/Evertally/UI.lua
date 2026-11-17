@@ -86,6 +86,16 @@ end
 -- Inter (Media/Fonts, OFL) on request: it carries the Czech letters too, so it serves both languages.
 local INTER = {heading = "Interface\\AddOns\\Evertally\\Media\\Fonts\\Inter-SemiBold.ttf", body = "Interface\\AddOns\\Evertally\\Media\\Fonts\\Inter-Regular.ttf"}
 local function fontPath(role)
+    -- The guide's font (its skin's face, Inter by default; it has the Czech letters): the default while the guide's
+    -- look is on, or when chosen.
+    local font = A.db and A.db.settings.uiFont
+    if (font == "guide" or (font == nil and A.Theme.Flat and A.Theme.Flat())) and A.Theme.GuideTheme then
+        local th = A.Theme.GuideTheme()
+        if th and type(th.FontSpec) == "function" then
+            local ok, path = pcall(th.FontSpec, role == "heading" and "title" or "body")
+            if ok and type(path) == "string" and path ~= "" then return path end
+        end
+    end
     if A.db and A.db.settings.uiFont == "inter" then
         local path = INTER[role == "heading" and "heading" or "body"]
         if canUseFont(path) then return path end
@@ -109,6 +119,7 @@ end
 local function applyFonts()
     for _, entry in ipairs(fontStrings) do entry.fs:SetFont(fontPath(entry.role), entry.size, "") end
 end
+A.ApplyFonts = applyFonts
 local function plain(v) local text = tostring(A.Plain(v) or A.L("unknown")); return (text:gsub("|", "||")) end
 -- string.upper leaves the Czech letters alone, so they are mapped by hand
 local UPPER = {["á"] = "Á", ["č"] = "Č", ["ď"] = "Ď", ["é"] = "É", ["ě"] = "Ě", ["í"] = "Í", ["ň"] = "Ň", ["ó"] = "Ó", ["ř"] = "Ř", ["š"] = "Š", ["ť"] = "Ť", ["ú"] = "Ú", ["ů"] = "Ů", ["ý"] = "Ý", ["ž"] = "Ž"}
@@ -175,7 +186,8 @@ local function Button(parent, key, width, kind, onClick, icon)
     if not primary then outline(b, C.line) end
     local glow = b:CreateTexture(nil, "ARTWORK"); glow:SetPoint("TOPLEFT", 1, -1); glow:SetPoint("BOTTOMRIGHT", -1, 1); shape(glow, "round"); paint(glow, C.gold, 0)
     local shaped = b.evertallySkin and b.evertallySkin.shaped
-    local text = label(b, 13, primary and (shaped and C.canvas or C.bright) or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
+    -- dark text on the gold (or the guide's accent) of a main button
+    local text = label(b, 13, primary and ((shaped or A.Theme.Flat()) and C.canvas or C.bright) or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
     if icon then
         b.icon = glyph(b, icon, 14, primary and C.canvas or C.bright)
         b.icon:SetPoint("RIGHT", text, "LEFT", -7, 0)
@@ -1003,12 +1015,12 @@ local function showCopy()
 end
 
 for lang, entries in pairs({
-    en = {uiScheme = "Colour scheme", uiSchemeNight = "Night", uiSchemeDusk = "Dusk", uiSchemeGraphite = "Graphite",
-        uiFont = "Font", uiFontGame = "Game font", uiFontInter = "Inter", uiScale = "Window scale",
+    en = {uiScheme = "Colour scheme", uiSchemeNight = "Night", uiSchemeDusk = "Dusk", uiSchemeGraphite = "Graphite", uiSchemeGuide = "Evertally Guide skin",
+        uiFont = "Font", uiFontGame = "Game font", uiFontInter = "Inter", uiFontGuide = "Evertally Guide font", uiScale = "Window scale",
         settingsSearch = "Search settings", settingsNoMatch = "No setting matches the search.",
         settingsReset = "Reset window", settingsReload = "Reload UI", langEnglish = "English", langCzech = "Čeština"},
-    cs = {uiScheme = "Barevné schéma", uiSchemeNight = "Noc", uiSchemeDusk = "Soumrak", uiSchemeGraphite = "Grafit",
-        uiFont = "Písmo", uiFontGame = "Herní písmo", uiFontInter = "Inter", uiScale = "Měřítko okna",
+    cs = {uiScheme = "Barevné schéma", uiSchemeNight = "Noc", uiSchemeDusk = "Soumrak", uiSchemeGraphite = "Grafit", uiSchemeGuide = "Podle skinu Evertally Guide",
+        uiFont = "Písmo", uiFontGame = "Herní písmo", uiFontInter = "Inter", uiFontGuide = "Podle Evertally Guide", uiScale = "Měřítko okna",
         settingsSearch = "Hledat v nastavení", settingsNoMatch = "Hledání neodpovídá žádné nastavení.",
         settingsReset = "Obnovit okno", settingsReload = "Znovu načíst UI", langEnglish = "English", langCzech = "Čeština"},
 }) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
@@ -1695,8 +1707,8 @@ function A.SetLanguage(language)
 end
 --- The font of the window: "game" (the game's own, by language) or "inter" (Media/Fonts). Kept; every text is set again.
 function A.SetUIFont(font)
-    if not A.db or (font ~= "game" and font ~= "inter") then return false end
-    A.db.settings.uiFont = font ~= "game" and font or nil
+    if not A.db or (font ~= "game" and font ~= "inter" and font ~= "guide") then return false end
+    A.db.settings.uiFont = font   -- "game" is kept as such: no choice (nil) means the guide's font while its look is on
     applyFonts()
     A.RefreshUI()
     return true

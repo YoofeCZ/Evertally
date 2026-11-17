@@ -35,15 +35,65 @@ local SCHEMES = {
         dome = {0.230, 0.245, 0.275}, off = {0.235, 0.245, 0.262}, line = {0.520, 0.500, 0.460, 0.40},
     },
 }
-local ORDER = {"night", "dusk", "graphite"}
+-- "guide": the colours of Evertally Guide's skin (the Evertally_Guide add-ons, from Polestar), worked out from its
+-- palette whenever it changes (T.GuideColors), so Evertally's pages in its hub wear the same skin and accent.
+SCHEMES.guide = {}
+local ORDER = {"guide", "night", "dusk", "graphite"}
 local DEFAULT = "night"
+
+local function guideTheme()
+    local g = rawget(_G, "EvertallyGuide")
+    local th = type(g) == "table" and g.Theme
+    if type(th) == "table" and type(th.Palette) == "function" then return th end
+    return nil
+end
+
+local function rgb(c, fallback)
+    if type(c) ~= "table" or type(c[1]) ~= "number" then return fallback end
+    return {c[1], c[2], c[3], c[4]}
+end
+-- top laid over under by top's alpha: an opaque colour.
+local function over(top, under)
+    local a = top[4] or 1
+    return {top[1] * a + under[1] * (1 - a), top[2] * a + under[2] * (1 - a), top[3] * a + under[3] * (1 - a)}
+end
+local function mix(a, b, t) return {a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t} end
+local WHITE, BLACK = {1, 1, 1}, {0, 0, 0}
+
+--- The guide's palette as Evertally's palette names. -> table, or nil without the guide.
+local function guideColors()
+    local th = guideTheme()
+    if not th then return nil end
+    local ok, pal = pcall(th.Palette)
+    if not ok or type(pal) ~= "table" then return nil end
+    local bg = rgb(pal.bg, {0.04, 0.05, 0.09}); bg = {bg[1], bg[2], bg[3]}
+    local card = pal.panel and over(rgb(pal.panel), bg) or mix(bg, WHITE, 0.03)
+    local accent = rgb(pal.accent, {0.835, 0.690, 0.400}); accent = {accent[1], accent[2], accent[3]}
+    local border = rgb(pal.border, {1, 1, 1, 0.14})
+    local text = rgb(pal.text, SHARED.text)
+    return {
+        canvas = bg, header = pal.sky and over(rgb(pal.sky), bg) or mix(bg, WHITE, 0.04),
+        side = pal.sidebar and over(rgb(pal.sidebar), bg) or mix(bg, BLACK, 0.2),
+        card = card, well = mix(card, BLACK, 0.18),
+        raised = pal.panelAlt and over(rgb(pal.panelAlt), card) or mix(card, WHITE, 0.06),
+        dome = mix(bg, accent, 0.18), off = over(border, card), line = {border[1], border[2], border[3], border[4] or 0.14},
+        rule = rgb(pal.divider, {1, 1, 1, 0.07}),
+        text = {text[1], text[2], text[3]}, mist = rgb(pal.textDim, SHARED.mist), faint = rgb(pal.textMuted, SHARED.faint),
+        gold = accent, lilac = accent, bright = mix(accent, WHITE, 0.45), violet = mix(accent, BLACK, 0.6),
+    }
+end
 
 local T = {id = "night-gold", colors = {}, schemes = SCHEMES, SCHEME_ORDER = ORDER, DEFAULT_SCHEME = DEFAULT,
     metrics = {width = 1120, height = 740, header = 64, sidebar = 236, rail = 40, navRow = 34, body = 13, title = 24}}
 A.Theme = T
+T.GuideTheme, T.GuideColors = guideTheme, guideColors
 local C = T.colors
 -- The palette tables are made once and only ever filled in place: pages keep references to them (kit.C, A.Theme.colors).
 local function fillPalette(key)
+    if key == "guide" then
+        local colors = T.GuideColors()
+        if colors then SCHEMES.guide = colors else key = DEFAULT end
+    end
     local scheme = SCHEMES[key] or SCHEMES[DEFAULT]
     for _, source in ipairs({SHARED, scheme}) do
         for name, c in pairs(source) do
@@ -72,6 +122,8 @@ function T.Shapes(tex)
     return T.shapesSupported
 end
 function T.Shape(tex, kind)
+    -- The guide's look is square: panels, fields and buttons with 1px lines (a dot stays round).
+    if T.scheme == "guide" and kind ~= "dot" then return false end
     local shape = SHAPES[kind]; if not shape or not tex or type(tex.SetTexture) ~= "function" then return false end
     if shape.margins and not T.Shapes(tex) then return false end
     if tex:SetTexture(MEDIA .. shape.file) == false then return false end
@@ -126,8 +178,12 @@ T.ART = ART
 function T.SchemeKey()
     local s = A.db and A.db.settings
     local key = s and s.uiScheme
+    -- With the guide loaded its colours are the default; a scheme chosen by hand stays.
+    if key == "guide" or key == nil then return guideTheme() and "guide" or DEFAULT end
     return SCHEMES[key] and key or DEFAULT
 end
+--- Whether Evertally draws in the guide's look (its colours, square shapes, underlined tabs).
+function T.Flat() return T.scheme == "guide" end
 function T.ApplyScheme(key)
     key = SCHEMES[key] and key or T.SchemeKey()
     T.scheme = key
@@ -139,12 +195,26 @@ function T.ApplyScheme(key)
 end
 function T.SetScheme(key)
     if not SCHEMES[key] or not A.db then return false end
+    if key == "guide" and not guideTheme() then return false end
     A.db.settings.uiScheme = key
     T.ApplyScheme(key)
     if A.RefreshUI then A.RefreshUI() end
     return true
 end
-if type(A.On) == "function" then A.On("PLAYER_LOGIN", function() T.ApplyScheme() end) end
+if type(A.On) == "function" then A.On("PLAYER_LOGIN", function()
+    T.ApplyScheme()
+    -- A new skin, accent or font in the guide: Evertally follows while it draws in the guide's look.
+    local th = guideTheme()
+    if th and type(th.OnChanged) == "function" and not T.followsGuide then
+        T.followsGuide = true
+        th.OnChanged(function()
+            if T.scheme ~= "guide" then return end
+            T.ApplyScheme("guide")
+            if A.ApplyFonts then A.ApplyFonts() end
+            if A.RefreshUI then A.RefreshUI() end
+        end)
+    end
+end) end
 
 -- The night band: the sky (a white mask fading downwards, tinted with the scheme's dome colour) with a faint haze.
 -- No stars: the band stays a calm gradient. The art is 1024x128 drawn 1:1 (T.FitBand shows its top-left corner).

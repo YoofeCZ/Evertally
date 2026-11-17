@@ -157,7 +157,9 @@ function A.ExtendKit(kit)
         function b.SetLabel(value) b.text:SetText(value); b:SetWidth(math.max(34, (b.text:GetStringWidth() or 30) + 22)) end
         function b.SetOn(on)
             b.on = on and true or false
-            paint(b.bg, on and C.gold or C.raised, on and 0.12 or 0.55)
+            -- In the guide's look a chip is a tab: no ground, the chosen one underlined in the accent.
+            if A.Theme.Flat() then paint(b.bg, C.raised, 0)
+            else paint(b.bg, on and C.gold or C.raised, on and 0.12 or 0.55) end
             b.underline:SetShown(b.on)
             local c = on and C.bright or C.mist
             b.text:SetTextColor(c[1], c[2], c[3])
