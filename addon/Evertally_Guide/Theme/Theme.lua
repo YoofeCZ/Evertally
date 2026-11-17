@@ -1553,6 +1553,8 @@ end
 -- font for "game" and on clients the bundled faces cannot draw.
 local function facePath(face, weight)
 	local locale = GetLocale and GetLocale()
+	-- Evertally: in Czech the game's own font (FRIZQT__ on an English client) has no 96m, 96a, 97k, 97}: Inter has them.
+	if face == "game" and ns.EvertallyLanguage == "csCZ" then face = "inter" end
 	local fam = FAMILIES[face]
 	if not fam or CJK[locale] then return gameFont() end
 	return fam[weight or "medium"] or fam.medium

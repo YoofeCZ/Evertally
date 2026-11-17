@@ -30,7 +30,8 @@ ns.UI.GuideFrame.Part(function(GF)
 	-- slim (GF.StripH); one open guide the navigator names.
 	local function stripShown()
 		if not (strip.psHasTabs and GF.On("tabs")) then return false end
-		return not compact() or (strip.psTabN or 0) >= 2
+		-- Evertally: the tabs only while two guides or more are open; one guide is named in the header.
+		return (strip.psTabN or 0) >= 2
 	end
 
 	-- A part a skin places itself (Skin API 2, hooks.guidePlace(name, frame,
@@ -69,7 +70,8 @@ ns.UI.GuideFrame.Part(function(GF)
 			sec:SetPoint("TOPLEFT", card, "TOPLEFT", PAD, -(y + 8))
 			y = y + 8 + sec:GetStringHeight()
 		end
-		if person:IsShown() then
+		local function placePerson()
+			if not person:IsShown() then return end
 			local nameW = cw - ICON - 10
 			person.Name:SetWidth(nameW)
 			person.Where:SetWidth(nameW)
@@ -92,9 +94,11 @@ ns.UI.GuideFrame.Part(function(GF)
 			h = floor(h + 8 + 0.5)
 			person:SetHeight(h)
 			person:ClearAllPoints()
-			person:SetPoint("TOPLEFT", card, "TOPLEFT", 0, -y)
-			person:SetPoint("TOPRIGHT", card, "TOPRIGHT", 0, -y)
-			y = y + h
+			-- Evertally: under the goals (and the tip), not above them.
+			local under = card.Tip:IsShown() and card.Tip or goals
+			person:SetPoint("TOPLEFT", under, "BOTTOMLEFT", 0, -2)
+			person:SetPoint("TOPRIGHT", under, "BOTTOMRIGHT", 0, -2)
+			y = y + 2 + h
 		end
 		-- The goals area: its rows and lines, each under the one before.
 		goals:ClearAllPoints()
@@ -153,6 +157,7 @@ ns.UI.GuideFrame.Part(function(GF)
 				y = y + 2 + h
 			end
 		end
+		placePerson()
 		return y + 6
 	end
 
@@ -306,6 +311,52 @@ ns.UI.GuideFrame.Part(function(GF)
 		return y
 	end
 
+	-- Evertally's tools bar along the window's bottom: Skip on the left, the
+	-- nearby services, the bug, Lookup and the menu on the right (in Polestar
+	-- they sit in the navigator, right of the step count).
+	local TOOLS_H = 30
+	local function toolsBar()
+		local t = GF.tools
+		if not t then
+			t = CreateFrame("Frame", nil, F)
+			t:SetHeight(TOOLS_H)
+			t.Rule = W.Divider(t)
+			t.Rule:SetPoint("TOPLEFT", t, "TOPLEFT", 0, 0)
+			t.Rule:SetPoint("TOPRIGHT", t, "TOPRIGHT", 0, 0)
+			t:EnableMouse(true)
+			GF.tools = t
+		end
+		for _, b in ipairs({ nav.Skip, nav.Nearby, nav.Report, nav.Lookup, nav.Menu }) do
+			if b:GetParent() ~= t then b:SetParent(t) end
+		end
+		nav.Menu:ClearAllPoints()
+		nav.Menu:SetPoint("RIGHT", t, "RIGHT", -8, 0)
+		nav.Lookup:ClearAllPoints()
+		nav.Lookup:SetPoint("RIGHT", nav.Menu, "LEFT", 0, 0)
+		nav.Report:ClearAllPoints()
+		nav.Report:SetPoint("RIGHT", nav.Lookup, "LEFT", 0, 0)
+		nav.Nearby:ClearAllPoints()
+		nav.Nearby:SetPoint("RIGHT", nav.Report:IsShown() and nav.Report or nav.Lookup, "LEFT", 0, 0)
+		nav.Skip:ClearAllPoints()
+		nav.Skip:SetPoint("LEFT", t, "LEFT", PAD - 4, 0)
+		t:ClearAllPoints()
+		t:SetPoint("BOTTOMLEFT", F, "BOTTOMLEFT", 0, 0)
+		t:SetPoint("BOTTOMRIGHT", F, "BOTTOMRIGHT", 0, 0)
+		return t
+	end
+	GF.ToolsH = function() return (GF.tools and GF.tools:IsShown()) and TOOLS_H or 0 end
+
+	-- The header: the guide's title on the left, "< 8 / 29 >" on the right.
+	local function header(width)
+		nav.Steps:ClearAllPoints()
+		nav.Steps:SetPoint("RIGHT", nav, "RIGHT", -(PAD - 6), 0)
+		nav.Title:ClearAllPoints()
+		nav.Title:SetPoint("LEFT", nav, "LEFT", PAD, 0)
+		W.Color(nav.Title, "text")
+		local stepsW = nav.Steps:IsShown() and nav.Steps:GetWidth() + 8 or 0
+		nav.Title:SetWidth(max(40, width - PAD * 2 - stepsW))
+	end
+
 	local function placeBars(showFoot)
 		local flip = barsBottom()
 		strip:ClearAllPoints()
@@ -336,10 +387,12 @@ ns.UI.GuideFrame.Part(function(GF)
 			strip:SetPoint("TOPRIGHT", F, "TOPRIGHT", 0, 0)
 			nav:SetPoint("TOPLEFT", strip, "BOTTOMLEFT", 0, 0)
 			nav:SetPoint("TOPRIGHT", strip, "BOTTOMRIGHT", 0, 0)
-			body:SetPoint("TOPLEFT", nav, "BOTTOMLEFT", 0, 0)
-			body:SetPoint("TOPRIGHT", nav, "BOTTOMRIGHT", 0, 0)
-			foot:SetPoint("BOTTOMLEFT", F, "BOTTOMLEFT", 0, 0)
-			foot:SetPoint("BOTTOMRIGHT", F, "BOTTOMRIGHT", 0, 0)
+			-- Evertally: the progress right under the header, the body under it.
+			foot:SetPoint("TOPLEFT", nav, "BOTTOMLEFT", 0, 0)
+			foot:SetPoint("TOPRIGHT", nav, "BOTTOMRIGHT", 0, 0)
+			local over = showFoot and foot or nav
+			body:SetPoint("TOPLEFT", over, "BOTTOMLEFT", 0, 0)
+			body:SetPoint("TOPRIGHT", over, "BOTTOMRIGHT", 0, 0)
 			band:SetPoint("TOPLEFT", F, "TOPLEFT", 1, -1)
 			band:SetPoint("TOPRIGHT", F, "TOPRIGHT", -1, -1)
 		end
@@ -408,8 +461,9 @@ ns.UI.GuideFrame.Part(function(GF)
 		local titleW = width - PAD - (steps and nav.Steps:GetWidth() + 12 or 0) - 24 - 8 - 8 - (nav.Close:IsShown() and 18 or 0) - skipW - reportW - nearbyW - lookupW
 		-- At the minimum width the controls take the row; the title must not sit
 		-- behind Skip (notably in compact mode with one guide, where no strip shows).
-		nav.Title:SetShown((not showStrip or not steps) and GF.On("guideTitle") and nav.Title:GetText() ~= nil and nav.Title:GetText() ~= "" and titleW >= 40)
-		nav.Title:SetWidth(max(40, titleW))
+		nav.Title:SetShown(not showStrip and nav.Title:GetText() ~= nil and nav.Title:GetText() ~= "")
+		header(width)
+		toolsBar():SetShown(state ~= "noguide" and state ~= "noguides")
 		card:SetWidth(width)
 
 		local y = 0
@@ -478,7 +532,7 @@ ns.UI.GuideFrame.Part(function(GF)
 		local showFoot = (state == "steps" or state == "complete" or state == "skippedout") and GF.On("progress")
 		foot:SetShown(showFoot)
 		local stripH = showStrip and SH or 0
-		fit.outer = stripH + NAV_H + (showFoot and PROG_H or 0)
+		fit.outer = stripH + NAV_H + (showFoot and PROG_H or 0) + GF.ToolsH()
 		fit.limit = roomAbove()
 		if fit.from then
 			-- Past the cap (or the top of the screen with Grow upward), the goals

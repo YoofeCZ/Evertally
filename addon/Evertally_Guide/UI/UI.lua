@@ -39,7 +39,7 @@ ns.RegisterDefaults("ui", {
 	instance = "hide", -- "show" | "hide": in dungeons, raids, battlegrounds and arenas, until the player opens it there; hidden by default, a healer asked for it out of the way
 	reduceMotion = false,
 	classCardSound = true, -- the class-quest card's and the class quest heads-up's chime (UI/ClassCard.lua, UI/ClassToast.lua)
-	skin = "polestar", -- "polestar" (the house style, the default) | "halo" | "hearth" | "forever" | "blizzard" | "classic" (Polestar.Theme, "Skins")
+	skin = "evertally", -- "polestar" (the house style, the default) | "halo" | "hearth" | "forever" | "blizzard" | "classic" (Polestar.Theme, "Skins")
 	font = "skin", -- "skin" (the game's in Polestar) | "opensans" | "game" | "inter" | "fira"
 	textSize = 1, -- 0.8..1.4: every text role's size against its own (Theme.FontSpec), apart from the window scale
 	scheme = "dusk", -- "dusk" | "night" | "graphite" | "ellesmere" (Polestar.Theme.SCHEMES)
@@ -55,7 +55,7 @@ ns.RegisterDefaults("ui", {
 	borderColor = false, -- false: the scheme's hairline (or the accent); { r, g, b }: your own
 	borderAccent = false, -- the border takes the accent
 	borderSize = 1, -- 1..4 physical pixels, growing outward
-	band = true, -- the starlit header band
+	band = false, -- the starlit header band
 	shadow = true, -- the window drop shadow
 	-- pickerCollapsed = { [folder id] = true }: the guide menu's Browse folders folded away (UI.Picker.IsCollapsed)
 	-- pos = { left, top } once the window has been moved

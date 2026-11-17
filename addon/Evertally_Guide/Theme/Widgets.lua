@@ -4247,16 +4247,17 @@ function W.Shell(name, opts)
 	end
 
 	-- Sidebar: brand, search, navigation, status at the bottom.
+	-- Evertally: the sidebar stands on the window's right, the page left of it.
 	local side = CreateFrame("Frame", nil, f)
-	side:SetPoint("TOPLEFT", f, "TOPLEFT", 1 + RAIL, -1)
-	side:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1 + RAIL, 1)
+	side:SetPoint("TOPRIGHT", f, "TOPRIGHT", -1, -1)
+	side:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
 	side:SetWidth(SB)
 	Theme.Skin(side, "sidebar")
 	draggable(side)
 	f.Sidebar = side
 	local rule = W.Divider(side, true)
-	rule:SetPoint("TOPRIGHT", side, "TOPRIGHT", 0, 0)
-	rule:SetPoint("BOTTOMRIGHT", side, "BOTTOMRIGHT", 0, 0)
+	rule:SetPoint("TOPLEFT", side, "TOPLEFT", 0, 0)
+	rule:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 0, 0)
 
 	-- The sidebar's own rhythm, one compact block from the top: the lockup
 	-- (emblem, wordmark, and "A community project" under the wordmark)
@@ -4327,8 +4328,12 @@ function W.Shell(name, opts)
 
 	-- Header band: the night sky, cropped to fit, never stretched.
 	local main = CreateFrame("Frame", nil, f)
-	main:SetPoint("TOPLEFT", side, "TOPRIGHT", 0, 0)
-	main:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -1, 1)
+	if rawget(f, "Rail") then
+		main:SetPoint("TOPLEFT", f.Rail, "TOPRIGHT", 0, 0)
+	else
+		main:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
+	end
+	main:SetPoint("BOTTOMRIGHT", side, "BOTTOMLEFT", 0, 0)
 	f.Main = main
 	local head = CreateFrame("Frame", nil, main)
 	head:SetPoint("TOPLEFT", main, "TOPLEFT", 0, 0)
@@ -4558,8 +4563,6 @@ local function fitRail(f, items, bottom)
 	if grow == 0 then return end
 	f.psRail = rail
 	f.Rail:SetWidth(rail)
-	f.Sidebar:SetPoint("TOPLEFT", f, "TOPLEFT", 1 + rail, -1)
-	f.Sidebar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1 + rail, 1)
 	f:SetWidth(f:GetWidth() + grow)
 	W.LayoutRim(f)
 	for _, b in ipairs(f.railButtons) do

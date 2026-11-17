@@ -26,6 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 DEST = ROOT / "addon"
+OVERLAY = ROOT / "tools" / "evertally-guide-overlay"
 LANGUAGE = re.compile(r"^Polestar_[a-z]{2}[A-Z]{2}$")
 SKIP = {"Polestar_Recorder"}
 # The file types Evertally's updater installs (sync/src/addon_update.rs FILE_TYPES).
@@ -38,6 +39,16 @@ INTEROP = re.compile(r"Polestar (Pack|Community)|import string|^\^Polestar")
 # Names other add-ons key us by (Auctionator caller, EllesmereUI painter, Waypoint UI flag, TomTom `from`, the SPF
 # handoff owner) must differ from Polestar's: with both installed, the same name would overwrite or cancel the other's.
 PATCHES: dict[str, list[tuple[str, str, int]]] = {
+    # Czech needs letters the game font of an English client lacks (boxes instead of ě č ř ů).
+    "Theme/Theme.lua": [
+        ('local function facePath(face, weight)\n\tlocal locale = GetLocale and GetLocale()\n',
+         'local function facePath(face, weight)\n\tlocal locale = GetLocale and GetLocale()\n\t-- Evertally: in Czech the game\'s own font (FRIZQT__ on an English client) has no \x0196m, \x0196a, \x0197k, \x0197}: Inter has them.\n\tif face == "game" and ns.EvertallyLanguage == "csCZ" then face = "inter" end\n', 1),
+    ],
+    # Evertally's own look is the default (addon/Evertally/GuideSkin.lua registers it): no starlit band.
+    "UI/UI.lua": [
+        ('	skin = "polestar", --', '	skin = "evertally", --', 1),
+        ('	band = true, -- the starlit header band', '	band = false, -- the starlit header band', 1),
+    ],
     # Polestar 0.4.0.1 bug: W.Bind calls stage:Refresh() before stage.Refresh is set ("Theme/Widgets.lua:1114:
     # attempt to call a nil value" on the Welcome page). Set it first.
     "UI/Welcome.lua": [
@@ -290,11 +301,19 @@ def main() -> None:
             "  - the add-on's name shown to players: Polestar -> Evertally (the guides' author is still Polestar);\n"
             "  - slash commands /polestar, /pole, /ps -> /etguide, /etg, /evertallyguide, and the ids other add-ons know\n"
             "    us by (polestar_* bag widgets, waypoint owners) -> evertally_guide_* / EvertallyGuide;\n"
-            "  - the patches listed in tools/import_polestar.py.\n"
+            "  - the patches listed in tools/import_polestar.py and the files of tools/evertally-guide-overlay\n"
+            "    (Evertally's own window layout, settings window and brand art).\n"
             "Everything else is Polestar's work, under its licence (LICENSE.txt) and notices (THIRD_PARTY.md, CREDITS.md,\n"
             "LICENSE-DATA.txt where present). This modified version is distributed under the GNU GPL, version 3.\n",
             encoding="utf8", newline="\n")
         report["folders"][dst.name] = files
+    # Evertally's own design (tools/evertally-guide-overlay): whole files that replace Polestar's after the import, so
+    # the window's layout, the settings shell and the brand art are Evertally's and survive every new Polestar.
+    for path in sorted(OVERLAY.rglob("*")):
+        if path.is_file():
+            out = DEST / path.relative_to(OVERLAY)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, out)
     czech(today, version)
     (ROOT / "tools" / "polestar-import.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf8")
     print(f"Polestar {version}: {len(sources)} folders, {sum(report['folders'].values())} files -> {DEST}\\Evertally_Guide*")
