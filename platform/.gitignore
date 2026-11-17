@@ -52,3 +52,5 @@ yarn-error.log*
 
 # OS metadata
 .DS_Store
+# the add-on bundle, served beside the web (too large for wrangler assets)
+/files/

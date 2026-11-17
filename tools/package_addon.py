@@ -55,7 +55,13 @@ with zipfile.ZipFile(dest) as archive:
     for item in sources:
         assert archive.read(item.relative_to(ROOT / "addon").as_posix()) == item.read_bytes()
 addon = dest.read_bytes()
-(web / "Evertally.zip").write_bytes(addon)
+# The bundle is larger than wrangler's 25 MiB asset limit: it is not a web asset. On the Pi it lives in
+# ~/evertally/files/downloads/ (evertally-files.service; the tunnel sends /downloads/Evertally.zip there), here in
+# platform/files/downloads/. A copy under public/ would bring the web server down, so an old one is removed.
+files = ROOT / "platform" / "files" / "downloads"
+files.mkdir(parents=True, exist_ok=True)
+(files / "Evertally.zip").write_bytes(addon)
+(web / "Evertally.zip").unlink(missing_ok=True)
 manifest = {"addon": describe("Evertally.zip", addon, files=len(sources))}
 folder_manifests = {folder: manifest.copy() for folder in (out, web)}
 
