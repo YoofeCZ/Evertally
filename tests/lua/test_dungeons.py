@@ -445,6 +445,30 @@ class DungeonTests(unittest.TestCase):
         # every page with a written guide is one of the journal's
         self.assertEqual({str(k) for k in self.m.dungeonGuides.keys()} - set(entries), set(), "a guide with no page")
 
+    def test_a_dungeon_opens_in_the_guides_dungeons_for_attunements_and_quest_runs(self):
+        # Evertally's journal keeps bosses, loot, floor maps and tactics; Evertally Guide's page has attunements and
+        # the quest pick-up and hand-in guides: one button between them, found by name (a wing by its dungeon's name).
+        self.assertIsNone(self.m.GuideDungeonKey(self.lua.eval("{name='Wailing Caverns'}")), "no guide: no button")
+        self.lua.execute("""OPENED={}
+          EvertallyGuide={Dungeons={Load=function() return true end,
+            Find=function(text) if text=="Wailing Caverns" then return "WC" elseif text=="Scarlet Monastery" then return "SM" end end,
+            Open=function(key) OPENED[#OPENED+1]=key; return true end}}""")
+        self.assertEqual(self.m.GuideDungeonKey(self.lua.eval("{name='Wailing Caverns'}")), "WC")
+        self.assertEqual(self.m.GuideDungeonKey(self.lua.eval("{name='Scarlet Monastery: Library'}")), "SM")
+        self.assertIsNone(self.m.GuideDungeonKey(self.lua.eval("{name='Hall of Thanes'}")))
+        for lang in ("en", "cs"):
+            self.assertTrue(self.a.locale[lang]["dungeonsGuide"])
+    def test_the_database_hands_its_search_to_the_guides_lookup(self):
+        # Lookup (Evertally Guide) has its own Codex and needs no QuestieDB; the Database keeps browsing and the card.
+        self.assertFalse(self.m.OpenGuideLookup("Linen Cloth"), "no guide: no Lookup")
+        self.lua.execute("FIRED={}; EvertallyGuide={Lookup={}, Fire=function(msg, q) FIRED[#FIRED+1]={msg, q} end}")
+        self.assertTrue(self.m.OpenGuideLookup("  Linen Cloth "))
+        self.assertTrue(self.m.OpenGuideLookup(""))
+        fired = self.lua.globals().FIRED
+        self.assertEqual((fired[1][1], fired[1][2]), ("SHOW_LOOKUP", "Linen Cloth"))
+        self.assertIsNone(fired[2][2], "an empty search opens Lookup as it is")
+        for lang in ("en", "cs"):
+            self.assertTrue(self.a.locale[lang]["worldDbLookup"] and self.a.locale[lang]["worldDbLookupHint"])
 
 if __name__ == "__main__":
     unittest.main()

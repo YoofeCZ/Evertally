@@ -5,9 +5,9 @@ local _, A = ...
 local B = {buttons = setmetatable({}, {__mode = "k"}), glows = setmetatable({}, {__mode = "k"}), arrows = setmetatable({}, {__mode = "k"}), wanted = {}}
 A.BagHighlight = B
 local words = {
-    en = {bagHighlight = "Mark gear in bags: blue border = fits an empty slot, green arrow = upgrade",
+    en = {bagHighlightGuide = "Evertally Guide draws the bag arrows now (Settings > Questing > Rewards & gear).", bagHighlight = "Mark gear in bags: blue border = fits an empty slot, green arrow = upgrade",
         bagDiag = "Bag check: %d frames walked, %d item buttons found, %d marked."},
-    cs = {bagHighlight = "Označit výbavu v taškách: modrý okraj = do prázdného slotu, zelená šipka = lepší",
+    cs = {bagHighlightGuide = "Šipky v taškách teď kreslí Evertally Guide (Nastavení > Questing > Rewards & gear).", bagHighlight = "Označit výbavu v taškách: modrý okraj = do prázdného slotu, zelená šipka = lepší",
         bagDiag = "Kontrola tašek: prošlo %d rámců, nalezeno %d tlačítek předmětů, označeno %d."},
 }
 for lang, entries in pairs(words) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
@@ -33,7 +33,8 @@ end
 local function integer(v) v = plain(v); if type(v) == "number" and v == math.floor(v) and v > -10 and v < 300 then return v end end
 local function itemLink(v) v = plain(v); if type(v) == "string" and v:find("item:%d+") then return v end end
 
-function B.Enabled() return A.db ~= nil and A.db.settings.bagHighlight ~= false end
+-- Evertally Guide's bag arrows (gear.bagArrows) win: one arrow per item, not two.
+function B.Enabled() return A.db ~= nil and A.db.settings.bagHighlight ~= false and not (A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows")) end
 function B.SetEnabled(on) if A.db then A.db.settings.bagHighlight = on == true end; B.Request(true) end
 
 -- One empty, known slot is enough; a slot the client cannot report counts as occupied.

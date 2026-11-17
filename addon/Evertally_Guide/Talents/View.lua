@@ -419,10 +419,14 @@ function TV.Show()
 	TV.Render()
 end
 
-ns.On("SHOW_TALENTS", TV.Show)
+ns.On("SHOW_TALENTS", function(...)
+	local E = rawget(_G, "Evertally")
+	if T.SOON and type(E) == "table" and E.ShowView then return E.ShowView("talents") end
+	return TV.Show(...)
+end)
 ns.On("TALENTS_UPDATED", function() if root and root:IsVisible() then repaint() end end)
 
-if UI.RegisterSection then
+if UI.RegisterSection and not T.SOON then
 	UI.RegisterSection({
 		key = "Talents", label = L["Talents"], icon = "icon-learn", order = 40,
 		build = TV.Build, render = TV.Render,

@@ -14,7 +14,7 @@ local text = {
         dungeonsBack = "< Dungeons", dungeonsNone = "Nothing found.", dungeonsQuestCount = "%d quests", dungeonsLv = "LV %s", dungeonsFrom = "Available from level %s",
         dungeonsObjective = "Objective", dungeonsStarts = "Starts at", dungeonsTurnin = "Turn in", dungeonsChoose = "Choose one reward", dungeonsAlso = "You will also receive",
         dungeonsLoot = "Loot", dungeonsNoLoot = "No loot is listed.", dungeonsNoBosses = "No bosses are listed for this one.", dungeonsNoQuests = "No quests are listed for this one.",
-        dungeonsNoMap = "There is no map for this dungeon.", dungeonsEntrance = "Entrance", dungeonsShow = "Show the entrance on the map", dungeonsGo = "Navigate to the entrance",
+        dungeonsNoMap = "There is no map for this dungeon.", dungeonsEntrance = "Entrance", dungeonsShow = "Show the entrance on the map", dungeonsGo = "Navigate to the entrance", dungeonsGuide = "Attunements and quest runs",
         dungeonsNoJournal = "Evertally has no list of bosses, loot and quests for this one yet.",
         dungeonsFaction = "%s only", dungeonsInDb = "Open the quest in the database", dungeonsPlayers = "%d players", dungeonsIn = "In %s",
         dungeonsLevel = "Level %s", dungeonsPickup = "From", dungeonsRewards = "Reward", dungeonsNpcInDb = "Open the boss in the database",
@@ -23,7 +23,7 @@ local text = {
         dungeonsBack = "< Dungeony", dungeonsNone = "Nic nenalezeno.", dungeonsQuestCount = "Questů: %d", dungeonsLv = "LV %s", dungeonsFrom = "Dostupné od úrovně %s",
         dungeonsObjective = "Cíl", dungeonsStarts = "Začíná u", dungeonsTurnin = "Odevzdat u", dungeonsChoose = "Vyber jednu odměnu", dungeonsAlso = "Dostaneš také",
         dungeonsLoot = "Loot", dungeonsNoLoot = "Žádný loot není uvedený.", dungeonsNoBosses = "U tohohle nejsou uvedení žádní bossové.", dungeonsNoQuests = "U tohohle nejsou uvedené žádné questy.",
-        dungeonsNoMap = "Pro tenhle dungeon není mapa.", dungeonsEntrance = "Vchod", dungeonsShow = "Ukázat vchod na mapě", dungeonsGo = "Navigovat ke vchodu",
+        dungeonsNoMap = "Pro tenhle dungeon není mapa.", dungeonsEntrance = "Vchod", dungeonsShow = "Ukázat vchod na mapě", dungeonsGo = "Navigovat ke vchodu", dungeonsGuide = "Attunementy a questy",
         dungeonsNoJournal = "Pro tenhle Evertally zatím nemá seznam bossů, lootu a questů.",
         dungeonsFaction = "Jen %s", dungeonsInDb = "Otevřít quest v databázi", dungeonsPlayers = "Hráčů: %d", dungeonsIn = "V %s",
         dungeonsLevel = "Úroveň %s", dungeonsPickup = "Od", dungeonsRewards = "Odměna", dungeonsNpcInDb = "Otevřít bosse v databázi",
@@ -432,9 +432,28 @@ local function layout(dj)
     dj.visibleRows = math.max(1, math.min(ROWS_MAX, math.floor((height - 130) / ROW_H)))
     dj.detail.SetWidth(width - dj.listWidth - 12 - 40)
     dj.mapArea:ClearAllPoints(); dj.mapArea:SetPoint("TOPLEFT", 0, -86); dj.mapArea:SetPoint("BOTTOMRIGHT", 0, 44)
-    local actionWidth = math.min(260, (width - 10) / 2)
-    dj.show:SetWidth(actionWidth); dj.go:SetWidth(actionWidth)
+    local actionWidth = math.min(240, (width - 16) / 3)
+    dj.show:SetWidth(actionWidth); dj.go:SetWidth(actionWidth); if dj.attune then dj.attune:SetWidth(actionWidth) end
     dj.box:SetWidth(math.max(170, math.min(300, width * 0.48)))
+end
+
+-- The same dungeon in Evertally Guide's Dungeons (the fork of Polestar): its attunements and keys, per-character
+-- quest state and the guides that pick the quests up and hand them in. Evertally's journal keeps the bosses, loot,
+-- floor maps and tactics; the guide's page is one click away. -> its key, or nil (no guide, no such dungeon).
+function M.GuideDungeonKey(entry)
+    local g = rawget(_G, "EvertallyGuide")
+    local D = type(g) == "table" and g.Dungeons
+    if type(D) ~= "table" or type(D.Find) ~= "function" or type(D.Open) ~= "function" or not entry then return nil end
+    if D.Load then pcall(D.Load) end
+    local names = {}
+    for _, name in pairs({entry.name, entry.key, type(entry.name) == "string" and entry.name:match("^(.-)%s*[:%-]") or nil}) do names[#names + 1] = name end
+    for _, name in ipairs(names) do
+        if type(name) == "string" and name ~= "" then
+            local ok, key = pcall(D.Find, name)
+            if ok and key then return key end
+        end
+    end
+    return nil
 end
 
 local function refreshCards(dj)
@@ -532,6 +551,8 @@ local function showMode(dj)
     dj.scroll:SetShown(home); dj.box:SetShown(home); dj.count:SetShown(home)
     dj.head:SetShown(not home)
     dj.show:SetShown(not home and dj.entrance ~= nil); dj.go:SetShown(not home and dj.entrance ~= nil)
+    dj.guideKey = not home and M.GuideDungeonKey(dj.selected) or nil
+    if dj.attune then dj.attune:SetShown(dj.guideKey ~= nil) end
     if home then dj.list:Hide(); dj.listBg:Hide(); detailShown(dj, false); dj.mapArea:Hide() end
     refreshCards(dj)
 end
@@ -570,7 +591,7 @@ local function refresh(dj)
     for _, entry in ipairs(M.DungeonList()) do if matches(entry, query) then dj.results[#dj.results + 1] = entry end end
     dj.count:SetText(#dj.results > 0 and string.format(A.L("dungeonsCount"), #dj.results) or A.L("dungeonsNone"))
     for key, chip in pairs(dj.tabs) do chip.SetLabel(A.L(key == "guide" and "dgGuide" or key == "bosses" and "dungeonsBosses" or key == "quests" and "dungeonsQuests" or "dungeonsMap")) end
-    dj.back.text:SetText(A.L("dungeonsBack")); dj.show.text:SetText(A.L("dungeonsShow")); dj.go.text:SetText(A.L("dungeonsGo"))
+    dj.back.text:SetText(A.L("dungeonsBack")); dj.show.text:SetText(A.L("dungeonsShow")); dj.go.text:SetText(A.L("dungeonsGo")); if dj.attune then dj.attune.text:SetText(A.L("dungeonsGuide")) end
     dj.noJournal:SetText(A.L("dungeonsNoJournal"))
     layout(dj)
     -- a narrower or wider detail wraps its texts again: what is shown is drawn again so nothing lies on top of the next line
@@ -686,6 +707,11 @@ function M.BuildDungeons(body, kit)
         if item and M.NavigateLayerSpot then M.NavigateLayerSpot({map = item.map, x = item.x, y = item.y, title = dj.selected and dj.selected.name or item.name, source = {dungeon = dj.selected and dj.selected.key}}) end
     end)
     dj.go:SetPoint("BOTTOMLEFT", dj.show, "BOTTOMRIGHT", 8, 0); dj.go:Hide()
+    dj.attune = kit.Button(body, "dungeonsGuide", 230, "ghost", function()
+        local g = rawget(_G, "EvertallyGuide")
+        if dj.guideKey and g and g.Dungeons then pcall(g.Dungeons.Open, dj.guideKey) end
+    end)
+    dj.attune:SetPoint("BOTTOMLEFT", dj.go, "BOTTOMRIGHT", 8, 0); dj.attune:Hide()
     -- the map tab
     dj.mapArea = CreateFrame("Frame", nil, body); dj.mapArea:Hide()
     local m = {area = dj.mapArea, tiles = {}, marks = {}, floorChips = {}}

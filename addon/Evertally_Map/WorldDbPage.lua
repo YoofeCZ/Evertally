@@ -267,8 +267,11 @@ function M.WorldDbRefresh(frame, fromTimer)
         button.text:SetText(A.L("worldDb_" .. kind))
         button.text:SetTextColor(unpack(s.kind == kind and frame.kitColors.bright or frame.kitColors.mist))
     end
+    if s.lookup then s.lookup:SetShown(M.GuideLookup() ~= nil); s.lookup.text:SetText(A.L("worldDbLookup")) end
     if s.dbFailed then
-        s.status:SetText(A.L("worldDbMissing")); s.results = {}; M.WorldDbRows(frame); return
+        -- without QuestieDB the guide's Lookup still answers (its Codex is bundled)
+        s.status:SetText(A.L("worldDbMissing") .. (M.GuideLookup() and ("  " .. A.L("worldDbLookupHint")) or ""))
+        s.results = {}; M.WorldDbRows(frame); return
     end
     local entry = Db.StartIndex(s.dbHandle, s.kind)
     local reading = entry.at <= #entry.ids
@@ -286,6 +289,21 @@ function M.WorldDbRefresh(frame, fromTimer)
     else s.status:SetText(string.format(A.L("catalogCounts"), #s.results)) end
     M.WorldDbRows(frame)
     if not fromTimer then M.WorldDbDetail(frame) end
+end
+
+-- Evertally Guide's Lookup (the fork of Polestar): its own Codex (no QuestieDB needed), eleven kinds of things and the
+-- ranked ways to get an item with drop chances. This page keeps browsing by category and the quest's parchment card.
+function M.GuideLookup()
+    local g = rawget(_G, "EvertallyGuide")
+    if type(g) == "table" and type(g.Fire) == "function" and type(g.Lookup) == "table" then return g end
+    return nil
+end
+function M.OpenGuideLookup(query)
+    local g = M.GuideLookup()
+    if not g then return false end
+    query = type(query) == "string" and query:gsub("^%s+", ""):gsub("%s+$", "") or ""
+    g.Fire("SHOW_LOOKUP", query ~= "" and query or nil)
+    return true
 end
 
 local function build(frame, kit)
@@ -311,6 +329,8 @@ local function build(frame, kit)
         s.offset = 0; s.selected = nil
         M.WorldDbRefresh(frame)
     end)
+    s.lookup = kit.Button(frame, "worldDbLookup", 170, "ghost", function() M.OpenGuideLookup(s.query) end)
+    s.lookup:SetPoint("TOPRIGHT", 0, -2); s.lookup:Hide()
     s.status = kit.label(frame, 11, C.mist); s.status:SetPoint("TOPLEFT", 6, -40); s.status:SetWidth(330)
     s.catButton:SetPoint("TOPLEFT", 346, -34)
     -- the list

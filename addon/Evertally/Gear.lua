@@ -336,12 +336,21 @@ function G.QuestRewards()
  if vendorLoading then return entries,nil,"loading" end
  return entries,entries.vendor,entries.vendor and "vendor" or "unknown"
 end
+-- Evertally Guide (the fork of Polestar) scores gear too, with more behind it (weights by spec and level, Pawn,
+-- Forever Leveling BiS): while it has a part switched on (gear.tooltip, gear.rewards, gear.bagArrows), Evertally's
+-- own steps back there, so nothing is drawn twice.
+function G.GuideHas(part)
+ local g=rawget(_G,"EvertallyGuide");local gear=type(g)=="table" and g.Gear
+ if type(gear)~="table" or type(gear.IsEnabled)~="function" or type(g.Get)~="function" then return false end
+ local ok,on=pcall(function() return gear.IsEnabled() and g.Get("gear."..part) end)
+ return ok and on and true or false
+end
 function G.MarkRewards()
  local entries,best,reason=G.QuestRewards();local frame=QuestInfoRewardsFrame
  for i=1,math.max(#entries,20) do
   local button=frame and type(frame.RewardButtons)=="table" and frame.RewardButtons[i] or _G["QuestInfoRewardsFrameQuestInfoItem"..i] or _G["QuestInfoItem"..i]
   if button and button.evertallyGearBadge then button.evertallyGearBadge:Hide() end
-  if i==best and G.Enabled("rewards") and button and type(button.CreateFontString)=="function" then
+  if i==best and G.Enabled("rewards") and not G.GuideHas("rewards") and button and type(button.CreateFontString)=="function" then
    if not button.evertallyGearBadge then local badge=button:CreateFontString(nil,"OVERLAY","GameFontNormalSmall");badge:SetPoint("BOTTOMLEFT",3,2);button.evertallyGearBadge=badge end
    button.evertallyGearBadge:SetText("Evertally: "..A.L(reason=="upgrade" and "gearBest" or "gearBestVendor"));button.evertallyGearBadge:Show()
   end
@@ -373,7 +382,7 @@ function G.TooltipLines(link)
  return lines
 end
 function G.AppendTooltip(tooltip)
- if not G.Enabled("tooltip") or not tooltip or type(tooltip.GetItem)~="function" then return false end
+ if not G.Enabled("tooltip") or G.GuideHas("tooltip") or not tooltip or type(tooltip.GetItem)~="function" then return false end
  local r=call(tooltip.GetItem,tooltip);local link=r and plain(r[3]);if not link or tooltip.evertallyGearLink==link then return false end
  local lines=G.TooltipLines(link);if not lines then return false end
  tooltip.evertallyGearLink=link
