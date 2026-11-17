@@ -61,7 +61,9 @@ class GuideShellTests(unittest.TestCase):
         self.assertEqual(section.order, 1, "first on the rail")
         views, items, active = self.views(section)
         self.assertEqual(views[:6], ["overview", "journal", "history", "places", "facts", "professions"])
-        self.assertIn("database", views)
+        for view in ("database", "gear", "questguide"):
+            self.assertNotIn(view, views, "the guide's Lookup, gear advice and guides stand for it in the hub")
+        self.assertIn("dungeons", views)
         self.assertEqual(views[-1], "settings")
         self.assertNotIn("leveling", views, "the guide's own sections replace the Leveling page")
         self.assertEqual(sum(1 for i in range(1, len(items) + 1) if items[i].separator), 3, "a rule between the four groups")
@@ -69,6 +71,15 @@ class GuideShellTests(unittest.TestCase):
         for i in range(1, len(items) + 1):
             if not items[i].separator:
                 self.assertTrue(items[i].label and items[i].icon)
+
+    def test_pages_left_out_of_the_menu_still_open_and_entries_go_to_the_guides_lookup(self):
+        section = self.install()
+        self.a.ShowView("database")
+        self.assertTrue(self.a.guideShell.Shown("database"), "a link that names the page still opens it")
+        self.lua.execute("FIRED={}; EvertallyGuide.Fire=function(...) FIRED[#FIRED+1]={...} end")
+        self.assertTrue(self.a.OpenDatabaseEntry("quest", 783))
+        fired = self.lua.globals().FIRED[1]
+        self.assertEqual((fired[1], fired[2], fired[3], fired[4]), ("SHOW_LOOKUP", None, "quest", 783))
 
     def test_every_page_builds_in_the_hub_and_opening_a_view_shows_it(self):
         section = self.install()

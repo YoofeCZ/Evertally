@@ -1815,11 +1815,12 @@ local function slash(text)
     elseif text == "reset" then A.ResetUISize(); A.Print(A.L("windowReset"))
     elseif text == "setup" then
         if A.OpenOnboarding then A.OpenOnboarding() end
-    elseif text == "gear" then A.ShowView("gear")
+    -- (in the guide's hub its own gear advice and its guides stand for Evertally's Gear and Quest guide pages)
+    elseif text == "gear" then if not (A.guideShell and A.RunGuide and A.RunGuide("gear")) then A.ShowView("gear") end
     elseif text == "music" then if A.Music then A.Music.SetEnabled(not A.Music.Enabled()) end
     elseif text == "bags" then if A.BagHighlight then A.BagHighlight.Diagnose() end
     elseif text == "train" or text == "training" then A.ShowView("training")
-    elseif text == "guide" or text == "questguide" then A.ShowView("questguide")
+    elseif text == "guide" or text == "questguide" then if not (A.guideShell and A.RunGuide and A.RunGuide("guides")) then A.ShowView("questguide") end
     elseif text == "map" then
         -- the map: OpenMap's (Evertally's layers are drawn on it)
         if type(ToggleWorldMap) == "function" then pcall(ToggleWorldMap) end

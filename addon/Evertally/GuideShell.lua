@@ -19,6 +19,11 @@ local PAGE_ICON = {
 }
 -- The Leveling page only led to the guide's windows; in the hub they are its neighbours on the rail.
 local SKIP = {leveling = true}
+-- Pages the guide does better, left out of the menu in the hub (still built: links and commands that name them open
+-- them): the Database (the guide's Lookup searches the same and more, A.OpenDatabaseEntry goes there), Gear and junk
+-- (the guide's gear advice, bag marks and selling) and the Quest guide (the guide's leveling guides). Without the
+-- guide Evertally's own window lists them as before.
+local HIDE = {database = true, gear = true, questguide = true}
 
 local function guideAPI()
     local g = rawget(_G, "EvertallyGuide")
@@ -74,7 +79,7 @@ function A.InstallGuideShell()
         local items = {}
         for i, list in ipairs(groups) do
             if i > 1 then items[#items + 1] = {separator = true} end
-            for _, view in ipairs(list) do items[#items + 1] = {key = view, label = A.L(view), icon = PAGE_ICON[view] or "compact"} end
+            for _, view in ipairs(list) do if not HIDE[view] then items[#items + 1] = {key = view, label = A.L(view), icon = PAGE_ICON[view] or "compact"} end end
         end
         return items, viewOf()
     end

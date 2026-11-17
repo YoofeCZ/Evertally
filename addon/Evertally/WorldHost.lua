@@ -44,6 +44,12 @@ function A.OpenGuideDungeon(key)
 end
 --- Opens the database page on one entry.
 function A.OpenDatabaseEntry(kind, id)
+    -- in the guide's hub the Database is not in the menu: its Lookup opens the quest, NPC or item (objects it has not)
+    local g = rawget(_G, "EvertallyGuide")
+    if A.guideShell and type(g) == "table" and type(g.Fire) == "function" and (kind == "quest" or kind == "npc" or kind == "item") and tonumber(id) then
+        if g.SetHidden then pcall(g.SetHidden, false) end
+        if pcall(g.Fire, "SHOW_LOOKUP", nil, kind, tonumber(id)) then return true end
+    end
     local ok, loaded = pcall(A.LoadGuide)
     if not (ok and loaded and A.map and A.map.OpenDatabaseEntry) then return false end
     return pcall(A.map.OpenDatabaseEntry, kind, id)
