@@ -52,6 +52,56 @@ local function person(list)
     local name = A.Text(p.name, 80)
     return name and zone and zone ~= "" and (name .. ", " .. zone) or name, spot
 end
+-- Evertally Guide's Codex (the Evertally_Guide add-ons, from Polestar): its dungeon pages add the quests our catalogue lacks
+-- (Forever's new ones with their rewards, XP and where they start), and a level where AtlasLoot gives none. Its instances are
+-- whole (Dire Maul, Scarlet Monastery, Stratholme, Blackrock Spire): a wing of ours takes only the quests of its own bosses.
+local FORK_ALIAS = {["stockade"] = "stormwind stockade", ["temple of ahnqiraj"] = "ahnqiraj temple", ["shapers terrace"] = "shapers terrace"}
+local function norm(name)
+    name = tostring(name or ""):lower():gsub("^the ", ""):gsub("[^%w ]", ""):gsub("%s+", " ")
+    return FORK_ALIAS[name] or name
+end
+local function wholeOf(name)
+    local base = tostring(name):match("^(.-):") or tostring(name):gsub("^Lower ", ""):gsub("^Upper ", "")
+    return norm(base), base ~= name
+end
+local function forkDungeons()
+    local guide = rawget(_G, "EvertallyGuide")
+    local D = type(guide) == "table" and guide.Dungeons
+    if type(D) ~= "table" or type(D.Load) ~= "function" or type(D.List) ~= "function" or type(D.Quests) ~= "function" then return nil end
+    local ok, loaded = pcall(D.Load)
+    if not (ok and loaded) then return nil end
+    local keys = {}
+    for _, entry in ipairs(D.List() or {}) do if type(entry) == "table" and entry.key then keys[norm(entry.name)] = entry end end
+    return D, keys
+end
+local function forkPerson(p)
+    if type(p) ~= "table" then return nil, nil end
+    local spot = tonumber(p.map) and tonumber(p.x) and tonumber(p.y) and {map = tonumber(p.map), x = tonumber(p.x) / 100, y = tonumber(p.y) / 100} or nil
+    local zone = spot and M.MapName and M.MapName(spot.map)
+    local name = A.Text(p.name, 80)
+    return name and zone and zone ~= "" and (name .. ", " .. zone) or name, spot
+end
+local function forkQuest(D, key, q)
+    local choice, also = {}, {}
+    for _, item in ipairs(type(q.rewards) == "table" and type(q.rewards.items) == "table" and q.rewards.items or {}) do
+        local row = {item.id, item.name, item.quality, 1}
+        if item.choice then choice[#choice + 1] = row else also[#also + 1] = row end
+    end
+    local pickup, pickupSpot = forkPerson(q.start)
+    local turnin, turninSpot = forkPerson(q.finish)
+    local quest = {id = q.id, name = q.title, level = q.level, requires = q.minLevel, faction = q.faction == "A" and "Alliance" or q.faction == "H" and "Horde" or "Both",
+        objective = D.ObjectiveText and D.ObjectiveText(q) or nil, pickup = pickup, pickupSpot = pickupSpot, turnin = turnin, turninSpot = turninSpot,
+        xp = type(q.rewards) == "table" and q.rewards.xp or nil, money = type(q.rewards) == "table" and q.rewards.money or nil,
+        startsInDungeon = q.inside == true or nil, fromGuide = true}
+    if #choice > 0 then quest.rewardItems, quest.rewardChoice = choice, true; if #also > 0 then quest.additionalRewardItems = also end
+    elseif #also > 0 then quest.rewardItems, quest.rewardChoice = also, false end
+    local before = {}
+    for _, id in ipairs(type(q.chain) == "table" and q.chain or {}) do
+        local prior = D.Quest and D.Quest(key, id)
+        if type(prior) == "table" and prior.title then before[#before + 1] = {id = id, name = prior.title} end
+    end
+    return quest, #before > 0 and before or nil
+end
 local own
 local function journal()
     if own then return own end
@@ -77,6 +127,7 @@ local function journal()
         end
     end
     local db, art, coords, levels, maps = {}, {}, {}, {}, {}
+    local fork, forkKeys = forkDungeons()
     local allFloors = type(M.dungeonFloors) == "table" and M.dungeonFloors or {}
     for name, d in pairs(M.dungeonData) do
         local bosses, bossLevels, marks, onFloor = {}, {}, {}, {}
@@ -101,6 +152,24 @@ local function journal()
             maps[name] = {floors = floors, bosses = marks}
         end
         local list = byDungeon[name] or {}
+        -- what the guide's Codex knows about this one that our catalogue does not
+        local whole, wing = wholeOf(name)
+        local forkEntry = fork and (forkKeys[norm(name)] or forkKeys[whole])
+        if forkEntry then
+            local have, ours = {}, {}
+            for _, q in ipairs(list) do have[q.id] = true end
+            for _, b in ipairs(d.bosses or {}) do ours[b.name] = true end
+            for _, q in ipairs(fork.Quests(forkEntry.key) or {}) do
+                local mine = not wing
+                if wing then for _, boss in ipairs(type(q.bosses) == "table" and q.bosses or {}) do if ours[boss] then mine = true end end end
+                if type(q) == "table" and tonumber(q.id) and not have[q.id] and mine then
+                    local quest, before = forkQuest(fork, forkEntry.key, q)
+                    list[#list + 1] = quest; have[q.id] = true
+                    if before then chains[q.id] = before end
+                end
+            end
+            if not d.level and tonumber(forkEntry.minLevel) and tonumber(forkEntry.maxLevel) then d = setmetatable({level = {forkEntry.minLevel, forkEntry.minLevel, forkEntry.maxLevel}}, {__index = d}) end
+        end
         table.sort(list, function(a, b) if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end; return tostring(a.name) < tostring(b.name) end)
         local level = d.level and (d.level[2] == d.level[3] and tostring(d.level[2]) or (tostring(d.level[2]) .. "-" .. tostring(d.level[3]))) or ""
         db[name] = {level = level, location = "", isRaid = d.raid, bosses = bosses, quests = list}

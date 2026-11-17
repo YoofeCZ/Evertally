@@ -308,6 +308,36 @@ class DungeonTests(unittest.TestCase):
         mark = [m for m in lst(dj.map.marks) if m.shown][0]
         self.assertEqual(str(mark.bg.texture), "portrait:14403", "a mark is the boss's portrait, not a dot")
 
+    def test_the_guides_codex_adds_the_quests_our_catalogue_lacks_once_each(self):
+        self.fake()
+        self.lua.execute("""
+          EvertallyGuide = {Dungeons = {
+            Load = function() return true end,
+            List = function() return {{key = "wailing-caverns", name = "Wailing Caverns", minLevel = 15, maxLevel = 25}} end,
+            Quests = function(key) return {
+              {id = 1486, title = "Deviate Hides (again)", level = 17},
+              {id = 96001, title = "Forever's Own Errand", level = 18, minLevel = 15, faction = "H", inside = true, chain = {96000},
+               start = {kind = "npc", name = "Ebru", map = 1413, x = 46.2, y = 36.1},
+               finish = {kind = "npc", name = "Ebru", map = 1413, x = 46.2, y = 36.1},
+               rewards = {items = {{id = 6480, name = "Slick Deviate Leggings", quality = 2, choice = true}, {id = 918, name = "Deviate Hide Pack", quality = 1, choice = true}}, xp = 2450, money = 900}}} end,
+            Quest = function(key, id) if id == 96000 then return {id = 96000, title = "The Step Before"} end end,
+            ObjectiveText = function(q) return "Bring 5 Glowing Shards." end}}
+        """)
+        body, dj = self.page()
+        self.open(dj, "Wailing Caverns")
+        self.tab(dj, "quests")
+        titles = [str(i.title) for i in lst(dj["items"])]
+        self.assertEqual(titles, ["Deviate Hides", "Forever's Own Errand", "Mage Only"], "added once, in level order; the one we have is not repeated")
+        added = lst(dj["items"])[1].quest
+        self.assertEqual(str(added.faction), "Horde")
+        model = self.m.JournalQuestModel(added)
+        self.assertEqual([int(r.id) for r in lst(model.choiceRewards)], [6480, 918])
+        self.assertEqual(int(model.xp), 2450)
+        self.assertEqual(str(model.objective), "Bring 5 Glowing Shards.")
+        self.assertEqual(round(float(model.starts[1].spot.x), 3), 0.462, "its place on the map, 0..1")
+        self.assertEqual([str(c.name) for c in lst(model.chain)], ["The Step Before"])
+        self.assertEqual(str(dj.selected.level), "15-24", "AtlasLoot's level stays; the Codex fills only a missing one")
+
     def test_bosses_have_their_levels_and_a_portrait_of_their_model(self):
         self.fake(with_map=True)
         body, dj = self.page()
