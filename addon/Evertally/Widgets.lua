@@ -1,5 +1,5 @@
 local _, A = ...
--- All shared controls use the same navy-and-gold surfaces, including legacy reader aliases.
+-- All shared controls use the same night-and-gold surfaces (Theme.lua), including legacy reader aliases.
 local PARCHMENT = A.Theme.reader
 function A.NativeFrame(frame, C) A.Theme.Surface(frame, "window"); return true end
 function A.NativePanel(frame, C) A.Theme.Surface(frame, "panel"); return true end
@@ -145,22 +145,72 @@ function A.ExtendKit(kit)
         return f
     end
 
-    --- A filter chip: a small pill that is either on or off. chip.SetLabel(text) sizes it to the text, chip.SetOn(bool) paints it.
+    --- A filter chip, drawn as a tab: a quiet rounded ground and its caption; the chosen one reads gold and is underlined
+    --- with a gold line (a chip that is never chosen is a quiet button). chip.SetLabel(text) sizes it to the text, chip.SetOn(bool) paints it.
     function kit.Chip(parent, onClick)
         local b = CreateFrame("Button", nil, parent); b:SetHeight(24)
-        A.NativeButton(b, C, false); outline(b, C.line)
-        b.bg = fill(b, C.off, 0.35, "ARTWORK"); A.Theme.Shape(b.bg, "round"); paint(b.bg, C.off, 0.35)
-        local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(b); A.Theme.Shape(hover, "round"); paint(hover, {1, 1, 1}, 0.07)
-        b.text = label(b, 11, C.mist); b.text:SetPoint("CENTER"); b.text:SetJustifyH("CENTER")
+        b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetAllPoints(b); A.Theme.Shape(b.bg, "round"); paint(b.bg, C.raised, 0.55)
+        local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(b); A.Theme.Shape(hover, "round"); paint(hover, {1, 1, 1}, 0.06)
+        b.underline = b:CreateTexture(nil, "ARTWORK"); b.underline:SetHeight(2); b.underline:SetPoint("BOTTOMLEFT", 6, 0); b.underline:SetPoint("BOTTOMRIGHT", -6, 0)
+        paint(b.underline, C.gold); b.underline:Hide()
+        b.text = label(b, 11, C.mist); b.text:SetPoint("CENTER", 0, 1); b.text:SetJustifyH("CENTER")
         function b.SetLabel(value) b.text:SetText(value); b:SetWidth(math.max(34, (b.text:GetStringWidth() or 30) + 22)) end
         function b.SetOn(on)
             b.on = on and true or false
-            paint(b.bg, on and C.lilac or C.off, on and 0.30 or 0.35)
-            local c = on and C.text or C.mist
+            paint(b.bg, on and C.gold or C.raised, on and 0.12 or 0.55)
+            b.underline:SetShown(b.on)
+            local c = on and C.bright or C.mist
             b.text:SetTextColor(c[1], c[2], c[3])
         end
         b:SetScript("OnClick", onClick)
         return b
+    end
+
+    --- A slider: its name and value above a thin track with a gold fill and a knob. opts = {min, max, step, get, set,
+    --- format ("%d %%"), localeKey, live}. Dragging shows the value; it is set when the knob is let go (live: while dragging).
+    --- The mouse wheel moves it a step. slider.Refresh() reads the value again.
+    function kit.Slider(parent, opts)
+        local s = CreateFrame("Frame", nil, parent); s:SetHeight(48); s:EnableMouse(true)
+        s.localeKey = opts.localeKey
+        s.title = label(s, 12, kit.ParchmentText.ink); s.title:SetPoint("TOPLEFT", 0, -4); s.title:SetPoint("TOPRIGHT", -70, -4); s.title:SetWordWrap(false)
+        s.value = label(s, 12, C.bright); s.value:SetPoint("TOPRIGHT", -4, -4); s.value:SetWidth(64); s.value:SetJustifyH("RIGHT")
+        s.track = s:CreateTexture(nil, "ARTWORK"); s.track:SetHeight(4); s.track:SetPoint("TOPLEFT", 2, -30); s.track:SetPoint("TOPRIGHT", -10, -30)
+        A.Theme.Shape(s.track, "pill"); paint(s.track, C.off)
+        s.fill = s:CreateTexture(nil, "ARTWORK", nil, 1); s.fill:SetHeight(4); s.fill:SetPoint("LEFT", s.track, "LEFT", 0, 0)
+        A.Theme.Shape(s.fill, "pill"); paint(s.fill, C.gold)
+        s.shadow = s:CreateTexture(nil, "OVERLAY"); s.shadow:SetSize(20, 20); A.Theme.Art(s.shadow, "knob-shadow", {0, 0, 0}, 0.55)
+        s.knob = s:CreateTexture(nil, "OVERLAY", nil, 1); s.knob:SetSize(14, 14); A.Theme.Shape(s.knob, "dot"); paint(s.knob, C.bright)
+        s.shadow:SetPoint("CENTER", s.knob, "CENTER", 0, -1)
+        s.rule = s:CreateTexture(nil, "BORDER"); s.rule:SetHeight(1); s.rule:SetPoint("BOTTOMLEFT"); s.rule:SetPoint("BOTTOMRIGHT"); paint(s.rule, C.rule)
+        local low, high, step = opts.min or 0, opts.max or 100, opts.step or 1
+        local function snap(v) v = math.floor(((tonumber(v) or low) - low) / step + 0.5) * step + low; return math.max(low, math.min(high, v)) end
+        local function draw(v)
+            s.current = snap(v)
+            local width = math.max(1, (tonumber(s.track:GetWidth()) or 1))
+            local x = (s.current - low) / math.max(1e-9, high - low) * width
+            s.fill:SetWidth(math.max(0.01, x)); s.fill:SetShown(x > 0.5)
+            s.knob:ClearAllPoints(); s.knob:SetPoint("CENTER", s.track, "LEFT", x, 0)
+            s.value:SetText(string.format(opts.format or "%d", s.current))
+        end
+        local function commit(v) v = snap(v); draw(v); if opts.set then opts.set(v) end end
+        local function fromCursor()
+            local left, width = s.track:GetLeft(), s.track:GetWidth()
+            if not left or not width or width <= 0 or type(GetCursorPosition) ~= "function" then return s.current end
+            local x = GetCursorPosition() / ((s.GetEffectiveScale and s:GetEffectiveScale()) or 1)
+            return low + (x - left) / width * (high - low)
+        end
+        function s.Refresh() s.title:SetText(opts.localeKey and A.L(opts.localeKey) or ""); draw(opts.get and opts.get() or low) end
+        function s.SetValue(v) commit(v) end
+        s:SetScript("OnMouseDown", function()
+            s.dragging = true; draw(fromCursor())
+            s:SetScript("OnUpdate", function() if s.dragging then local v = fromCursor(); draw(v); if opts.live and opts.set then opts.set(s.current) end end end)
+        end)
+        s:SetScript("OnMouseUp", function() s.dragging = false; s:SetScript("OnUpdate", nil); commit(s.current) end)
+        s:EnableMouseWheel(true)
+        s:SetScript("OnMouseWheel", function(_, delta) commit((s.current or low) + (delta > 0 and step or -step)) end)
+        s:SetScript("OnSizeChanged", function() draw(s.current or (opts.get and opts.get()) or low) end)
+        s.Refresh()
+        return s
     end
 
     --- A horizontal bar, 0 to 1. bar.Set(fraction[, colour]); it follows its own width.
@@ -398,7 +448,8 @@ function A.ExtendKit(kit)
         b.bg = fill(b, C.card, 0.6)
         local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetAllPoints(b); paint(hover, {1, 1, 1}, 0.05)
         A.Theme.Shape(b.bg, "round"); paint(b.bg, C.card, 0.6); A.Theme.Shape(hover, "round"); paint(hover, {1, 1, 1}, 0.05)
-        b.track = b:CreateTexture(nil, "ARTWORK"); b.track:SetSize(36, 18); b.track:SetPoint("LEFT", 14, 0); A.Theme.Shape(b.track, "pill")
+        b.track = b:CreateTexture(nil, "ARTWORK"); b.track:SetSize(34, 18); b.track:SetPoint("LEFT", 16, 0); A.Theme.Shape(b.track, "pill")
+        b.edge = b:CreateTexture(nil, "ARTWORK", nil, 1); b.edge:SetAllPoints(b.track); A.Theme.Shape(b.edge, "ring")
         b.knob = b:CreateTexture(nil, "OVERLAY"); b.knob:SetSize(14, 14); A.Theme.Shape(b.knob, "dot"); paint(b.knob, C.text)
         b.title = label(b, 13, C.text); b.title:SetWordWrap(false)
         b.sub = label(b, 10, C.mist)
@@ -416,8 +467,10 @@ function A.ExtendKit(kit)
         function b.Set(on, enabled)
             b.on = on and true or false
             if enabled ~= nil then b.enabled = enabled and true or false end
-            paint(b.track, b.on and C.lilac or C.off, b.enabled and 1 or 0.4)
-            b.knob:ClearAllPoints(); b.knob:SetPoint("LEFT", b.track, "LEFT", b.on and 20 or 2, 0); paint(b.knob, b.on and C.bright or C.mist)
+            -- the same switch as the settings rows: lit gold with a dark knob on the right, or an unlit outline
+            paint(b.track, b.on and C.gold or C.off, (b.enabled and 1 or 0.4) * (b.on and 1 or 0.55))
+            paint(b.edge, b.on and C.bright or C.mist, b.on and 0 or 0.45)
+            b.knob:ClearAllPoints(); b.knob:SetPoint("LEFT", b.track, "LEFT", b.on and 18 or 2, 0); paint(b.knob, b.on and C.canvas or C.mist)
             local c = b.enabled and C.text or C.faint
             b.title:SetTextColor(c[1], c[2], c[3])
         end

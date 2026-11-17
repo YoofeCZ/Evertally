@@ -3,7 +3,9 @@ local _, A = ...
 
 -- The window is resizable: these are its default and smallest size; below COMPACT_BELOW the side menu shrinks to icons.
 local DEFAULT_W, DEFAULT_H, MIN_W, MIN_H = 1120, 740, 700, 460
-local WIDTH, HEIGHT, HEADER, SIDEBAR, PAD, ROW = DEFAULT_W, DEFAULT_H, 64, 224, 22, 44
+-- The side menu is a narrow column of group glyphs (RAIL) beside the list of pages.
+local WIDTH, HEIGHT, HEADER, SIDEBAR, PAD, ROW = DEFAULT_W, DEFAULT_H, 64, 236, 22, 44
+local RAIL = 40
 local COMPACT_SIDEBAR, COMPACT_BELOW, HEAD_ROW = 56, 860, 30
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
 -- Legacy accent names remain aliases for pages that use the shared kit.
@@ -14,7 +16,7 @@ local ICON = {
     peers = "Interface\\Icons\\INV_Misc_GroupNeedMore", settings = "Interface\\Icons\\INV_Misc_Gear_01",
     social = "Interface\\Icons\\INV_Misc_GroupNeedMore", webfacts = "Interface\\Icons\\Spell_Nature_FarSight", community = "Interface\\Icons\\INV_Misc_GroupLooking", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\Ability_Tracking", world = "Interface\\Icons\\Spell_Nature_FarSight",
     database = "Interface\\Icons\\INV_Misc_Book_11", dungeons = "Interface\\Icons\\INV_Misc_Key_13", guides = "Interface\\Icons\\INV_Misc_Note_01", recipes = "Interface\\Icons\\INV_Scroll_06", talents = "Interface\\Icons\\Ability_Marksmanship",
-    gear = "Interface\\Icons\\INV_Chest_Chain_04", training = "Interface\\Icons\\INV_Misc_Book_07", questguide = "Interface\\Icons\\INV_Misc_Map_01",
+    gear = "Interface\\Icons\\INV_Chest_Chain_04", training = "Interface\\Icons\\INV_Misc_Book_07", questguide = "Interface\\Icons\\INV_Misc_Map_01", leveling = "Interface\\Icons\\Ability_Hunter_Pathfinding",
     quest = "Interface\\GossipFrame\\AvailableQuestIcon", questDone = "Interface\\GossipFrame\\ActiveQuestIcon",
     npc = "Interface\\Icons\\INV_Misc_Head_Human_01", vendor = "Interface\\Icons\\INV_Misc_Bag_10",
     item = "Interface\\Icons\\INV_Misc_Bag_08", profession = "Interface\\Icons\\Trade_Engineering",
@@ -25,10 +27,10 @@ local ICON = {
 -- The side menu: groups with a small heading, in the order the pages are built.
 -- (what you did: history; what the game has: the guide; who plays with you: people)
 local NAV = {
-    {head = "navHistory", "overview", "journal", "history", "places", "facts", "professions"},
-    {head = "navGuide", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides"},
-    {head = "navPeople", "community", "social", "rankings", "webfacts"},
-    {"settings"},
+    {head = "navHistory", glyph = "hourglass", "overview", "journal", "history", "places", "facts", "professions"},
+    {head = "navGuide", glyph = "guides", "leveling", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides"},
+    {head = "navPeople", glyph = "icon-talk", "community", "social", "rankings", "webfacts"},
+    {glyph = "gear", tip = "settings", "settings"},
 }
 local VIEWS = {}
 for _, group in ipairs(NAV) do for _, view in ipairs(group) do VIEWS[#VIEWS + 1] = view end end
@@ -46,12 +48,8 @@ local showRun, showEvent, showProfession, showCommunityDetail
 
 -- ---------- helpers ----------
 
-local function paint(tex, c, alpha)
-    local a = alpha or c[4] or 1
-    if tex.evertallyShape then tex:SetVertexColor(c[1], c[2], c[3], a); return end
-    if tex.SetColorTexture then tex:SetColorTexture(c[1], c[2], c[3], a)
-    else tex:SetTexture("Interface\\Buttons\\WHITE8X8"); tex:SetVertexColor(c[1], c[2], c[3], a) end
-end
+-- Painting goes through the theme, which remembers palette colours so a new colour scheme repaints them in place.
+local paint = A.Theme.paint
 local function fill(parent, c, alpha, layer)
     local t = parent:CreateTexture(nil, layer or "BACKGROUND")
     t:SetAllPoints(parent)
@@ -59,11 +57,8 @@ local function fill(parent, c, alpha, layer)
     paint(t, c, alpha); return t
 end
 local function shape(tex, kind) return A.Theme.Shape(tex, kind) end
-local function gradient(tex, top, bottom)
-    -- Modern clients take colour objects, older ones take numbers; fall back to a flat fill.
-    if type(CreateColor) == "function" and pcall(tex.SetGradient, tex, "VERTICAL", CreateColor(bottom[1], bottom[2], bottom[3], 1), CreateColor(top[1], top[2], top[3], 1)) then return end
-    if tex.SetGradientAlpha and pcall(tex.SetGradientAlpha, tex, "VERTICAL", bottom[1], bottom[2], bottom[3], 1, top[1], top[2], top[3], 1) then return end
-end
+local function gradient(tex, top, bottom) A.Theme.gradient(tex, top, bottom) end
+local glyph = A.Theme.Glyph
 local function outline(f, c)
     -- a rounded surface already carries its own outline
     if f.evertallySkin and f.evertallySkin.shaped then
@@ -88,7 +83,13 @@ local function canUseFont(path)
     fontOk[path] = ok and true or false
     return fontOk[path]
 end
+-- Inter (Media/Fonts, OFL) on request: it carries the Czech letters too, so it serves both languages.
+local INTER = {heading = "Interface\\AddOns\\Evertally\\Media\\Fonts\\Inter-SemiBold.ttf", body = "Interface\\AddOns\\Evertally\\Media\\Fonts\\Inter-Regular.ttf"}
 local function fontPath(role)
+    if A.db and A.db.settings.uiFont == "inter" then
+        local path = INTER[role == "heading" and "heading" or "body"]
+        if canUseFont(path) then return path end
+    end
     if A.db and A.db.settings.language == "cs" then
         if canUseFont("Interface\\AddOns\\WowfCZ\\Fonts\\FRIZQT__.ttf") then return "Interface\\AddOns\\WowfCZ\\Fonts\\FRIZQT__.ttf" end
         return "Fonts\\ARIALN.TTF"
@@ -164,16 +165,22 @@ end
 -- ---------- controls ----------
 
 local localeButtons = {}
-local function Button(parent, key, width, kind, onClick)
+-- A button: gold for the main action, a quiet raised panel with a gold-tinted line for the rest. `icon` (optional)
+-- is a line glyph from Media/Polestar drawn before the caption.
+local function Button(parent, key, width, kind, onClick, icon)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(width, 32)
     local primary = kind == "primary"
     A.NativeButton(b, C, primary)
-    local edge = {C.gold[1] * 0.78, C.gold[2] * 0.66, C.gold[3] * 0.5, primary and 0.9 or 0.45}
-    outline(b, edge)
+    if not primary then outline(b, C.line) end
     local glow = b:CreateTexture(nil, "ARTWORK"); glow:SetPoint("TOPLEFT", 1, -1); glow:SetPoint("BOTTOMRIGHT", -1, 1); shape(glow, "round"); paint(glow, C.gold, 0)
     local shaped = b.evertallySkin and b.evertallySkin.shaped
     local text = label(b, 13, primary and (shaped and C.canvas or C.bright) or C.text); text:SetPoint("CENTER"); text:SetJustifyH("CENTER")
+    if icon then
+        b.icon = glyph(b, icon, 14, primary and C.canvas or C.bright)
+        b.icon:SetPoint("RIGHT", text, "LEFT", -7, 0)
+        text:ClearAllPoints(); text:SetPoint("CENTER", 10, 0)
+    end
     b.text, b.localeKey = text, key
     if key then text:SetText(A.L(key)); localeButtons[#localeButtons + 1] = b end
     b:SetScript("OnEnter", function() paint(glow, C.gold, 0.12) end)
@@ -184,20 +191,46 @@ local function Button(parent, key, width, kind, onClick)
     return b
 end
 
+-- A square button with only a line glyph (close, the menu's group column); the name is its tooltip.
+local function IconButton(parent, art, size, onClick, tipKey)
+    size = size or 28
+    local b = CreateFrame("Button", nil, parent); b:SetSize(size, size)
+    b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetAllPoints(b); shape(b.bg, "round"); paint(b.bg, {1, 1, 1}, 0)
+    b.icon = glyph(b, art, math.floor(size * 0.55 + 0.5), C.mist); b.icon:SetPoint("CENTER")
+    b.tipKey, b.tint = tipKey, C.mist
+    b:SetScript("OnEnter", function()
+        paint(b.bg, {1, 1, 1}, 0.07); paint(b.icon, C.bright)
+        if b.tipKey and GameTooltip then pcall(function() GameTooltip:SetOwner(b, "ANCHOR_RIGHT"); GameTooltip:SetText(A.L(b.tipKey)); GameTooltip:Show() end) end
+    end)
+    b:SetScript("OnLeave", function() paint(b.bg, {1, 1, 1}, 0); paint(b.icon, b.tint); if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnClick", onClick)
+    function b.SetTint(c) b.tint = c; paint(b.icon, c) end
+    return b
+end
+
 local function Toggle(parent, key, get, set)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(560, 36)
-    -- A settings row: the label on the left, the switch at the right edge, a faint line under it.
-    local track = b:CreateTexture(nil, "ARTWORK"); track:SetSize(36, 18); track:SetPoint("RIGHT", -4, 0); shape(track, "pill")
-    local knob = b:CreateTexture(nil, "OVERLAY"); knob:SetSize(14, 14); shape(knob, "dot"); paint(knob, C.text)
-    local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetPoint("TOPLEFT", -6, 0); hover:SetPoint("BOTTOMRIGHT", 0, 0); shape(hover, "round"); paint(hover, {1, 1, 1}, 0.04)
+    -- A settings row: the label on the left, the switch at the right edge, a 1px line under it.
+    -- The switch is a pill: lit gold with the knob on the right when on, an unlit outline with the knob on the left when off.
+    local track = b:CreateTexture(nil, "ARTWORK"); track:SetSize(34, 18); track:SetPoint("RIGHT", -4, 0); shape(track, "pill")
+    local edge = b:CreateTexture(nil, "ARTWORK", nil, 1); edge:SetAllPoints(track); shape(edge, "ring")
+    local shadow = b:CreateTexture(nil, "OVERLAY"); shadow:SetSize(20, 20); A.Theme.Art(shadow, "knob-shadow", {0, 0, 0}, 0.55)
+    local knob = b:CreateTexture(nil, "OVERLAY", nil, 1); knob:SetSize(14, 14); shape(knob, "dot"); paint(knob, C.text)
+    shadow:SetPoint("CENTER", knob, "CENTER", 0, -1)
+    local hover = b:CreateTexture(nil, "HIGHLIGHT"); hover:SetPoint("TOPLEFT", -6, 0); hover:SetPoint("BOTTOMRIGHT", 0, 0); shape(hover, "round"); paint(hover, {1, 1, 1}, 0.035)
+    local rule = b:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("BOTTOMLEFT", 0, 0); rule:SetPoint("BOTTOMRIGHT", 0, 0); paint(rule, C.rule)
     local text = label(b, 12, parent.parchment and A.UIKit().ParchmentText.ink or C.text); text:SetPoint("LEFT", b, "LEFT", 0, 0);text:SetPoint("RIGHT",track,"LEFT",-16,0);text:SetWordWrap(true)
-    b.localeKey, b.get = key, get
+    b.localeKey, b.get, b.label = key, get, text
     function b.Update()
         local on = get() == true
-        paint(track, on and C.lilac or C.off)
-        knob:ClearAllPoints(); knob:SetPoint("LEFT", track, "LEFT", on and 20 or 2, 0); paint(knob, on and C.bright or C.mist)
+        paint(track, on and C.gold or C.off, on and 1 or 0.55)
+        paint(edge, on and C.bright or C.mist, on and 0 or 0.45)
+        knob:ClearAllPoints(); knob:SetPoint("LEFT", track, "LEFT", on and 18 or 2, 0); paint(knob, on and C.canvas or C.mist)
         text:SetText(A.L(key))
+        -- a row that matches the settings search is marked in gold
+        local c = b.match and C.gold or (parent.parchment and A.UIKit().ParchmentText.ink or C.text)
+        text:SetTextColor(c[1], c[2], c[3])
         b:SetAlpha(b.disabled and b.disabled() and 0.45 or 1)
     end
     b:SetScript("OnClick", function()
@@ -969,6 +1002,17 @@ local function showCopy()
     copyFrame:Show(); copyFrame.edit:SetText(json); copyFrame.edit:HighlightText(); copyFrame.edit:SetFocus()
 end
 
+for lang, entries in pairs({
+    en = {uiScheme = "Colour scheme", uiSchemeNight = "Night", uiSchemeDusk = "Dusk", uiSchemeGraphite = "Graphite",
+        uiFont = "Font", uiFontGame = "Game font", uiFontInter = "Inter", uiScale = "Window scale",
+        settingsSearch = "Search settings", settingsNoMatch = "No setting matches the search.",
+        settingsReset = "Reset window", settingsReload = "Reload UI", langEnglish = "English", langCzech = "Čeština"},
+    cs = {uiScheme = "Barevné schéma", uiSchemeNight = "Noc", uiSchemeDusk = "Soumrak", uiSchemeGraphite = "Grafit",
+        uiFont = "Písmo", uiFontGame = "Herní písmo", uiFontInter = "Inter", uiScale = "Měřítko okna",
+        settingsSearch = "Hledat v nastavení", settingsNoMatch = "Hledání neodpovídá žádné nastavení.",
+        settingsReset = "Obnovit okno", settingsReload = "Znovu načíst UI", langEnglish = "English", langCzech = "Čeština"},
+}) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
+
 local function SectionTitle(parent, key, y)
     local fs = label(parent, 16, C.bright); fs:SetPoint("TOPLEFT", 0, y); fs.localeKey = key
     return fs
@@ -980,31 +1024,57 @@ local function buildSettings(page)
     A.settingsPage=page
     PageHeader(page,"settings")
     local kit=A.UIKit();local book=kit.Book(page,58);page.book=book
+    -- the footer under the spread: reset the window, reload the interface, close
+    book:SetPoint("BOTTOMRIGHT",0,44)
     local scroll=ScrollArea(book.paper,12);page.scroll=scroll
     scroll:ClearAllPoints();scroll:SetPoint("TOPLEFT",14,-14);scroll:SetPoint("BOTTOMRIGHT",-20,12)
-    local categoryScroll=ScrollArea(book.index,4);page.categoryScroll=categoryScroll
+    -- The index: a search over every setting, then the sections, each with its glyph in a narrow column of its own.
+    page.query=""
+    page.search=kit.SearchBox(book.index,160,function(value) page.query=value or "";if page.ApplySearch then page.ApplySearch() end end)
+    page.search:ClearAllPoints();page.search:SetPoint("TOPLEFT",10,-10);page.search:SetPoint("TOPRIGHT",-10,-10);page.search:SetHeight(26)
+    page.search.icon=glyph(page.search,"search",13,C.faint,"OVERLAY");page.search.icon:SetPoint("RIGHT",-9,0)
+    page.search:SetTextInsets(10,28,0,0)
+    local column=book.index:CreateTexture(nil,"BORDER");column:SetWidth(1);column:SetPoint("TOPLEFT",44,-46);column:SetPoint("BOTTOMLEFT",44,10);paint(column,C.rule)
+    local categoryScroll=ScrollArea(book.index,46);page.categoryScroll=categoryScroll
+    categoryScroll:SetPoint("BOTTOMRIGHT",-6,6)
     categoryScroll.child:SetHeight(300)
+    page.noMatch=label(book.index,11,C.faint);page.noMatch:SetPoint("TOPLEFT",54,-58);page.noMatch:SetPoint("TOPRIGHT",-10,-58);page.noMatch:SetWordWrap(true)
     local body,y,card,cy=scroll.child,0,nil,0
-    page.sections={};page.settingCards={};page.categoryButtons={};page.selectedSection=1
+    page.sections={};page.settingCards={};page.categoryButtons={};page.selectedSection=1;page.searchable={}
+    local GLYPHS={sharingSection="icon-talk",liveSection="eye",webSection="plug",interfaceSection="window",nameplatesSection="layers",musicSection="speaker",actionsSection="bolt",diagnostics="bug"}
     local function finish()
         if card then card:SetHeight(-cy+12) end
     end
+    local function categoryRow(key,index)
+        local b=CreateFrame("Button",nil,categoryScroll.child);b:SetHeight(38)
+        b.bg=b:CreateTexture(nil,"BACKGROUND");b.bg:SetPoint("TOPLEFT",42,-1);b.bg:SetPoint("BOTTOMRIGHT",0,1);shape(b.bg,"round");paint(b.bg,C.gold,0)
+        b.bar=b:CreateTexture(nil,"ARTWORK");b.bar:SetSize(2,20);b.bar:SetPoint("LEFT",38,0);paint(b.bar,C.gold)
+        b.icon=glyph(b,GLYPHS[key] or "gear",16,C.faint);b.icon:SetPoint("CENTER",b,"LEFT",22,0)
+        b.text=label(b,12,C.mist);b.text:SetPoint("LEFT",52,0);b.text:SetPoint("RIGHT",-6,0);b.text:SetWordWrap(true)
+        b.localeKey=key
+        b:SetScript("OnEnter",function() if page.selectedSection~=index then paint(b.bg,{1,1,1},0.04) end end)
+        b:SetScript("OnLeave",function() if page.selectedSection~=index then paint(b.bg,C.gold,0) end end)
+        b:SetScript("OnClick",function() page.SelectSection(index) end)
+        return b
+    end
     local function section(key)
-        finish();card=CreateFrame("Frame",nil,body);card.parchment=true;card:SetPoint("TOPLEFT");card:SetPoint("TOPRIGHT");cy=-38
+        finish();card=CreateFrame("Frame",nil,body);card.parchment=true;card:SetPoint("TOPLEFT");card:SetPoint("TOPRIGHT");cy=-50
         page.settingCards[#page.settingCards+1]=card
-        -- a small capitalised heading behind a gold mark, as section headings in modern addon settings
-        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",24,-15);fs:SetFont(fontPath("heading"),12,"");fs:SetTextColor(unpack(kit.ParchmentText.heading));fs.upper=true;page.sections[#page.sections+1]=fs
-        local mark=card:CreateTexture(nil,"ARTWORK");mark:SetSize(3,14);mark:SetPoint("TOPLEFT",13,-14);shape(mark,"pill");paint(mark,C.gold,1)
+        -- the section's name as a tab: underlined in gold, over a 1px line across the page
+        local fs=SectionTitle(card,key,-12);fs:ClearAllPoints();fs:SetPoint("TOPLEFT",12,-12);fs:SetFont(fontPath("heading"),15,"");fs:SetTextColor(unpack(kit.ParchmentText.heading));page.sections[#page.sections+1]=fs
+        local rule=card:CreateTexture(nil,"BORDER");rule:SetHeight(1);rule:SetPoint("TOPLEFT",12,-38);rule:SetPoint("TOPRIGHT",-12,-38);paint(rule,C.line)
+        local tab=card:CreateTexture(nil,"ARTWORK");tab:SetHeight(2);tab:SetPoint("BOTTOMLEFT",rule,"BOTTOMLEFT",0,0);tab:SetPoint("RIGHT",fs,"RIGHT",0,0);paint(tab,C.gold)
         local index=#page.settingCards
-        local button=Button(categoryScroll.child,key,180,"ghost",function() page.SelectSection(index) end)
-        button:ClearAllPoints();button:SetPoint("TOPLEFT",8,-10-(index-1)*46);button:SetPoint("TOPRIGHT",-8,-10-(index-1)*46);button:SetHeight(40)
-        button.text:ClearAllPoints();button.text:SetPoint("LEFT",8,0);button.text:SetPoint("RIGHT",-8,0);button.text:SetWordWrap(true)
-        page.categoryButtons[index]=button
+        page.categoryButtons[index]=categoryRow(key,index)
+        page.searchable[index]={{key=key}}
     end
     local function place(control,height,indent)
         control:ClearAllPoints();control:SetPoint("TOPLEFT",12+(indent or 0),cy);control:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy)
         control:SetHeight(height or 36);cy=cy-(height or 36)
+        if control.localeKey then local list=page.searchable[#page.settingCards];list[#list+1]={key=control.localeKey,widget=control} end
     end
+    -- words of a section that are not a toggle (a label beside chips or a field) are found by the search too
+    local function findable(key) local list=page.searchable[#page.settingCards];list[#list+1]={key=key} end
     local function note(height)
         local fs=label(card,11,kit.ParchmentText.mutedInk);fs:SetPoint("TOPLEFT",12,cy-4);fs:SetPoint("TOPRIGHT",card,"TOPRIGHT",-12,cy-4);fs:SetHeight(height);fs:SetWordWrap(true);cy=cy-height-10
         return fs
@@ -1046,13 +1116,29 @@ local function buildSettings(page)
     page.webLiveHint=note(60);page.webHint=note(60)
 
     section("interfaceSection")
-    page.langLabel=label(card,12,kit.ParchmentText.ink);page.langLabel:SetPoint("TOPLEFT",12,cy-6);page.langButtons={}
-    for i,lang in ipairs({"en","cs"}) do
-        local choice=lang
-        local b=Button(card,nil,48,"ghost",function() A.SetLanguage(choice) end)
-        b:SetPoint("TOPLEFT",132+(i-1)*54,cy);b.text:SetText(choice:upper());b.lang=choice;page.langButtons[i]=b
+    -- the language, the colour scheme and the font: rows of tabs, the chosen one underlined in gold
+    local function choiceRow(key,values,current,choose)
+        local fs=label(card,12,kit.ParchmentText.ink);fs:SetPoint("TOPLEFT",12,cy-6);fs:SetWidth(116);fs:SetWordWrap(false);fs.localeKey=key
+        local chips={}
+        for i,value in ipairs(values) do
+            local chosen=value
+            local chip=kit.Chip(card,function() choose(chosen) end)
+            if i==1 then chip:SetPoint("TOPLEFT",132,cy-2) else chip:SetPoint("LEFT",chips[i-1],"RIGHT",6,0) end
+            chip.value,chip.localeKey=value[2],value[2];chips[i]=chip
+            if key=="language" then chip.lang=value[1] end
+        end
+        findable(key);cy=cy-34
+        return {label=fs,chips=chips,current=current,values=values}
     end
-    cy=cy-38
+    page.langRow=choiceRow("language",{{"en","langEnglish"},{"cs","langCzech"}},
+        function() return s().language=="cs" and "cs" or "en" end,function(value) A.SetLanguage(value[1]) end)
+    page.schemeRow=choiceRow("uiScheme",{{"night","uiSchemeNight"},{"dusk","uiSchemeDusk"},{"graphite","uiSchemeGraphite"}},
+        function() return A.Theme.SchemeKey() end,function(value) A.Theme.SetScheme(value[1]) end)
+    page.fontRow=choiceRow("uiFont",{{"game","uiFontGame"},{"inter","uiFontInter"}},
+        function() return s().uiFont=="inter" and "inter" or "game" end,function(value) A.SetUIFont(value[1]) end)
+    page.scale=kit.Slider(card,{min=60,max=160,step=5,format="%d %%",localeKey="uiScale",
+        get=function() return math.floor(A.GetUIScale()*100+0.5) end,set=function(v) A.SetUIScale(v/100) end})
+    place(page.scale,48)
     place(Toggle(card,"rankTooltip",function() return s().rankTooltip~=false end,function(v) s().rankTooltip=v==true end))
     place(Toggle(card,"minimap",function() return not s().hideMinimap end,function(v) s().hideMinimap=not v;if minimapButton then minimapButton:SetShown(v) end end))
     place(Toggle(card,"bagHighlight",function() return s().bagHighlight~=false end,function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end),40)
@@ -1129,13 +1215,55 @@ local function buildSettings(page)
 
     section("diagnostics");page.diag=note(100)
     finish()
-    categoryScroll.child:SetHeight(#page.settingCards*46+24)
+    -- The footer: put the window back to its size and place, reload the interface, close.
+    page.footer={
+        Button(page,"settingsReset",150,"ghost",function() A.ResetUISize();A.Print(A.L("windowReset")) end,"reset"),
+        Button(page,"settingsReload",150,"ghost",function() if type(ReloadUI)=="function" then ReloadUI() end end,"reload"),
+        Button(page,"close",120,"primary",function() A.HideUI() end,"close"),
+    }
+    page.footer[3]:SetPoint("BOTTOMRIGHT",0,0)
+    page.footer[2]:SetPoint("RIGHT",page.footer[3],"LEFT",-8,0)
+    page.footer[1]:SetPoint("RIGHT",page.footer[2],"LEFT",-8,0)
+    for _,b in ipairs(page.footer) do b:SetHeight(32) end
+    -- The rows of the index, laid out again whenever the search hides some of them.
+    local function layoutCategories()
+        local y=0
+        for i,button in ipairs(page.categoryButtons) do
+            local shown=not page.hiddenSections or not page.hiddenSections[i]
+            button:SetShown(shown)
+            if shown then button:ClearAllPoints();button:SetPoint("TOPLEFT",0,-y);button:SetPoint("TOPRIGHT",0,-y);y=y+40 end
+        end
+        categoryScroll.child:SetHeight(math.max(1,y+8));categoryScroll.UpdateThumb()
+        page.noMatch:SetShown(y==0)
+    end
+    page.LayoutCategories=layoutCategories
+    -- The settings search: a section is kept when its name or any of its settings matches; matching rows turn gold.
+    function page.ApplySearch()
+        local query=fold(page.query or ""):gsub("^%s+",""):gsub("%s+$","")
+        page.hiddenSections={}
+        local first=nil
+        for index,entries in ipairs(page.searchable) do
+            local any=query==""
+            for _,entry in ipairs(entries) do
+                local hit=query~="" and fold(A.L(entry.key)):find(query,1,true)~=nil
+                if entry.widget then entry.widget.match=hit end
+                any=any or hit
+            end
+            page.hiddenSections[index]=not any
+            if any and not first then first=index end
+        end
+        layoutCategories()
+        if first and page.hiddenSections[page.selectedSection] then page.SelectSection(first) end
+        for _,t in ipairs(toggles) do t.Update() end
+    end
+    layoutCategories()
     function page.SelectSection(index)
         page.selectedSection=index
         for i,panel in ipairs(page.settingCards) do panel:SetShown(i==index) end
         for i,button in ipairs(page.categoryButtons) do
-            button.text:SetTextColor(unpack(i==index and C.bright or C.mist))
-            if button.nativeSurface then paint(button.nativeSurface,i==index and C.violet or C.well,1) end
+            local on=i==index
+            button.text:SetTextColor(unpack(on and C.bright or C.mist))
+            paint(button.icon,on and C.gold or C.faint);paint(button.bg,C.gold,on and 0.10 or 0);button.bar:SetShown(on)
         end
         scroll:SetShown(index~=5);page.plates:SetShown(index==5)
         if index==5 then page.plates.Update() end
@@ -1149,7 +1277,14 @@ local function buildSettings(page)
         for _,b in ipairs(page.actions) do b.text:SetText(A.L(b.localeKey)) end
         page.plates.Update()
         page.webHint:SetText(A.L("webHint"));page.webLiveHint:SetText(A.L("pageLiveWebHint"));page.liveHint:SetText(A.L("liveHint"));page.actionHint:SetText(A.L("pageActionHint"))
-        page.langLabel:SetText(A.L("language"));for _,b in ipairs(page.langButtons) do b.text:SetTextColor(unpack(b.lang==s().language and C.lilac or C.mist)) end
+        for _,b in ipairs(page.categoryButtons) do b.text:SetText(A.L(b.localeKey)) end
+        for _,row in ipairs({page.langRow,page.schemeRow,page.fontRow}) do
+            row.label:SetText(A.L(row.label.localeKey))
+            local current=row.current()
+            for i,chip in ipairs(row.chips) do chip.SetLabel(A.L(chip.localeKey));chip.SetOn(row.values[i][1]==current) end
+        end
+        page.scale.Refresh()
+        page.search.hint:SetText(A.L("settingsSearch"));page.noMatch:SetText(A.L("settingsNoMatch"))
         if page.MusicRefresh then page.MusicRefresh() end
         page.diag:SetText(A.Diagnostics());scroll.UpdateThumb()
     end
@@ -1297,7 +1432,7 @@ local function layoutNav()
             y = y - itemH
         end
     end
-    shell.navChild:SetSize(shell.side:GetWidth(), math.max(height, -y + 10))
+    shell.navChild:SetSize(compact and COMPACT_SIDEBAR or (SIDEBAR - RAIL), math.max(height, -y + 10))
     shell.navScroll.maxScroll = math.max(0, -y + 10 - height)
     shell.navScroll.scrollStep = itemH * 3
     navScroll(shell.navScroll:GetVerticalScroll())
@@ -1309,7 +1444,13 @@ layoutShell = function()
     local width = tonumber(frame:GetWidth()) or DEFAULT_W
     shell.compact = width < COMPACT_BELOW
     shell.side:SetWidth(shell.compact and COMPACT_SIDEBAR or SIDEBAR)
+    -- the group column goes when the menu shrinks to icons: the icons are then the whole menu
+    shell.rail:SetShown(not shell.compact)
+    shell.navScroll:ClearAllPoints()
+    shell.navScroll:SetPoint("TOPLEFT", shell.compact and shell.side or shell.rail, shell.compact and "TOPLEFT" or "TOPRIGHT", 0, 0)
+    shell.navScroll:SetPoint("BOTTOMRIGHT", shell.side, "BOTTOMRIGHT", 0, 28)
     header.hint:SetShown(not shell.compact)
+    if frame.evertallySkin then A.Theme.FitBand(frame.evertallySkin.band, width - 2) end
     layoutNav()
 end
 
@@ -1321,6 +1462,7 @@ function A.UIKit()
         PageHeader = PageHeader, SectionTitle = SectionTitle, setIcon = setIcon, classIcon = classIcon, classColor = classColor, raceIcon = raceIcon, identityText = identityText,
         mapName = mapName, plain = plain, stamp = stamp, duration = duration, itemIcon = itemIcon, fold = fold, eventItem = eventItem, runItem = runItem, fontPath = fontPath,
         trackFont = function(fs, size) fontStrings[#fontStrings + 1] = {fs = fs, size = size} end,
+        IconButton = IconButton, Toggle = Toggle, glyph = glyph, Theme = A.Theme,
         WIDTH = WIDTH, SIDEBAR = SIDEBAR, PAD = PAD, ROW = ROW}
     if A.ExtendKit then A.ExtendKit(kitCache) end
     return kitCache
@@ -1340,6 +1482,7 @@ local function buildExternal(view, builder, errorKey, fallback)
 end
 
 local function build()
+    A.Theme.ApplyScheme()
     local width, height = A.GetUISize()
     frame = CreateFrame("Frame", "EvertallyFrame", UIParent)
     frame:SetSize(width, height); frame:SetPoint("CENTER"); frame:SetFrameStrata("HIGH")
@@ -1351,29 +1494,42 @@ local function build()
     frame:SetScript("OnMouseWheel", function(_, delta) if IsControlKeyDown and IsControlKeyDown() then A.SetUIScale(A.GetUIScale() + delta * 0.1) end end)
     A.NativeFrame(frame, C)
 
-    local bar = CreateFrame("Frame", nil, frame); bar:SetPoint("TOPLEFT", 6, -6); bar:SetPoint("TOPRIGHT", -6, -6); bar:SetHeight(HEADER)
-    local barFill = fill(bar, C.header, 0.97); shape(barFill, "round"); paint(barFill, C.header, 0.97)
-    local top = bar:CreateTexture(nil, "BORDER"); top:SetHeight(1); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); paint(top, {C.gold[1] * 0.7, C.gold[2] * 0.66, C.gold[3] * 0.8}, 0.65)
-    local rule = bar:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); paint(rule, {C.gold[1] * 0.7, C.gold[2] * 0.66, C.gold[3] * 0.8}, 0.45)
+    -- The header: no panel of its own, it is the window's night band with the stars; a 1px line closes it.
+    local bar = CreateFrame("Frame", nil, frame); bar:SetPoint("TOPLEFT", 1, -1); bar:SetPoint("TOPRIGHT", -1, -1); bar:SetHeight(HEADER)
+    local rule = bar:CreateTexture(nil, "BORDER"); rule:SetHeight(1); rule:SetPoint("BOTTOMLEFT"); rule:SetPoint("BOTTOMRIGHT"); paint(rule, C.line)
     bar:EnableMouse(true); bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function() frame:StartMoving() end)
     bar:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
-    local logo = bar:CreateTexture(nil, "ARTWORK"); logo:SetSize(38, 38); logo:SetPoint("LEFT", 14, 0); setLogo(logo)
+    local logo = bar:CreateTexture(nil, "ARTWORK"); logo:SetSize(38, 38); logo:SetPoint("LEFT", 16, 0); setLogo(logo)
     header.title = label(bar, 23, C.bright); header.title:SetPoint("LEFT", logo, "RIGHT", 10, 1); header.title:SetText("Evertally")
     header.version = label(bar, 10, C.faint); header.version:SetPoint("LEFT", header.title, "RIGHT", 8, -1); header.version:SetText("v" .. A.version)
-    local zoomOut = Button(bar, nil, 28, "ghost", function() A.SetUIScale(A.GetUIScale() - 0.1) end); zoomOut:SetPoint("LEFT", header.version, "RIGHT", 18, 0); zoomOut.text:SetText("-")
-    local zoomIn = Button(bar, nil, 28, "ghost", function() A.SetUIScale(A.GetUIScale() + 0.1) end); zoomIn:SetPoint("LEFT", zoomOut, "RIGHT", 4, 0); zoomIn.text:SetText("+")
-    local close = Button(bar, nil, 30, "ghost", function() frame:Hide() end); close:SetPoint("RIGHT", -14, 0); close.text:SetText("x")
+    local zoomOut = Button(bar, nil, 26, "ghost", function() A.SetUIScale(A.GetUIScale() - 0.1) end); zoomOut:SetHeight(26); zoomOut:SetPoint("LEFT", header.version, "RIGHT", 18, 0); zoomOut.text:SetText("-")
+    local zoomIn = Button(bar, nil, 26, "ghost", function() A.SetUIScale(A.GetUIScale() + 0.1) end); zoomIn:SetHeight(26); zoomIn:SetPoint("LEFT", zoomOut, "RIGHT", 4, 0); zoomIn.text:SetText("+")
+    local close = IconButton(bar, "close", 30, function() frame:Hide() end, "close"); close:SetPoint("RIGHT", -14, 0)
+    header.close = close
     header.web = Pill(bar); header.web:SetPoint("RIGHT", close, "LEFT", -12, 0)
     header.share = Pill(bar); header.share:SetPoint("RIGHT", header.web, "LEFT", -8, 0)
     header.live = Pill(bar); header.live:SetPoint("RIGHT", header.share, "LEFT", -8, 0)
 
-    local side = CreateFrame("Frame", nil, frame); side:SetPoint("TOPLEFT", 6, -HEADER - 6); side:SetPoint("BOTTOMLEFT", 6, 6); side:SetWidth(SIDEBAR)
+    local side = CreateFrame("Frame", nil, frame); side:SetPoint("TOPLEFT", 1, -HEADER - 1); side:SetPoint("BOTTOMLEFT", 1, 1); side:SetWidth(SIDEBAR)
     shell.side = side
-    fill(side, C.side, 0.9)
+    fill(side, C.side, 1)
     local sideRule = side:CreateTexture(nil, "BORDER"); sideRule:SetWidth(1); sideRule:SetPoint("TOPRIGHT"); sideRule:SetPoint("BOTTOMRIGHT"); paint(sideRule, C.line)
+    -- The group column: one glyph per group of pages; a click opens the group's first page, the gold one holds the page shown.
+    local rail = CreateFrame("Frame", nil, side); rail:SetPoint("TOPLEFT"); rail:SetPoint("BOTTOMLEFT"); rail:SetWidth(RAIL)
+    shell.rail, shell.railButtons = rail, {}
+    local railShade = rail:CreateTexture(nil, "BACKGROUND", nil, 1); railShade:SetAllPoints(rail); paint(railShade, {0, 0, 0}, 0.22)
+    local railRule = rail:CreateTexture(nil, "BORDER"); railRule:SetWidth(1); railRule:SetPoint("TOPRIGHT"); railRule:SetPoint("BOTTOMRIGHT"); paint(railRule, C.rule)
+    for i, group in ipairs(NAV) do
+        local first = group[1]
+        local b = IconButton(rail, group.glyph, 30, function() select(first) end, group.head or group.tip)
+        b:SetPoint("TOP", rail, "TOP", 0, -10 - (i - 1) * 38)
+        b.mark = b:CreateTexture(nil, "ARTWORK"); b.mark:SetSize(2, 18); b.mark:SetPoint("LEFT", b, "LEFT", -5, 0); paint(b.mark, C.gold)
+        b.group = group
+        shell.railButtons[i] = b
+    end
     local navViewport = CreateFrame("ScrollFrame", "EvertallyNavigationScroll", side)
-    navViewport:SetPoint("TOPLEFT"); navViewport:SetPoint("BOTTOMRIGHT", 0, 28)
+    navViewport:SetPoint("TOPLEFT", rail, "TOPRIGHT", 0, 0); navViewport:SetPoint("BOTTOMRIGHT", 0, 28)
     navViewport:EnableMouseWheel(true)
     local navChild = CreateFrame("Frame", "EvertallyNavigationContent", navViewport); navChild:SetSize(SIDEBAR, 500)
     navViewport:SetScrollChild(navChild)
@@ -1383,7 +1539,7 @@ local function build()
         else navScroll((tonumber(self:GetVerticalScroll()) or 0) - delta * (self.scrollStep or 72)) end
     end)
     local footerRule = side:CreateTexture(nil, "BORDER"); footerRule:SetHeight(1)
-    footerRule:SetPoint("BOTTOMLEFT", 8, 27); footerRule:SetPoint("BOTTOMRIGHT", -8, 27); paint(footerRule, C.line)
+    footerRule:SetPoint("BOTTOMLEFT", navViewport, "BOTTOMLEFT", 8, -1); footerRule:SetPoint("BOTTOMRIGHT", -8, 27); paint(footerRule, C.rule)
     shell.navDown = Button(side, nil, 18, "ghost", function() navScroll((tonumber(navViewport:GetVerticalScroll()) or 0) + (navViewport.scrollStep or 72)) end)
     shell.navDown:SetHeight(18); shell.navDown:SetPoint("BOTTOMRIGHT", -8, 5); shell.navDown.text:SetText("v")
     shell.navUp = Button(side, nil, 18, "ghost", function() navScroll((tonumber(navViewport:GetVerticalScroll()) or 0) - (navViewport.scrollStep or 72)) end)
@@ -1399,7 +1555,7 @@ local function build()
             navButtons[#navButtons + 1] = b; navByView[view] = b
         end
     end
-    header.hint = label(side, 10, C.faint); header.hint:SetPoint("BOTTOMLEFT", 14, 9); header.hint:SetWidth(SIDEBAR - 72); header.hint:SetText("/etally")
+    header.hint = label(side, 10, C.faint); header.hint:SetPoint("BOTTOMLEFT", RAIL + 14, 9); header.hint:SetWidth(SIDEBAR - RAIL - 72); header.hint:SetText("/etally")
 
     content = CreateFrame("Frame", nil, frame)
     content:SetPoint("TOPLEFT", side, "TOPRIGHT", PAD, -PAD); content:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -PAD - 6, PAD + 6)
@@ -1429,6 +1585,7 @@ local function build()
     buildExternal("gear", A.BuildGearPage, "gear_page")
     buildExternal("training", A.BuildTrainingPage, "training_page")
     buildExternal("questguide", A.BuildQuestGuidePage, "questguide_page")
+    buildExternal("leveling", A.BuildLevelingPage, "leveling_page")
     if type(UISpecialFrames) == "table" then UISpecialFrames[#UISpecialFrames + 1] = "EvertallyFrame" end
 
     -- the corner that resizes the window
@@ -1463,6 +1620,11 @@ function A.RefreshUI()
         b.text:SetText(A.L(b.viewKey)); b.text:SetTextColor(unpack(on and C.text or C.mist))
         b.bg:SetAlpha(on and 0.12 or 0); b.bar:SetShown(on)
     end
+    for _, b in ipairs(shell.railButtons or {}) do
+        local on = false
+        for _, view in ipairs(b.group) do if view == selected then on = true end end
+        b.SetTint(on and C.gold or C.faint); b.mark:SetShown(on)
+    end
     local page = pages[selected]
     page.title:SetText(A.L(page.titleKey)); page.subtitle:SetText(A.L("sub_" .. page.titleKey))
     -- a page that fails to draw is counted and reported by /etally diag; it must not take the event that asked for the redraw down with it
@@ -1494,6 +1656,14 @@ function A.OverviewShown() return frame ~= nil and frame:IsShown() and selected 
 function A.SetLanguage(language)
     if not A.db or (language ~= "en" and language ~= "cs") then return false end
     A.db.settings.language = language
+    applyFonts()
+    A.RefreshUI()
+    return true
+end
+--- The font of the window: "game" (the game's own, by language) or "inter" (Media/Fonts). Kept; every text is set again.
+function A.SetUIFont(font)
+    if not A.db or (font ~= "game" and font ~= "inter") then return false end
+    A.db.settings.uiFont = font ~= "game" and font or nil
     applyFonts()
     A.RefreshUI()
     return true

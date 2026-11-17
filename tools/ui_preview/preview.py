@@ -29,7 +29,7 @@ from test_forever_traits import FOREVER_TRAITS  # noqa: E402
 CAPTURE = HERE / "capture.cjs"
 ADDONS = Path(r"D:\World of Warcraft\_forever_\Interface\AddOns")
 ICON_FILES = {}
-VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
+VIEWS = ["overview", "journal", "history", "places", "facts", "professions", "leveling", "questguide", "gear", "training", "database", "dungeons", "recipes", "talents", "world", "guides", "community", "social", "rankings", "webfacts", "settings"]
 
 FIXTURE = r'''
 UnitName=function() return "Mardyx" end
@@ -264,6 +264,15 @@ def render(nodes, width, height, debug=False):
                 path = str(n["path"])
                 if "WHITE8X8" in path and n.get("tint"):
                     parts.append(f'<div class="r" style="{box}background:{color(n["tint"], alpha)}"></div>')
+                elif "\\media\\polestar\\" in path.replace("/", "\\").lower() and (data := local_asset(path)):
+                    # Theme.lua's art (white masks: line glyphs, the night band): the tint shows through the image's alpha,
+                    # cut to the texture coordinates the way the client draws them
+                    tint = n.get("tint") or [1, 1, 1, 1]
+                    c = n.get("coords") or [0, 1, 0, 1]
+                    cl, cr, ct, cb = (c + [0, 1, 0, 1][len(c):])[:4] if len(c) == 4 else (0, 1, 0, 1)
+                    iw, ih = w / max(1e-6, cr - cl), h / max(1e-6, cb - ct)
+                    mask = f"url('{data}') {-cl * iw:.1f}px {-ct * ih:.1f}px / {iw:.1f}px {ih:.1f}px no-repeat"
+                    parts.append(f'<div class="r" style="{box}background:{color(tint, alpha)};-webkit-mask:{mask};mask:{mask}"></div>')
                 else:
                     style, label = icon_style(path, n.get("tint"), n.get("itemId"), n.get("coords"))
                     parts.append(f'<div class="r ic" title="{html.escape(path)}" style="{box}{style};opacity:{alpha:.2f}">{html.escape(label)}</div>')

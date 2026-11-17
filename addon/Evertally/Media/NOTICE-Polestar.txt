@@ -1,0 +1,34 @@
+Artwork taken from Polestar
+===========================
+
+The files in Media/Polestar/ are copied unchanged from the Polestar addon for
+World of Warcraft: Forever (version 0.4.0.1, folder Polestar/Media/UI/):
+
+  band.tga, glow.tga, knob-shadow.tga,
+  chevron-up.tga, chevron-down.tga, chevron-left.tga, chevron-right.tga,
+  bolt.tga, bug.tga, check.tga, close.tga, eye.tga, gear.tga, guides.tga,
+  hourglass.tga, house.tga, icon-talk.tga, info.tga, layers.tga, lock.tga,
+  palette.tga, plug.tga, reload.tga, reset.tga, search.tga, sliders.tga,
+  speaker.tga, star.tga, window.tga
+
+Copyright (c) 2026 The Polestar authors
+
+Polestar is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 (GPL-3.0-only). Evertally uses these files under the
+same licence; the full text of the GPL-3.0 is in Evertally's LICENSE.txt.
+
+Evertally draws its own window with them (Theme.lua, UI.lua, Widgets.lua): the
+night band in the window header, the soft glow under the gold rim,
+the switch knob's shadow and the line glyphs of the settings. Evertally is not
+Polestar and is not made or endorsed by its authors.
+
+
+Font
+====
+
+Media/Fonts/Inter-Regular.ttf and Media/Fonts/Inter-SemiBold.ttf are Inter,
+Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter),
+licensed under the SIL Open Font License 1.1 (Media/Fonts/Inter-OFL.txt). They
+were taken from the same Polestar release (Polestar/Media/Fonts/). Inter is
+used only when the player chooses it in Settings > Interface.

@@ -52,6 +52,7 @@ SocialUI.lua
 ForumUI.lua
 WorldHost.lua
 Guides.lua
+GuideHub.lua
 SleepingBagGuide.lua
 RecommendedBuilds.lua
 Talents.lua
