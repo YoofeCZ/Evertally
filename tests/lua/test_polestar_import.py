@@ -76,15 +76,21 @@ class PolestarImportTests(unittest.TestCase):
                         missing.append(f"{path.name} loads {m.group(1)}")
         self.assertEqual(missing, [])
 
+    def test_every_file_has_a_type_the_updater_installs(self):
+        allowed = {".lua", ".toc", ".xml", ".md", ".txt", ".tga", ".blp", ".ttf", ".ogg"}  # sync/src/addon_update.rs FILE_TYPES
+        odd = [str(p.relative_to(ADDONS)) for folder in FOLDERS for p in folder.rglob("*") if p.is_file() and p.suffix.lower() not in allowed]
+        self.assertEqual(odd, [])
+
     def test_the_fork_does_not_touch_evertallys_own_globals(self):
         own = set()
         for path in (ADDONS / "Evertally").glob("*.lua"):
-            own |= set(re.findall(r"\b(EvertallyGuide\w*)", path.read_text(encoding="utf8", errors="replace")))
+            # reading the guide (rawget(_G, "EvertallyGuide")) is fine; assigning one of its globals is not
+            own |= set(re.findall(r"\b(EvertallyGuide\w*)\s*=[^=]", path.read_text(encoding="utf8", errors="replace")))
         self.assertEqual(own, set(), "the core add-on must not define the fork's globals")
 
     def test_each_folder_carries_the_licence_and_the_notice_of_changes(self):
         main = ADDONS / "Evertally_Guide"
-        self.assertIn("GNU General Public License", (main / "LICENSE").read_text(encoding="utf8"))
+        self.assertIn("GNU General Public License", (main / "LICENSE.txt").read_text(encoding="utf8"))
         for folder in FOLDERS:
             notice = (folder / "NOTICE-EVERTALLY.txt").read_text(encoding="utf8")
             self.assertIn("Polestar", notice)

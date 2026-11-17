@@ -28,6 +28,8 @@ SOURCE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"D:\World of Warcraft
 DEST = ROOT / "addon"
 LANGUAGE = re.compile(r"^Polestar_[a-z]{2}[A-Z]{2}$")
 SKIP = {"Polestar_Recorder"}
+# The file types Evertally's updater installs (sync/src/addon_update.rs FILE_TYPES).
+INSTALLED = {".lua", ".toc", ".xml", ".md", ".txt", ".tga", ".blp", ".ttf", ".ogg"}
 
 # Strings other Polestar users send or paste: kept word for word so a party with Polestar players still works.
 KEEP = {"PolestarT1"}
@@ -130,6 +132,8 @@ def main() -> None:
             name = rel.name
             if name.startswith("Polestar") and path.suffix.lower() in {".toc", ".lua", ".xml"}:
                 name = folder_name(name)
+            if path.suffix.lower() not in INSTALLED:
+                name += ".txt"      # LICENSE, PACK.json: Evertally's updater installs known file types only (the text is unchanged)
             out = dst / rel.parent / name
             out.parent.mkdir(parents=True, exist_ok=True)
             suffix = path.suffix.lower()
@@ -151,11 +155,11 @@ def main() -> None:
             "  - globals, frames, saved variables and key bindings: Polestar -> EvertallyGuide, POLESTAR -> EVERTALLYGUIDE;\n"
             "  - the add-on's name shown to players: Polestar -> Evertally (the guides' author is still Polestar);\n"
             "  - the patches listed in tools/import_polestar.py.\n"
-            "Everything else is Polestar's work, under its licence (LICENSE) and notices (THIRD_PARTY.md, CREDITS.md,\n"
+            "Everything else is Polestar's work, under its licence (LICENSE.txt) and notices (THIRD_PARTY.md, CREDITS.md,\n"
             "LICENSE-DATA.txt where present). This modified version is distributed under the GNU GPL, version 3.\n",
             encoding="utf8", newline="\n")
         report["folders"][dst.name] = files
-    (DEST / "Evertally_Guide" / "IMPORT.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf8")
+    (ROOT / "tools" / "polestar-import.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf8")
     print(f"Polestar {version}: {len(sources)} folders, {sum(report['folders'].values())} files -> {DEST}\\Evertally_Guide*")
 
 
