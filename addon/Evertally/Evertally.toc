@@ -1,5 +1,7 @@
 ## Interface: 16001
 ## Title: Evertally
+## Group: Evertally
+## Category: Evertally
 ## IconTexture: Interface\AddOns\Evertally\Media\Logo
 ## Notes: Own game observations, dungeon history and optional ingame sharing.
 ## Notes-csCZ: Vlastní herní pozorování, historie dungeonů a dobrovolné sdílení.

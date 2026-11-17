@@ -1,5 +1,7 @@
 ## Interface: 16001
 ## Title: Evertally - Map
+## Group: Evertally
+## Category: Evertally
 ## Notes: Evertally inside OpenMap: gathering places, live players, meets, pings and navigation on the map and the minimap. Needs OpenMap; loads only when you turn it on in Evertally settings.
 ## Notes-csCZ: Evertally uvnitř OpenMap: místa sbírání, živí hráči, srazy, pingy a navigace na mapě a minimapě. Potřebuje OpenMap; načte se jen po zapnutí v nastavení Evertally.
 ## Author: Evertally contributors

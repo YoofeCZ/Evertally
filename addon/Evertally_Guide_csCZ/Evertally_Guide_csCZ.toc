@@ -1,5 +1,7 @@
 ## Interface: 16001
-## Title: Evertally Guide - Czech
+## Title: Evertally - Guide (Czech)
+## Group: Evertally
+## Category: Evertally
 ## Notes: Evertally Guide in Czech: the interface and the guide texts.
 ## Title-csCZ: Evertally Guide - čeština
 ## Author: Evertally (translation); Polestar (the English)

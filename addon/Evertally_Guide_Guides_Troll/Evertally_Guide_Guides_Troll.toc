@@ -1,28 +1,10 @@
 ## Interface: 16001
-## Title: Evertally Guide Guides (Troll)
+## Title: Evertally - Guides (Troll)
 ## Notes: The walks of Evertally Guide Guides's leveling guides for Troll characters. Loaded on demand for that race.
-## Title-deDE: Evertally Guide Guides (Troll)
-## Notes-deDE: Leveling-Guides von Evertally Guide und ihre Laufwege für Charaktere der Rasse Troll. Wird bei Bedarf geladen.
-## Title-esES: Evertally Guide: guías (Trol)
-## Notes-esES: Guías de subida de nivel de Evertally Guide y sus rutas a pie para personajes de la raza Trol. Se carga bajo demanda.
-## Title-esMX: Evertally Guide: guías (Trol)
-## Notes-esMX: Guías de subida de nivel de Evertally Guide y sus rutas a pie para personajes de la raza Trol. Se carga bajo demanda.
-## Title-frFR: Evertally Guide : guides (Troll)
-## Notes-frFR: Guides de montée en niveau de Evertally Guide et leurs trajets à pied pour les personnages de la race Troll. Chargé à la demande.
-## Title-koKR: Evertally Guide 가이드 (트롤)
-## Notes-koKR: 트롤 캐릭터를 위한 Evertally Guide 레벨업 가이드와 도보 경로. 필요할 때 불러옵니다.
-## Title-ptBR: Evertally Guide: guias (Troll)
-## Notes-ptBR: Guias de evolução do Evertally Guide e suas rotas a pé para personagens da raça Troll. Carregado sob demanda.
-## Title-ruRU: Evertally Guide: гайды (Тролль)
-## Notes-ruRU: Гайды Evertally Guide по прокачке и их пешие маршруты для персонажей расы «Тролль». Загружается по требованию.
-## Title-zhCN: Evertally Guide 指南（巨魔）
-## Notes-zhCN: Evertally Guide 为巨魔角色提供的练级指南及其步行路线。按需加载。
-## Title-zhTW: Evertally Guide 指南（食人妖）
-## Notes-zhTW: Evertally Guide 為食人妖角色提供的升級指南及其步行路線。按需載入。
-## Author: Polestar
+## Author: Evertally (from Polestar, The Polestar authors)
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## LoadOnDemand: 1
 ## Dependencies: Evertally_Guide, Evertally_Guide_Guides
 ## X-Polestar-Part: guides

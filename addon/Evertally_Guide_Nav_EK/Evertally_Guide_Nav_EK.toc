@@ -1,28 +1,10 @@
 ## Interface: 16001
-## Title: Evertally Guide Nav (Eastern Kingdoms)
+## Title: Evertally - Guide Nav (Eastern Kingdoms)
 ## Notes: Walking maps of the Eastern Kingdoms for Evertally Guide's arrow, from Leffe's navigation maps. Loaded on demand on that continent.
-## Title-deDE: Evertally Guide Navigation (Östliche Königreiche)
-## Notes-deDE: Laufkarten der Östlichen Königreiche für Polestars Pfeil, aus Leffes Navigationskarten. Wird auf diesem Kontinent bei Bedarf geladen.
-## Title-esES: Evertally Guide: navegación (Reinos del Este)
-## Notes-esES: Mapas a pie de los Reinos del Este para la flecha de Evertally Guide, a partir de los mapas de navegación de Leffe. Se carga bajo demanda en ese continente.
-## Title-esMX: Evertally Guide: navegación (Reinos del Este)
-## Notes-esMX: Mapas a pie de los Reinos del Este para la flecha de Evertally Guide, a partir de los mapas de navegación de Leffe. Se carga bajo demanda en ese continente.
-## Title-frFR: Evertally Guide : navigation (Royaumes de l'Est)
-## Notes-frFR: Cartes de marche des Royaumes de l'Est pour la flèche de Evertally Guide, tirées des cartes de navigation de Leffe. Chargé à la demande sur ce continent.
-## Title-koKR: Evertally Guide 길찾기 (동부 왕국)
-## Notes-koKR: Evertally Guide 화살표용 동부 왕국 도보 지도. Leffe의 길찾기 지도에서 만들었습니다. 그 대륙에서 필요할 때 불러옵니다.
-## Title-ptBR: Evertally Guide: navegação (Reinos do Leste)
-## Notes-ptBR: Mapas a pé dos Reinos do Leste para a seta do Evertally Guide, a partir dos mapas de navegação do Leffe. Carregado sob demanda nesse continente.
-## Title-ruRU: Evertally Guide: навигация (Восточные королевства)
-## Notes-ruRU: Пешие карты Восточных королевств для стрелки Evertally Guide, из навигационных карт Leffe. Загружается по требованию на этом континенте.
-## Title-zhCN: Evertally Guide 导航（东部王国）
-## Notes-zhCN: Evertally Guide 箭头使用的东部王国步行地图，来自 Leffe 的导航地图。在该大陆上按需加载。
-## Title-zhTW: Evertally Guide 導航（東部王國）
-## Notes-zhTW: Evertally Guide 箭頭使用的東部王國步行地圖，來自 Leffe 的導航地圖。在該大陸上按需載入。
-## Author: Polestar; walking maps: Leffe's navigation maps
+## Author: Evertally (from Polestar, The Polestar authors)
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## LoadOnDemand: 1
 ## Dependencies: Evertally_Guide_Nav
 ## X-License: GPL-3.0-or-later

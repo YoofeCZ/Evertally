@@ -1,28 +1,10 @@
 ## Interface: 16001
-## Title: Evertally Guide Settings
+## Title: Evertally - Guide Settings
 ## Notes: Part of Evertally Guide: the settings window, its look pages and their previews. Loaded when you open the settings.
-## Title-deDE: Evertally Guide-Einstellungen
-## Notes-deDE: Teil von Evertally Guide: das Einstellungsfenster, seine Darstellungsseiten und ihre Vorschauen. Wird geladen, wenn du die Einstellungen öffnest.
-## Title-esES: Evertally Guide: configuración
-## Notes-esES: Parte de Evertally Guide: la ventana de configuración, sus páginas de aspecto y sus vistas previas. Se carga al abrir la configuración.
-## Title-esMX: Evertally Guide: configuración
-## Notes-esMX: Parte de Evertally Guide: la ventana de configuración, sus páginas de aspecto y sus vistas previas. Se carga al abrir la configuración.
-## Title-frFR: Evertally Guide : réglages
-## Notes-frFR: Fait partie de Evertally Guide : la fenêtre des réglages, ses pages d'apparence et leurs aperçus. Chargé à l'ouverture des réglages.
-## Title-koKR: Evertally Guide 설정
-## Notes-koKR: Polestar의 일부: 설정 창과 모양 페이지, 그 미리 보기. 설정을 열 때 불러옵니다.
-## Title-ptBR: Evertally Guide: opções
-## Notes-ptBR: Parte do Evertally Guide: a janela de opções, suas páginas de aparência e as prévias delas. Carregado ao abrir as opções.
-## Title-ruRU: Evertally Guide: настройки
-## Notes-ruRU: Часть Evertally Guide: окно настроек, его страницы оформления и их предпросмотр. Загружается при открытии настроек.
-## Title-zhCN: Evertally Guide 设置
-## Notes-zhCN: Evertally Guide 的组成部分：设置窗口、外观页面及其预览。打开设置时加载。
-## Title-zhTW: Evertally Guide 設定
-## Notes-zhTW: Evertally Guide 的一部分：設定視窗、外觀頁面及其預覽。開啟設定時載入。
-## Author: Polestar
+## Author: Evertally (from Polestar, The Polestar authors)
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## LoadOnDemand: 1
 ## Dependencies: Evertally_Guide
 ## X-License: GPL-3.0-only

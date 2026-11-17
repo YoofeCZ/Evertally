@@ -1,5 +1,6 @@
 ## Interface: 16001
 ## Title: Evertally - Web Export
+## Category: Evertally
 ## IconTexture: Interface\AddOns\Evertally\Media\Logo
 ## Group: Evertally
 ## Notes: Separate optional export storage. No network access.

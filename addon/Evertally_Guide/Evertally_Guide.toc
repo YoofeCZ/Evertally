@@ -1,29 +1,12 @@
 ## Interface: 16001
-## Title: Evertally Guide
+## Group: Evertally
+## Title: Evertally - Guide
 ## Notes: Leveling guides for World of Warcraft: Forever.
-## Title-deDE: Evertally Guide
-## Notes-deDE: Leveling-Guides für World of Warcraft: Forever.
-## Title-esES: Evertally Guide
-## Notes-esES: Guías para subir de nivel en World of Warcraft: Forever.
-## Title-esMX: Evertally Guide
-## Notes-esMX: Guías para subir de nivel en World of Warcraft: Forever.
-## Title-frFR: Evertally Guide
-## Notes-frFR: Guides de montée en niveau pour World of Warcraft: Forever.
-## Title-koKR: Evertally Guide
-## Notes-koKR: World of Warcraft: Forever 레벨업 가이드.
-## Title-ptBR: Evertally Guide
-## Notes-ptBR: Guias de evolução para World of Warcraft: Forever.
-## Title-ruRU: Evertally Guide
-## Notes-ruRU: Гайды по прокачке для World of Warcraft: Forever.
-## Title-zhCN: Evertally Guide
-## Notes-zhCN: 魔兽世界：Forever 练级指南。
-## Title-zhTW: Evertally Guide
-## Notes-zhTW: World of Warcraft: Forever 的升級指南。
-## Author: Polestar
+## Author: Evertally (from Polestar, The Polestar authors)
 ## X-License: GPL-3.0-only
 ## X-Website: https://github.com/fitzforge/polestar
 ## Version: 0.4.0.1
-## Category: Evertally Guide
+## Category: Evertally
 ## IconTexture: Interface\AddOns\Evertally_Guide\Media\UI\logo
 ## AddonCompartmentFunc: Evertally_Guide_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: Evertally_Guide_OnAddonCompartmentEnter

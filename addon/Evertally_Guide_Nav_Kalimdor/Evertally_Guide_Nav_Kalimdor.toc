@@ -1,28 +1,10 @@
 ## Interface: 16001
-## Title: Evertally Guide Nav (Kalimdor)
+## Title: Evertally - Guide Nav (Kalimdor)
 ## Notes: Walking maps of Kalimdor for Evertally Guide's arrow, from Leffe's navigation maps. Loaded on demand on that continent.
-## Title-deDE: Evertally Guide Navigation (Kalimdor)
-## Notes-deDE: Laufkarten von Kalimdor für Polestars Pfeil, aus Leffes Navigationskarten. Wird auf diesem Kontinent bei Bedarf geladen.
-## Title-esES: Evertally Guide: navegación (Kalimdor)
-## Notes-esES: Mapas a pie de Kalimdor para la flecha de Evertally Guide, a partir de los mapas de navegación de Leffe. Se carga bajo demanda en ese continente.
-## Title-esMX: Evertally Guide: navegación (Kalimdor)
-## Notes-esMX: Mapas a pie de Kalimdor para la flecha de Evertally Guide, a partir de los mapas de navegación de Leffe. Se carga bajo demanda en ese continente.
-## Title-frFR: Evertally Guide : navigation (Kalimdor)
-## Notes-frFR: Cartes de marche de Kalimdor pour la flèche de Evertally Guide, tirées des cartes de navigation de Leffe. Chargé à la demande sur ce continent.
-## Title-koKR: Evertally Guide 길찾기 (칼림도어)
-## Notes-koKR: Evertally Guide 화살표용 칼림도어 도보 지도. Leffe의 길찾기 지도에서 만들었습니다. 그 대륙에서 필요할 때 불러옵니다.
-## Title-ptBR: Evertally Guide: navegação (Kalimdor)
-## Notes-ptBR: Mapas a pé de Kalimdor para a seta do Evertally Guide, a partir dos mapas de navegação do Leffe. Carregado sob demanda nesse continente.
-## Title-ruRU: Evertally Guide: навигация (Калимдор)
-## Notes-ruRU: Пешие карты Калимдора для стрелки Evertally Guide, из навигационных карт Leffe. Загружается по требованию на этом континенте.
-## Title-zhCN: Evertally Guide 导航（卡利姆多）
-## Notes-zhCN: Evertally Guide 箭头使用的卡利姆多步行地图，来自 Leffe 的导航地图。在该大陆上按需加载。
-## Title-zhTW: Evertally Guide 導航（卡林多）
-## Notes-zhTW: Evertally Guide 箭頭使用的卡林多步行地圖，來自 Leffe 的導航地圖。在該大陸上按需載入。
-## Author: Polestar; walking maps: Leffe's navigation maps
+## Author: Evertally (from Polestar, The Polestar authors)
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## LoadOnDemand: 1
 ## Dependencies: Evertally_Guide_Nav
 ## X-License: GPL-3.0-or-later

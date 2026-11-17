@@ -1,30 +1,12 @@
 ## Interface: 16001
-## Title: Evertally Guide Skin: Umbra
+## Title: Evertally - Guide Skin: Umbra
 ## Notes: A dark mode for Evertally Guide: charcoal windows sunk in a soft vignette, a steel glow on their edges, a deep shadow; on Evertally Guide's frames or on the game's own art, dimmed.
-## Title-deDE: Evertally Guide-Design: Umbra
-## Notes-deDE: Ein dunkler Modus für Evertally Guide: anthrazitfarbene Fenster in einer weichen Vignette, ein stählernes Leuchten an den Kanten, ein tiefer Schatten; auf Polestars Rahmen oder auf der abgedunkelten Grafik des Spiels.
-## Title-esES: Evertally Guide, tema: Umbra
-## Notes-esES: Un modo oscuro para Evertally Guide: ventanas color carbón hundidas en una viñeta suave, un brillo acero en sus bordes, una sombra profunda; sobre los marcos de Evertally Guide o sobre el arte del juego, atenuado.
-## Title-esMX: Evertally Guide, tema: Umbra
-## Notes-esMX: Un modo oscuro para Evertally Guide: ventanas color carbón hundidas en una viñeta suave, un brillo acero en sus bordes, una sombra profunda; sobre los marcos de Evertally Guide o sobre el arte del juego, atenuado.
-## Title-frFR: Evertally Guide, habillage : Umbra
-## Notes-frFR: Un mode sombre pour Evertally Guide : des fenêtres anthracite dans un vignettage doux, une lueur acier sur leurs bords, une ombre profonde ; sur les cadres de Evertally Guide ou sur les graphismes du jeu, assombris.
-## Title-koKR: Evertally Guide 스킨: Umbra
-## Notes-koKR: Polestar의 다크 모드: 부드러운 비네트에 잠긴 차콜 창, 가장자리의 강철빛, 깊은 그림자. Polestar의 프레임 또는 어둡게 한 게임 자체 그래픽 위에.
-## Title-ptBR: Evertally Guide, tema: Umbra
-## Notes-ptBR: Um modo escuro para o Evertally Guide: janelas cor de carvão numa vinheta suave, um brilho de aço nas bordas, uma sombra profunda; nas molduras do Evertally Guide ou na arte do próprio jogo, escurecida.
-## Title-ruRU: Evertally Guide, оформление: Umbra
-## Notes-ruRU: Тёмный режим для Evertally Guide: графитовые окна в мягкой виньетке, стальное свечение по краям, глубокая тень; на рамках Evertally Guide или на затемнённой графике игры.
-## Title-zhCN: Evertally Guide 皮肤：Umbra
-## Notes-zhCN: Evertally Guide 的深色模式：沉在柔和暗角中的炭灰窗口，边缘钢色微光，深邃阴影；用于 Evertally Guide 的窗框或调暗的游戏自带美术。
-## Title-zhTW: Evertally Guide 皮膚：Umbra
-## Notes-zhTW: Evertally Guide 的深色模式：沉在柔和暗角中的炭灰視窗，邊緣鋼色微光，深邃陰影；用於 Evertally Guide 的窗框或調暗的遊戲自帶美術。
-## Author: Polestar
+## Author: Evertally (from Polestar, The Polestar authors)
 ## X-License: GPL-3.0-only
 ## X-Website: https://github.com/fitzforge/polestar
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## Dependencies: Evertally_Guide
 ## LoadOnDemand: 1
 ## X-Polestar-Skin: umbra

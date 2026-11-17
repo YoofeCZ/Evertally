@@ -1,28 +1,10 @@
 ## Interface: 16001
-## Title: Evertally Guide Quest Database
+## Title: Evertally - Guide Quest Database
 ## Notes: Quest, NPC, object and item data for Evertally Guide's quest markers and tooltips. Loaded on demand.
-## Title-deDE: Evertally Guide Quest-Datenbank
-## Notes-deDE: Quest-, NPC-, Objekt- und Gegenstandsdaten für Polestars Questmarkierungen und Tooltips. Wird bei Bedarf geladen.
-## Title-esES: Evertally Guide: base de datos de misiones
-## Notes-esES: Datos de misiones, PNJ y objetos para los marcadores de misión y las descripciones emergentes de Evertally Guide. Se carga bajo demanda.
-## Title-esMX: Evertally Guide: base de datos de misiones
-## Notes-esMX: Datos de misiones, PNJ y objetos para los marcadores de misión y las descripciones emergentes de Evertally Guide. Se carga bajo demanda.
-## Title-frFR: Evertally Guide : base de données des quêtes
-## Notes-frFR: Données des quêtes, PNJ et objets pour les marqueurs de quête et les infobulles de Evertally Guide. Chargé à la demande.
-## Title-koKR: Evertally Guide 퀘스트 데이터베이스
-## Notes-koKR: Evertally Guide 퀘스트 표시와 툴팁에 쓰는 퀘스트, NPC, 물체, 아이템 데이터. 필요할 때 불러옵니다.
-## Title-ptBR: Evertally Guide: banco de dados de missões
-## Notes-ptBR: Dados de missões, PNJs, objetos e itens para os marcadores de missão e as dicas do Evertally Guide. Carregado sob demanda.
-## Title-ruRU: Evertally Guide: база заданий
-## Notes-ruRU: Данные заданий, NPC, объектов и предметов для меток заданий и подсказок Evertally Guide. Загружается по требованию.
-## Title-zhCN: Evertally Guide 任务数据库
-## Notes-zhCN: Evertally Guide 任务标记和鼠标提示所用的任务、NPC、物体和物品数据。按需加载。
-## Title-zhTW: Evertally Guide 任務資料庫
-## Notes-zhTW: Evertally Guide 任務標記與滑鼠提示所用的任務、NPC、物件與物品資料。按需載入。
-## Author: Polestar
+## Author: Evertally (from Polestar, The Polestar authors)
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## LoadOnDemand: 1
 ## Dependencies: Evertally_Guide
 

@@ -1,28 +1,10 @@
 ## Interface: 16001
-## Title: Evertally Guide Looks
+## Title: Evertally - Guide Looks
 ## Notes: Part of Evertally Guide: the WoW Forever, Blizzard, Classic and Hearth skins. Loaded when you pick one.
-## Title-deDE: Evertally Guide: Designs
-## Notes-deDE: Teil von Evertally Guide: die Designs WoW Forever, Blizzard, Classic und Hearth. Wird geladen, wenn du eines auswählst.
-## Title-esES: Evertally Guide: temas
-## Notes-esES: Parte de Evertally Guide: los temas WoW Forever, Blizzard, Classic y Hearth. Se carga cuando eliges uno.
-## Title-esMX: Evertally Guide: temas
-## Notes-esMX: Parte de Evertally Guide: los temas WoW Forever, Blizzard, Classic y Hearth. Se carga cuando eliges uno.
-## Title-frFR: Evertally Guide : habillages
-## Notes-frFR: Fait partie de Evertally Guide : les habillages WoW Forever, Blizzard, Classic et Hearth. Chargé quand vous en choisissez un.
-## Title-koKR: Evertally Guide 스킨
-## Notes-koKR: Polestar의 일부: WoW Forever, Blizzard, Classic, Hearth 스킨. 하나를 고를 때 불러옵니다.
-## Title-ptBR: Evertally Guide: temas
-## Notes-ptBR: Parte do Evertally Guide: os temas WoW Forever, Blizzard, Classic e Hearth. Carregado quando você escolhe um.
-## Title-ruRU: Evertally Guide: оформления
-## Notes-ruRU: Часть Evertally Guide: оформления WoW Forever, Blizzard, Classic и Hearth. Загружается, когда вы выбираете одно из них.
-## Title-zhCN: Evertally Guide 皮肤
-## Notes-zhCN: Evertally Guide 的组成部分：WoW Forever、Blizzard、Classic 和 Hearth 皮肤。选择其中一个时加载。
-## Title-zhTW: Evertally Guide 皮膚
-## Notes-zhTW: Evertally Guide 的一部分：WoW Forever、Blizzard、Classic 和 Hearth 皮膚。選擇其中一個時載入。
-## Author: Polestar
+## Author: Evertally (from Polestar, The Polestar authors)
 ## Version: 0.4.0.1
-## Category: Evertally Guide
-## Group: Polestar
+## Category: Evertally
+## Group: Evertally
 ## LoadOnDemand: 1
 ## Dependencies: Evertally_Guide
 ## X-License: GPL-3.0-only

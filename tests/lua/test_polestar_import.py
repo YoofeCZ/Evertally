@@ -77,6 +77,17 @@ class PolestarImportTests(unittest.TestCase):
                         missing.append(f"{path.name} loads {m.group(1)}")
         self.assertEqual(missing, [])
 
+    def test_addons_list_shows_one_evertally_header_in_english_and_czech(self):
+        tocs = [f / f"{f.name}.toc" for f in FOLDERS] + [ADDONS / n / f"{n}.toc" for n in ("Evertally", "Evertally_Map", "Evertally_Export")]
+        wrong = []
+        for toc in tocs:
+            text = toc.read_text(encoding="utf8")
+            if "## Group: Evertally" not in text or "## Category: Evertally" not in text:
+                wrong.append(f"{toc.name}: not under the Evertally header")
+            wrong += [f"{toc.name}: {m}" for m in re.findall(r"## (?:Title|Notes)-(?!csCZ)\w+", text)]
+            wrong += [f"{toc.name}: {m}" for m in re.findall(r"## Title: .*Guide Guides.*", text)]
+        self.assertEqual(wrong, [])
+
     def test_every_file_has_a_type_the_updater_installs(self):
         allowed = {".lua", ".toc", ".xml", ".md", ".txt", ".tga", ".blp", ".ttf", ".ogg"}  # sync/src/addon_update.rs FILE_TYPES
         odd = [str(p.relative_to(ADDONS)) for folder in FOLDERS for p in folder.rglob("*") if p.is_file() and p.suffix.lower() not in allowed]
