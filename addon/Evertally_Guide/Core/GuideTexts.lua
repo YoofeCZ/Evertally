@@ -52,6 +52,9 @@ local find, sub, upper, concat = string.find, string.sub, string.upper, table.co
 local ENGLISH = { enUS = true, enGB = true }
 local locale = (GetLocale and GetLocale()) or "enUS"
 local english = ENGLISH[locale] or false
+-- Evertally: the language of the guide texts when it is not the client's (Evertally_Guide_csCZ on an English
+-- client, set by Evertally before the guide packs load).
+function GuideTexts.UseLanguage(loc) locale = loc; english = ENGLISH[loc] or false end
 
 GuideTexts.GUIDE_FIELDS = { "title", "why", "pitch", "folder" }
 local GUIDE_FIELDS = { "title", "why", "pitch" }

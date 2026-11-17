@@ -34,7 +34,8 @@ class PolestarImportTests(unittest.TestCase):
         for must in ("Evertally_Guide", "Evertally_Guide_Codex", "Evertally_Guide_Nav", "Evertally_Guide_Options", "Evertally_Guide_Guides",
                      "Evertally_Guide_QuestDB", "Evertally_Guide_ItemDB", "Evertally_Guide_Nav_EK", "Evertally_Guide_Nav_Kalimdor"):
             self.assertIn(must, names)
-        self.assertFalse([n for n in names if re.search(r"_[a-z]{2}[A-Z]{2}$", n)], "no language packs")
+        self.assertFalse([n for n in names if re.search(r"_[a-z]{2}[A-Z]{2}$", n) and n != "Evertally_Guide_csCZ"],
+                         "no language packs of Polestar's (Czech is Evertally's own)")
 
     def test_every_lua_file_compiles(self):
         lua = LuaRuntime()
@@ -138,6 +139,35 @@ class PolestarImportTests(unittest.TestCase):
         text = (ADDONS / "Evertally_Guide" / "UI" / "Welcome.lua").read_text(encoding="latin-1")
         self.assertLess(text.index("stage.Refresh = paintStage"), text.index('W.Bind(stage, "qol.targetPlate"'))
 
+
+    def test_czech_keeps_every_placeholder_token_colour_and_line_break(self):
+        # A translation that drops a %s, a {quest:123}, a |cff..|r or a line break breaks the text it fills.
+        import json
+        memory = {}
+        for name in ("interface.json", "texts.json"):
+            path = ROOT / "tools" / "polestar-cs" / name
+            if path.is_file():
+                memory.update(json.loads(path.read_text(encoding="utf8")))
+        marks = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[sdifgxXc%]|\{\w+:\d+\}|\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t|\|H[^|]*\|h|\n")
+        bad = [k for k, v in memory.items() if v and sorted(marks.findall(k)) != sorted(marks.findall(v))]
+        self.assertEqual(bad[:10], [], f"{len(bad)} translations change a placeholder")
+
+    def test_czech_loads_only_when_evertally_asks_and_keeps_the_games_names(self):
+        folder = ADDONS / "Evertally_Guide_csCZ"
+        self.assertTrue((folder / "Evertally_Guide_csCZ.toc").is_file())
+        toc = (folder / "Evertally_Guide_csCZ.toc").read_text(encoding="utf8")
+        self.assertIn("## LoadOnDemand: 1", toc)
+        self.assertNotIn("Names.lua", toc, "the game's names stay English: the client is English")
+        ui = (folder / "Interface.lua").read_text(encoding="utf8")
+        self.assertIn('ns.EvertallyLanguage == "csCZ"', ui)
+        texts = (folder / "Texts.lua").read_text(encoding="utf8")
+        self.assertIn('EvertallyGuide.RegisterGuideTexts("csCZ", "guides", t)', texts)
+        gt = (ADDONS / "Evertally_Guide" / "Core" / "GuideTexts.lua").read_text(encoding="latin-1")
+        self.assertIn("function GuideTexts.UseLanguage(loc)", gt)
+        lua = LuaRuntime()
+        for name in ("Interface.lua", "Texts.lua"):
+            err = lua.eval("function(s, n) local f, e = loadstring(s, n); return e end")((folder / name).read_bytes(), name)
+            self.assertIsNone(err, name)
 
 if __name__ == "__main__":
     unittest.main()

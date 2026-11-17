@@ -110,6 +110,20 @@ class GuideSettingsTests(unittest.TestCase):
         self.assertEqual(len(opened), 2)
         self.assertFalse(self.a.guideShell.Shown("settings"), "the hub keeps its page; the settings are a window")
 
+    def test_czech_in_evertally_loads_the_guide_in_czech(self):
+        self.lua.execute("""LOADED={}; USED=nil
+          C_AddOns={LoadAddOn=function(name) LOADED[#LOADED+1]=name; return true end}
+          EvertallyGuide={GuideTexts={UseLanguage=function(loc) USED=loc end}}""")
+        self.a.db.settings.language = "en"
+        self.assertFalse(self.a.ApplyGuideLanguage(), "English: the guide stays English")
+        self.a.db.settings.language = "cs"
+        self.assertTrue(self.a.ApplyGuideLanguage())
+        g = self.lua.globals()
+        self.assertEqual(g.EvertallyGuide.EvertallyLanguage, "csCZ")
+        self.assertEqual(g.USED, "csCZ")
+        self.assertEqual(g.LOADED[1], "Evertally_Guide_csCZ")
+        self.assertTrue(self.a.ApplyGuideLanguage())
+        self.assertEqual(len(g.LOADED), 1, "once")
 
 if __name__ == "__main__":
     unittest.main()

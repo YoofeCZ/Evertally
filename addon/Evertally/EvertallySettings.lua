@@ -58,6 +58,25 @@ local function button(key, run, extra)
     return c
 end
 
+-- ---------- Evertally Guide in Czech ----------
+
+-- Evertally in Czech: Evertally Guide in Czech too (Evertally_Guide_csCZ, generated from tools/polestar-cs). Run when
+-- Evertally's settings load (ADDON_LOADED), after the guide's files and before its guide packs: the interface strings
+-- fill its L (those read while its files loaded, key binding names among them, stay English), the guide texts register
+-- for the language the guide was told. The game's names stay English, as the English client shows them. A change of
+-- language takes a /reload. -> true when the Czech folder loaded.
+function A.ApplyGuideLanguage()
+    local g = guide()
+    if not (g and A.db and A.db.settings.language == "cs") then return false end
+    if g.EvertallyLanguage == "csCZ" then return true end
+    g.EvertallyLanguage = "csCZ"
+    if g.GuideTexts and type(g.GuideTexts.UseLanguage) == "function" then g.GuideTexts.UseLanguage("csCZ") end
+    local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
+    if type(load) ~= "function" then return false end
+    local ok, loaded = pcall(load, "Evertally_Guide_csCZ")
+    return ok and loaded and true or false
+end
+
 -- ---------- the pages of plain controls ----------
 
 local function sharingControls()
