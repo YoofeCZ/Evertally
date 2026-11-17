@@ -3071,6 +3071,7 @@ local pageByKey
 -- 20-29; Setup 63-79 (Profiles, Integrations, Community guides, Gamepad);
 -- About from 80 (Guiding Stars, Recorder, About); Guiding the rest.
 local GROUPS = {
+	{ key = "evertally", label = "Evertally" },
 	{ key = "guiding", label = L["Guiding"] },
 	{ key = "look", label = L["Look"] },
 	{ key = "setup", label = L["Setup"] },

@@ -56,6 +56,12 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
     "Nav/Handoff.lua": [('local OWNER = "Polestar"', 'local OWNER = "EvertallyGuide"', 1)],
     "Nav/Pins.lua": [('section = "Polestar",', 'section = "Evertally Guide",', 1)],
     "UI/GameMenu.lua": [('button:SetText("Polestar")', 'button:SetText("Evertally Guide")', 1)],
+    # The settings window's sidebar groups are fixed; Evertally's own settings (addon/Evertally/EvertallySettings.lua)
+    # register pages with group = "evertally", which leads the list.
+    "UI/Options.lua": [
+        ('local GROUPS = {\n\t{ key = "guiding", label = L["Guiding"] },',
+         'local GROUPS = {\n\t{ key = "evertally", label = "Evertally" },\n\t{ key = "guiding", label = L["Guiding"] },', 1),
+    ],
     # The hub's rail drops the sections past its foot group (rows of 56 px); with Evertally's own section the 640 px
     # hub of the Halo and Hearth skins is 2 px short. Close the rows up (to 46 px: icon and caption) before dropping.
     "Theme/Widgets.lua": [

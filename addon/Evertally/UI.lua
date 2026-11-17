@@ -1519,6 +1519,7 @@ end
 
 -- With Evertally Guide loaded the pages live in its hub (GuideShell.lua sets A.guideShell); this window is the way
 -- without it. The hub reads the menu and builds pages through these.
+A.ShowExportCopy = function() showCopy() end
 A.UIShell = {NAV = NAV, ICON = ICON, pages = pages, buildPage = function(view) return buildPage(view) end, refreshPage = refreshPage}
 
 local function build()

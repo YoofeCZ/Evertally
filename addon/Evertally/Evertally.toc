@@ -75,4 +75,5 @@ LfgJournal.lua
 QuestGuideData.lua
 QuestGuide.lua
 QuestGuideUI.lua
+EvertallySettings.lua
 GuideShell.lua

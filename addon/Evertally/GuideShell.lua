@@ -80,6 +80,8 @@ function A.InstallGuideShell()
     end
     section.onNav = function(view)
         if not known[view] then return end
+        -- Settings are pages of the guide's settings window (EvertallySettings.lua), QoL beside them.
+        if view == "settings" and A.ShowGuideSettings and A.ShowGuideSettings() then return end
         current = view
         if A.db then A.db.settings.lastView = view end
         if P.Render then P.Render() end
@@ -96,6 +98,7 @@ function A.InstallGuideShell()
         views = views,
         --- Opens the hub on a page (default: the one last shown, else the Overview).
         Open = function(view)
+            if view == "settings" and A.ShowGuideSettings and A.ShowGuideSettings() then return end
             if known[view] then current = view; if A.db then A.db.settings.lastView = view end end
             P.ShowSection(KEY)
             UI.ShowPicker()
