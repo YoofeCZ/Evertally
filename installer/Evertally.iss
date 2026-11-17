@@ -39,6 +39,8 @@ Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
 [CustomMessages]
 english.StartWoW=Start Evertally automatically with World of Warcraft Forever
 czech.StartWoW=Spouštět Evertally automaticky s World of Warcraft Forever
+english.StartWindows=Start Evertally when Windows starts (in the tray, no window)
+czech.StartWindows=Spouštět Evertally při startu Windows (v liště, bez okna)
 english.DesktopShortcut=Create a desktop shortcut
 czech.DesktopShortcut=Vytvořit zástupce na ploše
 english.AddonTask=Install or update the Evertally in-game addons
@@ -56,6 +58,7 @@ czech.StartBackground=Otevřít Evertally a spárovat počítač s webem (most s
 
 [Tasks]
 Name: "startwow"; Description: "{cm:StartWoW}"; GroupDescription: "Evertally:"; Flags: checkedonce
+Name: "startwindows"; Description: "{cm:StartWindows}"; GroupDescription: "Evertally:"; Flags: unchecked
 Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "Evertally:"; Flags: unchecked
 Name: "addon"; Description: "{cm:AddonTask}"; GroupDescription: "World of Warcraft:"
 
@@ -73,7 +76,8 @@ Name: "{autodesktop}\Evertally"; Filename: "{app}\Evertally.exe"; Parameters: "-
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "EvertallySync"; ValueData: """{app}\EvertallyBackground.exe"""; Tasks: startwow; Flags: uninsdeletevalue
-; The app's own "Start with Windows" setting writes this value; uninstalling removes it.
+; "Start with Windows": this task or the same setting in the app (the value is the same); uninstalling removes it either way.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "EvertallyStartup"; ValueData: """{app}\Evertally.exe"""; Tasks: startwindows; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "EvertallyStartup"; Flags: uninsdeletevalue dontcreatekey
 
 [Run]

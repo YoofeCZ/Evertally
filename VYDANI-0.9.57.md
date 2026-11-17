@@ -15,7 +15,12 @@
 - Místnost **#Evertally** je jen pro oznámení: píšou do ní jen postavy autora, ostatní čtou.
 - Pevné místnosti se nikdy nepřipojují s heslem; když je někdo heslem zamkne, okno s heslem se zavře a místnost se do konce sezení přeskočí.
 
-**Přibyl soubor v TOC (`DungeonData.lua`): hru je potřeba úplně ukončit a spustit znovu, `/reload` nestačí.** Aplikace beze změny (0.9.17).
+**Přibyl soubor v TOC (`DungeonData.lua`): hru je potřeba úplně ukončit a spustit znovu, `/reload` nestačí.**
+
+## Aplikace 0.9.18
+
+- Nová volba **Spouštět při startu Windows (v liště, bez okna)** v Nastavení spojení a stejná volba v instalátoru (ve výchozím stavu vypnutá, takže tichá aktualizace ji nikomu sama nezapne). Je to hodnota `EvertallyStartup` v `HKCU\...\Run`, odinstalace ji smaže. Původní „Spouštět most automaticky s WoW“ zůstává.
+- Aplikace se aktualizuje sama (instalátor 0.9.18 zveřejněný na webu, sha256 `e4ec17bd…`).
 
 ## Ověřeno
 
