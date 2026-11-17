@@ -6,11 +6,20 @@ from pathlib import Path
 from io import BytesIO
 import hashlib
 import json
+import re
 import tomllib
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAMES = ("Evertally", "Evertally_Export", "Evertally_Map")
+# Every authored add-on folder `addon/Evertally*` (the app installs exactly these roots, see sync/src/addon_update.rs).
+NAMES = tuple(sorted(p.name for p in (ROOT / "addon").glob("Evertally*") if p.is_dir()))
+# The same file types the app accepts; `.ttf` fonts and the `.ogg` sound come with the guide (Evertally_Guide*).
+FILE_TYPES = {".lua", ".toc", ".xml", ".md", ".txt", ".tga", ".blp", ".ttf", ".ogg"}
+if "Evertally" not in NAMES:
+    raise SystemExit("Missing authored add-on: addon/Evertally")
+for name in NAMES:
+    if not re.fullmatch(r"Evertally[A-Za-z0-9_]*", name) or len(name) > 64:
+        raise SystemExit(f"Add-on folder name the app would refuse: {name}")
 APP = ROOT / "desktop" / "native" / "target" / "release" / "Evertally.exe"
 out = ROOT / "releases"
 out.mkdir(exist_ok=True)
@@ -25,13 +34,17 @@ def describe(name: str, data: bytes, **extra) -> dict:
 sources = []
 for name in NAMES:
     folder = ROOT / "addon" / name
-    if not folder.is_dir() or not list(folder.glob("*.toc")):
+    # The game, and the app, need the TOC named after its folder.
+    if not (folder / f"{name}.toc").is_file():
         raise SystemExit(f"Missing authored add-on: {folder}")
     for item in sorted(folder.rglob("*")):
         if item.is_symlink():
             raise SystemExit(f"Symlink not allowed in distribution: {item}")
-        if item.is_file() and item.suffix.lower() in {".lua", ".toc", ".xml", ".md", ".txt", ".tga", ".blp"}:
+        if item.is_file() and item.suffix.lower() in FILE_TYPES:
             sources.append(item)
+        elif item.is_file() and item.stem.upper() in {"LICENSE", "LICENCE", "COPYING"}:
+            # A licence the app could not install would silently be missing from the bundle (GPL needs it there).
+            raise SystemExit(f"Licence without .txt/.md extension: {item}")
 
 dest = out / "Evertally.zip"
 with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as archive:

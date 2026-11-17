@@ -9,7 +9,11 @@ if (-not (Test-Path -LiteralPath $targetRoot -PathType Container)) {
     throw "Slozka AddOns neexistuje: $targetRoot"
 }
 if ((Split-Path -Leaf $targetRoot) -ne 'AddOns') { throw 'Vyber cilovou slozku AddOns.' }
-$names = @('Evertally', 'Evertally_Export', 'Evertally_Map')
+# Every authored add-on folder addon\Evertally* (the same roots the app installs).
+$names = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'addon') -Directory -Filter 'Evertally*' | Where-Object { $_.Name -match '^Evertally[A-Za-z0-9_]*$' } | Sort-Object Name | ForEach-Object { $_.Name })
+if ($names -notcontains 'Evertally') { throw 'Chybi zdroj hlavniho addonu addon\Evertally.' }
+# Written locally by Bridge (forum, community, leaderboard, music, installation receipt); the distribution has only placeholders.
+$bridgeOwned = @('ForumData.lua', 'CommunityData.lua', 'RankingData.lua', 'MusicData.lua', 'BridgeInstallation.lua')
 $backupRoot = Join-Path $projectRoot ('backups\' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 foreach ($addonName in $names) {
     $source = Join-Path $projectRoot ('addon\' + $addonName)
@@ -35,8 +39,8 @@ foreach ($addonName in $names) {
         }
         New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
         # Generated locally by Bridge; the distribution contains only a placeholder.
-        if ($addonName -eq 'Evertally' -and $relative -eq 'BridgeInstallation.lua' -and (Test-Path -LiteralPath $destination -PathType Leaf)) {
-            Write-Output 'Zachovano mistni potvrzeni instalace mostu.'
+        if ($addonName -eq 'Evertally' -and ($bridgeOwned -contains $relative) -and (Test-Path -LiteralPath $destination -PathType Leaf)) {
+            Write-Output "Zachovan soubor zapisovany mostem: $relative"
             continue
         }
         Copy-Item -LiteralPath $entry.FullName -Destination $destination -Force

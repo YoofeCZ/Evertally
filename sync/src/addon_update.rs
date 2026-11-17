@@ -11,19 +11,63 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, fs, io::{Cursor, Read, Write}, path::{Component, Path, PathBuf}, time::{Duration, SystemTime, UNIX_EPOCH}};
 
-const ROOTS: [&str; 3] = ["Evertally", "Evertally_Export", "Evertally_Map"];
-const MAX_ARCHIVE: u64 = 32 * 1024 * 1024;
-const MAX_TOTAL: u64 = 128 * 1024 * 1024;
-const MAX_FILE: u64 = 16 * 1024 * 1024;
+/// The main add-on: every bundle has it, and its TOC carries the version the player sees.
+const MAIN_ROOT: &str = "Evertally";
+/// The roots of bundles before the bundle could carry any `Evertally*` folder; journals of older versions name only these.
+const LEGACY_ROOTS: [&str; 3] = ["Evertally", "Evertally_Export", "Evertally_Map"];
+const MAX_ARCHIVE: u64 = 96 * 1024 * 1024;
+const MAX_TOTAL: u64 = 256 * 1024 * 1024;
+const MAX_FILE: u64 = 32 * 1024 * 1024;
 const MAX_ENTRIES: usize = 5000;
+const FILE_TYPES: [&str; 9] = ["lua","toc","xml","md","txt","tga","blp","ttf","ogg"];
+
+/// An add-on folder that belongs to Evertally: one level, `Evertally` followed only by letters, digits and `_`.
+/// Only such folders are ever installed, swapped or removed in `AddOns`.
+fn valid_root(name: &str) -> bool {
+    name.starts_with(MAIN_ROOT) && name.len()<=64 && name.bytes().all(|c| c.is_ascii_alphanumeric() || c==b'_')
+}
+
+/// The add-on folders of a bundle, in a stable order (the main add-on first).
+fn bundle_roots(files: &[FileEntry]) -> Vec<String> {
+    let mut roots: Vec<String>=files.iter().filter_map(|e| e.relative.components().next()).filter_map(|c| c.as_os_str().to_str()).map(str::to_owned).collect();
+    roots.sort();roots.dedup();roots
+}
+
+/// Evertally folders that are installed now. Links and junctions are never Evertally's own and are left alone.
+fn installed_roots(addons: &Path) -> Result<Vec<String>> {
+    let mut roots=Vec::new();
+    for child in fs::read_dir(addons)? {
+        let child=child?;
+        let Some(name)=child.file_name().to_str().map(str::to_owned) else {continue};
+        if !valid_root(&name) {continue;}
+        let meta=fs::symlink_metadata(child.path())?;
+        if !meta.is_dir() || meta.file_type().is_symlink() {continue;}
+        #[cfg(windows)] { use std::os::windows::fs::MetadataExt; if meta.file_attributes() & 0x400 != 0 {continue;} }
+        roots.push(name);
+    }
+    roots.sort();Ok(roots)
+}
+
+/// Installed Evertally folders the bundle no longer has (compared like Windows does, ignoring case).
+fn stale_roots(addons: &Path, bundle: &[String]) -> Result<Vec<String>> {
+    Ok(installed_roots(addons)?.into_iter().filter(|r| !bundle.iter().any(|b| b.eq_ignore_ascii_case(r))).collect())
+}
 
 #[derive(Deserialize)]
 struct Manifest { addon: Addon }
 #[derive(Deserialize)]
 struct Addon { file: String, bytes: u64, sha256: String }
 
+/// `roots[i]` is swapped (or, when the bundle has no such folder, moved to the backup); `existed[i]`: it was installed before.
+/// Journals of older versions have no `roots`: they mean [`LEGACY_ROOTS`].
 #[derive(Serialize, Deserialize)]
-struct Journal { staging: String, backup: String, existed: Vec<bool> }
+struct Journal { staging: String, backup: String, existed: Vec<bool>, #[serde(default)] roots: Vec<String> }
+
+impl Journal {
+    fn roots(&self) -> Vec<String> {
+        if self.roots.is_empty() {LEGACY_ROOTS.iter().map(|r|(*r).to_owned()).collect()} else {self.roots.clone()}
+    }
+}
 
 /// `keep_existing`: a file the bridge writes itself; the bundle's copy is only a placeholder for a tree that lacks it.
 struct FileEntry { relative: PathBuf, data: Vec<u8>, keep_existing: bool }
@@ -76,14 +120,14 @@ fn safe_name(name: &str) -> Result<PathBuf> {
     let path=Path::new(name);
     ensure!(path.components().all(|c| matches!(c, Component::Normal(_))), "invalid archive path");
     let components: Vec<_>=name.split('/').collect();
-    ensure!(components.len() >= 2 && ROOTS.contains(&components[0]), "unexpected archive root");
+    ensure!(components.len() >= 2 && valid_root(components[0]), "unexpected archive root");
     for segment in &components {
         ensure!(!segment.is_empty() && !segment.ends_with([' ', '.']) && segment.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c,b'_'|b'-'|b'.')), "unsafe archive name");
         let reserved=segment.split('.').next().unwrap_or("").to_ascii_uppercase();
         ensure!(!matches!(reserved.as_str(), "CON"|"PRN"|"AUX"|"NUL"|"COM1"|"COM2"|"COM3"|"COM4"|"COM5"|"COM6"|"COM7"|"COM8"|"COM9"|"LPT1"|"LPT2"|"LPT3"|"LPT4"|"LPT5"|"LPT6"|"LPT7"|"LPT8"|"LPT9"), "reserved file name");
     }
     let ext=path.extension().and_then(|v|v.to_str()).unwrap_or("").to_ascii_lowercase();
-    ensure!(["lua","toc","xml","md","txt","tga","blp"].contains(&ext.as_str()), "unexpected file type");
+    ensure!(FILE_TYPES.contains(&ext.as_str()), "unexpected file type");
     Ok(path.to_path_buf())
 }
 
@@ -106,7 +150,14 @@ fn unpack(bytes: &[u8]) -> Result<Vec<FileEntry>> {
         let keep_existing=BRIDGE_OWNED.contains(&key.as_str());
         entries.push(FileEntry{relative:path,data,keep_existing});
     }
-    for root in ROOTS { ensure!(names.contains(&format!("{0}/{0}.toc",root.to_ascii_lowercase())), "missing addon manifest"); }
+    let roots=bundle_roots(&entries);
+    ensure!(roots.iter().any(|r| r==MAIN_ROOT), "missing main addon");
+    let mut folded=HashSet::new();
+    for root in &roots {
+        // Two roots that differ only in case would land in one folder on Windows.
+        ensure!(folded.insert(root.to_ascii_lowercase()), "duplicate addon folder");
+        ensure!(names.contains(&format!("{0}/{0}.toc",root.to_ascii_lowercase())), "missing addon manifest");
+    }
     Ok(entries)
 }
 
@@ -138,7 +189,8 @@ fn copy_tree(from: &Path,to: &Path) -> Result<()> {
 }
 
 fn matches_installed(addons: &Path, files: &[FileEntry]) -> bool {
-    files.iter().all(|entry| {
+    // A folder the bundle no longer has still has to go.
+    stale_roots(addons,&bundle_roots(files)).is_ok_and(|stale| stale.is_empty()) && files.iter().all(|entry| {
         let path=addons.join(&entry.relative);
         if entry.keep_existing {return safe_ancestors(&path).is_ok() && path.is_file();}
         safe_ancestors(&path).is_ok() && fs::metadata(&path).is_ok_and(|m|m.is_file() && m.len()==entry.data.len() as u64) && fs::read(path).is_ok_and(|b|b==entry.data)
@@ -217,7 +269,8 @@ fn write_installation_receipt(addons: &Path, version: &str) -> Result<()> {
 fn restore(addons: &Path, work: &Path, journal: &Journal)->Result<()> {
     let backup=work.join(&journal.backup);let stage=work.join(&journal.staging);
     safe_ancestors(&backup)?;safe_ancestors(&stage)?;
-    for (i,root) in ROOTS.iter().enumerate().rev() {
+    let roots=journal.roots();
+    for (i,root) in roots.iter().enumerate().rev() {
         let live=addons.join(root);let old=backup.join(root);let staged=stage.join(root);
         if old.exists() {
             if live.exists() {safe_existing(&live)?;fs::rename(&live,backup.join(format!("failed-{root}")))?;}
@@ -233,7 +286,8 @@ fn recover(addons: &Path, work: &Path)->Result<()> {
     let path=work.join("journal.json");if !path.exists(){return Ok(());}
     safe_ancestors(&path)?;
     let journal:Journal=serde_json::from_slice(&fs::read(path)?)?;
-    ensure!(journal.existed.len()==ROOTS.len() && journal.backup.starts_with("backup-") && journal.staging.starts_with("stage-") && !journal.backup.contains(['/', '\\', ':']) && !journal.staging.contains(['/', '\\', ':']),"invalid update journal");
+    let roots=journal.roots();
+    ensure!(roots.iter().all(|r| valid_root(r)) && journal.existed.len()==roots.len() && journal.backup.starts_with("backup-") && journal.staging.starts_with("stage-") && !journal.backup.contains(['/', '\\', ':']) && !journal.staging.contains(['/', '\\', ':']),"invalid update journal");
     restore(addons,work,&journal)
 }
 
@@ -246,18 +300,25 @@ fn install_with(addons: &Path, files: &[FileEntry], forum_lock: &std::sync::Mute
     recover(addons,&work)?;
     if matches_installed(addons,files){return Ok(Applied::UpToDate);}
     let id=SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-    let journal=Journal{staging:format!("stage-{id}"),backup:format!("backup-{id}"),existed:ROOTS.iter().map(|r|addons.join(r).exists()).collect()};
+    // The bundle's folders are swapped for staged copies; installed Evertally folders it no longer has go to the backup.
+    let bundle=bundle_roots(files);
+    let mut roots=bundle.clone();roots.extend(stale_roots(addons,&bundle)?);
+    let journal=Journal{staging:format!("stage-{id}"),backup:format!("backup-{id}"),existed:roots.iter().map(|r|addons.join(r).exists()).collect(),roots:roots.clone()};
     let stage=work.join(&journal.staging);let backup=work.join(&journal.backup);
     fs::create_dir(&stage)?;fs::create_dir(&backup)?;
-    for root in ROOTS {let live=addons.join(root);let target=stage.join(root);if live.exists(){copy_tree(&live,&target)?;}else{fs::create_dir(&target)?;}}
+    for root in &bundle {let live=addons.join(root);let target=stage.join(root);if live.exists(){copy_tree(&live,&target)?;}else{fs::create_dir(&target)?;}}
     for entry in files {
         let target=stage.join(&entry.relative);
         if entry.keep_existing && target.is_file() {continue;}
         fs::create_dir_all(target.parent().context("invalid file")?)?;fs::write(target,&entry.data)?;
     }
     let j=work.join("journal.json");let mut f=fs::File::create(&j)?;serde_json::to_writer(&mut f,&journal)?;f.flush()?;f.sync_all()?;
-    // Three folder renames per root; any failure (a folder held by another program) puts every root back.
-    let result=(||->Result<()> {for root in ROOTS {before_swap(root)?;let live=addons.join(root);if live.exists(){fs::rename(&live,backup.join(root))?;}fs::rename(stage.join(root),live)?;}Ok(())})();
+    // Up to two folder renames per root; any failure (a folder held by another program) puts every root back.
+    let result=(||->Result<()> {for root in &roots {
+        before_swap(root)?;let live=addons.join(root);let staged=stage.join(root);
+        if live.exists(){safe_existing(&live)?;fs::rename(&live,backup.join(root))?;}
+        if staged.exists(){fs::rename(staged,live)?;}
+    }Ok(())})();
     if let Err(err)=result {restore(addons,&work,&journal).context("rollback failed")?;return Err(err);}
     fs::remove_file(j)?;
     Ok(Applied::Updated)
@@ -360,10 +421,10 @@ mod tests {
     impl Drop for Scratch {fn drop(&mut self){if self.0.starts_with(std::env::temp_dir()) && self.0.file_name().is_some_and(|n|n.to_string_lossy().starts_with("evertally-addon-update-test-")){let _=fs::remove_dir_all(&self.0);}}}
     fn fixture()->(Scratch,Vec<FileEntry>){
         let dir=Scratch::new();let addons=dir.addons();
-        for r in ROOTS {let d=addons.join(r);fs::create_dir_all(&d).unwrap();fs::write(d.join(format!("{r}.toc")),"old").unwrap();}
+        for r in LEGACY_ROOTS {let d=addons.join(r);fs::create_dir_all(&d).unwrap();fs::write(d.join(format!("{r}.toc")),"old").unwrap();}
         fs::write(addons.join("Evertally/ForumData.lua"),"user-forum").unwrap();
         fs::write(addons.join("Evertally/personal.txt"),"user-file").unwrap();
-        let entries=ROOTS.iter().map(|r|FileEntry{relative:PathBuf::from(r).join(format!("{r}.toc")),data:b"new".to_vec(),keep_existing:false}).collect();
+        let entries=LEGACY_ROOTS.iter().map(|r|FileEntry{relative:PathBuf::from(r).join(format!("{r}.toc")),data:b"new".to_vec(),keep_existing:false}).collect();
         (dir,entries)
     }
     #[test] fn rejects_path_traversal_and_non_addon_files(){
@@ -373,7 +434,7 @@ mod tests {
     #[test] fn rejects_duplicate_case_and_never_installs_forum_snapshot(){
         let mut data=Cursor::new(Vec::new());{
             let mut w=zip::ZipWriter::new(&mut data);let opts=zip::write::SimpleFileOptions::default();
-            for r in ROOTS {w.start_file(format!("{r}/{r}.toc"),opts).unwrap();w.write_all(b"toc").unwrap();}
+            for r in LEGACY_ROOTS {w.start_file(format!("{r}/{r}.toc"),opts).unwrap();w.write_all(b"toc").unwrap();}
             w.start_file("Evertally/ForumData.lua",opts).unwrap();w.write_all(b"replacement").unwrap();w.finish().unwrap();
         }
         let out=unpack(&data.into_inner()).unwrap();assert_eq!(out.len(),4);
@@ -382,14 +443,15 @@ mod tests {
     #[test] fn rejects_case_insensitive_duplicates(){
         let mut data=Cursor::new(Vec::new());{
             let mut w=zip::ZipWriter::new(&mut data);let opts=zip::write::SimpleFileOptions::default();
-            for r in ROOTS {w.start_file(format!("{r}/{r}.toc"),opts).unwrap();w.write_all(b"toc").unwrap();}
+            for r in LEGACY_ROOTS {w.start_file(format!("{r}/{r}.toc"),opts).unwrap();w.write_all(b"toc").unwrap();}
             w.start_file("Evertally/A.lua",opts).unwrap();w.write_all(b"one").unwrap();
             w.start_file("Evertally/a.lua",opts).unwrap();w.write_all(b"two").unwrap();w.finish().unwrap();
         }
         assert!(unpack(&data.into_inner()).is_err());
     }
     #[test] fn published_bundle_is_accepted_and_forum_is_skipped(){
-        let path=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("releases/Evertally.zip");
+        // EVERTALLY_TEST_BUNDLE checks a bundle built elsewhere before it is published.
+        let path=std::env::var_os("EVERTALLY_TEST_BUNDLE").map_or_else(||Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("releases/Evertally.zip"),PathBuf::from);
         if !path.exists(){return;}
         let entries=unpack(&fs::read(path).unwrap()).unwrap();
         assert!(entries.len()>20);
@@ -417,7 +479,7 @@ mod tests {
     #[test] fn install_preserves_forum_and_unknown_files_and_backups(){
         let (dir,files)=fixture();let lock=std::sync::Mutex::new(());
         assert_eq!(install(&dir.addons(),&files,&lock).unwrap(),Applied::Updated);
-        for r in ROOTS {assert_eq!(fs::read(dir.addons().join(r).join(format!("{r}.toc"))).unwrap(),b"new");}
+        for r in LEGACY_ROOTS {assert_eq!(fs::read(dir.addons().join(r).join(format!("{r}.toc"))).unwrap(),b"new");}
         assert_eq!(fs::read(dir.addons().join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
         assert_eq!(fs::read(dir.addons().join("Evertally/personal.txt")).unwrap(),b"user-file");
         let work=dir.0.join("Interface/EvertallyUpdateBackups");
@@ -460,21 +522,100 @@ mod tests {
         let (dir,files)=fixture();let lock=std::sync::Mutex::new(());let swaps=Cell::new(0);
         let result=install_with(&dir.addons(),&files,&lock,|_|{swaps.set(swaps.get()+1);if swaps.get()>=2 {bail!("folder held by another program")} Ok(())});
         assert!(result.is_err());
-        for r in ROOTS {assert_eq!(fs::read(dir.addons().join(r).join(format!("{r}.toc"))).unwrap(),b"old");}
+        for r in LEGACY_ROOTS {assert_eq!(fs::read(dir.addons().join(r).join(format!("{r}.toc"))).unwrap(),b"old");}
         assert_eq!(fs::read(dir.addons().join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
         assert!(!dir.0.join("Interface/EvertallyUpdateBackups/journal.json").exists());
     }
     #[test] fn recovers_interrupted_swap_before_starting_another(){
         let (dir,_)=fixture();let addons=dir.addons();let work=dir.0.join("Interface/EvertallyUpdateBackups");
-        let journal=Journal{staging:"stage-crash".into(),backup:"backup-crash".into(),existed:vec![true;3]};
+        // Written by 0.9.18 and older: no `roots`, the three fixed folders.
+        let journal=br#"{"staging":"stage-crash","backup":"backup-crash","existed":[true,true,true]}"#;
         fs::create_dir_all(work.join("backup-crash")).unwrap();fs::create_dir_all(work.join("stage-crash")).unwrap();
         fs::rename(addons.join("Evertally"),work.join("backup-crash/Evertally")).unwrap();
         fs::create_dir(addons.join("Evertally")).unwrap();fs::write(addons.join("Evertally/Evertally.toc"),"half-installed").unwrap();
-        fs::write(work.join("journal.json"),serde_json::to_vec(&journal).unwrap()).unwrap();
+        fs::write(work.join("journal.json"),journal).unwrap();
         recover(&addons,&work).unwrap();
         assert_eq!(fs::read(addons.join("Evertally/Evertally.toc")).unwrap(),b"old");
         assert_eq!(fs::read(addons.join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
         assert!(!work.join("journal.json").exists());
+    }
+    fn zip_of(names: &[&str])->Vec<u8> {
+        let mut data=Cursor::new(Vec::new());{
+            let mut w=zip::ZipWriter::new(&mut data);let opts=zip::write::SimpleFileOptions::default();
+            for name in names {w.start_file(*name,opts).unwrap();w.write_all(b"x").unwrap();}
+            w.finish().unwrap();
+        }
+        data.into_inner()
+    }
+    fn entry(path: &str, data: &[u8])->FileEntry {FileEntry{relative:PathBuf::from(path),data:data.to_vec(),keep_existing:false}}
+    #[test] fn any_evertally_root_is_accepted_and_others_are_not(){
+        for good in ["Evertally_Guide/Evertally_Guide.toc","Evertally_Guide_Nav_EK/Data/Nav0.lua","Evertally_Guide/Media/Fonts/Font.ttf","Evertally_Guide/Media/Sounds/ping.ogg","Evertally_Guide/LICENSE.txt"] {assert!(safe_name(good).is_ok(),"{good}");}
+        for bad in ["Polestar/Polestar.toc","evertally_guide/evertally_guide.toc","Evertally-Guide/x.lua","XEvertally/x.lua","Evertally_Guide.toc","Evertally_Guide/LICENSE","Evertally_Guide/../Questie/x.lua","Evertally_Guide/x.json"] {assert!(safe_name(bad).is_err(),"{bad}");}
+        let ok=unpack(&zip_of(&["Evertally/Evertally.toc","Evertally_Guide/Evertally_Guide.toc","Evertally_Guide/Core.lua","Evertally_Guide_Nav/Evertally_Guide_Nav.toc"])).unwrap();
+        assert_eq!(bundle_roots(&ok),["Evertally","Evertally_Guide","Evertally_Guide_Nav"]);
+        assert!(unpack(&zip_of(&["Evertally/Evertally.toc","Polestar/Polestar.toc"])).is_err(),"a foreign root");
+        assert!(unpack(&zip_of(&["Evertally/Evertally.toc","Evertally_Guide/Core.lua"])).is_err(),"a root without its TOC");
+        assert!(unpack(&zip_of(&["Evertally_Guide/Evertally_Guide.toc"])).is_err(),"no main add-on");
+        assert!(unpack(&zip_of(&["Evertally/Evertally.toc","Evertally_Guide/Evertally_Guide.toc","Evertally_GUIDE/Evertally_GUIDE.toc"])).is_err(),"roots differing only in case");
+    }
+    #[test] fn new_roots_are_installed_and_vanished_roots_are_removed(){
+        let (dir,mut files)=fixture();let lock=std::sync::Mutex::new(());let addons=dir.addons();
+        // Evertally_Map leaves the bundle, two guide folders join it; other add-ons and loose files are not ours.
+        files.retain(|e|!e.relative.starts_with("Evertally_Map"));
+        files.push(entry("Evertally_Guide/Evertally_Guide.toc",b"guide"));files.push(entry("Evertally_Guide/Media/Font.ttf",b"font"));
+        files.push(entry("Evertally_Guide_Nav/Evertally_Guide_Nav.toc",b"nav"));
+        fs::write(addons.join("Evertally_Map/Data.lua"),"old-map").unwrap();
+        fs::create_dir_all(addons.join("Questie")).unwrap();fs::write(addons.join("Questie/Questie.toc"),"other").unwrap();
+        fs::write(addons.join("Evertally_Notes.txt"),"loose file").unwrap();
+        assert!(!matches_installed(&addons,&files));
+        assert_eq!(install(&addons,&files,&lock).unwrap(),Applied::Updated);
+        assert_eq!(fs::read(addons.join("Evertally_Guide/Media/Font.ttf")).unwrap(),b"font");
+        assert_eq!(fs::read(addons.join("Evertally_Guide_Nav/Evertally_Guide_Nav.toc")).unwrap(),b"nav");
+        assert!(!addons.join("Evertally_Map").exists(),"a folder the bundle no longer has is removed");
+        assert_eq!(fs::read(addons.join("Questie/Questie.toc")).unwrap(),b"other");
+        assert_eq!(fs::read(addons.join("Evertally_Notes.txt")).unwrap(),b"loose file");
+        assert_eq!(fs::read(addons.join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
+        let work=dir.0.join("Interface/EvertallyUpdateBackups");
+        let backup=fs::read_dir(&work).unwrap().flatten().find(|d|d.file_name().to_string_lossy().starts_with("backup-")).unwrap();
+        assert_eq!(fs::read(backup.path().join("Evertally_Map/Data.lua")).unwrap(),b"old-map","the removed folder is kept in the backup");
+        assert_eq!(install(&addons,&files,&lock).unwrap(),Applied::UpToDate);
+    }
+    #[test] fn a_left_over_evertally_folder_makes_the_install_outdated(){
+        let (dir,files)=fixture();let lock=std::sync::Mutex::new(());let addons=dir.addons();
+        install(&addons,&files,&lock).unwrap();
+        fs::create_dir_all(addons.join("Evertally_X")).unwrap();fs::write(addons.join("Evertally_X/Evertally_X.toc"),"left over").unwrap();
+        assert!(!matches_installed(&addons,&files));
+        assert_eq!(install(&addons,&files,&lock).unwrap(),Applied::Updated);
+        assert!(!addons.join("Evertally_X").exists());
+    }
+    #[test] fn rollback_brings_back_removed_and_takes_away_new_roots(){
+        let (dir,mut files)=fixture();let lock=std::sync::Mutex::new(());let addons=dir.addons();
+        files.retain(|e|!e.relative.starts_with("Evertally_Map"));
+        files.push(entry("Evertally_Guide/Evertally_Guide.toc",b"guide"));
+        fs::create_dir_all(addons.join("Evertally_Zz")).unwrap();fs::write(addons.join("Evertally_Zz/Evertally_Zz.toc"),"old").unwrap();
+        // Swap order: Evertally, Evertally_Export, Evertally_Guide, then the removed Evertally_Map and Evertally_Zz.
+        // Failing at the last one means Evertally_Map has already been moved to the backup.
+        let result=install_with(&addons,&files,&lock,|root|{if root=="Evertally_Zz" {bail!("folder held by another program")} Ok(())});
+        assert!(result.is_err());
+        for r in ["Evertally","Evertally_Export","Evertally_Map","Evertally_Zz"] {assert_eq!(fs::read(addons.join(r).join(format!("{r}.toc"))).unwrap(),b"old","{r}");}
+        assert!(!addons.join("Evertally_Guide").exists(),"a folder new in the bundle is taken away again");
+        assert_eq!(fs::read(addons.join("Evertally/ForumData.lua")).unwrap(),b"user-forum");
+        assert!(!dir.0.join("Interface/EvertallyUpdateBackups/journal.json").exists());
+    }
+    #[test] fn recovery_restores_a_removed_root_from_a_new_journal(){
+        let (dir,_)=fixture();let addons=dir.addons();let work=dir.0.join("Interface/EvertallyUpdateBackups");
+        let journal=Journal{staging:"stage-crash".into(),backup:"backup-crash".into(),existed:vec![true,true,false,true],roots:vec!["Evertally".into(),"Evertally_Export".into(),"Evertally_Guide".into(),"Evertally_Map".into()]};
+        fs::create_dir_all(work.join("backup-crash")).unwrap();fs::create_dir_all(work.join("stage-crash")).unwrap();
+        // The crash came after the new Evertally_Guide was in place and the old Evertally_Map was moved away.
+        fs::create_dir(addons.join("Evertally_Guide")).unwrap();
+        fs::rename(addons.join("Evertally_Map"),work.join("backup-crash/Evertally_Map")).unwrap();
+        fs::write(work.join("journal.json"),serde_json::to_vec(&journal).unwrap()).unwrap();
+        recover(&addons,&work).unwrap();
+        assert_eq!(fs::read(addons.join("Evertally_Map/Evertally_Map.toc")).unwrap(),b"old");
+        assert!(!addons.join("Evertally_Guide").exists());
+        let bad=Journal{roots:vec!["..".into(),"Evertally".into(),"Evertally_Export".into(),"Evertally_Map".into()],..journal};
+        fs::write(work.join("journal.json"),serde_json::to_vec(&bad).unwrap()).unwrap();
+        assert!(recover(&addons,&work).is_err(),"a journal naming a foreign folder is refused");
     }
     #[cfg(unix)]
     #[test] fn symlinks_above_the_game_folder_are_allowed_but_not_inside_it(){
