@@ -2,7 +2,101 @@ local _, A = ...
 local MODES = {"ready", "later", "pet", "quest", "all"}
 A.locale.en.trainingSearch="Search abilities…";A.locale.cs.trainingSearch="Hledat schopnosti…"
 
+-- In the guide's hub: the Database's look (HubKit.lua). The modes are the hub's tabs; the search, a "show known"
+-- switch and the summary over the list; the ability's level, state, rank, price and source in the details, the way to
+-- the trainer pinned at the bottom.
+local function buildHub(page, kit)
+    local T, HK = A.Training, A.HubKit
+    local g = HK.Guide()
+    local W = g.Widgets
+    local pad = (W.SHELL and W.SHELL.pad or 32) - 12
+    HK.Bleed(page)
+    A.trainingPage = page
+    local prefs = T.State()
+    page.mode, page.query, page.showKnown = prefs.mode or "ready", prefs.query or "", prefs.showKnown == true
+    local function money(copper) return A.FormatMoney and A.FormatMoney(copper) or tostring(copper or 0) end
+    local left = CreateFrame("Frame", nil, page)
+    left:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+    left:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -HK.DETAIL_W, 0)
+    page.search = HK.Search(left, A.L("trainingSearch"), function(value)
+        if value ~= page.query then page.query = value; T.State().query = value; page.Refresh() end
+    end)
+    page.search:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -14)
+    page.search:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad - 150, -14)
+    page.known = W.Button(left, "", function() page.showKnown = not page.showKnown; T.State().showKnown = page.showKnown; page.Refresh() end, {height = 30, width = 140})
+    page.known:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -14)
+    page.summary = W.Text(left, "note", "accent")
+    page.summary:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -56)
+    page.summary:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -56)
+    page.summary:SetJustifyH("LEFT")
+    page.summary:SetWordWrap(true)
+    page.list = HK.List(left)
+    page.list.scroll:SetPoint("TOPLEFT", left, "TOPLEFT", 0, -82)
+    page.list.scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -4, 4)
+    page.details = HK.Details(page)
+    page.hubTabs = function()
+        local tabs = {}
+        for _, mode in ipairs(MODES) do tabs[#tabs + 1] = {key = mode, label = A.L("training_" .. mode)} end
+        return tabs
+    end
+    page.hubTab = function() return page.mode end
+    page.OnHubTab = function(mode) page.mode, page.selectedId = mode, nil; T.State().mode = mode end
+    local function navigate()
+        local row = page.selected
+        local kind = row and row.tome and "GRIMOIRE" or row and row.pet and "PET" or page.mode == "pet" and T.Model().class == "HUNTER" and "PET" or nil
+        local ok, reason = T.Navigate(kind)
+        if not ok then A.Print(A.L(reason == "map_off" and "navErr_map_off" or "trainingNoTrainer")) end
+    end
+    local function detail(row)
+        if not row then return page.details.Empty(A.L("training"), A.L("trainingChoose")) end
+        local facts = {
+            {A.L("jhLevel"), tostring(row.level or "?")},
+            {A.L("jhKind"), A.L("training_" .. row.status)},
+            {"", row.rank ~= "" and row.rank or nil},
+        }
+        if row.price ~= nil then facts[#facts + 1] = {A.L(row.priceSource == "observed" and "trainingObserved" or "trainingBase"), money(row.price)} end
+        local blocks = {}
+        if row.missingId then
+            local info = T.SpellInfo(row.missingId)
+            blocks[#blocks + 1] = {text = string.format(A.L("trainingPrerequisite"), info.name), icon = info.icon}
+        end
+        if row.pet or row.tome then blocks[#blocks + 1] = {text = A.L("trainingPetHint")} end
+        if row.tome then blocks[#blocks + 1] = {text = A.L("trainingTomeVendor") .. ": " .. (row.family or ""), icon = row.icon} end
+        if row.quest then
+            blocks[#blocks + 1] = {head = true, text = A.L("trainingQuestSource")}
+            for _, id in ipairs(row.quests or {}) do
+                local questId = id
+                blocks[#blocks + 1] = {text = string.format(A.L("trainingOpenQuest"), id), onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("quest", questId) end end}
+            end
+        end
+        if row.status == "unknown" then blocks[#blocks + 1] = {text = A.L("training_unknown")} end
+        blocks[#blocks + 1] = {text = A.L("trainingCostHint"), muted = true}
+        page.details.Set({title = row.name, sub = row.family, icon = row.icon, glyph = not row.icon and "icon-train" or nil,
+            color = row.status == "ready" and "success" or nil, facts = facts, blocks = blocks,
+            button = {text = A.L("trainingNavigate"), onClick = navigate}})
+    end
+    function page.Refresh()
+        local model, rows = T.Model(), T.Rows(page.mode, page.query, page.showKnown)
+        if W.SetButtonText then W.SetButtonText(page.known, A.L(page.showKnown and "trainingHideKnown" or "trainingShowKnown")) end
+        page.summary:SetText(model.available and (string.format(A.L("trainingSummary"), model.readyCount, money(model.total)) .. "  \194\183  " .. A.L(model.affordable and "trainingEnough" or "trainingNotEnough")) or A.L("trainingMissingData"))
+        local entries, selected = {}, nil
+        for _, row in ipairs(rows) do
+            if row.id == page.selectedId then selected = row end
+            local r = row
+            entries[#entries + 1] = {key = row.id, title = row.name, icon = row.icon, glyph = not row.icon and "icon-train" or nil,
+                color = row.status == "ready" and "success" or row.status == "known" and "textMuted" or "text",
+                sub = (row.price ~= nil and (money(row.price) .. "  \194\183  ") or "") .. string.format(A.L("trainingLevel"), row.level),
+                onClick = function() page.selectedId = r.id; page.Refresh() end}
+        end
+        selected = selected or rows[1]; page.selected = selected; page.selectedId = selected and selected.id
+        page.list.Set(entries, page.selectedId)
+        if #entries == 0 then page.details.Empty(A.L("training"), model.available and A.L("trainingEmpty") or A.L("trainingMissingData"))
+        else detail(selected) end
+    end
+end
+
 function A.BuildTrainingPage(page, kit)
+    if A.HubKit and A.HubKit.Ready(page) then return buildHub(page, kit) end
     local T, C = A.Training, kit.C
     A.trainingPage = page
     kit.PageHeader(page, "training")

@@ -67,7 +67,9 @@ local function hosted(page, kit, key, bodyName, build, refresh)
         if not ready then page.prompt:SetText(string.format(A.L("guideMissing"), tostring(why or "?"))); return end
         if not page.body then
             page.body = CreateFrame("Frame", nil, page)
-            page.body:SetPoint("TOPLEFT", 0, -56); page.body:SetPoint("BOTTOMRIGHT")
+            -- in the guide's hub the page has no header of its own and takes the whole area: the body keeps an inset
+            if page.evertallyBleed then page.body:SetPoint("TOPLEFT", 18, -16); page.body:SetPoint("BOTTOMRIGHT", -18, 16)
+            else page.body:SetPoint("TOPLEFT", 0, -56); page.body:SetPoint("BOTTOMRIGHT") end
             local built = pcall(A.map[build], page.body, kit)
             if not built then A.errors[key .. "_page"] = (A.errors[key .. "_page"] or 0) + 1 end
             A[bodyName] = page.body
@@ -96,7 +98,9 @@ function A.BuildWorldPage(page, kit)
         end
         if not page.body then
             page.body = CreateFrame("Frame", nil, page)
-            page.body:SetPoint("TOPLEFT", 0, -56); page.body:SetPoint("BOTTOMRIGHT")
+            -- in the guide's hub the page has no header of its own and takes the whole area: the body keeps an inset
+            if page.evertallyBleed then page.body:SetPoint("TOPLEFT", 18, -16); page.body:SetPoint("BOTTOMRIGHT", -18, 16)
+            else page.body:SetPoint("TOPLEFT", 0, -56); page.body:SetPoint("BOTTOMRIGHT") end
             local built = pcall(A.map.BuildWorld, page.body, kit)
             if not built then A.errors.world_page = (A.errors.world_page or 0) + 1 end
             A.worldBody = page.body

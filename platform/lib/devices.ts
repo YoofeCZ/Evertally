@@ -73,8 +73,9 @@ export async function approvePairing(userId: string, userCode: string, scopes: S
     await db.prepare("UPDATE et_device_codes SET denied_at = ? WHERE code_hash = ? AND approved_by IS NULL").bind(now(), row.code_hash).run();
     return { approved: false };
   }
-  const allowed = SCOPES.filter((scope) => scopes.includes(scope));
-  if (!allowed.length) throw new ApiError("invalid_scopes", "Choose at least one kind of data to share.", 400);
+  // everything is public since 2026-11-18 (lib/publish.ts ALL_PUBLIC): a pairing allows every kind of data
+  void scopes;
+  const allowed = [...SCOPES];
   const result = await db.prepare("UPDATE et_device_codes SET approved_by = ?, scopes = ? WHERE code_hash = ? AND approved_by IS NULL AND denied_at IS NULL AND expires_at > ?")
     .bind(userId, JSON.stringify(allowed), row.code_hash, now()).run();
   if (result.meta.changes !== 1) throw new ApiError("code_used", "This pairing code was already used.", 409);

@@ -76,13 +76,10 @@ test("a guild knows its place on its own realm", async () => {
   assert.deepEqual([dawn?.rank, dawn?.realmRank], [1, 1]);
 });
 
-test("gear and talents can be chosen in the game as well; an older choice never overrides a newer one", async () => {
+test("an older addon's gear choice is still accepted, but cannot hide the gear any more (everything is public, 2026-11-18)", async () => {
   const w = world();
   assert.ok(payloadSchemas["character.publish"].safeParse({ public: true, showGear: true, chosenAt: 10 }).success);
-  await applyPublishChoices(w.db, "c", [{ profileId: "p-c", observedAt: 500, public: true, showGear: true }]);
-  await applyPublishChoices(w.db, "c", [{ profileId: "p-c", observedAt: 400, public: true, showGear: false }]);
-  const row = w.sql.prepare("SELECT show_gear FROM atlas_profiles WHERE id='p-c'").get() as { show_gear: number };
-  assert.equal(row.show_gear, 1);
-  await applyPublishChoices(w.db, "c", [{ profileId: "p-c", observedAt: 600, public: true }]);
-  assert.equal((w.sql.prepare("SELECT show_gear FROM atlas_profiles WHERE id='p-c'").get() as { show_gear: number }).show_gear, 1, "an older addon that does not send it leaves it");
+  w.sql.exec("UPDATE atlas_profiles SET show_gear=1 WHERE id='p-c'");
+  await applyPublishChoices(w.db, "c", [{ profileId: "p-c", observedAt: 500, public: true, showGear: false }]);
+  assert.equal((w.sql.prepare("SELECT show_gear FROM atlas_profiles WHERE id='p-c'").get() as { show_gear: number }).show_gear, 1);
 });

@@ -30,6 +30,7 @@ class OpticalTests(unittest.TestCase):
         lua,a=runtime()
         lua.execute(MOCK_POSITION)
         self.assertIsNone(a.OpticalPacket())
+        a.SetScope('guild_share',False)   # (every scope is on from the start since 2026-11-18; the guild here is switched off)
         a.SetScope('own_track',True);a.SetScope('own_character',True);a.SetWeb(True)
         self.assertIsNone(a.OpticalPacket(),'the screen-corner marker is its own opt-in: web consents alone never draw it')
         a.db.settings.liveWeb=True
@@ -37,7 +38,7 @@ class OpticalTests(unittest.TestCase):
         self.assertEqual((p.m,p.x,p.y),(1429,42345,65123))
         self.assertEqual(p.key,adler('Player-TEST-own'),'the bridge finds the character by the Adler-32 of its GUID')
         self.assertEqual(p.b & 20,20,'my character (4) and my route (16) are consented')
-        self.assertEqual(p.b & 32,0,'the guild list (32) was never consented')
+        self.assertEqual(p.b & 32,0,'the guild list (32) is switched off')
         data=lst(a.OpticalBytes(p))
         self.assertEqual(len(data),31)
         self.assertEqual(data[0],4)

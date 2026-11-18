@@ -379,7 +379,12 @@ function A.OnboardingReach()
     if not A.BridgePaired() then return PAIR end
     return #STEPS
 end
+-- Since 2026-11-18 everything is public (as on raider.io): the setup no longer asks what to send to the website or what
+-- to show there, so its two steps are passed over (the pages stay built for the code that still reads them).
+local PASSED = {website = true, public = true}
 local function go(n)
+    local towards = n < step and -1 or 1
+    while STEPS[n] and PASSED[STEPS[n]] do n = n + towards end
     step = math.max(1, math.min(A.OnboardingReach(), n))
     refresh()
 end
@@ -722,7 +727,7 @@ function A.OpenOnboarding(startStep)
         if A.HideUI then A.HideUI() end
         draft = A.OnboardingDraft()
         A.onboarding.dismissed = false
-        A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.web == true or A.db.settings.ingame == true or A.db.settings.mapPins == true
+        A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.ingame == true or A.db.settings.mapPins == true
         local name = STEPS[tonumber(startStep) or 0]
         hosted.Show(name and A.setupPages.KEYS[name] or nil)
         return
@@ -732,7 +737,7 @@ function A.OpenOnboarding(startStep)
     draft = A.OnboardingDraft()
     A.onboarding.dismissed=false
     pages[10].plates.choosing=true
-    A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.web == true or A.db.settings.ingame == true or A.db.settings.mapPins == true
+    A.onboarding.existing = A.db.settings.onboarded ~= nil or A.db.settings.ingame == true or A.db.settings.mapPins == true
     f:Show();go(tonumber(startStep) or 1)
 end
 function A.OnboardingGo(n) go(n) end

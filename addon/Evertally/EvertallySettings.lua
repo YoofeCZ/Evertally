@@ -74,7 +74,49 @@ function A.ApplyGuideLanguage()
     local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
     if type(load) ~= "function" then return false end
     local ok, loaded = pcall(load, "Evertally_Guide_csCZ")
+    if ok and loaded then pcall(A.RelabelGuide, g) end
     return ok and loaded and true or false
+end
+
+--- The guide's labels its files read before Czech was chosen (the hub's tabs Home, Browse, Current, Recent; its
+--- sections Guides, Database, Rares, Import; the Database's kinds; the Rares' tabs) are English strings in tables:
+--- each is translated again from the guide's L, now filled in Czech. A label with no Czech stays as it is.
+function A.RelabelGuide(g)
+    local L = g and g.L
+    if type(L) ~= "table" then return 0 end
+    local n = 0
+    local function cs(text)
+        if type(text) ~= "string" then return nil end
+        local t = rawget(L, text)
+        return type(t) == "string" and t ~= text and t or nil
+    end
+    -- a map {key = label}, or a list of entries with a label (or a name) field
+    local function fields(t)
+        if type(t) ~= "table" then return end
+        for k, v in pairs(t) do
+            if type(v) == "string" then
+                local t2 = cs(v); if t2 then t[k] = t2; n = n + 1 end
+            elseif type(v) == "table" then
+                for _, field in ipairs({"label", "name"}) do
+                    local t2 = cs(v[field]); if t2 then v[field] = t2; n = n + 1 end
+                end
+                -- a section's search placeholders, longest first
+                if type(v.searchPlaceholder) == "table" then
+                    for i, text in ipairs(v.searchPlaceholder) do local t2 = cs(text); if t2 then v.searchPlaceholder[i] = t2; n = n + 1 end end
+                end
+            end
+        end
+    end
+    local UI = g.UI or {}
+    local P = UI.Picker or {}
+    fields(P.VIEW_LABEL); fields(P.HUB_SEARCH)
+    if P.GUIDES then fields({P.GUIDES}) end
+    if type(P.Sections) == "function" then local ok, list = pcall(P.Sections); if ok then fields(list) end end
+    local LK = UI.Lookup or {}
+    fields(LK.KIND); fields(LK.FALLBACK_KINDS); fields(LK.FACTION); fields(LK.STATUS_TEXT)
+    if g.Search then fields(g.Search.KINDS) end
+    if UI.RaresSection then fields(UI.RaresSection.TABS) end
+    return n
 end
 
 -- ---------- the pages of plain controls ----------
@@ -105,17 +147,9 @@ local function webControls()
     local webOff = function() return not s().web end
     local publishOff = function() return not (A.CanPublish and A.CanPublish()) end
     local list = {toggle("web", function() return s().web end, function(v) A.SetWeb(v) end, false, {help = A.L("webHint")})}
-    for _, scope in ipairs({"world_facts", "own_runs", "own_character", "own_professions", "own_track", "guild_share"}) do
-        local key = scope
-        list[#list + 1] = toggle(key, function() return s().scopes[key] end, function(v) A.SetScope(key, v) end, false, {child = true, disabled = webOff})
-    end
-    list[#list + 1] = toggle("leaderboard", function() return A.PublishChoice and A.PublishChoice().public end,
-        function(v) A.SetPublish("public", v) end, false, {child = true, disabled = publishOff})
-    for _, pair in ipairs({{"itemLevel", "leaderboardItemLevel"}, {"guild", "leaderboardGuild"}, {"gear", "leaderboardGear"}, {"chronicle", "leaderboardChronicle"}}) do
-        local field, key = pair[1], pair[2]
-        list[#list + 1] = toggle(key, function() return A.PublishChoice and A.PublishChoice()[field] end, function(v) A.SetPublish(field, v) end, false,
-            {child = true, disabled = function() return publishOff() or A.PublishChoice().public ~= true end})
-    end
+    -- (2026-11-18: everything is public, as on raider.io: what is sent and what the website shows is not chosen here any more;
+    -- the bags stay behind the player's permission in the game)
+    local _ = publishOff
     list[#list + 1] = toggle("liveWeb", function() return s().liveWeb end, function(v)
         s().liveWeb = v; if A.OpticalTick then A.OpticalTick() end; if A.MarkWebChanged then A.MarkWebChanged() end
     end, false, {child = true, disabled = webOff, help = A.L("pageLiveWebHint")})
@@ -137,6 +171,7 @@ local function interfaceControls()
         toggle("minimap", function() return not s().hideMinimap end, function(v) A.SetMinimapButton(v) end, true),
         toggle("bagHighlight", function() return s().bagHighlight ~= false end, function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end, true,
             {disabled = function() return A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows") end, help = A.L("bagHighlightGuide")}),
+        toggle("bwReplace", function() return A.BagWindow and A.BagWindow.Replaces() end, function(v) if A.BagWindow then A.BagWindow.SetReplace(v) end end, true),
         toggle("chatEnabled", function() return A.Chat and A.Chat.Settings().enabled ~= false end, function(v) if A.Chat then A.Chat.SetEnabled(v) end end, true),
         toggle("chatRedirect", function() return A.Chat and A.Chat.Settings().redirect end, function(v) if A.Chat then A.Chat.SetRedirect(v) end end, false,
             {child = true, disabled = function() return not (A.Chat and A.Chat.Settings().enabled ~= false) end}),

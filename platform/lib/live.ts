@@ -41,8 +41,8 @@ export async function deviceLive(device:Row,raw:unknown) {
   const guard=`EXISTS(SELECT 1 FROM atlas_grants WHERE id=? AND user_id=? AND revoked_at IS NULL) AND EXISTS(SELECT 1 FROM et_devices WHERE id=? AND user_id=? AND revoked_at IS NULL)`;
   const auth=[grant.id,user,String(device.id),user];
   const results=await db.batch([
-    db.prepare(`INSERT INTO atlas_profiles(id,user_id,producer_id,character_key,name,realm,class_id,race_id,level,"public",last_seen)
-      SELECT ?,?,?,?,?,?,?,?,?,0,? WHERE ${guard}
+    db.prepare(`INSERT INTO atlas_profiles(id,user_id,producer_id,character_key,name,realm,class_id,race_id,level,"public",show_item_level,show_guild,show_gear,show_chronicle,last_seen)
+      SELECT ?,?,?,?,?,?,?,?,?,1,1,1,1,1,? WHERE ${guard}
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,realm=excluded.realm,class_id=excluded.class_id,race_id=excluded.race_id,level=excluded.level,last_seen=MAX(last_seen,excluded.last_seen)
       WHERE excluded.last_seen>=atlas_profiles.last_seen+300 OR atlas_profiles.name IS NOT excluded.name OR atlas_profiles.realm IS NOT excluded.realm
         OR atlas_profiles.class_id IS NOT excluded.class_id OR atlas_profiles.race_id IS NOT excluded.race_id OR atlas_profiles.level IS NOT excluded.level`)

@@ -81,6 +81,7 @@ end
 -- close button's line: left of it while it stands in the header, else on the
 -- main column's pad. Clicking it opens Guiding Stars.
 function T.HeaderLink(f)
+	do return end -- (Evertally: no "Special thanks to:" in the headers)
 	local b = CreateFrame("Button", nil, f.Header)
 	b:SetHeight(20)
 	b.Lead = W.Text(b, "small", "textMuted")

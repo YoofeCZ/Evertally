@@ -1,5 +1,9 @@
 import type { Db } from "./people";
 
+/** Since 2026-11-18 every character is public (like raider.io): the leaderboards, the chronicle, the stats and the
+ * armory. The bags stay behind the player's own permission in the game. */
+export const ALL_PUBLIC = true;
+
 /** A leaderboard choice the player made in the game for one of their characters (event `character.publish`). */
 export type PublishChoice = { profileId: string; observedAt: number; public: boolean; showItemLevel?: boolean; showGuild?: boolean; showGear?: boolean; showChronicle?: boolean };
 
@@ -10,6 +14,9 @@ export type PublishChoice = { profileId: string; observedAt: number; public: boo
  * made in the same second both apply, in the order they were made (the sort is stable).
  */
 export async function applyPublishChoices(db: Db, userId: string, choices: readonly PublishChoice[]): Promise<number> {
+  // Every character is public with everything shown: a choice from the game no longer hides anything (it is kept only so
+  // an older addon's upload is still accepted).
+  if (ALL_PUBLIC) return 0;
   let changed = 0;
   for (const c of [...choices].sort((a, b) => a.observedAt - b.observedAt)) {
     const result = await db.prepare(`UPDATE atlas_profiles SET "public"=?,
@@ -35,6 +42,7 @@ const flag = (value: unknown) => typeof value === "boolean" ? (value ? 1 : 0) : 
  * for one character still wins. Run after every upload of that producer.
  */
 export async function applyAccountChoice(db: Db, userId: string, producerId: string): Promise<number> {
+  if (ALL_PUBLIC) return 0;
   const latest = await db.prepare(LATEST_CHOICE).bind(userId, producerId).first<{ payload: unknown; at: unknown }>();
   if (!latest) return 0;
   let choice: Record<string, unknown>;

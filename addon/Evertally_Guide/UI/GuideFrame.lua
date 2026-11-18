@@ -2821,7 +2821,7 @@ GF.Part(function(GF)
 		nav.Menu:SetPoint("RIGHT", nav, "RIGHT", -8, 0)
 		GF.menuButton = nav.Menu
 		-- Lookup opens the existing search section without changing the guide.
-		nav.Lookup = W.IconButton(nav, "search", 24, L["Lookup"], function() UI.ShowLookup() end)
+		nav.Lookup = W.IconButton(nav, "search", 24, L["Database"], function() UI.ShowLookup() end)
 		nav.Lookup.psTipLines = { L["Search quests, NPCs, items, mounts and guides."] }
 		nav.Lookup:SetPoint("RIGHT", nav.Menu, "LEFT", 0, 0)
 		-- Report a problem with the step on screen (UI/Report.lua): the bug, left

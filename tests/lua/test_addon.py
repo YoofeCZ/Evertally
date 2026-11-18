@@ -49,7 +49,7 @@ def runtime(record_globals=False, enforce_requirements=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "GuideHub.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "NativeTalents.lua", "Gear.lua", "GearUI.lua", "BagHighlight.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "SpellbookTraining.lua", "LfgJournal.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua", "EvertallySettings.lua", "GuideShell.lua", "EvertallyMenu.lua", "QuestTracker.lua", "SetupPages.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "GuideHub.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "NativeTalents.lua", "Gear.lua", "GearUI.lua", "BagHighlight.lua", "BagWindow.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "SpellbookTraining.lua", "LfgJournal.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua", "EvertallySettings.lua", "GuideShell.lua", "EvertallyMenu.lua", "QuestTracker.lua", "SetupPages.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -132,11 +132,11 @@ class ReplayTests(unittest.TestCase):
     def route_on(self):
         self.mock_map(); self.a.SetWeb(True); self.a.SetScope("own_track", True)
 
-    def test_route_is_off_by_default_and_needs_web_and_its_own_scope(self):
+    def test_route_is_sent_by_default_and_still_needs_web_and_its_own_scope(self):
+        # everything is public since 2026-11-18: the website and the route are on from the start; the switches still stop it
         self.mock_map()
-        for step in range(5): self.walk(0.5 + step * 0.02, 0.5)
-        self.a.FlushTrack(); self.assertEqual(len(self.exported("track.path")), 0)
-        self.a.SetWeb(True)  # web on, but own_track is still off
+        self.assertTrue(self.a.db.settings.web); self.assertTrue(self.a.db.settings.scopes.own_track)
+        self.a.SetScope("own_track", False)
         self.assertNotIn("own_track", self.export_scopes())
         for step in range(5): self.walk(0.5 + step * 0.02, 0.5)
         self.a.FlushTrack(); self.assertEqual(len(self.exported("track.path")), 0)
@@ -234,8 +234,11 @@ class ReplayTests(unittest.TestCase):
             return "Bran","Member",3,22,"Mage","Zone","n","o",false,0,"MAGE" end
         C_GuildInfo={GuildRoster=function() ROSTER_ASKED=ROSTER_ASKED+1 end}""")
 
-    def test_guild_is_off_by_default_and_needs_character_scope(self):
-        self.mock_guild(); self.a.SetWeb(True)
+    def test_guild_is_sent_by_default_and_needs_character_scope(self):
+        # everything is public since 2026-11-18: the guild is on from the start; its switch still stops it
+        self.mock_guild()
+        self.assertTrue(self.a.db.settings.scopes.guild_share)
+        self.a.SetScope("guild_share", False)
         self.a.GuildSnapshot(); self.assertEqual(len(self.exported("guild.snapshot")), 0)
         self.a.SetScope("guild_share", True)
         self.assertTrue(self.a.db.settings.scopes.own_character)  # the guild needs the name to recognise the member
@@ -378,7 +381,27 @@ class ReplayTests(unittest.TestCase):
         self.a.Initialize()
         self.assertEqual(said(), [], "only once")
 
-    def test_default_off_and_enabling_is_not_retroactive(self):
+    def test_an_existing_player_becomes_public_once_with_everything_on(self):
+        # 2026-11-18: everything is public (as on raider.io); a player who had the website and the route off gets them on
+        # once, with a new consent; a later choice of theirs is not undone at the next login
+        s = self.a.db.settings
+        s.allPublic = None; s.web = False
+        for key in ("own_track", "guild_share"): s.scopes[key] = False
+        s.publish = self.lua.table_from({"public": False, "chronicle": False})
+        epoch = s.consentEpoch
+        self.a.Initialize()
+        s = self.a.db.settings
+        self.assertTrue(s.web); self.assertTrue(s.scopes.own_track and s.scopes.guild_share)
+        self.assertTrue(s.publish.public and s.publish.chronicle)
+        self.assertEqual(s.consentEpoch, epoch + 1, "the website was off: a new consent")
+        s.scopes.own_track = False
+        self.a.Initialize()
+        self.assertFalse(self.a.db.settings.scopes.own_track, "done once only")
+
+    def test_default_on_and_enabling_again_is_not_retroactive(self):
+        # everything is public since 2026-11-18: the website is on from the start; off and on again sends nothing from before
+        self.assertTrue(self.lua.globals().EvertallyExportDB.enabled)
+        self.a.SetWeb(False)
         self.a.Record("quest.turned_in",self.lua.table_from({"questId":182}))
         self.assertFalse(self.lua.globals().EvertallyExportDB.enabled)
         self.assertEqual(len(self.lua.globals().EvertallyExportDB.events),0)
@@ -542,16 +565,18 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("size 12", self.a.MarksDebug()[1], "smaller than a raid target icon by default")
 
     # ---- the public leaderboard choice (Publish.lua) ----
-    def test_leaderboard_choice_is_off_and_travels_only_with_web_and_character(self):
-        self.assertFalse(self.a.PublishChoice().public)
+    def test_leaderboard_choice_is_on_and_travels_only_with_web_and_character(self):
+        # everything is public since 2026-11-18: the choice starts on (the website shows every character anyway)
+        self.assertTrue(self.a.PublishChoice().public)
         self.assertFalse(self.a.SendPublish(), "never chosen in the game: nothing is sent")
+        self.a.SetWeb(False)
         self.a.SetPublish("public", True)
         self.assertEqual(len(self.lua.globals().EvertallyExportDB.events), 0, "web export is off")
         self.a.SetWeb(True)
         sent = self.exported("character.publish")
         self.assertEqual(len(sent), 1, "turning the website on sends the choice into the new outbox")
         p = sent[0].payload
-        self.assertTrue(p.public); self.assertFalse(p.showItemLevel); self.assertFalse(p.showGuild); self.assertFalse(p.showGear)
+        self.assertTrue(p.public); self.assertTrue(p.showItemLevel); self.assertTrue(p.showGuild); self.assertTrue(p.showGear)
         self.assertEqual(p.chosenAt, self.lua.globals().NOW)
         self.assertEqual(sent[0].character.id, "Player-TEST-own")
         self.assertEqual(len([e for e in self.lua.globals().EvertallyDB.events.values() if e.kind == "character.publish"]), 0, "not in the local history")
@@ -564,8 +589,8 @@ class ReplayTests(unittest.TestCase):
         self.assertTrue(self.exported("character.publish")[1].payload.showItemLevel)
         self.a.SetPublish("gear", True)
         self.assertTrue(self.exported("character.publish")[2].payload.showGear, "gear and talents are a choice of their own")
-        self.assertFalse(self.exported("character.publish")[2].payload.showGuild)
-        self.assertFalse(self.exported("character.publish")[2].payload.showChronicle, "the chronicle is off until it is chosen")
+        self.assertTrue(self.exported("character.publish")[2].payload.showGuild, "everything starts public (2026-11-18)")
+        self.assertTrue(self.exported("character.publish")[2].payload.showChronicle, "the chronicle too")
         self.a.SetPublish("chronicle", True)
         self.assertTrue(self.exported("character.publish")[3].payload.showChronicle, "the chronicle is a choice of its own")
         self.a.SetPublish("chronicle", False)
@@ -715,7 +740,7 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(opened,"overview,journal,history,places,facts,professions,leveling,questguide,gear,training,database,dungeons,recipes,talents,world,guides,community,social,rankings,webfacts,settings")
         # Toggles in Settings change real settings, and language switching re-renders.
         self.lua.execute('''for _,b in ipairs(MOCKBUTTONS) do if b.localeKey=="web" and b.Update then b.scripts.OnClick(b) end end''')
-        self.assertTrue(self.a.db.settings.web)
+        self.assertFalse(self.a.db.settings.web, "the website starts on (2026-11-18); its switch turns it off")
         self.lua.execute('''for _,b in ipairs(MOCKBUTTONS) do if b.lang=="cs" then b.scripts.OnClick(b) end end''')
         self.assertEqual(self.a.db.settings.language,"cs")
 

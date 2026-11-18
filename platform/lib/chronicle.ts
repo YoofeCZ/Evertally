@@ -391,13 +391,13 @@ export function daysOf(c: Chronicle): Day[] {
   return [...days.values()].sort((a, b) => a.from - b.from);
 }
 
-export type Instance = { name: string; detail?: string; from: number; to: number | null; zone?: number; summary?: CombatSummary };
+export type Instance = { name: string; detail?: string; from: number; to: number | null; zone?: number; summary?: CombatSummary; /** the instance's map id (GetInstanceInfo), when recorded */ id?: number };
 /** The dungeon and raid visits: from the moment of entering to the moment of leaving (open when the recording ends inside). */
 export function instances(c: Chronicle): Instance[] {
   const out: Instance[] = [];
   for (const e of c.events) {
     if (e.k !== "dungeon") continue;
-    if (e.a === "enter") out.push({ name: e.text, detail: e.detail, from: e.t, to: null, zone: e.zone });
+    if (e.a === "enter") out.push({ name: e.text, detail: e.detail, from: e.t, to: null, zone: e.zone, ...(e.id !== undefined ? { id: e.id } : {}) });
     else if (e.a === "leave") { const last = out[out.length - 1]; if (last && last.to === null) { last.to = e.t; if (e.summary) last.summary = e.summary; } }
   }
   return out;
@@ -656,7 +656,7 @@ export function demoChronicle(seed = 7): Chronicle {
   const spot = { zone: last, x: ex, y: ey };
   t += 20; // the way to the dungeon is not recorded: the character is simply there afterwards
   push({ t, k: "group", a: "join", text: "Joined a group of 5", ...spot });
-  push({ t: t + 1, k: "dungeon", a: "enter", text: "Blackfathom Deeps", detail: "Dungeon · Normal", ...spot });
+  push({ t: t + 1, k: "dungeon", a: "enter", text: "Blackfathom Deeps", detail: "Dungeon · Normal", id: 48, ...spot });
   const trash = ["Blackfathom Tide Priestess", "Aku'mai Snapjaw", "Twilight Aquamancer", "Murkshallow Soothsayer", "Blindlight Murloc"];
   const boss: [string, number][] = [["Ghamoo-ra", 5], ["Lady Sarevess", 5], ["Twilight Lord Kelris", 5]];
   boss.forEach(([name, size], bi) => {

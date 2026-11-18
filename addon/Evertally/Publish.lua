@@ -7,7 +7,8 @@ local _, A = ...
 
 local function state()
     local s = A.db.settings
-    if type(s.publish) ~= "table" then s.publish = {public = false, itemLevel = false, guild = false, gear = false, chronicle = false} end
+    -- (everything is public since 2026-11-18: the website shows every character with all of it, whatever is chosen here)
+    if type(s.publish) ~= "table" then s.publish = {public = true, itemLevel = true, guild = true, gear = true, chronicle = true} end
     if type(s.publishSent) ~= "table" then s.publishSent = {} end
     return s.publish, s.publishSent
 end

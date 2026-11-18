@@ -119,7 +119,7 @@ export function Overview({ status, go }: { status: Status | null; go: (view: Vie
               <li><strong>{t("home.join3")}</strong><span>{t("home.join3Text")}</span><a href="#account">{t("nav.account")}</a></li>
             </ol>
           </Card>
-          <Card title={t("home.discoveries")} more={<a href="#atlas">{t("home.allAtlas")} →</a>}>
+          <Card title={t("home.discoveries")}>
             {sightings.length ? <ul className="ch-zones">{sightings.map(e => <li key={`${e.kind}:${e.id}`}>
               <span>{e.name}<small>{t(e.kind === "quest" ? "atlas.quest" : e.kind === "npc" ? "atlas.npc" : "atlas.item")}</small></span><b>{num(e.count)}×</b>
             </li>)}</ul> : <p className="ch-empty">{atlas.loading ? t("common.loading") : t("common.noData")}</p>}

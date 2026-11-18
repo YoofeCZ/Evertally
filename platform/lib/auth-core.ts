@@ -79,9 +79,11 @@ export function isLoopbackHost(hostname: string): boolean {
   return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname.toLowerCase());
 }
 
-/** A device may only send what both the addon prepared and the user allowed when pairing. */
+/** A device sends what the addon prepared: since 2026-11-18 everything a player records is public (lib/publish.ts
+ * ALL_PUBLIC), so the scopes chosen when pairing (older devices) no longer narrow it. */
 export function deviceGrantScopes(deviceScopes: Scope[], exportScopes: Scope[]): Scope[] {
-  return SCOPES.filter((scope) => deviceScopes.includes(scope) && exportScopes.includes(scope));
+  void deviceScopes;
+  return SCOPES.filter((scope) => exportScopes.includes(scope));
 }
 
 export function sanitizeDeviceName(value: unknown): string {

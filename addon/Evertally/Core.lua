@@ -252,10 +252,21 @@ function A.Initialize()
     db.schemaVersion=1;db.producerId=db.producerId or A.RandomId();db.sequence=db.sequence or 0
     db.events=db.events or {};db.runs=db.runs or {};db.settings=db.settings or {}
     db.characterKeys=db.characterKeys or {}
-    local s=db.settings;s.language=s.language or "en";s.web=s.web==true;s.ingame=s.ingame==true
+    local s=db.settings;s.language=s.language or "en";if s.web==nil then s.web=true end;s.web=s.web==true;s.ingame=s.ingame==true
     if s.group==nil then s.group=true end;if s.guild==nil then s.guild=false end
     s.consentEpoch=s.consentEpoch or 0;s.since=s.since or A.Now()
-    s.scopes=s.scopes or {world_facts=true,own_runs=true,own_character=true,own_professions=true,own_track=false,guild_share=false}
+    s.scopes=s.scopes or {world_facts=true,own_runs=true,own_character=true,own_professions=true,own_track=true,guild_share=true}
+    -- 2026-11-18: everything is public (as on raider.io; the website: platform/lib/publish.ts ALL_PUBLIC): the addon sends all it
+    -- records and every character shows in the leaderboards, the chronicle and the armory; only the bags stay behind the
+    -- player's permission in the game. Done once; the website already lets every live consent carry every kind of data,
+    -- so a player who had the website on keeps the same consent (no outbox lost). One who had it off starts a new one.
+    if s.allPublic~=1 then
+        s.allPublic=1
+        if s.web~=true then s.web=true;s.consentEpoch=s.consentEpoch+1;s.since=A.Now() end
+        for _,key in ipairs({"world_facts","own_runs","own_character","own_professions","own_track","guild_share"}) do s.scopes[key]=true end
+        if type(s.publish)~="table" then s.publish={} end
+        for _,key in ipairs({"public","itemLevel","guild","gear","chronicle"}) do s.publish[key]=true end
+    end
     A.db=db;A.sessionId=A.RandomId()
     -- Remove historical player-interaction coordinates from local history/outbox.
     for _,event in ipairs(db.events) do if scopeFor[event.kind]=="world_facts" then event.payload=A.SafeWorldPayload(event.kind,event.payload) end end

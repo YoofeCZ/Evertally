@@ -488,6 +488,81 @@ function Search.Subtitle(r)
 	return r.subtitle or nil
 end
 
+-- Evertally: browsing, Lookup with nothing typed (the Database): a kind A to Z, a page at a time. Retired and
+-- sourceless entries are left out. The first page of each kind (a few names) is read in one pass; a whole kind is
+-- sorted once, when it is opened. -> results (as Query's), total
+local browsed = {}
+local BROWSE_LINE = "\2([^\1]*)\1([^,]*),(%d*),(%a?),%d+\n"
+local function browseResult(kind, rawId, quality)
+	local C = ns.Codex
+	local id = kind == "instance" and rawId or tonumber(rawId)
+	return { kind = kind, id = id, title = (localised() and localName(kind, id)) or C.Name(kind, id) or rawId,
+		quality = tonumber(quality), score = 0, curated = curated[id] or nil }
+end
+function Search.Browse(kind, offset, count)
+	offset, count = offset or 0, count or 50
+	local out = {}
+	if kind == "guide" then
+		local list = guideList()
+		local sorted = {}
+		for i = 1, #list do sorted[i] = list[i] end
+		table.sort(sorted, function(a, b) return a.folded < b.folded end)
+		for j = offset + 1, min(#sorted, offset + count) do
+			local g = sorted[j]
+			out[#out + 1] = { kind = "guide", id = g.id, title = g.title, subtitle = g.subtitle, score = 0 }
+		end
+		return out, #sorted
+	end
+	if not codexOn() then return out, 0 end
+	local C = ns.Codex
+	if C and C.IsLoaded and not C.IsLoaded() and C.Load then C.Load() end
+	local blob = codexBlob(kind)
+	if not blob then return out, 0 end
+	guideList() -- the curated set
+	local b = browsed[kind]
+	if not b or b.blob ~= blob then b = { blob = blob }; browsed[kind] = b end
+	if not b.lines and offset == 0 and count <= 10 and b.first and b.firstN == count then
+		for i, res in ipairs(b.first) do out[i] = res end
+		return out, b.total
+	end
+	if not b.lines and offset == 0 and count <= 10 then
+		-- the first few names and the count, without sorting the kind
+		local names, ids, quals, n, total = {}, {}, {}, 0, 0
+		for folded, id, q, st in gmatch(blob, BROWSE_LINE) do
+			if st == "" and folded ~= "" then
+				total = total + 1
+				if n < count or folded < names[n] then
+					local pos = n < count and n + 1 or n
+					while pos > 1 and names[pos - 1] > folded do
+						names[pos], ids[pos], quals[pos] = names[pos - 1], ids[pos - 1], quals[pos - 1]
+						pos = pos - 1
+					end
+					names[pos], ids[pos], quals[pos] = folded, id, q
+					if n < count then n = n + 1 end
+				end
+			end
+		end
+		b.total = total
+		for i = 1, n do out[i] = browseResult(kind, ids[i], quals[i]) end
+		b.first, b.firstN = {}, count
+		for i, res in ipairs(out) do b.first[i] = res end
+		return out, total
+	end
+	if not b.lines then
+		local lines = {}
+		for folded, id, q, st in gmatch(blob, BROWSE_LINE) do
+			if st == "" and folded ~= "" then lines[#lines + 1] = folded .. "\1" .. id .. "\1" .. q end
+		end
+		table.sort(lines)
+		b.lines, b.total = lines, #lines
+	end
+	for j = offset + 1, min(#b.lines, offset + count) do
+		local id, q = match(b.lines[j], "\1([^\1]*)\1(.*)$")
+		out[#out + 1] = browseResult(kind, id, q)
+	end
+	return out, b.total
+end
+
 function Search.Status()
 	local C = ns.Codex
 	if not (C and C.IsLoaded) then return false, "missing" end

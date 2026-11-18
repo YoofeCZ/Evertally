@@ -2,11 +2,27 @@ local _, A = ...
 -- All shared controls use the same night-and-gold surfaces (Theme.lua), including legacy reader aliases.
 local PARCHMENT = A.Theme.reader
 function A.NativeFrame(frame, C) A.Theme.Surface(frame, "window"); return true end
-function A.NativePanel(frame, C) A.Theme.Surface(frame, "panel"); return true end
+--- Whether `frame` is drawn on one of Evertally's pages in the hub look (A.HubLook; a page is marked
+--- evertallyPage by UI.lua's buildPage). Floating windows, menus and dialogs are not on a page and keep their frames.
+function A.InHubPage(frame)
+    if not (A.HubLook and A.HubLook()) then return false end
+    for _ = 1, 14 do
+        if type(frame) ~= "table" then return false end
+        if rawget(frame, "evertallyPage") then return true end
+        frame = frame.GetParent and frame:GetParent()
+    end
+    return false
+end
+function A.NativePanel(frame, C)
+    A.Theme.Surface(frame, "panel")
+    if A.InHubPage(frame) and A.HubPanel then A.HubPanel(frame, 0.45) end
+    return true
+end
 function A.NativeParchment(frame, C)
     frame.parchment = true
     local skin = A.Theme.Surface(frame, "reader")
     frame.paperBase = skin.base
+    if A.InHubPage(frame) and A.HubReader then A.HubReader(frame) end
     return PARCHMENT
 end
 function A.NativeButton(button, C, primary)
@@ -74,6 +90,7 @@ function A.ExtendKit(kit)
         book.index:SetPoint("TOPLEFT"); book.index:SetPoint("BOTTOMLEFT")
         book.paper = CreateFrame("Frame", nil, book); A.NativeParchment(book.paper, C)
         book.paper:SetPoint("TOPLEFT", book.index, "TOPRIGHT", 12, 0); book.paper:SetPoint("BOTTOMRIGHT")
+        if A.InHubPage(book) then kit.HubBook(book) end
         local function layout()
             local width = tonumber(book:GetWidth()) or 640
             book.index:SetWidth(math.max(176, math.min(285, width * 0.34)))
@@ -132,10 +149,45 @@ function A.ExtendKit(kit)
         return document
     end
 
-    --- A card: a filled panel with a thin outline and, optionally, a coloured line along the top.
+    --- The hub look of a panel (A.HubLook): no outline, a faint ground. -> the frame
+    function A.HubPanel(f, alpha) return kit.HubPanel(f, alpha) end
+    --- The hub look of a reader (a details pane): apart from the list by a hairline, under an accent dusk.
+    function A.HubReader(f)
+        if f.evertallyHubReader then return f end
+        f.evertallyHubReader = true
+        kit.HubPanel(f, 0.55)
+        local rule = f:CreateTexture(nil, "BORDER"); rule:SetWidth(1); rule:SetPoint("TOPLEFT", -6, 0); rule:SetPoint("BOTTOMLEFT", -6, 0); paint(rule, C.line, 0.8)
+        return f
+    end
+    function kit.HubPanel(f, alpha)
+        local skin = f.evertallySkin
+        if not skin then return f end
+        for _, l in ipairs(skin.lines or {}) do l:Hide() end
+        if skin.ring then skin.ring:Hide() end
+        if skin.base then paint(skin.base, C.card, alpha or 0.45) end
+        if skin.top then skin.top:Hide() end
+        if type(f.SetBackdropColor) == "function" then pcall(f.SetBackdropColor, f, 0, 0, 0, 0) end
+        return f
+    end
+    --- The hub look of a book: the index on the page's ground, the reader apart by a hairline, under an accent dusk.
+    function kit.HubBook(book)
+        kit.HubPanel(book.index, 0)
+        A.HubReader(book.paper)
+        book.hub = true
+    end
+
+    --- A card: a filled panel with a thin outline and, optionally, a coloured line along the top. In the hub look: no
+    --- outline, a faint ground and the accent as a bar along the left edge.
     function kit.Card(parent, accent)
         local f = CreateFrame("Frame", nil, parent)
         A.NativePanel(f, C)
+        if A.InHubPage(f) then
+            kit.HubPanel(f, 0.5)
+            if accent then
+                f.accentLine = f:CreateTexture(nil, "ARTWORK"); f.accentLine:SetWidth(2); f.accentLine:SetPoint("TOPLEFT"); f.accentLine:SetPoint("BOTTOMLEFT"); paint(f.accentLine, accent, 0.9)
+            end
+            return f
+        end
         -- a soft light from the top edge gives the panel some depth
         f.sheen = f:CreateTexture(nil, "BACKGROUND"); f.sheen:SetHeight(56); f.sheen:SetPoint("TOPLEFT"); f.sheen:SetPoint("TOPRIGHT")
         alphaGradient(f.sheen, "VERTICAL", 1, 1, 1, 0, 1, 1, 1, 0.055)

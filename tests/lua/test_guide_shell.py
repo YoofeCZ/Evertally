@@ -60,9 +60,9 @@ class GuideShellTests(unittest.TestCase):
         self.assertEqual(section.key, "Evertally")
         self.assertEqual(section.order, 1, "first on the rail")
         views, items, active = self.views(section)
-        self.assertEqual(views[:6], ["overview", "journal", "history", "places", "facts", "professions"])
-        for view in ("database", "gear", "questguide"):
-            self.assertNotIn(view, views, "the guide's Lookup, gear advice and guides stand for it in the hub")
+        self.assertEqual(views[:4], ["overview", "journal", "history", "professions"])
+        for view in ("database", "gear", "questguide", "places", "facts", "guides"):
+            self.assertNotIn(view, views, "the guide's Lookup, gear advice, map and guides stand for it in the hub")
         self.assertIn("dungeons", views)
         self.assertEqual(views[-1], "settings")
         self.assertNotIn("leveling", views, "the guide's own sections replace the Leveling page")

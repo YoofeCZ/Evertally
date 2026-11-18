@@ -1,5 +1,11 @@
 -- Synthetic test data only; no real player data.
 EvertallyExportDB = {
+	["connections"] = {
+		["entries"] = {
+
+		},
+		["key"] = 1,
+	},
 	["consentEpoch"] = 1,
 	["enabled"] = true,
 	["events"] = {
@@ -149,6 +155,8 @@ EvertallyExportDB = {
 		[2] = "own_runs",
 		[3] = "own_character",
 		[4] = "own_professions",
+		[5] = "own_track",
+		[6] = "guild_share",
 	},
 	["since"] = 1794236400,
 }

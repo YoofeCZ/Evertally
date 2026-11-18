@@ -7,12 +7,16 @@ local text = {
         journalAll = "All", journalQuests = "Quests", journalLoot = "Loot", journalPlaces = "Places", journalLevel = "Levels", journalRuns = "Dungeons",
         journalSearch = "Search…", journalCount = "%d records", journalQuestState = "%d open  ·  %d completed  ·  %d dropped",
         journalToday = "Today", journalYesterday = "Yesterday", journalNone = "Nothing here yet. Play, and the journal fills itself.", journalNoMatch = "Nothing matches.",
+        jhKind = "Kind", jhWhen = "When", jhWhere = "Where", jhAmount = "Amount", jhXp = "Experience", jhMoney = "Money", jhDuration = "Time",
+        jhLevel = "Level", jhPick = "Pick a record", jhPickNote = "Choose a record on the left to see it here.", jhMap = "Show on the map",
     },
     cs = {
         journal = "Deník", sub_journal = "Všechno, co se tvé postavě stalo, den po dni. Hledej podle názvu, filtruj podle druhu.",
         journalAll = "Vše", journalQuests = "Questy", journalLoot = "Loot", journalPlaces = "Místa", journalLevel = "Levely", journalRuns = "Dungeony",
         journalSearch = "Hledat…", journalCount = "Záznamů: %d", journalQuestState = "Rozpracováno %d  ·  splněno %d  ·  opuštěno %d",
         journalToday = "Dnes", journalYesterday = "Včera", journalNone = "Zatím tu nic není. Hraj a deník se vyplní sám.", journalNoMatch = "Nic nevyhovuje.",
+        jhKind = "Druh", jhWhen = "Kdy", jhWhere = "Kde", jhAmount = "Množství", jhXp = "Zkušenosti", jhMoney = "Peníze", jhDuration = "Čas",
+        jhLevel = "Level", jhPick = "Vyber záznam", jhPickNote = "Vyber vlevo záznam a uvidíš ho tady.", jhMap = "Ukázat na mapě",
     },
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
@@ -80,7 +84,131 @@ function A.JournalItems(kit, filter, query)
     return items, counts, matches, states
 end
 
+-- ---------------------------------------------------------------- the Journal in the hub (HubKit.lua: the Database's look)
+-- The kinds' glyphs and colours, as the Database draws its kinds.
+local LOOK = {
+    ["quest.accepted"] = {"icon-accept", "quest"}, ["quest.turned_in"] = {"icon-turnin", "quest"}, ["quest.abandoned"] = {"icon-accept", "textMuted"},
+    ["loot.received"] = {"icon-use", "item"}, ["craft.result"] = {"icon-craft", "item"}, ["zone.visited"] = {"icon-explore", "place"},
+    ["character.level"] = {"icon-level", "accent"}, ["instance.entered"] = {"icon-dungeon", "dungeon"}, ["run.finished"] = {"icon-kill", "dungeon"},
+    ["run.interrupted"] = {"icon-kill", "textMuted"}, ["raid.encounter_finished"] = {"icon-kill", "dungeon"},
+}
+local function itemLook(id)
+    id = tonumber(id)
+    if not id then return nil end
+    local icon = (C_Item and C_Item.GetItemIconByID and A.Call(C_Item.GetItemIconByID, id)) or (GetItemIcon and A.Call(GetItemIcon, id))
+    local quality = select(3, A.Call(GetItemInfo, id))
+    local g = rawget(_G, "EvertallyGuide")
+    local LK = g and g.UI and g.UI.Lookup
+    local rgb
+    if quality and LK and LK.QualityColor then local r, gg, b = LK.QualityColor(quality); if r then rgb = {r, gg, b} end end
+    return icon, rgb
+end
+
+local function buildHub(page, kit)
+    local HK = A.HubKit
+    local g = HK.Guide()
+    local W = g.Widgets
+    local pad = (W.SHELL and W.SHELL.pad or 32) - 12
+    HK.Bleed(page)
+    A.journalPage = page
+    page.hub = true
+    page.filter, page.query = "all", ""
+    local left = CreateFrame("Frame", nil, page)
+    left:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+    left:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -HK.DETAIL_W, 0)
+    page.search = HK.Search(left, A.L("journalSearch"), function(text)
+        if text ~= page.query then page.query = text; page.selectedEvent = nil; page.Refresh() end
+    end)
+    page.search:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -14)
+    page.search:SetPoint("TOPRIGHT", left, "TOPRIGHT", -150, -14)
+    page.count = W.Text(left, "small", "textMuted")
+    page.count:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -22)
+    page.count:SetWidth(130)
+    page.count:SetJustifyH("RIGHT")
+    if W.SetSearchPlaceholder then W.SetSearchPlaceholder(page.search, A.L("journalSearch")) end
+    page.list = HK.List(left)
+    page.list.scroll:SetPoint("TOPLEFT", left, "TOPLEFT", 0, -54)
+    page.list.scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -4, 4)
+    page.details = HK.Details(page)
+    page.hubTabs = function()
+        local tabs = {}
+        for _, key in ipairs(FILTERS) do tabs[#tabs + 1] = {key = key, label = A.L("journal" .. key:sub(1, 1):upper() .. key:sub(2))} end
+        return tabs
+    end
+    page.hubTab = function() return page.filter end
+    page.OnHubTab = function(key) page.filter = key; page.selectedEvent = nil end
+
+    local function look(e)
+        local p = type(e.payload) == "table" and e.payload or {}
+        local l = LOOK[e.kind] or {"icon-note", "text"}
+        local spec = {glyph = l[1], color = l[2]}
+        if p.itemId and (e.kind == "loot.received" or e.kind == "craft.result") then
+            local icon, rgb = itemLook(p.itemId)
+            spec.icon, spec.rgb = icon, rgb
+        end
+        return spec, p
+    end
+    local function detail(e, item)
+        if not e then return page.details.Empty(A.L("jhPick"), A.L("jhPickNote")) end
+        local spec, p = look(e)
+        spec.title = item and item.title or A.L(e.kind)
+        spec.sub = A.L(e.kind) .. "  \194\183  " .. kit.stamp(e.observedAt)
+        spec.map = tonumber(p.mapId)
+        spec.facts = {
+            {A.L("jhKind"), A.L(e.kind)},
+            {A.L("jhWhen"), kit.stamp(e.observedAt)},
+            {A.L("jhWhere"), p.mapId and kit.mapName(p.mapId) or nil},
+            {A.L("jhLevel"), e.kind == "character.level" and p.level and tostring(p.level) or nil},
+            {A.L("jhAmount"), (tonumber(p.quantity) or 1) > 1 and ("x" .. p.quantity) or nil},
+            {A.L("jhXp"), p.xp and (tostring(p.xp) .. " XP") or nil},
+            {A.L("jhMoney"), p.money and A.FormatMoney(p.money) or nil},
+            {A.L("jhDuration"), p.durationMs and kit.duration(p.durationMs) or nil},
+        }
+        if p.questId then spec.button = {text = A.L("openDatabase"), onClick = function() A.OpenDatabaseEntry("quest", p.questId) end}
+        elseif p.itemId then spec.button = {text = A.L("openDatabase"), onClick = function() A.OpenDatabaseEntry("item", p.itemId) end}
+        elseif p.mapId then
+            spec.button = {text = A.L("jhMap"), onClick = function()
+                local C = g.Compat
+                if C and C.OpenWorldMap then pcall(C.OpenWorldMap, tonumber(p.mapId)) end
+            end}
+        end
+        page.details.Set(spec)
+    end
+    function page.Refresh()
+        local items, counts, matches, states = A.JournalItems(kit, page.filter, page.query)
+        if page.filter == "quests" then page.count:SetText(string.format(A.L("journalQuestState"), states.open, states.done, states.dropped))
+        else page.count:SetText(string.format(A.L("journalCount"), matches)) end
+        local entries, first, selectedItem = {}, nil, nil
+        for _, item in ipairs(items) do
+            if item.heading then
+                entries[#entries + 1] = {folder = item.heading, count = item.right}
+            elseif item.event then
+                local e = item.event
+                local spec, p = look(e)
+                local clock = A.Call(date, "%H:%M", A.Number(e.observedAt, 0) or 0) or ""
+                spec.key, spec.title = e, item.title
+                spec.sub = ((tonumber(p.quantity) or 1) > 1 and ("x" .. p.quantity .. "  \194\183  ") or "") .. clock
+                spec.tip = {A.L(e.kind), p.mapId and kit.mapName(p.mapId) or nil}
+                spec.onClick = function() page.selectedEvent = e; page.Refresh() end
+                entries[#entries + 1] = spec
+                first = first or item
+                if e == page.selectedEvent then selectedItem = item end
+            end
+        end
+        selectedItem = selectedItem or first
+        page.selectedEvent = selectedItem and selectedItem.event or nil
+        page.list.Set(entries, page.selectedEvent)
+        if #entries == 0 then
+            page.details.Empty(A.L("jhPick"), (page.query ~= "" or counts.all > 0) and A.L("journalNoMatch") or A.L("journalNone"))
+        else
+            detail(page.selectedEvent, selectedItem)
+        end
+    end
+end
+
 function A.BuildJournalPage(page, kit)
+    -- In the guide's hub: the Database's look (HubKit.lua)
+    if A.HubKit and A.HubKit.Ready(page) then return buildHub(page, kit) end
     local C = kit.C
     local ink, muted = C.text, C.mist
     A.journalPage = page

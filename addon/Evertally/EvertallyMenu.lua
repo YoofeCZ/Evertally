@@ -11,10 +11,11 @@ local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
 local text = {
     en = {menuTitle = "Evertally", menuOpen = "EVERTALLY MENU", menuOpenTip = "Evertally's window: your history, the journal, dungeons, settings",
         menuGuide = "GUIDE", menuNav = "NAVIGATION", menuGame = "GAME", menuSetup = "SETTINGS", menuCommunity = "COMMUNITY",
-        menuGuideWindow = "Guide window", menuPickGuide = "Choose a guide", menuLookup = "Search", menuQuests = "Quest tracker",
+        menuGuideWindow = "Guide window", menuPickGuide = "Choose a guide", menuLookup = "Database", menuQuests = "Quest tracker",
+        menuWindowOptions = "Window options", menuParty = "Party", menuPartySync = "Sync the party",
         menuArrow = "Arrow", menuArrowHidden = "Arrow when hidden", menuStopNav = "Clear the target", menuMap = "World map",
         menuDungeons = "Dungeon Journal", menuTalents = "Talents", menuTraining = "What to learn", menuRecipes = "Recipes",
-        menuRares = "Rare mobs", menuPause = "Pause the guide",
+        menuRares = "Rare mobs", menuBags = "Bags", menuPause = "Pause the guide",
         menuSettings = "Settings", menuSetupAgain = "Run the setup", menuHide = "Hide Evertally", menuShow = "Show Evertally",
         menuDiscord = "Discord", menuReport = "Report a problem", menuForum = "Forum", menuRankings = "Leaderboard",
         menuHint = "Left click: this menu  ·  Right click: hide  ·  Drag: move",
@@ -22,10 +23,11 @@ local text = {
         minimapDrag = "Drag: move around the minimap"},
     cs = {menuTitle = "Evertally", menuOpen = "EVERTALLY MENU", menuOpenTip = "Okno Evertally: tvoje historie, deník, dungeony, nastavení",
         menuGuide = "PRŮVODCE", menuNav = "NAVIGACE", menuGame = "HRA", menuSetup = "NASTAVENÍ", menuCommunity = "KOMUNITA",
-        menuGuideWindow = "Okno návodu", menuPickGuide = "Vybrat návod", menuLookup = "Hledat", menuQuests = "Quest tracker",
+        menuGuideWindow = "Okno návodu", menuPickGuide = "Vybrat návod", menuLookup = "Databáze", menuQuests = "Quest tracker",
+        menuWindowOptions = "Možnosti okna", menuParty = "Parta", menuPartySync = "Synchronizovat",
         menuArrow = "Šipka", menuArrowHidden = "Šipka i po skrytí", menuStopNav = "Zrušit cíl", menuMap = "Mapa světa",
         menuDungeons = "Dungeon Journal", menuTalents = "Talenty", menuTraining = "Co se naučit", menuRecipes = "Recepty",
-        menuRares = "Vzácní mobové", menuPause = "Pozastavit návod",
+        menuRares = "Vzácní mobové", menuBags = "Batoh", menuPause = "Pozastavit návod",
         menuSettings = "Nastavení", menuSetupAgain = "Spustit nastavení", menuHide = "Skrýt Evertally", menuShow = "Ukázat Evertally",
         menuDiscord = "Discord", menuReport = "Nahlásit problém", menuForum = "Fórum", menuRankings = "Žebříček",
         menuHint = "Levé tlačítko: menu  ·  Pravé: skrýt  ·  Tažení: posunout",
@@ -73,6 +75,9 @@ end
 function A.EvertallyMenuGroups()
     local g = guide()
     local Nav = g and g.Nav
+    local GF = g and g.UI and g.UI.GuideFrame
+    local PP = g and g.UI and g.UI.PartyPanel
+    local Party = g and g.Party
     local groups = {}
     local function group(head, items) local list = {}; for _, item in ipairs(items) do if item then list[#list + 1] = item end end; if #list > 0 then groups[#groups + 1] = {head = head, items = list} end end
     group("menuGuide", {
@@ -80,7 +85,17 @@ function A.EvertallyMenuGroups()
             onClick = function() try(g.SetHidden, false); try(g.Fire, "TOGGLE_FRAME") end} or false,
         g and {key = "menuPickGuide", icon = "Interface\\Icons\\INV_Misc_Book_11", onClick = fire("SHOW_PICKER")} or false,
         g and {key = "menuLookup", icon = "Interface\\Icons\\INV_Misc_Spyglass_02", onClick = fire("SHOW_LOOKUP")} or false,
-        A.ShowQuestTracker and {key = "menuQuests", icon = "Interface\\Icons\\INV_Letter_15", onClick = function() A.ShowQuestTracker() end} or false,
+        A.ShowQuestTracker and (not A.QuestTracker or not A.QuestTracker.Enabled or A.QuestTracker.Enabled()) and {key = "menuQuests", icon = "Interface\\Icons\\INV_Letter_15", onClick = function() A.ShowQuestTracker() end} or false,
+        -- the guide window's own menu (compact, transparent, lock, reset progress, quick settings...), opened under the
+        -- window's EVERTALLY MENU button, where its "..." was
+        GF and GF.OpenMenu and {key = "menuWindowOptions", icon = "Interface\\Icons\\INV_Misc_Gear_02", onClick = function()
+            local anchor = GF.etMenu
+            if anchor and anchor.IsVisible and anchor:IsVisible() then try(GF.OpenMenu, anchor) end
+        end} or false,
+        -- the party (party sync): its panel, and asking the party to move to your step
+        PP and PP.Toggle and {key = "menuParty", icon = "Interface\\Icons\\INV_Misc_GroupNeedMore", get = function() local f = try(PP.Frame); return f ~= nil and f:IsShown() end,
+            onClick = function() try(PP.Toggle) end} or false,
+        Party and Party.RequestSync and {key = "menuPartySync", icon = "Interface\\Icons\\Spell_Holy_PrayerOfSpirit", onClick = function() try(Party.RequestSync) end} or false,
     })
     group("menuNav", {
         Nav and Nav.ToggleArrow and {key = "menuArrow", icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", get = function() return try(g.Get, "nav.arrow") and true or false end,
@@ -91,6 +106,8 @@ function A.EvertallyMenuGroups()
         {key = "menuMap", icon = "Interface\\Icons\\INV_Misc_Map_01", onClick = function() if type(ToggleWorldMap) == "function" then pcall(ToggleWorldMap) end end},
     })
     group("menuGame", {
+        A.ToggleBagWindow and {key = "menuBags", icon = "Interface\\Icons\\INV_Misc_Bag_08", get = function() return A.BagWindow and A.BagWindow.Shown() end,
+            onClick = function() A.ToggleBagWindow() end} or false,
         {key = "menuDungeons", icon = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01", onClick = view("dungeons")},
         {key = "menuTalents", icon = "Interface\\Icons\\Ability_Marksmanship", onClick = view("talents")},
         {key = "menuTraining", icon = "Interface\\Icons\\INV_Scroll_03", onClick = view("training")},
@@ -149,7 +166,16 @@ local function build()
     menu.version = kit.label(menu, 10, C.faint); menu.version:SetPoint("LEFT", menu.title, "RIGHT", 8, -1)
     menu.close = kit.IconButton(menu, "close", 22, function() A.HideEvertallyMenu() end)
     menu.close:SetPoint("TOPRIGHT", -8, -12)
-    menu.open = kit.Button(menu, "menuOpen", WIDTH - PAD * 2, "primary", function() A.HideEvertallyMenu(); if A.OpenUI then A.OpenUI() end end)
+    local function openWindow() A.HideEvertallyMenu(); if A.OpenUI then A.OpenUI() end end
+    -- the guide's own primary button where the guide is loaded (the one on the guide window's tools bar: the same look,
+    -- its accent), else Evertally's
+    local g = guide()
+    local GW = g and g.Widgets
+    if GW and GW.Button then
+        local ok, b = pcall(GW.Button, menu, A.L("menuOpen"), openWindow, {primary = true, height = 34, width = WIDTH - PAD * 2})
+        if ok and b then menu.open = b end
+    end
+    menu.open = menu.open or kit.Button(menu, "menuOpen", WIDTH - PAD * 2, "primary", openWindow)
     menu.open:SetPoint("TOPLEFT", PAD, -56); menu.open:SetHeight(34)
     menu.heads, menu.tiles = {}, {}
     menu.hint = kit.label(menu, 10, C.faint); menu.hint:SetJustifyH("CENTER"); menu.hint:SetWordWrap(true)

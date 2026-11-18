@@ -21,6 +21,9 @@ class AnnounceTests(unittest.TestCase):
         self.lua, self.a = runtime()
         self.lua.execute(LUA)
         self.n = self.a.Announce
+        # (the chronicle is public from the start since 2026-11-18; these messages are checked without its link, the test
+        # about the link turns it on again)
+        self.a.SetPublish("chronicle", False)
 
     def sent(self):
         s = self.lua.globals().SENT
@@ -114,6 +117,7 @@ class AnnounceTests(unittest.TestCase):
     def test_the_bar_shows_the_message_and_its_say_button_sends_it(self):
         from test_addon import MOCK_UI_LUA
         lua, a = runtime(); lua.execute(MOCK_UI_LUA); lua.execute(LUA)
+        a.SetPublish("chronicle", False)   # (public from the start since 2026-11-18; the wording here is checked without its link)
         lua.execute('GROUP="none"')
         a.Dispatch("PLAYER_LEVEL_UP", 30)
         bar = lua.globals().EvertallyBragBar

@@ -279,7 +279,85 @@ local function filterName(value,kind)
  if value==0 then return A.L("rankUnknown") end
  return kind=="class" and A.ClassName(value) or A.RaceName(value)
 end
+-- In the guide's hub: the Database's look (HubKit.lua). The categories are the hub's tabs; the search, the three
+-- filters and the board on the left; on the right the dungeons and raids to narrow it to, or the player picked and
+-- their runs.
+local function buildHub(page,kit)
+ local HK=A.HubKit;local g=HK.Guide();local W=g.Widgets
+ local pad=(W.SHELL and W.SHELL.pad or 32)-12
+ HK.Bleed(page);A.rankingsPage=page;page.mode,page.filters="runs",{}
+ local left=CreateFrame("Frame",nil,page);left:SetPoint("TOPLEFT",page,"TOPLEFT",0,0);left:SetPoint("BOTTOMRIGHT",page,"BOTTOMRIGHT",-HK.DETAIL_W,0)
+ page.search=HK.Search(left,A.L("rankSearch"),function(value) if page.filters.query~=value then page.filters.query=value;page.selection=nil;page.Refresh() end end)
+ page.search:SetPoint("TOPLEFT",left,"TOPLEFT",pad,-14);page.search:SetPoint("TOPRIGHT",left,"TOPRIGHT",-pad,-14)
+ local function change(key,choices) page.filters[key]=cycle(choices,page.filters[key]);page.selection=nil;page.dungeon=nil;page.Refresh() end
+ page.kind=W.Button(left,"",function()change("kind",KINDS)end,{height=26})
+ page.class=W.Button(left,"",function()change("classId",CLASSES)end,{height=26})
+ page.race=W.Button(left,"",function()change("raceId",RACES)end,{height=26})
+ page.list=HK.List(left);page.list.scroll:SetPoint("TOPLEFT",left,"TOPLEFT",0,-90);page.list.scroll:SetPoint("BOTTOMRIGHT",left,"BOTTOMRIGHT",-4,4)
+ page.details=HK.Details(page)
+ local function layout()
+  local width=math.max(240,(tonumber(left:GetWidth()) or 600)-pad*2);local w=(width-12)/3
+  for i,b in ipairs({page.kind,page.class,page.race}) do b:ClearAllPoints();b:SetPoint("TOPLEFT",left,"TOPLEFT",pad+(i-1)*(w+6),-54);b:SetWidth(w) end
+ end
+ left:SetScript("OnSizeChanged",layout)
+ page.hubTabs=function() local tabs={};for _,mode in ipairs(MODES) do tabs[#tabs+1]={key=mode,label=modeLabel(mode)} end;return tabs end
+ page.hubTab=function() return page.mode end
+ page.OnHubTab=function(mode) page.mode=mode;page.selection=nil end
+ local function blocksOf(spec) local out={};for _,e in ipairs(spec and spec.entries or {}) do out[#out+1]={text=e.text,head=e.head,onClick=e.onClick} end;return out end
+ local function detail()
+  local selected=page.selection
+  if selected then
+   local spec
+   if selected.run then spec=A.RankingRunDetail(kit,selected.run,selected.character)
+   else
+    local entry;for _,e in ipairs(players(page.dungeon,page.filters)) do if e.key==selected.key then entry=e;break end end
+    if entry then
+     local entries={{text=string.format(A.L("rankRuns"),entry.completed),head=true}}
+     local runs={};for _,run in ipairs(entry.runs) do runs[#runs+1]=run end
+     table.sort(runs,function(a,b)return (num(a.startedAt) or 0)>(num(b.startedAt) or 0) end)
+     for _,run in ipairs(runs) do local captured=run
+      entries[#entries+1]={text=kit.plain(run.name or "?").."  \194\183  "..(num(run.durationMs) and kit.duration(run.durationMs) or A.L("rankUnrecorded")).."  \194\183  "..kit.stamp(run.startedAt),onClick=function()page.selection={run=captured,character=entry.character};page.Refresh()end}
+     end
+     if entry.web then entries[#entries+1]={text=string.format(A.L("rankWebDetail"),entry.webRank or 0)} elseif #runs==0 then entries[#entries+1]={text=A.L("rankNoHistory")} end
+     spec={title=kit.plain(entry.name),subtitle=kit.identityText(entry.character),entries=entries}
+    end
+   end
+   if spec then
+    local blocks=blocksOf(spec);table.insert(blocks,1,{text=A.L("rankBack"),onClick=function()page.selection=nil;page.Refresh()end})
+    return page.details.Set({title=spec.title,sub=spec.subtitle,glyph="icon-achieve",color="accent",blocks=blocks})
+   end
+   page.selection=nil
+  end
+  -- nothing picked: the dungeons and raids to narrow the board to
+  local blocks={{head=true,text=A.db.settings.language=="cs" and "Dungeony a raidy" or "Dungeons & raids"},
+   {text=kindLabel(page.filters.kind),onClick=function()page.dungeon=nil;page.Refresh()end}}
+  for _,item in ipairs(A.RankingCatalog(page.filters)) do local instance=item.name
+   blocks[#blocks+1]={text=kit.plain(item.name)..(item.count>0 and ("  \194\183  "..item.count) or ""),onClick=function()page.dungeon=instance;page.selection=nil;if page.mode=="dungeons" then page.mode="history" end;page.Refresh()end}
+  end
+  page.details.Set({title=page.dungeon and kit.plain(page.dungeon) or modeLabel(page.mode),sub=(page.mode=="dps" or page.mode=="heals") and A.L("rankRateNote") or A.L("rankPersonal"),
+   glyph="icon-achieve",color="accent",blocks=blocks})
+ end
+ function page.Refresh()
+  layout()
+  if W.SetButtonText then W.SetButtonText(page.kind,kindLabel(page.filters.kind));W.SetButtonText(page.class,A.L("rankClass")..": "..filterName(page.filters.classId,"class"));W.SetButtonText(page.race,A.L("rankRace")..": "..filterName(page.filters.raceId,"race")) end
+  local data=A.RankingRows(kit,page.mode,page.dungeon,page.filters);page.data=data
+  local entries={}
+  if page.dungeon then entries[1]={folder=kit.plain(page.dungeon),count=tostring(#data)} end
+  for _,row in ipairs(data) do local selected=row
+   local classId=row.character and row.character.classId
+   local color=classId and A.ClassColor and A.ClassColor(classId)
+   entries[#entries+1]={key=row.key or row.rank,title=tostring(row.rank)..".  "..kit.plain(row.name),glyph="icon-achieve",
+    rgb=type(color)=="table" and color[1] and {color[1],color[2],color[3]} or nil,sub=row.valueText,
+    onClick=function()page.selection=selected.run and {run=selected.run,character=selected.character} or {key=selected.key};page.Refresh()end}
+  end
+  local sel=page.selection and (page.selection.key or (page.selection.run and nil))
+  page.list.Set(entries,sel)
+  detail()
+ end
+end
+
 function A.BuildRankingsPage(page,kit)
+ if A.HubKit and A.HubKit.Ready(page) then return buildHub(page,kit) end
  local C=kit.C;A.rankingsPage=page;kit.PageHeader(page,"rankings");page.mode,page.chips,page.filters="runs",{},{}
  for _,mode in ipairs(MODES) do page.chips[mode]=kit.Chip(page,function()page.mode=mode;page.selection=nil;A.RefreshUI()end) end
  local function change(key,choices) page.filters[key]=cycle(choices,page.filters[key]);page.selection=nil;page.dungeon=nil;A.RefreshUI() end

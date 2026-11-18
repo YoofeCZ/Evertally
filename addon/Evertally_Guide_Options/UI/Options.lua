@@ -752,7 +752,7 @@ local function buildAbout(view)
 	tag:SetPoint("TOPLEFT", hero, "TOPLEFT", TEXT_X, -45)
 	local ver = W.Text(hero, "small", "textMuted")
 	local function versionLine()
-		local v = L["Version"] .. " " .. tostring(ns.version or "dev")
+		local v = L["Version"] .. " " .. tostring(ns.ShownVersion and ns.ShownVersion() or ns.version or "dev")
 		local kb = W.AddonMemory()
 		if not kb then return v end
 		if kb >= 1024 then return v .. "  \194\183  " .. string.format(L["%.1f MB"], kb / 1024) end
@@ -789,6 +789,7 @@ local function buildAbout(view)
 	local whyH = W.SectionHeader(view)
 	W.SetSection(whyH, L["Why Evertally"])
 	local paras = {
+		hex .. L["Evertally Guide is inspired by Polestar and built on it: the guide engine and the leveling guides are the work of the Polestar authors (github.com/fitzforge/polestar, GPL-3.0). Thank you."] .. "|r",
 		L["Leveling guides have become a business: the best routes sit behind subscriptions and paywalls. Evertally goes the other way. It is free, open source under the GPL-3.0, and built by the community that plays it."],
 		hex .. L["Evertally doesn't claim to be the fastest guide, or the smoothest. It is a free alternative, and it gets better with time."] .. "|r",
 		L["Anyone can read the code, fix a step, sharpen a route or write a new guide, and contributions are welcome. The GPL keeps it that way: every copy and every fork stays open."],
@@ -821,7 +822,8 @@ local function buildAbout(view)
 	local whatsNew = W.ActionTile(view, "star", L["What's new"], L["What this version of Evertally changed for you."],
 		function() ns.Fire("SHOW_WHATSNEW") end)
 	view.WhatsNew = whatsNew
-	local credH, credText = block(L["Credits"], L["Inter typeface by The Inter Project Authors, SIL Open Font License 1.1."] .. "\n"
+	local credH, credText = block(L["Credits"], L["Leveling guides, the guide engine and its data: Polestar by the Polestar authors (GPL-3.0)."] .. "\n"
+		.. L["Inter typeface by The Inter Project Authors, SIL Open Font License 1.1."] .. "\n"
 		.. L["Wordmark set in Cinzel by The Cinzel Project Authors, SIL Open Font License 1.1."] .. "\n"
 		.. L["Quest and map data includes pfQuest by shagu (MIT License)."] .. "\n"
 		.. L["Discord and its logo are trademarks of Discord Inc.; the logo marks the link to the Evertally Discord."] .. "\n"
@@ -908,9 +910,9 @@ end
 
 add({ page = L["Community guides"], key = "guidepacks", icon = "layers", order = 70, subtitle = L["Guides made by other players: switch them on or off, and choose where suggestions come from."],
 	custom = UI.Packs.Build, dot = UI.Packs.HasProblems }, true)
-add({ page = L["Guiding Stars"], key = "thanks", icon = "star", order = 80, subtitle = L["Celebrating the supporters, contributors and bug reporters behind Evertally."],
-	custom = UI.Thanks.Build }, true)
-add({ page = REC, key = "recorder", icon = "record", order = 90, subtitle = L["The data recorder for guide authors."], custom = buildRecorder }, true)
+if false then add({ page = L["Guiding Stars"], key = "thanks", icon = "star", order = 80, subtitle = L["Celebrating the supporters, contributors and bug reporters behind Evertally."],
+	custom = UI.Thanks.Build }, true) end -- (Evertally: no Guiding Stars)
+if false then add({ page = REC, key = "recorder", icon = "record", order = 90, subtitle = L["The data recorder for guide authors."], custom = buildRecorder }, true) end -- (Evertally: no Recorder)
 add({ page = ABOUT, key = "about", icon = "info", order = 100, subtitle = L["Why Evertally exists, its commands and its credits."], custom = buildAbout }, true)
 add({ page = ABOUT, section = L["Install"], controls = { INSTALL } }, true)
 

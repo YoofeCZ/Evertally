@@ -291,7 +291,8 @@ ns.UI.GuideFrame.Part(function(GF)
 	-- The tallest the window may be: ui.maxHeight of the screen's height, in
 	-- the window's own units (its scale and the game's UI scale applied).
 	local function capHeight()
-		local share = tonumber(ns.Get("ui.maxHeight")) or 0.5
+		-- (Evertally: GF.dragShare while the grip drags the height, UI/GuideFrameWindow.lua)
+		local share = GF.dragShare or tonumber(ns.Get("ui.maxHeight")) or 0.5
 		local screen = UIParent:GetHeight() * UIParent:GetEffectiveScale()
 		return screen * share / max(0.01, screenScale())
 	end
@@ -312,9 +313,26 @@ ns.UI.GuideFrame.Part(function(GF)
 	end
 
 	-- Evertally's tools bar along the window's bottom: Skip on the left, the
-	-- nearby services, the bug, Lookup and the menu on the right (in Polestar
-	-- they sit in the navigator, right of the step count).
+	-- nearby services, the bug, Lookup and EVERTALLY MENU on the right (in
+	-- Polestar they sit in the navigator, right of the step count, with its
+	-- "..." menu: that menu is now a tile of the Evertally menu, "Guide window
+	-- options"). The bar shows on both tabs, Guide and Quests.
 	local TOOLS_H = 30
+	local function evertallyMenu(t)
+		if GF.etMenu then return GF.etMenu end
+		local E = rawget(_G, "Evertally")
+		if not (type(E) == "table" and E.ShowEvertallyMenu) then return nil end
+		local b = W.Button(t, "EVERTALLY MENU", function(self) E.ShowEvertallyMenu(self) end, { primary = true, height = 20, width = 116 })
+		if b.Label and b.Label.GetFont then
+			local font, _, flags = b.Label:GetFont()
+			if font then b.Label:SetFont(font, 10, flags or "") end
+		end
+		GF.etMenu = b
+		-- the guide's own menu stays reachable from the Evertally menu (GF.OpenMenu), its button out of sight
+		GF.menuAway = GF.menuAway or CreateFrame("Frame")
+		GF.menuAway:Hide()
+		return b
+	end
 	local function toolsBar()
 		local t = GF.tools
 		if not t then
@@ -329,10 +347,20 @@ ns.UI.GuideFrame.Part(function(GF)
 		for _, b in ipairs({ nav.Skip, nav.Nearby, nav.Report, nav.Lookup, nav.Menu }) do
 			if b:GetParent() ~= t then b:SetParent(t) end
 		end
-		nav.Menu:ClearAllPoints()
-		nav.Menu:SetPoint("RIGHT", t, "RIGHT", -8, 0)
+		local et = evertallyMenu(t)
+		local right = nav.Menu
+		if et then
+			nav.Menu:SetParent(GF.menuAway)
+			et:ClearAllPoints()
+			et:SetPoint("RIGHT", t, "RIGHT", -8, 0)
+			et:Show()
+			right = et
+		else
+			nav.Menu:ClearAllPoints()
+			nav.Menu:SetPoint("RIGHT", t, "RIGHT", -8, 0)
+		end
 		nav.Lookup:ClearAllPoints()
-		nav.Lookup:SetPoint("RIGHT", nav.Menu, "LEFT", 0, 0)
+		nav.Lookup:SetPoint("RIGHT", right, "LEFT", et and -4 or 0, 0)
 		nav.Report:ClearAllPoints()
 		nav.Report:SetPoint("RIGHT", nav.Lookup, "LEFT", 0, 0)
 		nav.Nearby:ClearAllPoints()
@@ -352,7 +380,14 @@ ns.UI.GuideFrame.Part(function(GF)
 		if not GF.live then return nil end
 		local E = rawget(_G, "Evertally")
 		local QT = type(E) == "table" and E.QuestTracker or nil
-		if type(QT) == "table" and QT.Mode and QT.Attach and QT.Layout and QT.BuildSwitch then return QT end
+		if type(QT) == "table" and QT.Mode and QT.Attach and QT.Layout and QT.BuildSwitch then
+			-- another quest tracker chosen (Blizzard's, Questie's): no Quests tab, its frame hidden
+			if QT.Enabled and not QT.Enabled() then
+				if QT.frame then QT.frame:Hide() end
+				return nil
+			end
+			return QT
+		end
 		return nil
 	end
 	local function modeSwitch()
@@ -476,7 +511,8 @@ ns.UI.GuideFrame.Part(function(GF)
 	end
 
 	-- Evertally: the Quests tab in place of the guide's steps: the tracker under the header, the window as tall as it
-	-- (within the cap), no progress bar and no tools bar. -> true when it laid the window out
+	-- (within the cap), no progress bar; the tools bar (EVERTALLY MENU, services, the bug) as on the Guide tab.
+	-- -> true when it laid the window out
 	local function layoutQuests(width, showStrip, SH)
 		local QT = evertallyQT()
 		if not (QT and QT.Mode() == "quests") then
@@ -490,13 +526,12 @@ ns.UI.GuideFrame.Part(function(GF)
 		nav.Steps:Hide()
 		nav.Title:SetShown(not showStrip)
 		header(width)
-		-- Skip, Lookup and the menu live on the tools bar (Evertally): the bar goes, they with it
-		toolsBar():Hide()
+		toolsBar():Show()
 		foot:Hide()
 		fit.n = 0
 		fit.from = nil
 		local stripH = showStrip and SH or 0
-		fit.outer = stripH + NAV_H
+		fit.outer = stripH + NAV_H + TOOLS_H
 		fit.limit = roomAbove()
 		local room = min(capHeight(), fit.limit or math.huge) - fit.outer
 		local qf = QT.Attach(body)

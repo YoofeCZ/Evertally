@@ -8,6 +8,7 @@ local _, A = ...
 -- and at the hub's 680 px the guide's six sections plus ours are all it holds.
 
 local PAD = 18
+local HEADER_H = 56 -- a page's own header (UI.lua PageHeader: title, subtitle, the rule at 47)
 local KEY = "Evertally"
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
 -- The sidebar draws the guide's own line icons (its Media/UI), not the game's coloured ones.
@@ -23,7 +24,8 @@ local SKIP = {leveling = true}
 -- them): the Database (the guide's Lookup searches the same and more, A.OpenDatabaseEntry goes there), Gear and junk
 -- (the guide's gear advice, bag marks and selling) and the Quest guide (the guide's leveling guides). Without the
 -- guide Evertally's own window lists them as before.
-local HIDE = {database = true, gear = true, questguide = true}
+-- Places, the Atlas and Guides too (user, 2026-11-17): the guide's Database, map and leveling guides cover them.
+local HIDE = {database = true, gear = true, questguide = true, places = true, facts = true, guides = true}
 
 local function guideAPI()
     local g = rawget(_G, "EvertallyGuide")
@@ -62,8 +64,13 @@ function A.InstallGuideShell()
         hubWin = win
         local inner = CreateFrame("Frame", nil, parent)
         inner:SetPoint("TOPLEFT", PAD, -PAD); inner:SetPoint("BOTTOMRIGHT", -PAD, PAD)
+        -- The hub's own header names the page: each page's header (PageHeader, its top HEADER_H) is drawn above the
+        -- clipped area, so the page's contents start at the top.
+        if inner.SetClipsChildren then inner:SetClipsChildren(true) end
+        inner.evertallyHubInner = true -- a page built from the hub's own parts (HubKit.lua) takes the whole area
         for _, view in ipairs(views) do
-            local page = CreateFrame("Frame", nil, inner); page:SetAllPoints(inner); page:Hide()
+            local page = CreateFrame("Frame", nil, inner); page:Hide()
+            page:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, HEADER_H); page:SetPoint("BOTTOMRIGHT", inner, "BOTTOMRIGHT", 0, 0)
             pages[view] = page
             shell.buildPage(view)
         end
@@ -72,7 +79,17 @@ function A.InstallGuideShell()
         local shown = viewOf()
         for _, view in ipairs(views) do if pages[view] then pages[view]:SetShown(view == shown) end end
         if hubWin and W.ShellTitle then pcall(W.ShellTitle, hubWin, A.L(shown), A.L("sub_" .. shown)) end
+        -- (the page first: its Refresh writes the labels its tabs show)
         shell.refreshPage(shown)
+        -- a page built from the hub's parts has its tabs in the hub's tab row (page.hubTabs, page.hubTab, page.OnHubTab)
+        local page = pages[shown]
+        if hubWin and W.ShellTabs then
+            local tabs = page and page.hubTabs and page.hubTabs() or nil
+            pcall(W.ShellTabs, hubWin, tabs, page and page.hubTab and page.hubTab() or nil, function(key)
+                if page and page.OnHubTab then page.OnHubTab(key) end
+                if P.Render then P.Render() end
+            end)
+        end
     end
     -- The groups of Evertally's menu, a rule between them.
     section.nav = function()

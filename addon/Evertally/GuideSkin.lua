@@ -49,3 +49,13 @@ check("skin evertally", Theme.RegisterSkin("evertally", {
     textShadow = false,
     preset = PRESET,
 }))
+
+-- One look: Evertally's (the guide offers no other, tools/import_polestar.py). A look saved before 0.11.1 is put back
+-- to it at login.
+if A and A.On then
+    A.On("PLAYER_LOGIN", function()
+        if type(G.Get) == "function" and type(G.Set) == "function" and G.Get("ui.skin") ~= "evertally" then
+            pcall(G.Set, "ui.skin", "evertally")
+        end
+    end)
+end

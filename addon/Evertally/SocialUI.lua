@@ -961,6 +961,14 @@ function A.BuildSocialPage(host, k)
     -- privacy
     page.privacy = k.label(leaf, 11, ink); page.privacy:SetPoint("TOPLEFT", 16, -16); page.privacy:SetPoint("TOPRIGHT", -16, -16); page.privacy:SetHeight(64)
     page.list = k.ListView(leaf, 204)
+    -- In the guide's hub (HubKit.lua): the modes are the hub's tabs, the panels move up into the room the chips left
+    if A.HubKit and page.hubMode then
+        A.HubKit.ChipsToTabs(page, {"live", "ask", "proposals", "meets", "privacy"}, page.tabs,
+            function() return page.mode end, function(mode) page.mode = mode end)
+        page.cols:ClearAllPoints(); page.cols:SetPoint("TOPLEFT", 0, -60); page.cols:SetPoint("BOTTOMRIGHT")
+        page.secondaryLeaf:ClearAllPoints(); page.secondaryLeaf:SetPoint("TOPLEFT", 0, -60); page.secondaryLeaf:SetPoint("BOTTOMRIGHT")
+        if A.HubKit.SkinInputs then A.HubKit.SkinInputs(page) end
+    end
     function page.Refresh()
         local mode = page.mode
         for key, chip in pairs(page.tabs) do chip.SetLabel(A.L("socialTab_" .. key)); chip.SetOn(mode == key) end
@@ -970,8 +978,10 @@ function A.BuildSocialPage(host, k)
             if tabX>0 and tabX+w>width then tabX,tabY=0,tabY-30 end
             chip:ClearAllPoints();chip:SetPoint("TOPLEFT",tabX,tabY);tabX=tabX+w+6
         end
-        page.cols:ClearAllPoints();page.cols:SetPoint("TOPLEFT",0,tabY-40);page.cols:SetPoint("BOTTOMRIGHT")
-        page.secondaryLeaf:ClearAllPoints();page.secondaryLeaf:SetPoint("TOPLEFT",0,tabY-40);page.secondaryLeaf:SetPoint("BOTTOMRIGHT")
+        -- (in the hub the tabs are the hub's: the panels start right under the clipped header)
+        local top = page.hubMode and -60 or (tabY-40)
+        page.cols:ClearAllPoints();page.cols:SetPoint("TOPLEFT",0,top);page.cols:SetPoint("BOTTOMRIGHT")
+        page.secondaryLeaf:ClearAllPoints();page.secondaryLeaf:SetPoint("TOPLEFT",0,top);page.secondaryLeaf:SetPoint("BOTTOMRIGHT")
         page.cols:SetShown(mode == "ask"); page.cols.Layout()
         page.secondaryLeaf:SetShown(mode ~= "ask")
         -- the category buttons wrap onto a second line in a narrow window; the list starts below them
@@ -979,7 +989,11 @@ function A.BuildSocialPage(host, k)
         local liveTop = 96
         if mode == "live" then
             peopleList, peopleCounts = peopleRows()
-            local x, y, width = 16, -94, math.max(200, (tonumber(page.secondaryLeaf:GetWidth()) or 640) - 32)
+            -- (before the first layout the panel has no width yet: the page's, else a usual one, not one chip a line)
+            local leafW = tonumber(page.secondaryLeaf:GetWidth()) or 0
+            if leafW < 240 then leafW = tonumber(page:GetWidth()) or 0 end
+            if leafW < 240 then leafW = 640 end
+            local x, y, width = 16, -94, math.max(200, leafW - 32)
             for _, key in ipairs(PEOPLE_FILTERS) do
                 local chip = page.filterChips[key]
                 chip.SetLabel(A.L("peopleFilter_" .. key) .. "  " .. tostring(peopleCounts[key] or 0)); chip.SetOn(peopleFilter() == key)

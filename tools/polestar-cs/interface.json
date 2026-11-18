@@ -1984,7 +1984,7 @@
 "Look up your target's mount": "Vyhledat mounta tvého cíle",
 "Looking ahead. The guide is at step %d.": "Díváš se dopředu. Návod je v kroku %d.",
 "Looking back. The guide is at step %d.": "Díváš se zpět. Návod je v kroku %d.",
-"Lookup": "Lookup",
+"Lookup": "Databáze",
 "Lookup is off: searching guides only": "Lookup je vypnutý: hledají se jen návody",
 "Lookup is turned off": "Lookup je vypnutý",
 "Lookup is turned off (Options > Discovery > Lookup).": "Lookup je vypnutý (Nastavení > Discovery > Lookup).",
@@ -4269,7 +4269,7 @@
 "profile, profiles, export, import, share, string, copy settings, backup, per character, alts, class, switch, rename, delete": "profil, profily, export, import, sdílet, řetězec, kopírovat nastavení, záloha, pro postavu, alti, povolání, přepnout, přejmenovat, smazat",
 "quest log full": "deník questů plný",
 "quests": "questy",
-"quote marks: “%s”": "uvozovky: „%s“",
+"quote marks: “%s”": "„%s“",
 "ranks bought": "koupené ranky",
 "rare": "vzácný",
 "rare alert": "upozornění na vzácného moba",
@@ -4323,5 +4323,6 @@
 "your skill %d": "tvoje dovednost %d",
 "your trainer": "tvůj trenér",
 "{rt1} Evertally: ": "{rt1} Evertally: ",
-"≈ %s": "≈ %s"
+"≈ %s": "≈ %s",
+"Database": "Databáze"
 }

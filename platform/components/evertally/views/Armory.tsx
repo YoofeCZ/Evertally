@@ -7,7 +7,7 @@ import { CLASSES, RACES } from "../data";
 import { itemIconUrl, qualityClass, hrefItem, useIndex } from "../db/store";
 import { CharacterIcons, fullName } from "../Identity";
 import type { User } from "../types";
-import { ConsoleWindow, DiscordGlyph, Empty, Icon, Tag } from "../ui";
+import { ConsoleWindow, Empty, Tag } from "../ui";
 import { PageHead } from "./Data";
 
 type Entry = OwnArmory | ViewedArmory;
@@ -23,62 +23,88 @@ const STATS: Record<Lang, Record<string, string>> = {
   cs: { str: "Síla", agi: "Obratnost", sta: "Odolnost", int: "Inteligence", spi: "Duch", armor: "Brnění", ap: "Útočná síla", rap: "Útočná síla na dálku", crit: "Kritický zásah %", scrit: "Kritické kouzlo %", dodge: "Úhyb %", parry: "Odražení %", block: "Blok %", hp: "Zdraví", mana: "Mana", holy: "Odolnost Svatá", fire: "Odolnost Oheň", nature: "Odolnost Příroda", frost: "Odolnost Mráz", shadow: "Odolnost Stín", arcane: "Odolnost Tajná" },
 };
 
-export function ArmoryView({ user, signIn, authReady, route }: { user: User | null; signIn: string | null; authReady: boolean; route: string }) {
-  const { t } = useI18n();
-  if (user) return <ArmoryData key={user.id} route={route} />;
-  return <><PageHead title={t("armory.title")} lead={t("armory.lead")} /><div className="page-column"><section className="chapter-card tint-plum center">
-    <span className="empty-icon"><Icon name="user" size={22} /></span><h2 className="serif-heading small">{t("armory.signInTitle")}</h2><p className="lead">{t("armory.signInText")}</p>
-    {!signIn ? (authReady && <p className="notice error">{t("auth.discord_not_configured")}</p>) : signIn.startsWith("/auth/discord") ? <a className="btn btn-discord" href={signIn}><DiscordGlyph />{t("nav.signIn")}</a> : <a className="btn btn-ghost" href={signIn}>{t("nav.devSignIn")}</a>}
-  </section></div></>;
-}
+// Since 2026-11-18 every character is public (lib/publish.ts ALL_PUBLIC): the armory opens on the list of all characters
+// and a click opens one of them, signed in or not. Gear, stats, talents and professions are public; the bags only for your
+// own characters and for those whose player allowed you in the game (/api/armory).
+type PublicEntry = { kind: "public"; id: string; character: OwnArmory["character"]; observedAt: number; armory: OwnArmory["armory"] };
+type Shown = Entry | PublicEntry;
 
-function ArmoryData({ route }: { route: string }) {
-  const { t, lang, date } = useI18n();
-  const [version, setVersion] = useState(0);
-  const [tab, setTab] = useState<Tab>("gear");
-  const source = useApi<ArmoryOverview>("/api/armory", version);
-  const entries: Entry[] = [...(source.data?.own ?? []), ...(source.data?.viewed ?? [])];
-  const wanted = decodeURIComponent(route.split("?")[0]);
-  const [picked, setPicked] = useState("");
-  const found = entries.find(e => e.id === (picked || wanted));
-  // a link to a character that is neither yours nor allowed by its player shows nothing of it, not somebody else's armory
-  const blocked = !found && Boolean(wanted) && !picked && entries.length > 0;
-  const current = found ?? (blocked ? undefined : entries[0]);
+export function ArmoryView({ user, route }: { user: User | null; signIn: string | null; authReady: boolean; route: string }) {
+  const { t } = useI18n();
+  const wanted = decodeURIComponent(route.split("?")[0] ?? "");
   return <>
-    <PageHead title={t("armory.title")} lead={t("armory.lead")} />
+    <PageHead title={t("armory.title")} lead={t("armory.leadPublic")} />
     <div className="page-column armory-page">
-      <ConsoleWindow title={t("armory.title")} actions={<button className="link-btn" disabled={source.loading} onClick={() => setVersion(v => v + 1)}>{t("prof.refresh")}</button>}>
-        {source.error ? <p className="notice error" role="alert">{t("error.service_unavailable")}</p>
-          : !source.data ? <Empty icon="user" title={t("common.loading")}>{t("armory.consent")}</Empty>
-          : blocked ? <Empty icon="user" title={t("armory.notAllowedTitle")} action={<button className="btn btn-ghost btn-sm" onClick={() => setPicked(entries[0].id)}>{t("armory.mine")}</button>}>{t("armory.notAllowedText")}</Empty>
-          : !current ? <Empty icon="user" title={t("armory.emptyTitle")}>{t("armory.emptyText")}</Empty> : <>
-          <div className="armory-head">
-            <div className="armory-avatar"><CharacterIcons character={current.character} size={48} /></div>
-            <div><span className="hall-eyebrow">{t("armory.title")}</span><h2 className="serif-heading small">{fullName(current.character)}</h2>
-              <small>{[CLASSES[current.character.classId ?? 0], RACES[current.character.raceId ?? 0], current.character.level ? `${t("armory.level")} ${current.character.level}` : ""].filter(Boolean).join(" · ")}</small></div>
-            {current.kind === "viewed" ? <Tag tone="peach">{t(current.mode === "always" ? "armory.always" : "armory.once")}</Tag> : <Tag tone="green">{t("armory.mine")}</Tag>}
-          </div>
-          <p className="fine-print armory-observed">{current.kind === "viewed"
-            ? t("armory.viewedNote", { name: current.character.name ?? "", date: date(current.observedAt), days: source.data.viewDays })
-            : t("armory.ownNote", { date: date(current.observedAt) })}</p>
-          <div className="toolbar armory-controls">
-            <label className="field"><span>{t("armory.pick")}</span>
-              <select value={current.id} onChange={event => setPicked(event.target.value)}>
-                {source.data.own.length > 0 && <optgroup label={t("armory.mine")}>{source.data.own.map(e => <option key={e.id} value={e.id}>{fullName(e.character) || t("common.private")}</option>)}</optgroup>}
-                {source.data.viewed.length > 0 && <optgroup label={t("armory.viewed")}>{source.data.viewed.map(e => <option key={e.id} value={e.id}>{fullName(e.character)}</option>)}</optgroup>}
-              </select></label>
-            <div className="segmented" role="tablist">{TABS.map(name => <button key={name} role="tab" aria-selected={tab === name} className={tab === name ? "on" : ""} onClick={() => setTab(name)}>{t(`armory.${name}`)}</button>)}</div>
-          </div>
-          {tab === "gear" && <Gear entry={current} lang={lang} />}
-          {tab === "stats" && <Stats entry={current} lang={lang} />}
-          {tab === "talents" && <Talents entry={current} />}
-          {tab === "professions" && <Professions entry={current} />}
-          {tab === "bags" && <Bags entry={current} />}
-        </>}
-      </ConsoleWindow>
-      <p className="fine-print">{t("armory.consent")}</p>
+      {wanted ? <ArmoryCharacter key={wanted} id={wanted} user={user} /> : <ArmoryList user={user} />}
+      <p className="fine-print">{t("armory.publicNote")}</p>
     </div>
   </>;
+}
+
+function ArmoryList({ user }: { user: User | null }) {
+  const { t, date } = useI18n();
+  const [query, setQuery] = useState("");
+  const list = useApi<{ characters: PublicEntry[] }>(`/api/armory-public${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`);
+  const mine = useApi<ArmoryOverview>(user ? "/api/armory" : null);
+  const own = mine.data?.own ?? [], viewed = mine.data?.viewed ?? [];
+  const row = (e: { id: string; character: OwnArmory["character"]; observedAt: number }, tag?: string) => (
+    <a key={e.id} className="armory-row" href={`#armory/${encodeURIComponent(e.id)}`}>
+      <CharacterIcons character={e.character} size={32} />
+      <span className="armory-row-name"><b>{fullName(e.character)}</b><small>{[CLASSES[e.character.classId ?? 0], RACES[e.character.raceId ?? 0]].filter(Boolean).join(" · ")}</small></span>
+      {tag && <Tag tone="green">{tag}</Tag>}
+      <span className="mono armory-row-level">{e.character.level ? `${t("armory.level")} ${e.character.level}` : ""}</span>
+      <small className="armory-row-date">{date(e.observedAt)}</small>
+    </a>
+  );
+  return <ConsoleWindow title={t("armory.title")}>
+    <label className="field armory-search"><span>{t("armory.search")}</span>
+      <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("armory.searchHint")} /></label>
+    {(own.length > 0 || viewed.length > 0) && !query && <section className="armory-list">
+      <h3 className="hall-eyebrow">{t("armory.yours")}</h3>
+      {own.map(e => row(e, t("armory.mine")))}
+      {viewed.map(e => row(e, t(e.mode === "always" ? "armory.always" : "armory.once")))}
+    </section>}
+    <section className="armory-list">
+      <h3 className="hall-eyebrow">{t("armory.all")}</h3>
+      {list.error ? <p className="notice error" role="alert">{t("error.service_unavailable")}</p>
+        : !list.data ? <p className="fine-print">{t("common.loading")}</p>
+        : list.data.characters.length === 0 ? <Empty icon="user" title={t("armory.emptyTitle")}>{t("armory.emptyPublic")}</Empty>
+        : list.data.characters.map(e => row(e))}
+    </section>
+  </ConsoleWindow>;
+}
+
+function ArmoryCharacter({ id, user }: { id: string; user: User | null }) {
+  const { t, lang, date } = useI18n();
+  const [tab, setTab] = useState<Tab>("gear");
+  const isPrivateView = id.startsWith("v:");
+  const open = useApi<PublicEntry>(isPrivateView ? null : `/api/armory-character/${encodeURIComponent(id)}`);
+  const mine = useApi<ArmoryOverview>(user ? "/api/armory" : null);
+  // your own character, or one whose player allowed you: with its bags
+  const allowed: Entry | undefined = [...(mine.data?.own ?? []), ...(mine.data?.viewed ?? [])].find(e => e.id === id)
+    ?? (open.data ? (mine.data?.viewed ?? []).find(e => fullName(e.character).toLowerCase() === fullName(open.data!.character).toLowerCase()) : undefined);
+  const current: Shown | undefined = allowed ?? open.data ?? undefined;
+  const back = <a className="btn btn-ghost btn-sm" href="#armory">← {t("armory.back")}</a>;
+  return <ConsoleWindow title={t("armory.title")} actions={back}>
+    {!current ? (open.error ? <Empty icon="user" title={t("armory.notFoundTitle")} action={back}>{t("armory.notFoundText")}</Empty>
+      : <p className="fine-print">{t("common.loading")}</p>) : <>
+      <div className="armory-head">
+        <div className="armory-avatar"><CharacterIcons character={current.character} size={48} /></div>
+        <div><span className="hall-eyebrow">{t("armory.title")}</span><h2 className="serif-heading small">{fullName(current.character)}</h2>
+          <small>{[CLASSES[current.character.classId ?? 0], RACES[current.character.raceId ?? 0], current.character.level ? `${t("armory.level")} ${current.character.level}` : ""].filter(Boolean).join(" · ")}</small></div>
+        {current.kind === "viewed" ? <Tag tone="peach">{t(current.mode === "always" ? "armory.always" : "armory.once")}</Tag> : current.kind === "own" ? <Tag tone="green">{t("armory.mine")}</Tag> : null}
+      </div>
+      <p className="fine-print armory-observed">{t(current.kind === "own" ? "armory.ownNote" : "armory.asOf", { date: date(current.observedAt) })}</p>
+      <div className="toolbar armory-controls">
+        <div className="segmented" role="tablist">{TABS.map(name => <button key={name} role="tab" aria-selected={tab === name} className={tab === name ? "on" : ""} onClick={() => setTab(name)}>{t(`armory.${name}`)}</button>)}</div>
+      </div>
+      {tab === "gear" && <Gear entry={current} lang={lang} />}
+      {tab === "stats" && <Stats entry={current} lang={lang} />}
+      {tab === "talents" && <Talents entry={current} />}
+      {tab === "professions" && <Professions entry={current} />}
+      {tab === "bags" && (current.kind === "public" ? <p className="fine-print">{t("armory.bagsPermission")}</p> : <Bags entry={current} />)}
+    </>}
+  </ConsoleWindow>;
 }
 
 function useItems() {
@@ -129,7 +155,7 @@ export function Talents({ entry }: { entry: { armory: Pick<Entry["armory"], "tal
   </section>)}</div>;
 }
 
-function Professions({ entry }: { entry: Entry }) {
+function Professions({ entry }: { entry: Shown }) {
   const { t } = useI18n();
   if (!entry.armory.professions.length) return <p className="fine-print">{t("armory.noProf")}</p>;
   return <div className="armory-grid">{entry.armory.professions.map(p => <div key={p.id} className="armory-item">

@@ -51,7 +51,8 @@ function ManualImport({ user, signIn }: { user: User | null; signIn: string | nu
       const data = await parseFile(file);
       if (!data.enabled) throw new Error(t("sync.manual.disabled"));
       setPreview(data);
-      setScopes(SCOPE_ORDER.filter((s) => data.scopes.includes(s) && s !== "own_character"));
+      // everything is public since 2026-11-18 (lib/publish.ts ALL_PUBLIC): all that the export carries is chosen
+      setScopes(SCOPE_ORDER.filter((s) => data.scopes.includes(s)));
       setConsent(false);
       setMessage({ tone: "info", text: t("sync.manual.loaded", { count: num(data.events.length) }) });
     } catch (error) {

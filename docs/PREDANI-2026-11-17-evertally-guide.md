@@ -101,3 +101,98 @@ Sběr dat pro web (`Collectors.lua`, `Core.lua`, `Armory.lua` → `A.TalentTrees
 - Z QuestMasteru jen nápady (jeho LICENSE je „All Rights Reserved“).
 - Polestar je GPL-3.0: engine a data přebírat jde, vzhled a texty mají být Evertally (kromě okna instalace).
 - Velké vizuální změny nejdřív ukázat v náhledu.
+
+## Po prvním testu 0.11.0 ve hře (2026-11-17, večer) — vydáno jako 0.11.1, necommitnuto
+
+Úpravy podle screenshotů uživatele (patche v `tools/import_polestar.py`, sekce „after the first test of 0.11.0“, a overlay):
+
+| Požadavek | Řešení |
+|---|---|
+| Pryč hvězdy (instalace i záhlaví oken) | `Theme.Band` bez vrstvy `band-stars`, `dipper` nic nekreslí, paprsek emblému skrytý |
+| Jen koncepční vzhled Evertally | `Theme.SkinChoices` vrací jen `evertally`; stránka „Tvůj vzhled“ v instalaci skrytá; `GuideSkin.lua` při přihlášení vrátí uložený jiný vzhled na `evertally` |
+| Lookup → Databáze, procházení A–Z po kategoriích | `Search.Browse` (abecedně, bez vyřazených a bezzdrojových položek; první stránka bez řazení celé kategorie), `Lookup.lua` bez hledání ukazuje každou kategorii (5 + „Ukázat vše“, v kategorii stránky po 50); české „Databáze“ přes `EXTRA_CS` v importéru |
+| Verze bez BETA | `ns.stage = nil`, `ns.routesBeta = false`; patička hubu ukazuje verzi Evertally (`ns.ShownVersion`), `ns.version` zůstává Polestarova kvůli partě a balíčkům |
+| Tracker: Questy první, výška, scroll, vzhled | karta Questy první a výchozí; úchyt vpravo dole táhne i výšku (`ui.maxHeight`, během tažení `GF.dragShare`), nad ní se scrolluje; větší řádky, linky sekcí, akcentní okraj u questu aktuálního kroku |
+| Pořadí sekcí | oblast, kde hráč stojí, první (questy aktuálního kroku návodu na jejím začátku, i z jiné oblasti), ostatní oblasti, dungeony, „K odevzdání“ vždy poslední |
+| EVERTALLY MENU v Návodu, pryč „…“, spodní lišta i v Questech | `GuideFrameLayout.lua` (overlay): tlačítko EVERTALLY MENU na liště nástrojů v obou kartách, „…“ schované (jeho menu je dlaždice „Možnosti okna návodu“) |
+| Synchronizace party v EVERTALLY MENU | dlaždice „Parta“ (panel) a „Synchronizovat s mým návodem“; panel se už sám neotevírá (`party.panel = false`) |
+| Rozsypaná čeština v tooltipu | `W.Tooltip` v češtině přepne řádky tooltipu na Inter, při skrytí vrátí herní fonty |
+
+Body z „Co zbývá“: **3** hotovo (`Core/Locale.lua` i kontrola instalace v `Core/Data.lua` jazykové složky nehlásí), **5** rozhodnuto a hotovo (nová postava na účtu, který instalací prošel, dostane krátkou instalaci průvodce jen s věcmi postavy; stránky Evertally mají `shown` podle `UI.WelcomeKit.full` a Dokončit v krátké instalaci nastavení Evertally nemění), **6** hotovo (tlačítko forku u minimapy, plovoucí tlačítko i compartment: levé = menu, pravé = skrýt přes `Evertally.ToggleEvertallyHidden`).
+
+Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů prochází (po úpravě dvou testů trackeru a testu importu na nové chování), náhledy tracker / Návod / stránka Questování bez hvězd. **Neověřeno:** Databáze v hubu (náhled Codex nenačte; logika `Search.Browse` ověřena samostatným Lua testem), dlaždice Parta a Možnosti okna (náhled menu nemá fork), tažení výšky, tooltip — vše jen ve hře. **Vydáno 0.11.1** (zip sha256 `ebcd96ce32d572a9103f343eb2045125013958a40958e944f28a2ecf7089039b`, 914 souborů), ověřeno stažením z veřejné adresy; záloha 0.11.0 v `~/evertally/backups/addon-0.11.0-2026-11-17/`.
+
+## Po testu 0.11.1 (2026-11-17, noc) — NEVYDÁNO (uživatel: „nevydávej, budeme pokračovat“), necommitnuto, verze pořád 0.11.1
+
+- **Tracker česky:** názvy a cíle questů z **WowfCZ** čteného za běhu (`WowfCZ_QuestData`, `WowfCZ_ItemData`; nebundlujeme, viz `THIRD_PARTY.md`), jen když je Evertally česky. `QT.CzechTitle`, `QT.CzechObjective`, anglický název zůstává v `q.titleEn` (odkaz do chatu).
+- **Tooltipy questů na mapě česky** (OpenMap i mapa hry, „[14] Název“, „- 4/15 Cíl“): háček `GameTooltip` `OnShow` v `QuestTracker.lua` (`QT.CzechTooltip`), quest pozná podle `owner.data.id` nebo nad mapou podle názvu v deníku; font Evertally, při skrytí se vrátí herní. OpenMap se nemění.
+- **Klik na quest v OpenMap (sledování) nastaví šipku:** `hooksecurefunc(C_SuperTrack, "SetSuperTrackedQuestID")` → `QT.ArrowToQuest`. Neověřeno, že Forever klient `C_SuperTrack` má (OpenMap ho volá jen když existuje).
+- **Levý klik v trackeru:** šipka + mapa v oblasti questu. **V souboji se mapa neotevře hned**, ale po konci souboje (hláška v chatu): otevření mapy z addonu v combatu mapu taintne (Polestar `Core/Compat.lua`, #92).
+- **EVERTALLY MENU v menu:** tlačítko průvodce (`EvertallyGuide.Widgets.Button`, fialové jako na liště okna) místo tlačítka Evertally kitu, které ve hře vypadalo tmavě (příčinu v paletě jsem nedohledal, náhled ho kreslil zlatě).
+- **Nastavení, skupina O addonu:** pryč Guiding Stars, Nahrávač a „Zvláštní díky:“ v záhlaví hubu; O addonu začíná odstavcem, že Evertally Guide vychází z Polestaru (engine a návody, GPL-3.0), v Credits řádek o Polestaru, verze Evertally.
+- Náhled: `MENU=1 QUESTS=1 CS=1 python tools/ui_preview/guide_preview.py …` kreslí menu s načteným průvodcem (`output/guide-preview/menu-guide.png`).
+- Testy: 833+ prochází (nové testy trackeru: čeština z WowfCZ, tooltip mapy, šipka ze sledování, mapa po souboji).
+
+## Stránky Evertally ve stylu hubu Polestaru (2026-11-17, pozdě večer) — NEVYDÁNO, necommitnuto, jen nainstalováno do hry
+
+- Záloha před přestavbou: `backups/pred-polestar-stylem-2026-11-17/` (archiv, patch, HEAD).
+- Z menu Evertally skryté Places, Atlas, Guides (`GuideShell.lua` `HIDE`).
+- **`addon/Evertally/HubKit.lua`** (nový, v TOC za `Widgets.lua`): stránky z dílů průvodce jako Databáze — `HK.Ready/Bleed` (stránka přes celou plochu sekce, bez staré hlavičky), `HK.List` (složky s fialovou značkou, řádky na jeden řádek), `HK.Details` (pás ZoneArt, fialová hrana, ikona v jamce, fakta, tlačítko dole), `HK.Search`. Záložky stránky jdou do lišty hubu (`page.hubTabs/hubTab/OnHubTab`, volá `GuideShell` render).
+- **Deník** přestavěný jako vzor (`Journal.lua` `buildHub`). Ostatní stránky zatím na staré stavbě, jen s plochým povrchem (`A.HubLook`, `A.InHubPage`, `kit.HubPanel/HubReader`) — uživatel to odmítl jako málo podobné; převést je stejně jako Deník, až Deník schválí ve hře.
+- Náhled hubu: `HUB=journal QUESTS=1 [CS=1] python tools/ui_preview/guide_preview.py …` → `output/guide-preview/hub-journal.png` (harness nevolá OnSizeChanged: šířka seznamu a placeholder hledání v náhledu nesedí).
+- **Hvězdy:** `band-stars.tga` (hvězdy i souhvězdí) nahrazený průhledným v overlay a ručně zkopírovaný do forku. **Importér teď nejde spustit:** Polestar už není v `Interface/AddOns` („Polestar not found“). Pro další import stáhnout Polestar 0.4.0.1 a předat cestu jako argument.
+- **Výběr quest trackeru v nastavení** (`et-tracker`, Další čeká na volbu): Evertally / Blizzard / Questie (jen když je načtený). Ostatní se skryjí: Blizzard přes `qol.hideQuestTracker` průvodce, Questie přes jeho `QuestieTracker:Toggle` (zapnutí po /reload), Evertally bez karty Questy (`QT.Enabled`, overlay `GuideFrameLayout.lua`). QuestMaster podporu nemá: není nainstalovaný, jeho API jsem neviděl.
+- Aplikace Evertally při běhu přepisuje addon serverovou verzí (byte po bytu, `sync/src/addon_update.rs`), proto je při testu vypnutá.
+- Testy: 838 OK.
+- **Pokračování (pozdě večer):** Deník schválený ve hře („to vypadá dobře“). Převedeno stejně: **Přehled** (`Dashboard.lua` `buildHub`: záložky Aktivita/Oblasti/Loot, pruh čísel, vpravo postava a graf), **Co se naučit** (`TrainingUI.lua` `buildHub`), **Běhy, Profese, Fakta z webu** přes hub verze `Metrics/Filters/Search/BookList` v `UI.lua` (`hubColumn`, `hubLayout`, `hubPlace`), `HK.Stats` a bloky v detailu (`spec.blocks`).
+- **Dungeon Journal:** karty jedna na řádek, 132 px, výřez obrázku drží poměr (`cropArt`). **Vnitřek dungeonu zatím starý** — další krok. Hostované stránky (Dungeon Journal, Recepty, Mapa) mají v hubu odsazení 18 px (`WorldHost.lua`).
+- **Zbývá převést:** vnitřek dungeonu, Recepty, Talenty, Mapa a cesty, Komunita (fórum), Lidé, Žebříček.
+- Oprava: `QuestTracker.lua` `settings()` bez databáze vracel `{}` → chyba při načtení (karta Questy je teď výchozí). Test `QuestTrackerBeforeLoadTests`.
+- Testy 839 OK; vše nainstalované ve hře, nevydané, necommitnuté.
+- **Další kolo:** vnitřek dungeonu (záložky v liště hubu přes `page.hubTabs`, tlačítko zpět a nadpis z dílů průvodce, ploché řádky; `DungeonJournal.lua` konec `M.BuildDungeons`), Recepty (vyhledávání a výběr profese z dílů hubu, ploché řádky; konec `M.BuildRecipes`), Žebříček (`Rankings.lua` `buildHub`). Roztahování stránky přes celou plochu jen u stránek z nových dílů (`hubColumn`/`HK.Bleed`); ostatní zůstávají oříznuté s odsazením. Zbývá: **Lidé, Komunita, Talenty, Mapa a cesty**. Vnitřek dungeonu a Recepty náhled v hubu neumí (harness nenačte `Evertally_Map`).
+- **Pokračování (noc, nová session):** **Lidé** lehčí převod (režimy v liště hubu přes `HK.ChipsToTabs`, panely posunuté nahoru, plochý povrch; filtry Vše/Evertally/… se před prvním layoutem lámaly po jednom — šířka teď padá na šířku stránky). **Komunita** hotová (prázdný stav jmenuje tlačítko „Nové vlákno“ místo „níže“). **Talenty** (`Talents.lua` `buildHub`): záložky Plánovač | Buildy; Plánovač jsou stromy jako dřív bez řádku uložených buildů, nápověda a zoom uvnitř ořezu; Buildy = `HK.List` (Uložené, Doporučené) + `HK.Details` (body po stromech, úroveň, zdroj, poznámka, Smazat, „Otevřít v Plánovači“ / „Načíst šablonu“). Tlačítko Doporučené buildy v Plánovači přepne na Buildy.
+- **Opravy napříč:** primary tlačítka kitu v plochém vzhledu byla tmavá — `Theme.Surface` dává čtvercovému povrchu backdrop v barvě karty, který překryl fialový podklad; `T.Button` ho teď zprůhlední (to byla nedohledaná příčina z bodu o EVERTALLY MENU). `A.Upper` dělá velká písmena jen pro a–z a české mapuje zvlášť; HubKit (složky, nadpisy bloků) a graf Přehledu ho teď používají (dřív „ULOžENé“).
+- **Náhled:** fixture hubu volá `A.Theme.ApplyScheme()` (jinak se kreslil starý vzhled s rámečky — ve hře to dělá `PLAYER_LOGIN`), `HUB_TAB=<klíč>` otevře záložku stránky, `HUB_EVAL=<Lua výraz>` vypíše hodnotu na ladění, fixture má jeden uložený build válečníka. `PLAYWRIGHT_MODULE` viz výše.
+- **Pozor:** kopie ve hře (`D:\World of Warcraft\_forever_\Interface\AddOns\Evertally`) se od repa liší i u Deníku (nemá `buildHub`, čas 23:21) — nejspíš ji přepsala aplikace serverovou verzí. Před testem ve hře aplikaci vypnout a addon zkopírovat znovu.
+- Testy 839 OK. Zbývá převést: **Mapa a cesty**; vnitřek dungeonu a Recepty ověřit ve hře (náhled je neumí).
+- **Přepis instalace (ověřeno v `%APPDATA%\Evertally\Evertally Sync\config\sync.log`):** 23:56:34 se spustila Evertally Sync a hned „Addon aktualizován na 0.11.1“ — přepíše addon i za běhu hry, vypnout to v ní nejde. Hra pak načetla směs 0.11.1 + nové soubory (HubKit) a spadla na `QuestTracker.lua:498 folded nil`. **Ta chyba je ve vydané 0.11.1** (`settings()` bez databáze vrací `{}`); v repu opravená, nevydaná. Addon znovu zkopírovaný 2026-11-18 (shoda s repem ověřena), záloha v `~/evertally/backups/addons-ve-hre-2026-11-18/`.
+
+## Vydání 0.11.2 a okno dungeonu na webu (2026-11-18)
+
+- **Addon 0.11.2 vydaný na webu** (zip sha256 `edb1e91f…ee37`, 915 souborů, ověřeno stažením: 200, `application/zip`, `PK`, TOC 0.11.2). Záloha 0.11.1 na Pi v `~/evertally/backups/addon-0.11.1-2026-11-18/`. Poznámky `VYDANI-0.11.2.md`. **CurseForge zatím ne** (nahrává uživatel přes vestavěný prohlížeč).
+- Nově v 0.11.2 navíc: **ověření aplikace jen jednou** (`Requirements.lua`: platné potvrzení se uloží do `EvertallyDB.bridgeVerified`; `BridgeInstallation.lua` přepíše každá aktualizace addonu na prázdný). Test `test_app_verified_once_stays_verified_after_the_receipt_is_gone`. Lua testy 840 OK.
+- **Web — okno dungeonu/raidu** (`components/evertally/views/ChronicleInstance.tsx`, logika `lib/chronicle-instance.ts`, data `lib/chronicle-instances.data.ts` z `tools/build_chronicle_instances.py`): otevírá se z pruhu dungeonu na časové ose, ze šipky u vstupu v seznamu, z detailu a z karty „V dungeonu“. Záložky Přehled (čísla, souhrn soubojů s bossy a s NPC, parta z rosteru při vstupu), Bossové (podle deníku dungeonu, každý rozbalitelný s každým pokusem: čísla, poškození party, celý souboj), Nepřátelé (běžní NPC zvlášť, souboje s nimi, smrti), Loot, Průběh, Mapa (patra ze hry). Vstup do dungeonu nese `id` instance (builder z `instanceId`).
+- **Poloha uvnitř dungeonu se nezaznamenává** (ověřeno v datech RFC: hra hlásí jen „Kalimdor“, žádný `track.path`). Pohyb po mapě dungeonu jen pokud ve hře `/run print(UnitPosition("player"))` uvnitř instance vrátí čísla — neověřeno.
+- Web nasazený `deploy/pi/deploy-web.sh` (předchozí verze v `~/evertally/app/dist.old`). Před nasazením ověřeno, že necommitnuté změny v `platform/` mimo moje soubory už na Pi byly (nasazení 16. 11. 22:35). Testy webu 347 OK.
+- Necommitnuté: nic z toho není v gitu.
+
+## Další převod do stylu hubu (2026-11-18, odpoledne) — nevydáno
+- **`Evertally_Map/GuideKit.lua` `GuideDetail`** v hubu: posuvník průvodce (`W.Scroll`, žádné šipky), písma podle rolí, nadpisy malými kapitálkami v akcentu, ploché řádky. Opravuje detail vnitřku dungeonu, Receptů i katalogu najednou. `A.HubReader` bez fialového gradientu a linky nahoře.
+- **Recepty:** detail `HK.Details` (ikona profese, fakta: profese, barvy dovednosti; Vyrobí a Suroviny jako klikací řádky), seznam přes zbytek šířky.
+- **Vnitřek dungeonu:** tlačítko zpět a „Ukázat vchod / Navigovat“ jsou tlačítka průvodce.
+- **Mapa a cesty:** záložky Mapa/Cesta/Sbírání/Služby/Instance v liště hubu (`WorldPage.lua`); katalogy s `W.SearchBox`, `HK.Details` a tlačítky průvodce (`WorldCatalog.lua`); Cesta s polem průvodce (`WorldPlan.lua`).
+- **Všechna `kit.Button` na stránkách v hubu** jsou teď `W.Button` průvodce (`UI.lua` `hubButton`; `b.text` = jeho popisek). `HK.SkinInputs(root)` dá jednořádkovým polím (`InputBoxTemplate`) vzhled pole průvodce (Lidé, Talenty).
+- **Lišta sekcí dole** (`Theme/Widgets.lua` v overlay i forku, `RAIL_AT_BOTTOM`): vodorovný pruh pod stránkou vlevo od pravého panelu, sekce zleva, Import a Nastavení zprava; znak u nápisu v pravém panelu; `psRail` = 0, okno o 46 px vyšší.
+- Náhled: `MAPADDON=1` načte `Evertally_Map`, `HUB_DO=<Lua>` před snímkem (otevření dungeonu: `Evertally.map.OpenDungeonEntry(...)` + `Evertally.guideShell.Open("dungeons")`; Mapa a cesty potřebuje stuby `RequirementsReady`/`OpenMapMissing` a `mapPins=true`).
+- **Na Windows občas selže zápis do `addon/Evertally_Map/*.lua` (`Errno 22`)** — přechodně, opakování pomůže (patch skripty zapisují s opakováním).
+- Lua testy 840 OK. Zkopírováno do hry, ale **běží Evertally.exe**, které každých 300 s přepíše addon serverovou 0.11.2 (`sync/src/worker.rs`, `addon_update::check`).
+- **Vydáno 0.11.3** (2026-11-18): zip sha256 `1cb31575…8c25`, 915 souborů, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.3). Záloha 0.11.2 na Pi v `~/evertally/backups/addon-0.11.2-2026-11-18/`. Poznámky `VYDANI-0.11.3.md`. CurseForge ne. Necommitnuto.
+
+## Všechno veřejné (2026-11-18, rozhodnutí uživatele) — web nasazený, addon nevydaný
+- Uživatel: žebříček, kronika, statistiky i Armory veřejně pro všechny (jako raider.io), **i pro hráče, kteří dřív výslovně volili ne**, včetně jmen spoluhráčů z party. **Batoh jen s povolením ve hře** (beze změny).
+- **Web (nasazeno):** `lib/publish.ts ALL_PUBLIC`; nové profily vznikají veřejné se vším (`store.ts`, `live.ts`), volby ze hry ani z účtu nic neskryjí (`applyPublishChoices`, `applyAccountChoice`, `setProfileVisibility`); `deviceGrantScopes` bere všechno, co addon pošle; párování už nevybírá druhy dat. Migrace `drizzle/0015_all_public.sql` spuštěná na Pi (15/15 profilů veřejných, 5/5 živých souhlasů s trasou); záloha DB `~/evertally/backups/data-2026-11-18-pred-verejnym/`.
+- **Armory:** seznam všech postav s hledáním (`/api/armory-public`), klik otevře postavu (`/api/armory-character/<id>`, bez batohu); batoh jen u vlastních a povolených (`/api/armory`). Nové soubory `app/api/armory-public/route.ts`, `app/api/armory-character/[id]/route.ts` (každá operace API potřebuje vlastní route soubor!).
+- **Mapa světa** pryč z menu a z Přehledu; `#atlas/...` odkazy z Databáze a srazů dál fungují.
+- Zásady soukromí (`ProjectPolicies.tsx`) a texty webu přepsané (už ne „opt-in“, „soukromé“).
+- **Addon (nevydáno):** výchozí web a všechny druhy dat zapnuté, jednorázový převod (`s.allPublic`, nový souhlas jen tomu, kdo měl web vypnutý); instalace bez stránek Web a Veřejné (SetupPages i záložní Onboarding.lua je přeskakuje); v Nastavení zůstal jen hlavní vypínač webu; text trasy „veřejná v kronice“.
+- Testy: web 347 OK, Lua 840 OK.
+- **Vydáno 0.11.4** (2026-11-18): zip sha256 `3b3eb626…460e`, 915 souborů, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.4). Záloha 0.11.3 na Pi v `~/evertally/backups/addon-0.11.3-2026-11-18/`. Poznámky `VYDANI-0.11.4.md`. Ovládání skrytí je pryč všude (web Účet, instalace, Nastavení, žádný příkaz); v kódu zůstala jen vnitřní `A.SetPublish` a `OnboardingApply`. CurseForge ne. Necommitnuto.
+
+## Sekce průvodce Guides / Database / Rares (2026-11-18, večer) — nevydáno
+- **Nepřeložené popisky:** soubory průvodce čtou `L[...]` při načtení, ještě než Evertally zvolí češtinu (jazyk je v `EvertallyDB`). Překlady existovaly, jen se nepoužily. `A.RelabelGuide(g)` (`EvertallySettings.lua`, volá ho `ApplyGuideLanguage` po načtení `Evertally_Guide_csCZ`) projde tabulky popisků a přeloží je znovu: záložky Domů/Procházet/Aktuální/Nedávné, sekce (lišta), jejich placeholdery hledání, druhy v Databázi, záložky Rares. Lokální tabulky průvodce zpřístupněné (`P.VIEW_LABEL`, `P.GUIDES`, `P.HUB_SEARCH`, `LK.FACTION`, `LK.FALLBACK_KINDS`, `LK.STATUS_TEXT`) — ve forku i jako `_more(...)` v `tools/import_polestar.py`. Test `tests/lua/test_guide_relabel.py`.
+- Doplněné překlady `Database`, `Lookup` → „Databáze“ (`tools/polestar-cs/interface.json` i `Evertally_Guide_csCZ/Interface.lua`).
+- **Rares:** seznam 506 px, detail vpravo (jako Databáze), `Rares/View.lua` `LIST_W` (fork + importér).
+- „Od Polestar“ u návodů je přiznání autorství návodů — nechané.
+- Lua testy 841 OK. Nevydáno, necommitnuto.
+- **Vydáno 0.11.5** (2026-11-18): zip sha256 `3f3e672d…3e79`, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.5). Záloha 0.11.4 na Pi v `~/evertally/backups/addon-0.11.4-2026-11-18/`. Poznámky `VYDANI-0.11.5.md`. CurseForge ne. Necommitnuto.
+- **Kategorie jako záložky (uživatel):** v sekcích průvodce (Návody, Databáze, Vzácní mobové, i další s `nav`) jsou kategorie v řádku záložek nahoře (`Picker.lua` `sectionTabs`, po `s.render()`, protože Databáze si řádek maže); pravý panel ukazuje ve všech sekcích menu Evertally (`evertallyNav`, klik přepne do sekce Evertally na stránku). Návody: Domů / Aktuální / Nedávné + kategorie („Procházet“ odpadl), klíče kategorií `cat:<key>`. `W.ShellTabs`: místo podle šířky řádku, menší písmo a zalomení do 2 řádků (`TabRow` vyšší, `layoutBody` čte jeho výšku) — overlay i fork; Picker přes `_more(...)` v importéru i ve forku. Známé: když Codex chybí, Databáze píše stav Codexu do řádku záložek přes kategorie.

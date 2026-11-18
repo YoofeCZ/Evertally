@@ -219,6 +219,10 @@ if os.environ.get("QUESTS"):
     G.EvertallyGuide.Compat.IsQuestReadyForTurnIn = lua.eval("function(id) return id==422 end")
     NS["Evertally"] = lua.eval("{}")
     load("Evertally", NS["Evertally"])
+    if os.environ.get("MAPADDON"):  # Evertally_Map (the Dungeon Journal, Recipes, Map & routes pages), without OpenMap
+        NS["Evertally_Map"] = lua.eval("{}")
+        load("Evertally_Map", NS["Evertally_Map"])
+        G.FIRE("ADDON_LOADED", "Evertally_Map")
     A = G.Evertally
     if not A.db:
         A.db = lua.eval("{settings={}}")
@@ -227,6 +231,143 @@ if os.environ.get("QUESTS"):
     lua.execute("RUN_PENDING(); TICK(10); RUN_PENDING(); PREVIEW_SETTLE()")
 F.ClearAllPoints(F); F.SetPoint(F, "TOPLEFT", G.UIParent, "TOPLEFT", 20, -20)
 lua.execute("PREVIEW_SETTLE()")
+if os.environ.get("HUB") and os.environ.get("QUESTS"):
+    # TEST FIXTURE: Evertally's pages in the guide's hub (GuideShell.lua), HUB=<view>; a few invented journal records
+    lua.execute(r"""
+      local A = Evertally
+      A.db.events = A.db.events or {}
+      A.db.runs = A.db.runs or {}; A.peerDB = A.peerDB or {peers = {}}
+      local now = time and time() or 1795000000
+      local list = {
+        {kind="loot.received", payload={itemId=2589, title="Linen Cloth", quantity=3, mapId=1413}},
+        {kind="zone.visited", payload={mapId=1413, mapName="The Barrens"}},
+        {kind="quest.accepted", payload={questId=855, title="Centaur Bracers", mapId=1413}},
+        {kind="quest.turned_in", payload={questId=870, title="The Forgotten Pools", mapId=1413, xp=1050}},
+        {kind="character.level", payload={level=16, classId=7}},
+        {kind="loot.received", payload={itemId=4306, title="Silk Cloth", mapId=1413}},
+      }
+      for i, e in ipairs(list) do e.observedAt = now - i * 600; A.db.events[#A.db.events + 1] = e end
+      A.db.talentBuilds = {WARRIOR = {{name = "Arms leveling", class = "WARRIOR", level = 40, ranks = {[1] = {[1] = 5, [2] = 5, [3] = 3}, [2] = {[1] = 5}}}}}
+      -- the login does this in the game: Evertally takes the guide's look (Theme.lua), so the pages draw flat
+      if A.Theme and A.Theme.ApplyScheme then A.Theme.ApplyScheme() end
+      if A.InstallGuideShell then A.InstallGuideShell() end
+    """)
+    A = G.Evertally
+    try:
+        A.guideShell.Open(os.environ["HUB"])
+        if os.environ.get("HUB_TAB"):  # one of the page's tabs in the hub's tab row (page.OnHubTab)
+            lua.execute("local p = Evertally.UIShell.pages[%r]; if p and p.OnHubTab then p.OnHubTab(%r) end; EvertallyGuide.UI.Picker.Render()" % (os.environ["HUB"], os.environ["HUB_TAB"]))
+        if os.environ.get("HUB_DO"):  # Lua run on the open page before the picture (open a dungeon, pick a row)
+            lua.execute(os.environ["HUB_DO"]); lua.execute("EvertallyGuide.UI.Picker.Render()")
+    except Exception as e: print("HUB ERR", e)
+    lua.execute("RUN_PENDING(); TICK(20); RUN_PENDING(); PREVIEW_SETTLE()")
+    HF = G.EvertallyGuide.UI.Picker.frame
+    HF.SetScale(HF, 1); HF.ClearAllPoints(HF); HF.SetPoint(HF, "TOPLEFT", G.UIParent, "TOPLEFT", 10, -10); lua.execute("PREVIEW_SETTLE()")
+    hn = PV.to_py(lua.eval("PREVIEW_EXPORT")(HF))
+    hout = Path("D:/addon/output/guide-preview/hub-" + os.environ["HUB"])
+    hw, hh = int(HF.GetWidth(HF)) + 20, int(HF.GetHeight(HF)) + 20
+    hp = hout.with_suffix(".html"); hp.write_text(PV.render(hn, hw, hh), encoding="utf8")
+    subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(hp), str(hout.with_suffix(".png")), str(hw), str(hh)], check=True)
+    print("hub size", hw, hh)
+    print("UIERR", lua.eval("Evertally.lastUIError"))
+    if os.environ.get("HUB_EVAL"): print("HUB_EVAL", lua.eval(os.environ["HUB_EVAL"]))  # a Lua expression, for debugging
+    sys.exit(0)
+if os.environ.get("BAGS") and os.environ.get("QUESTS"):
+    # TEST FIXTURE: Evertally's bag window (BagWindow.lua) over invented bags; BAGS=<view> (sections, packed, exact, list),
+    # BAGS_SEARCH=<text>, BAGS_TAB=bank
+    lua.execute(r"""
+      local items = {
+        -- {bag, slot, id, name, quality, classID, equipLoc, count, icon}
+        {0, 1, 6948, "Hearthstone", 1, 15, "", 1, "Interface\\Icons\\INV_Misc_Rune_01"},
+        {0, 2, 159, "Refreshing Spring Water", 1, 0, "", 10, "Interface\\Icons\\INV_Drink_07"},
+        {0, 3, 858, "Lesser Healing Potion", 1, 0, "", 3, "Interface\\Icons\\INV_Potion_51"},
+        {0, 4, 4306, "Silk Cloth", 1, 7, "", 20, "Interface\\Icons\\INV_Fabric_Silk_01"},
+        {0, 5, 2589, "Linen Cloth", 1, 7, "", 13, "Interface\\Icons\\INV_Fabric_Linen_01"},
+        {0, 6, 2770, "Copper Ore", 1, 7, "", 10, "Interface\\Icons\\INV_Ore_Copper_01"},
+        {0, 7, 2318, "Light Leather", 1, 7, "", 16, "Interface\\Icons\\INV_Misc_LeatherScrap_03"},
+        {0, 8, 5374, "Small Pocket Watch", 0, 15, "", 1, "Interface\\Icons\\INV_Misc_PocketWatch_01"},
+        {0, 9, 4865, "Ruined Pelt", 0, 15, "", 3, "Interface\\Icons\\INV_Misc_Pelt_Wolf_Ruin_01"},
+        {0, 10, 3300, "Rabbit's Foot", 0, 15, "", 2, "Interface\\Icons\\INV_Misc_Foot_Kodo"},
+        {0, 11, 5085, "Bristleback Quilboar Tusk", 1, 12, "", 6, "Interface\\Icons\\INV_Misc_Bone_08"},
+        {0, 12, 5086, "Zhevra Hooves", 1, 12, "", 4, "Interface\\Icons\\INV_Misc_Foot_Centaur"},
+        {0, 13, 15400, "Clamlette Surprise", 1, 0, "", 5, "Interface\\Icons\\INV_Misc_Food_63"},
+        {0, 14, 6070, "Wolfskin Bracers", 2, 4, "INVTYPE_WRIST", 1, "Interface\\Icons\\INV_Bracer_07"},
+        {0, 15, 15491, "Pagan Belt", 2, 4, "INVTYPE_WAIST", 1, "Interface\\Icons\\INV_Belt_02"},
+        {0, 16, 2140, "Carving Knife", 1, 2, "INVTYPE_WEAPON", 1, "Interface\\Icons\\INV_Weapon_ShortBlade_05"},
+        {1, 1, 4536, "Shiny Red Apple", 1, 0, "", 7, "Interface\\Icons\\INV_Misc_Food_19"},
+        {1, 2, 2450, "Briarthorn", 1, 7, "", 9, "Interface\\Icons\\INV_Misc_Root_01"},
+        {1, 3, 785, "Mageroyal", 1, 7, "", 4, "Interface\\Icons\\INV_Jewelry_Talisman_03"},
+        {1, 4, 2775, "Silver Ore", 1, 7, "", 2, "Interface\\Icons\\INV_Ore_Copper_01"},
+        {1, 5, 6265, "Soul Shard", 1, 15, "", 4, "Interface\\Icons\\INV_Misc_Gem_Amethyst_02"},
+        {1, 6, 1179, "Ice Cold Milk", 1, 0, "", 3, "Interface\\Icons\\INV_Drink_09"},
+        {1, 7, 9886, "Strider Meat", 1, 7, "", 5, "Interface\\Icons\\INV_Misc_Food_14"},
+        {1, 8, 4537, "Tel'Abim Banana", 1, 0, "", 8, "Interface\\Icons\\INV_Misc_Food_24"},
+        {1, 9, 5023, "Verigan's Fist", 3, 2, "INVTYPE_2HWEAPON", 1, "Interface\\Icons\\INV_Hammer_14"},
+        {1, 10, 1645, "Moonberry Juice", 1, 0, "", 4, "Interface\\Icons\\INV_Drink_04"},
+      }
+      local by = {}
+      for _, it in ipairs(items) do by[it[1] .. ":" .. it[2]] = it; by[it[3]] = it end
+      local sizes = {[0] = 16, [1] = 14, [2] = 0, [3] = 0, [4] = 0}
+      C_Container = {
+        GetContainerNumSlots = function(bag) return sizes[bag] or 0 end,
+        GetContainerNumFreeSlots = function(bag) local n = 0; for s = 1, sizes[bag] or 0 do if not by[bag .. ":" .. s] then n = n + 1 end end; return n, 0 end,
+        GetContainerItemInfo = function(bag, slot) local it = by[bag .. ":" .. slot]; if not it then return nil end
+          return {iconFileID = it[9], stackCount = it[8], quality = it[5], itemID = it[3], hyperlink = "|cffffffff|Hitem:" .. it[3] .. "::::::::|h[" .. it[4] .. "]|h|r"} end,
+        SortBags = function() end,
+      }
+      GetItemInfoInstant = function(link) local id = tonumber(tostring(link):match("item:(%d+)")); local it = id and by[id]; if not it then return nil end
+        return id, "", "", it[7], it[9], it[6], 0 end
+      GetItemInfo = function(link) local id = tonumber(tostring(link):match("item:(%d+)")); local it = id and by[id]; if not it then return nil end
+        return it[4], link, it[5] end
+      UnitName = function() return "Kungaz" end
+      GetRealmName = function() return "Forever" end
+      UnitClass = function() return "Shaman", "SHAMAN" end
+      GetMoney = function() return 15903 end
+      time = time or function() return 1795000000 end
+      local A = Evertally
+      A.db = A.db or {settings = {}}
+      A.db.settings.bagWindow = {view = "sections"}
+      if A.Theme and A.Theme.ApplyScheme then A.Theme.ApplyScheme() end
+      -- one item marked junk by the player, one new
+      local g = EvertallyGuide
+      if g and g.QoL and g.QoL.Marks then g.QoL.Marks.Junk = function(id) return id == 5374 or id == 2140 end end
+      A.BagWindow.MarkSeen()
+      items[#items + 1] = {1, 11, 2287, "Haunch of Meat", 1, 0, "", 4, "Interface\\Icons\\INV_Misc_Food_14"}
+      by["1:11"] = items[#items]; by[2287] = items[#items]
+    """)
+    A = G.Evertally
+    A.db.settings.bagWindow.view = os.environ["BAGS"] if os.environ["BAGS"] in ("sections", "packed", "exact", "list") else "sections"
+    try:
+        A.BagWindow.Show(os.environ.get("BAGS_TAB") or "bags")
+        if os.environ.get("BAGS_SEARCH"):
+            lua.execute("EvertallyBagWindow.search:SetText(%r)" % os.environ["BAGS_SEARCH"])
+        lua.execute("Evertally.BagWindow.Render()")
+    except Exception as e: print("BAGS ERR", e)
+    lua.execute("RUN_PENDING(); TICK(5); RUN_PENDING(); PREVIEW_SETTLE()")
+    BF = G.EvertallyBagWindow
+    BF.ClearAllPoints(BF); BF.SetPoint(BF, "TOPLEFT", G.UIParent, "TOPLEFT", 10, -10); lua.execute("PREVIEW_SETTLE()")
+    bn = PV.to_py(lua.eval("PREVIEW_EXPORT")(BF))
+    bout = Path("D:/addon/output/guide-preview/bags-" + os.environ["BAGS"] + ("-cs" if os.environ.get("CS") else ""))
+    bw, bh = int(BF.GetWidth(BF)) + 20, int(BF.GetHeight(BF)) + 20
+    bp = bout.with_suffix(".html"); bp.write_text(PV.render(bn, bw, bh), encoding="utf8")
+    subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(bp), str(bout.with_suffix(".png")), str(bw), str(bh)], check=True)
+    print("bags size", bw, bh, "->", bout.with_suffix(".png"))
+    print("UIERR", lua.eval("Evertally.lastUIError"), lua.eval("Evertally.errors and Evertally.errors.BAG_UPDATE_DELAYED"))
+    sys.exit(0)
+if os.environ.get("MENU") and os.environ.get("QUESTS"):
+    # The Evertally menu with the guide loaded (its palette, its tiles); needs QUESTS (that loads Evertally)
+    A.ShowEvertallyMenu(None)
+    lua.execute("RUN_PENDING(); TICK(5); PREVIEW_SETTLE()")
+    MF = G.EvertallyMenuPanel
+    MF.ClearAllPoints(MF); MF.SetPoint(MF, "TOPLEFT", G.UIParent, "TOPLEFT", 20, -20); lua.execute("PREVIEW_SETTLE()")
+    mn = PV.to_py(lua.eval("PREVIEW_EXPORT")(MF))
+    mout = Path("D:/addon/output/guide-preview/menu-guide")
+    mp = mout.with_suffix(".html"); mp.write_text(PV.render(mn, 420, int(MF.GetHeight(MF)) + 40), encoding="utf8")
+    subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(mp), str(mout.with_suffix(".png")), "420", str(int(MF.GetHeight(MF)) + 40)], check=True)
+    for n in mn:
+        if n.get("text") == "EVERTALLY MENU" or (n["kind"] == "Texture" and 300 < n["w"] < 400 and 30 < n["h"] < 40):
+            print("MENUNODE", n["kind"], round(n["l"]), round(n["t"]), round(n["w"]), round(n["h"]), n.get("rgba"), n.get("tint"), n.get("color"), n.get("alpha"), n.get("path"))
+    sys.exit(0)
 if os.environ.get("SETUP"):
     # One setup: Evertally's pages in the guide's Install window (SetupPages.lua); SETUP=<page key>, e.g. et-website
     if "Evertally" not in NS:

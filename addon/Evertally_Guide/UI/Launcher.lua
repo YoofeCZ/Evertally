@@ -138,10 +138,11 @@ local function build()
 	Launcher.Face(button)
 	button:SetScript("OnClick", function(self, which)
 		if which == "RightButton" then
+			ns.Maps.ToggleHidden()
+		elseif not ns.DragMoved(self) then
 			W.HideTooltip(self)
 			ns.Maps.ShowMenu(self)
-		elseif not ns.DragMoved(self) then
-			ns.ToggleHidden()
+			do return end
 			if GameTooltip and GameTooltip:GetOwner() == self then showTip(self) end
 		end
 	end)

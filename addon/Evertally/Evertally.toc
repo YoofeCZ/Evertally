@@ -6,7 +6,7 @@
 ## Notes: Own game observations, dungeon history and optional ingame sharing.
 ## Notes-csCZ: Vlastní herní pozorování, historie dungeonů a dobrovolné sdílení.
 ## Author: Evertally contributors
-## Version: 0.11.0
+## Version: 0.11.6
 ## X-License: GPL-3.0-or-later (LICENSE.txt); see THIRD_PARTY.md for the material it carries
 ## OptionalDeps: Evertally_Export, OpenMap, Evertally_Guide
 ## SavedVariables: EvertallyDB, EvertallyPeersDB
@@ -41,6 +41,7 @@ Forum.lua
 Tooltip.lua
 UI.lua
 Widgets.lua
+HubKit.lua
 Requirements.lua
 BridgeLink.lua
 NameplateUI.lua
@@ -63,6 +64,7 @@ NativeTalents.lua
 Gear.lua
 GearUI.lua
 BagHighlight.lua
+BagWindow.lua
 Chat.lua
 ChatUI.lua
 Presence.lua

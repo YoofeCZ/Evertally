@@ -24,7 +24,34 @@ local text = {
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
+-- In the hub: the hub's details pane (HubKit.lua), as the Database draws an entry: the profession's icon and the recipe's
+-- name, the profession, the skill colours and what it takes to learn as facts, then what it makes and its reagents as rows
+-- with the item's icon that open the item in the database.
+local function hubDetailOf(rp, recipe)
+    local blocks = {}
+    local function item(id, badge)
+        local icon = M.ItemLook(id)
+        return {text = M.ItemName(id) .. (badge and ("  " .. badge) or ""), icon = icon, onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item", id) end end}
+    end
+    if recipe.out then blocks[#blocks + 1] = {head = true, text = A.L("recipesCreates")}; blocks[#blocks + 1] = item(recipe.out)
+    else blocks[#blocks + 1] = {text = A.L("recipesNoOut"), muted = true} end
+    local reagents = recipe.reagents or {}
+    if #reagents > 0 then
+        blocks[#blocks + 1] = {head = true, text = A.L("recipesReagents")}
+        for _, reagent in ipairs(reagents) do blocks[#blocks + 1] = item(reagent[1], "x" .. tostring(reagent[2])) end
+    end
+    local skill = recipe.skill or {}
+    local facts = {{A.L("recipesProfession"), M.recipeLines and M.recipeLines[recipe.line] or ""}}
+    if #skill >= 4 then
+        facts[#facts + 1] = {A.L("recipesSkill"), SKILL_COLOR[1] .. skill[1] .. "|r  " .. SKILL_COLOR[2] .. skill[2] .. "|r  " .. SKILL_COLOR[3] .. skill[3] .. "|r  " .. SKILL_COLOR[4] .. skill[4] .. "|r"}
+    end
+    if recipe.req then facts[#facts + 1] = {"", string.format(A.L("recipesLearn"), recipe.req)} end
+    rp.hubDetails.Set({title = A.Plain(recipe.name), sub = M.recipeLines and M.recipeLines[recipe.line] or "", icon = PROFESSION_ICON[recipe.line] or QUESTION,
+        facts = facts, blocks = blocks})
+end
+
 local function detailOf(rp, recipe)
+    if rp.hubDetails then return hubDetailOf(rp, recipe) end
     local d = rp.detail
     local ink = rp.kit.ParchmentText
     local C = {text=ink.ink,mist=ink.mutedInk}
@@ -76,7 +103,9 @@ end
 
 local function choose(rp, recipe)
     rp.selected = recipe
-    if recipe then detailOf(rp, recipe) else rp.detail.Reset(); rp.detail.Text(A.L("recipesNone"), rp.kit.C.mist); rp.detail.Done() end
+    if recipe then detailOf(rp, recipe)
+    elseif rp.hubDetails then rp.hubDetails.Empty(A.L("recipes"), A.L("recipesNone"))
+    else rp.detail.Reset(); rp.detail.Text(A.L("recipesNone"), rp.kit.C.mist); rp.detail.Done() end
     refreshRows(rp)
 end
 
@@ -155,6 +184,14 @@ function M.BuildRecipes(body, kit)
     rp.nodata = kit.label(body, 12, C.peach); rp.nodata:SetPoint("TOPLEFT", 0, -110); rp.nodata:Hide()
     local function layout()
         local width, height = body:GetWidth() or 640, body:GetHeight() or 420
+        if rp.hubDetails then
+            -- the list takes what the details pane leaves
+            local listW = math.max(180, width - A.HubKit.DETAIL_W - 16)
+            rp.list:SetWidth(listW); rp.box:SetWidth(math.max(140, listW - 210))
+            rp.visibleRows = math.max(1, math.min(ROWS_MAX, math.floor((height - 62) / ROW_H)))
+            refreshRows(rp)
+            return
+        end
         rp.box:SetWidth(math.max(160, math.min(300, width - 218)))
         rp.list:SetWidth(math.max(180, math.min(290, width * 0.34)))
         rp.visibleRows = math.max(1, math.min(ROWS_MAX, math.floor((height - 62) / ROW_H)))
@@ -162,6 +199,43 @@ function M.BuildRecipes(body, kit)
         refreshRows(rp)
     end
     body:SetScript("OnSizeChanged", layout)
+    -- In the guide's hub (Evertally's page drawn there, HubKit.lua): the hub's search box and button, flat rows in the
+    -- hub's type, no box around the list; the recipe in the reader as before.
+    local page = body:GetParent()
+    local g = rawget(_G, "EvertallyGuide")
+    local W = type(g) == "table" and g.Widgets
+    if page and page.hubMode and W and W.SearchBox and W.Button then
+        local Theme = g.Theme
+        local oldBox = rp.box
+        oldBox:Hide()
+        local box = W.SearchBox(body, A.L("recipesSearch"), function(value) rp.query = value or ""; filter(rp) end)
+        box:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -2)
+        if box.SetMaxLetters then box:SetMaxLetters(60) end
+        box.hint = {SetText = function(_, value) if W.SetSearchPlaceholder and value then W.SetSearchPlaceholder(box, value) end end}
+        rp.box = box
+        local oldButton = rp.professionButton
+        oldButton:Hide()
+        local button = W.Button(body, A.L("recipesAll"), function() rp.professionMenu:SetShown(not rp.professionMenu:IsShown()) end, {height = 30, width = 200})
+        button:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, -2)
+        button.text = {SetText = function(_, value) if W.SetButtonText then W.SetButtonText(button, value) end end}
+        rp.professionButton = button
+        rp.professionMenu:ClearAllPoints(); rp.professionMenu:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -4)
+        Theme.Font(rp.count, "small"); W.Color(rp.count, "textMuted")
+        rp.count:ClearAllPoints(); rp.count:SetPoint("TOPLEFT", body, "TOPLEFT", 2, -40)
+        rp.listBg:SetAlpha(0)
+        -- the details: the hub's pane on the right (the reader and its scroll put away)
+        if A.HubKit and A.HubKit.Details and A.HubKit.Guide() then
+            rp.panel:Hide(); rp.detail.scroll:Hide(); rp.detail.surface:Hide()
+            rp.hubDetails = A.HubKit.Details(body)
+            -- the profession button over the list, not over the pane
+            button:ClearAllPoints(); button:SetPoint("TOPRIGHT", rp.list, "TOPRIGHT", 0, 60)
+            rp.professionMenu:ClearAllPoints(); rp.professionMenu:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", 0, -4)
+        end
+        for _, row in ipairs(rp.rows) do
+            Theme.Font(row.name, "body"); W.Color(row.name, "text")
+            Theme.Font(row.badge, "small"); W.Color(row.badge, "accent")
+        end
+    end
     layout()
     return rp
 end

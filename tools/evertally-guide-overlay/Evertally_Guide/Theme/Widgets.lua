@@ -374,6 +374,35 @@ function W.Tooltip(owner, anchor, title, lines)
 			end
 		end
 	end
+	-- Evertally: in Czech the tooltip's lines in Inter (the game's font has no ů, ě, ř on an English client);
+	-- its own fonts come back as it hides.
+	if ns.EvertallyLanguage == "csCZ" and GameTooltip.NumLines then
+		local face = Theme.FacePath and Theme.FacePath("inter", "regular")
+		local path = type(face) == "string" and face or "Interface\\AddOns\\Evertally_Guide\\Media\\Fonts\\Inter-Regular.ttf"
+		for i = 1, GameTooltip:NumLines() do
+			for _, side in ipairs({ "Left", "Right" }) do
+				local fs = _G["GameTooltipText" .. side .. i]
+				if fs and fs.SetFont then
+					local _, size = fs:GetFont()
+					fs:SetFont(path, size or 12, "")
+				end
+			end
+		end
+		if not W.psTipFontsHooked and GameTooltip.HookScript then
+			W.psTipFontsHooked = true
+			GameTooltip:HookScript("OnHide", function(self)
+				if not W.psTipFontsChanged then return end
+				W.psTipFontsChanged = nil
+				for i = 1, self:NumLines() do
+					local l, rt = _G["GameTooltipTextLeft" .. i], _G["GameTooltipTextRight" .. i]
+					if l and l.SetFontObject then l:SetFontObject(i == 1 and GameTooltipHeaderText or GameTooltipText) end
+					if rt and rt.SetFontObject then rt:SetFontObject(i == 1 and GameTooltipHeaderText or GameTooltipText) end
+				end
+			end)
+		end
+		W.psTipFontsChanged = true
+		GameTooltip:Show()
+	end
 	GameTooltip:Show()
 end
 
@@ -3538,7 +3567,8 @@ W.SHELL = SHELL
 -- The sidebar status line: the version (memory is a developer's number; it
 -- lives on About).
 local function statusText()
-	return L["Version"] .. " " .. tostring(ns.version or "dev")
+	-- Evertally: its own version (ns.ShownVersion), not the fork's Polestar number
+	return L["Version"] .. " " .. tostring(ns.ShownVersion and ns.ShownVersion() or ns.version or "dev")
 end
 
 -- The release stage (ns.stage, "Beta") as a warning chip beside the version,
@@ -3567,7 +3597,7 @@ function W.ShellStatus(f)
 	if chip > 0 then room = room - chip - 8 end
 	status:SetWidth(0)
 	local text = statusText()
-	if textWidth(status, text) > room then text = tostring(ns.version or "dev") end
+	if textWidth(status, text) > room then text = tostring(ns.ShownVersion and ns.ShownVersion() or ns.version or "dev") end
 	-- As wide as its text (cut at the room left), so the stage chip anchored
 	-- to its right edge follows the text, never sits on it.
 	status:SetWidth(math.max(1, math.min(room, math.ceil(textWidth(status, text)))))
@@ -3860,7 +3890,7 @@ local function layoutBody(f)
 		f.Scroll:SetPoint("TOPLEFT", f.Content, "TOPLEFT", 0, -(4 + ph))
 		f.Scroll:SetPoint("BOTTOMRIGHT", f.Content, "BOTTOMRIGHT", -4, 4)
 	end
-	f.psViewH = f:GetHeight() - SHELL.header - (tabs and SHELL.tabs or 0) - (foot and SHELL.footer or 0) - ph
+	f.psViewH = f:GetHeight() - SHELL.header - (tabs and (f.TabRow:GetHeight() or SHELL.tabs) or 0) - (foot and SHELL.footer or 0) - ph
 end
 
 -- The pinned preview's slot, between the tab band and the scrolling body
@@ -3940,15 +3970,42 @@ function W.ShellTabs(f, tabs, active, onSelect)
 	local pad = kit and 40 or 24
 	local room = n > 0 and f.psTabRoom and f.psTabRoom()
 	if room then pad = max(kit and 24 or 16, min(pad, floor((room - labels - 4 * (n - 1)) / n))) end
+	-- Evertally: the row's room when the window did not say (its tab row less the margins), and a row of more
+	-- tabs than it holds (a section's categories) in the smaller type, closer, rather than running past its end
+	if n > 0 and not room and not kit then
+		local w = f.TabRow and f.TabRow:GetWidth() or 0
+		if w and w > 100 then room = w - (SHELL.pad - 12) - 8 end
+	end
+	if room and not kit and labels + 16 * n + 4 * (n - 1) > room then
+		labels = 0
+		for i = 1, n do local t = f.tabButtons[i]; Theme.Font(t.Label, "small"); labels = labels + t.Label:GetStringWidth() end
+		pad = max(10, min(24, floor((room - labels - 4 * (n - 1)) / n)))
+	end
 	local x = SHELL.pad - 12
+	-- Evertally: a row of more tabs than even the smaller type holds goes on a second line (the tab row grows by one
+	-- line; layoutBody reads its height)
+	local rowH = SHELL.tabs - 6
+	local lines, line = 1, 1
+	if room and n > 0 then
+		local w = x
+		for i = 1, n do
+			local tw = floor(f.tabButtons[i].Label:GetStringWidth() + pad + 0.5)
+			if w > x and w + tw > room + (SHELL.pad - 12) then lines = 2; break end
+			w = w + tw + 4
+		end
+	end
 	for i = 1, n do
 		local t = f.tabButtons[i]
 		t:SetWidth(floor(t.Label:GetStringWidth() + pad + 0.5))
+		if lines == 2 and line == 1 and x > SHELL.pad - 12 and x + t:GetWidth() > room + (SHELL.pad - 12) then
+			line, x = 2, SHELL.pad - 12
+		end
 		t:ClearAllPoints()
-		t:SetPoint("BOTTOMLEFT", f.TabRow, "BOTTOMLEFT", x, 0)
+		t:SetPoint("BOTTOMLEFT", f.TabRow, "BOTTOMLEFT", x, lines == 2 and line == 1 and rowH or 0)
 		t:Show()
 		x = x + t:GetWidth() + 4
 	end
+	f.TabRow:SetHeight(lines == 2 and (SHELL.tabs + rowH) or SHELL.tabs)
 	for i = n + 1, #f.tabButtons do f.tabButtons[i]:Hide() end
 	f.TabRow:SetShown(n > 0 or f.psKeepTabRow and true or false)
 	layoutBody(f)
@@ -4203,10 +4260,15 @@ end
 -- grip in the bottom-right corner sizes the window (right-click: onReset);
 -- the shell lays itself out anew as it goes (W.ShellLayout), the caller
 -- when it ends (onResized).
+-- Evertally: the section rail is a bar along the bottom of the page (under the page, left of the sidebar), its
+-- sections side by side, Options and the foot sections at its right end; the window is as wide as without a rail.
+local RAIL_AT_BOTTOM, RAIL_BAR = true, 46
 function W.Shell(name, opts)
 	opts = opts or {}
-	local RAIL = opts.rail and SHELL.rail or 0
-	local Wd, Hd = opts.width or (SHELL.width + RAIL), opts.height or SHELL.height
+	local BOTTOM = opts.rail and RAIL_AT_BOTTOM or false
+	local RAIL = (opts.rail and not BOTTOM) and SHELL.rail or 0
+	local BAR = BOTTOM and RAIL_BAR or 0
+	local Wd, Hd = opts.width or (SHELL.width + RAIL), opts.height or (SHELL.height + BAR)
 	local SB = opts.sidebar or SHELL.sidebar
 	local f = CreateFrame("Frame", name, ns.UIParent)
 	f.psSidebar = SB
@@ -4225,6 +4287,7 @@ function W.Shell(name, opts)
 	Theme.Skin(f, "window")
 	f.navButtons, f.tabButtons, f.footerButtons, f.railButtons = {}, {}, { left = {}, right = {} }, {}
 	f.psRail = RAIL
+	f.psRailBottom = BOTTOM and BAR or nil
 
 	local function draggable(frame)
 		ns.DragWindow(frame, f)
@@ -4232,7 +4295,18 @@ function W.Shell(name, opts)
 
 	-- The section rail: the emblem on the title's line, then one button per
 	-- section from the content line down, and its bottom items.
-	if RAIL > 0 then
+	if BOTTOM then
+		-- (its right end is set on the sidebar's left edge once the sidebar is there, below)
+		local rail = CreateFrame("Frame", nil, f)
+		rail:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
+		rail:SetHeight(BAR)
+		Theme.Skin(rail, "sidebar")
+		draggable(rail)
+		f.Rail = rail
+		local railRule = W.Divider(rail, false)
+		railRule:SetPoint("TOPLEFT", rail, "TOPLEFT", 0, 0)
+		railRule:SetPoint("TOPRIGHT", rail, "TOPRIGHT", 0, 0)
+	elseif RAIL > 0 then
 		local rail = CreateFrame("Frame", nil, f)
 		rail:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
 		rail:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 1, 1)
@@ -4258,6 +4332,7 @@ function W.Shell(name, opts)
 	local rule = W.Divider(side, true)
 	rule:SetPoint("TOPLEFT", side, "TOPLEFT", 0, 0)
 	rule:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 0, 0)
+	if BOTTOM then f.Rail:SetPoint("BOTTOMRIGHT", side, "BOTTOMLEFT", 0, 0) end
 
 	-- The sidebar's own rhythm, one compact block from the top: the lockup
 	-- (emblem, wordmark, and "A community project" under the wordmark)
@@ -4271,7 +4346,8 @@ function W.Shell(name, opts)
 	-- (Media/UI/wordmark-small.tga, drawn 1:1); the emblem's ink starts 6px
 	-- into its 44px box and is 32px wide (emblem.tga).
 	local WORD_INK, WORD_TOP, EMBLEM, EMBLEM_INK, EMBLEM_INK_W = 2, 22, 44, 6, 32
-	local railFrame = rawget(f, "Rail")
+	-- (a rail at the bottom leaves the emblem in the sidebar, left of the wordmark)
+	local railFrame = not BOTTOM and rawget(f, "Rail") or nil
 	f.Emblem = W.Tex(railFrame or side, "ARTWORK", "emblem", "accent")
 	f.Emblem:SetSize(EMBLEM, EMBLEM)
 	local textX = SHELL.side
@@ -4328,12 +4404,13 @@ function W.Shell(name, opts)
 
 	-- Header band: the night sky, cropped to fit, never stretched.
 	local main = CreateFrame("Frame", nil, f)
-	if rawget(f, "Rail") then
+	if rawget(f, "Rail") and not BOTTOM then
 		main:SetPoint("TOPLEFT", f.Rail, "TOPRIGHT", 0, 0)
 	else
 		main:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -1)
 	end
-	main:SetPoint("BOTTOMRIGHT", side, "BOTTOMLEFT", 0, 0)
+	-- the page ends on the bar's top edge when the rail is at the bottom
+	main:SetPoint("BOTTOMRIGHT", side, "BOTTOMLEFT", 0, BAR)
 	f.Main = main
 	local head = CreateFrame("Frame", nil, main)
 	head:SetPoint("TOPLEFT", main, "TOPLEFT", 0, 0)
@@ -4515,7 +4592,8 @@ local function railButton(f, i)
 	local b = f.railButtons[i]
 	if b then return b end
 	b = CreateFrame("Button", nil, f.Rail)
-	b:SetSize(f.psRail, RAIL_ROW)
+	local across = rawget(f, "psRailBottom")
+	b:SetSize(across and 96 or f.psRail, across or RAIL_ROW)
 	hoverTexture(b)
 	b.Selected = b:CreateTexture(nil, "BACKGROUND")
 	b.Selected:SetTexture(WHITE)
@@ -4534,12 +4612,19 @@ local function railButton(f, i)
 	b.Label:SetJustifyH("CENTER")
 	b.Label:SetWidth(f.psRail - 4)
 	b.Label:SetPoint("TOP", b.Icon, "BOTTOM", 0, -6)
+	if across then
+		b.Bar:ClearAllPoints(); b.Bar:SetHeight(2)
+		b.Bar:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0); b.Bar:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+		b.Icon:ClearAllPoints(); b.Icon:SetSize(16, 16); b.Icon:SetPoint("LEFT", b, "LEFT", 14, 0)
+		b.Label:ClearAllPoints(); b.Label:SetPoint("LEFT", b.Icon, "RIGHT", 8, 0)
+		b.Label:SetJustifyH("LEFT"); b.Label:SetWidth(0)
+	end
 	b:SetScript("OnClick", function(self)
 		if self.psOnClick then self.psOnClick(self.psKey) end
 	end)
 	b:SetScript("OnEnter", simpleTip)
 	b:SetScript("OnLeave", hideTip)
-	b.psTipAnchor = "ANCHOR_RIGHT"
+	b.psTipAnchor = across and "ANCHOR_TOP" or "ANCHOR_RIGHT"
 	f.railButtons[i] = b
 	return b
 end
@@ -4548,6 +4633,7 @@ end
 -- ("Lookup" is "Nachschlagen" in German); the window grows by as much, so the
 -- sidebar and the content keep their widths.
 local function fitRail(f, items, bottom)
+	if rawget(f, "psRailBottom") then return end -- (a bar at the bottom: each button as wide as its own label)
 	local probe = rawget(f, "psRailProbe")
 	if not probe then
 		probe = W.Text(f.Rail, "caption", "textDim")
@@ -4574,8 +4660,56 @@ end
 -- items: { { key, label, icon, tip }, ... } stacked from the content line
 -- down; bottom: the same, stacked up from the rail's foot (Options). The
 -- active key is marked. -> the number of top items that fit.
+-- The rail at the bottom: the sections from the left, Options and the foot sections from the right end.
+local function shellRailAcross(f, items, bottom, active, onSelect)
+	local probe = rawget(f, "psRailProbe")
+	if not probe then
+		probe = W.Text(f.Rail, "caption", "textDim")
+		probe:Hide()
+		f.psRailProbe = probe
+	end
+	local barW = f.Rail:GetWidth()
+	if not barW or barW < 100 then barW = f:GetWidth() - (f.psSidebar or SHELL.sidebar) - 2 end
+	local i, n = 0, 0
+	local function place(item, x, fromRight)
+		i = i + 1
+		local b = railButton(f, i)
+		b.psKey, b.psOnClick = item.key, item.onClick or onSelect
+		b.psTip = item.tip or item.label
+		local on = item.key == active
+		b.Icon:SetTexture(Theme.Media(item.icon or "compact"))
+		b.Label:SetText(item.label)
+		b.Selected:SetShown(on)
+		b.Bar:SetShown(on)
+		W.Color(b.Icon, on and "accent" or "textDim")
+		W.Color(b.Label, on and "text" or "textDim")
+		local tw = math.ceil(textWidth(probe, item.label or ""))
+		b.Label:SetWidth(tw + 4)
+		local w = tw + 14 + 16 + 8 + 16
+		b:SetSize(w, f.psRailBottom)
+		b:ClearAllPoints()
+		if fromRight then b:SetPoint("BOTTOMRIGHT", f.Rail, "BOTTOMRIGHT", -x, 0)
+		else b:SetPoint("BOTTOMLEFT", f.Rail, "BOTTOMLEFT", x, 0) end
+		b:Show()
+		return w
+	end
+	local right = 8
+	for k = 1, #(bottom or {}) do right = right + place(bottom[k], right, true) end
+	local x = 8
+	for k = 1, #items do
+		local probeW = math.ceil(textWidth(probe, items[k].label or "")) + 54
+		if x + probeW > barW - right then break end
+		n = n + 1
+		x = x + place(items[k], x)
+	end
+	for k = i + 1, #f.railButtons do f.railButtons[k]:Hide() end
+	f.psRailFloor = f:GetHeight()
+	return n
+end
+
 function W.ShellRail(f, items, bottom, active, onSelect)
 	if not rawget(f, "Rail") then return 0 end
+	if rawget(f, "psRailBottom") then return shellRailAcross(f, items, bottom, active, onSelect) end
 	fitRail(f, items, bottom)
 	local n = 0
 	local function place(item, i, y, fromBottom)

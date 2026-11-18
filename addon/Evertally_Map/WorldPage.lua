@@ -24,6 +24,22 @@ function M.BuildWorld(body, kit)
         frame:SetPoint("TOPLEFT", 0, -38); frame:SetPoint("BOTTOMRIGHT"); frame:Hide()
         body.tabFrames[key] = frame
     end
+    -- In the guide's hub (HubKit.lua): the tabs are the hub's own, in its tab row; the tab's body starts at the top.
+    local page = body:GetParent()
+    if page and page.hubMode and A.HubKit and A.HubKit.Guide() then
+        local away = CreateFrame("Frame", nil, body); away:Hide()
+        for _, key in ipairs(ORDER) do
+            body.tabButtons[key]:SetParent(away)
+            body.tabFrames[key]:ClearAllPoints(); body.tabFrames[key]:SetPoint("TOPLEFT", 0, 0); body.tabFrames[key]:SetPoint("BOTTOMRIGHT")
+        end
+        page.hubTabs = function()
+            local tabs = {}
+            for _, key in ipairs(ORDER) do tabs[#tabs + 1] = {key = key, label = A.L("worldTab_" .. key)} end
+            return tabs
+        end
+        page.hubTab = function() return body.mode end
+        page.OnHubTab = function(key) body.mode = key; M.RefreshWorld(body) end
+    end
 end
 
 --- The database page: the database tab on a page of its own (it is not a part of the map). body.tabFrames.db is the tab's frame.

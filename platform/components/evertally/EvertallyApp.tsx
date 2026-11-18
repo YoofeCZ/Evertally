@@ -21,7 +21,7 @@ import { MapView } from "./db/MapView";
 
 const NAV: { id: Exclude<View, "link" | "character" | "guild">; key: "nav.overview" | "nav.runs" | "nav.rankings" | "nav.atlas" | "nav.chronicle" | "nav.highlights" | "nav.database" | "nav.professions" | "nav.armory" | "nav.forum" | "nav.sync" | "nav.account" }[] = [
   { id: "overview", key: "nav.overview" }, { id: "runs", key: "nav.runs" }, { id: "rankings", key: "nav.rankings" },
-  { id: "atlas", key: "nav.atlas" }, { id: "highlights", key: "nav.highlights" }, { id: "chronicle", key: "nav.chronicle" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
+  { id: "highlights", key: "nav.highlights" }, { id: "chronicle", key: "nav.chronicle" }, { id: "database", key: "nav.database" }, { id: "professions", key: "nav.professions" }, { id: "armory", key: "nav.armory" }, { id: "forum", key: "nav.forum" }, { id: "sync", key: "nav.sync" }, { id: "account", key: "nav.account" },
 ];
 
 /** The search in the top bar finds characters (and guilds shown on the board) in the leaderboard. */
@@ -42,7 +42,7 @@ export default function EvertallyApp({ initialView = "overview", code = "" }: { 
   // `#atlas/durotar?focus=npc:3139`, `#database/items/19019`: the first segment is the view, the rest belongs to it.
   const head = hash.split(/[/?]/)[0];
   const route = hash.slice(head.length).replace(/^\//, "");
-  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : head === "guild" ? "guild" : head === "chronicle" ? "chronicle" : NAV.some((n) => n.id === head) ? head as View : "overview";
+  const view: View = initialView === "link" ? "link" : head === "character" ? "character" : head === "guild" ? "guild" : head === "chronicle" ? "chronicle" : head === "atlas" ? "atlas" : NAV.some((n) => n.id === head) ? head as View : "overview";
   const authError = useSyncExternalStore(subscribeNever, () => new URLSearchParams(window.location.search).get("auth_error"), () => null);
   const [dismissed, setDismissed] = useState(false);
   const [version, setVersion] = useState(0);

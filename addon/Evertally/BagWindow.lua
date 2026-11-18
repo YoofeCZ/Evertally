@@ -1,0 +1,1087 @@
+local _, A = ...
+-- Evertally's own bag window: the bags in sections, as one grid, slot by slot or as a list, in Evertally's look.
+--   * header: Bags | Bank, the character (alts from their last snapshot), the slots used with a bar, lock, settings, close
+--   * a search (an item's name, or a tag: #sell #junk #new #quest #gear #upgrade #consumable #profession) and four views:
+--     Exact slots (bag by bag, empty slots too), Sections, Packed grid, List
+--   * chips with what waits: to sell, new, junk (a click filters by it)
+--   * sections: New, Quest, Equipment, Consumables, Professions, To sell, Junk, Other; laid in three columns, each section
+--     into the shortest one
+--   * footer: gold, free slots, Sort (the client's own sort)
+-- The live bags are the client's own item buttons (ContainerFrameItemButtonTemplate, under a frame that carries the bag's
+-- ID), so a click uses, equips, picks up or links an item as in the game's bags. The bank and other characters are a
+-- look only, from the snapshot kept when the bank was open (A.db.bagCache, per character).
+-- With the window in use (settings.bagWindow.replace; off by default while another bag add-on is loaded) the game's bag
+-- keys and buttons open it instead of the game's bags: the toggles are post-hooked (hooksecurefunc, no Blizzard global is
+-- written) and the game's container frames for the bags are hidden again.
+local BW = {}
+A.BagWindow = BW
+
+local SLOT, GAP, PAD = 36, 4, 14
+local SECTION_SLOTS, SECTION_COLS, COL_GAP = 5, 3, 20
+local COL_W = SECTION_SLOTS * SLOT + (SECTION_SLOTS - 1) * GAP
+local CONTENT_W = SECTION_COLS * COL_W + (SECTION_COLS - 1) * COL_GAP
+local WIDTH = CONTENT_W + PAD * 2
+local GRID_COLS = math.floor((CONTENT_W + GAP) / (SLOT + GAP))
+local HEAD_H, TOOL_Y, TOOL_H, CHIP_Y, CHIP_H, BODY_Y, FOOT_H = 46, 54, 30, 92, 22, 124, 46
+local SECTION_HEAD, ROW_H = 22, 28
+local MIN_H, MAX_H = 380, 700
+local VIEWS = {"exact", "sections", "packed", "list"}
+local SECTIONS = {"new", "quest", "consumable", "profession", "gear", "sell", "junk", "other"}
+local OTHER_BAG_ADDONS = {"Baganator", "Bagnon", "AdiBags", "ArkInventory", "BetterBags", "Combuctor", "OneBag3", "Inventorian", "LiteBag", "cargBags_Nivaya"}
+local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
+
+local text = {
+    en = {bwTitle = "Bags", bwBags = "Bags", bwBank = "Bank", bwSearch = "Search, try #sell", bwView_exact = "Exact slots",
+        bwView_sections = "Sections", bwView_packed = "Packed grid", bwView_list = "List",
+        bwSec_new = "New", bwSec_quest = "Quest", bwSec_consumable = "Consumables", bwSec_profession = "Professions",
+        bwSec_gear = "Equipment", bwSec_sell = "To sell", bwSec_junk = "Junk", bwSec_other = "Other",
+        bwChip_sell = "To sell", bwChip_new = "New", bwChip_junk = "Junk", bwChip_upgrade = "Upgrades",
+        bwGold = "Gold", bwFree = "%d free", bwSort = "Sort", bwSortTip = "Sorts the bags the way the game does.",
+        bwLock = "Lock the window in place", bwUnlock = "Let the window move", bwSettings = "Bag settings", bwClose = "Close",
+        bwReplace = "Open these bags instead of the game's", bwClearNew = "Nothing is new any more",
+        bwHintMarks = "Ctrl+Alt+click: junk / keep  ·  Shift+click: link", bwHintLook = "A look only: the items stay where they are.",
+        bwBankClosed = "The bank as it was when you last opened it.", bwBankNever = "Open the bank once and its items show here.",
+        bwAltSeen = "As it was %s.", bwBagHead = "%s  ·  %d/%d", bwBackpack = "Backpack", bwBankSlots = "Bank", bwBagN = "Bag %d",
+        bwNothing = "Nothing here.", bwNoMatch = "Nothing matches the search.", bwSlotsTip = "Slots used / all slots in the bags",
+        bwBagCmd = "Bags: /etally bag", bwEquip = "Equip best", bwEquipN = "Equip best (%d)",
+        bwEquipTip = "Puts on what is better than what you wear, one piece at a time:", bwEquipNone = "Nothing in the bags beats what you wear.",
+        bwEquipCombat = "The gear goes on when the fight is over.", bwEquipDone = "Put on: %s", bwEquipBind = "Items that bind when worn ask first.", bwAnotherAddon = "%s is loaded: the bag keys open its bags. Evertally's bags: /etally bag, or Bag settings."},
+    cs = {bwTitle = "Batoh", bwBags = "Batoh", bwBank = "Banka", bwSearch = "Hledat, zkus #sell", bwView_exact = "Přesné sloty",
+        bwView_sections = "Sekce", bwView_packed = "Mřížka", bwView_list = "Seznam",
+        bwSec_new = "Nové", bwSec_quest = "Questy", bwSec_consumable = "Spotřební", bwSec_profession = "Profese",
+        bwSec_gear = "Výbava", bwSec_sell = "K prodeji", bwSec_junk = "Junk", bwSec_other = "Ostatní",
+        bwChip_sell = "K prodeji", bwChip_new = "Nové", bwChip_junk = "Junk", bwChip_upgrade = "Vylepšení",
+        bwGold = "Zlato", bwFree = "%d volných", bwSort = "Seřadit", bwSortTip = "Seřadí tašky tak, jak to dělá hra.",
+        bwLock = "Zamknout okno na místě", bwUnlock = "Povolit posouvání okna", bwSettings = "Nastavení batohu", bwClose = "Zavřít",
+        bwReplace = "Otevírat tenhle batoh místo herního", bwClearNew = "Nic už není nové",
+        bwHintMarks = "Ctrl+Alt+klik: junk / ponechat  ·  Shift+klik: odkaz", bwHintLook = "Jen náhled: předměty zůstávají, kde jsou.",
+        bwBankClosed = "Banka tak, jak byla, když jsi ji naposledy otevřel.", bwBankNever = "Otevři jednou banku a její předměty se ukážou tady.",
+        bwAltSeen = "Stav z %s.", bwBagHead = "%s  ·  %d/%d", bwBackpack = "Batoh", bwBankSlots = "Banka", bwBagN = "Taška %d",
+        bwNothing = "Nic tu není.", bwNoMatch = "Hledání nic nenašlo.", bwSlotsTip = "Obsazené sloty / všechny sloty v taškách",
+        bwBagCmd = "Batoh: /etally bag", bwEquip = "Nasadit nejlepší", bwEquipN = "Nasadit nejlepší (%d)",
+        bwEquipTip = "Nasadí, co je lepší než to, co máš na sobě, po jednom kusu:", bwEquipNone = "V batohu není nic lepšího, než co máš na sobě.",
+        bwEquipCombat = "Výbava se nasadí, až skončí souboj.", bwEquipDone = "Nasazeno: %s", bwEquipBind = "Předměty, které se nasazením naváží, se nejdřív zeptají.", bwAnotherAddon = "Je zapnutý %s: klávesy batohu otevírají jeho tašky. Batoh Evertally: /etally bag, nebo Nastavení batohu."},
+}
+for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
+
+-- ---------------------------------------------------------------- client access
+local function pass(ok, ...) if ok then return ... end return nil end
+local function call(f, ...) if type(f) ~= "function" then return nil end return pass(pcall(f, ...)) end
+local function cc() local c = rawget(_G, "C_Container"); return type(c) == "table" and c or nil end
+local function api(name) local c = cc(); return c and c[name] or rawget(_G, name) end
+
+local function numSlots(bag) return tonumber(call(api("GetContainerNumSlots"), bag)) or 0 end
+local function slotInfo(bag, slot)
+    local CC = cc()
+    if CC and CC.GetContainerItemInfo then
+        local info = call(CC.GetContainerItemInfo, bag, slot)
+        return type(info) == "table" and info or nil
+    end
+    local icon, count, locked, quality, _, _, link, _, noValue, id = call(rawget(_G, "GetContainerItemInfo"), bag, slot)
+    if not icon then return nil end
+    return {iconFileID = icon, stackCount = count, isLocked = locked, quality = quality, hyperlink = link, hasNoValue = noValue, itemID = id}
+end
+local function itemInstant(item)
+    local ci = rawget(_G, "C_Item")
+    local id, _, _, equipLoc, icon, classID, subclassID
+    if type(ci) == "table" then id, _, _, equipLoc, icon, classID, subclassID = call(ci.GetItemInfoInstant, item) end
+    if classID == nil then id, _, _, equipLoc, icon, classID, subclassID = call(rawget(_G, "GetItemInfoInstant"), item) end
+    return id, equipLoc, icon, classID, subclassID
+end
+local function itemName(link)
+    local name = call(rawget(_G, "GetItemInfo"), link)
+    if type(name) == "string" and name ~= "" then return name end
+    return type(link) == "string" and link:match("%[(.-)%]") or nil
+end
+local function bagFree(bag)
+    local free, family = call(api("GetContainerNumFreeSlots"), bag)
+    return tonumber(free) or 0, tonumber(family) or 0
+end
+local function nBagSlots() return tonumber(rawget(_G, "NUM_BAG_SLOTS")) or 4 end
+local function nBankBags() return tonumber(rawget(_G, "NUM_BANKBAGSLOTS")) or 6 end
+local BANK = tonumber(rawget(_G, "BANK_CONTAINER")) or -1
+local function playerBags() local t = {}; for b = 0, nBagSlots() do t[#t + 1] = b end; return t end
+local function bankBags() local t = {BANK}; for b = nBagSlots() + 1, nBagSlots() + nBankBags() do t[#t + 1] = b end; return t end
+
+local QUALITY = {[0] = {0.62, 0.62, 0.62}, {1, 1, 1}, {0.12, 1, 0}, {0, 0.44, 0.87}, {0.64, 0.21, 0.93}, {1, 0.5, 0}, {0.9, 0.8, 0.5}, {0, 0.8, 1}}
+local function qualityColor(q)
+    local c = rawget(_G, "ITEM_QUALITY_COLORS") and ITEM_QUALITY_COLORS[q]
+    if type(c) == "table" and c.r then return {c.r, c.g, c.b} end
+    return QUALITY[q or 1] or QUALITY[1]
+end
+
+local function guide()
+    local g = rawget(_G, "EvertallyGuide")
+    return type(g) == "table" and g or nil
+end
+
+-- ---------------------------------------------------------------- settings and the snapshot
+local function settings()
+    local s = A.db and A.db.settings
+    if not s then return {view = "sections"} end
+    if type(s.bagWindow) ~= "table" then s.bagWindow = {} end
+    local t = s.bagWindow
+    local known = false
+    for _, v in ipairs(VIEWS) do if v == t.view then known = true end end
+    if not known then t.view = "sections" end
+    return t
+end
+--- The first other bag add-on that is loaded, or nil.
+function BW.OtherBagAddon()
+    local loaded = (rawget(_G, "C_AddOns") and C_AddOns.IsAddOnLoaded) or rawget(_G, "IsAddOnLoaded")
+    for _, name in ipairs(OTHER_BAG_ADDONS) do
+        if call(loaded, name) then return name end
+    end
+    return nil
+end
+--- Whether the game's bag keys open this window: the player's choice, else on while no other bag add-on is loaded.
+function BW.Replaces()
+    local r = settings().replace
+    if r ~= nil then return r == true end
+    return BW.OtherBagAddon() == nil
+end
+function BW.SetReplace(on)
+    settings().replace = on == true
+    if on then BW.HideGameBags() end
+end
+
+local function charKey()
+    local name = call(rawget(_G, "UnitName"), "player")
+    local realm = call(rawget(_G, "GetRealmName"))
+    if type(name) ~= "string" then return nil end
+    return name .. "-" .. tostring(realm or "")
+end
+local function cacheRoot()
+    if not A.db then return nil end
+    if type(A.db.bagCache) ~= "table" then A.db.bagCache = {} end
+    return A.db.bagCache
+end
+local function readBags(bags)
+    local list = {}
+    for _, bag in ipairs(bags) do
+        for slot = 1, numSlots(bag) do
+            local info = slotInfo(bag, slot)
+            if info and (info.hyperlink or info.itemID) then
+                list[#list + 1] = {bag, slot, info.hyperlink or ("item:" .. tostring(info.itemID)), tonumber(info.stackCount) or 1,
+                    tonumber(info.quality), info.iconFileID}
+            end
+        end
+    end
+    return list
+end
+local function slotCounts(bags)
+    local used, total, free = 0, 0, 0
+    for _, bag in ipairs(bags) do
+        local n = numSlots(bag)
+        local f, family = bagFree(bag)
+        if family == 0 then total = total + n; free = free + f; used = used + (n - f) end
+    end
+    return used, total, free
+end
+--- Keeps this character's bags (and the bank while it is open) for the alts view and the bank tab.
+function BW.Snapshot(withBank)
+    local root, key = cacheRoot(), charKey()
+    if not (root and key) then return end
+    local e = root[key] or {}
+    root[key] = e
+    local _, classFile = call(rawget(_G, "UnitClass"), "player")
+    e.name = call(rawget(_G, "UnitName"), "player"); e.class = classFile
+    e.money = tonumber(call(rawget(_G, "GetMoney"))) or e.money
+    e.time = tonumber(call(rawget(_G, "time"))) or e.time
+    e.bags = readBags(playerBags())
+    local used, total = slotCounts(playerBags())
+    e.used, e.total = used, total
+    if withBank then
+        e.bank = readBags(bankBags())
+        e.bankTime = e.time
+        local bu, bt = slotCounts(bankBags())
+        e.bankUsed, e.bankTotal = bu, bt
+    end
+end
+
+-- ---------------------------------------------------------------- what an item is
+local seen          -- itemID -> count, when the window was last closed: more than that is new
+local function countById(list)
+    local t = {}
+    for _, it in ipairs(list) do t[it.id] = (t[it.id] or 0) + (it.count or 1) end
+    return t
+end
+local function markOf(id)
+    local g = guide()
+    local M = g and g.QoL and g.QoL.Marks
+    return M, g
+end
+local function isJunkMarked(id)
+    local M = markOf(id)
+    return M and M.Junk and call(M.Junk, id) == true or false
+end
+local function isProtected(id)
+    local M = markOf(id)
+    return M and M.Protected and call(M.Protected, id) == true or false
+end
+local function questNeeds(id, bag, slot)
+    local CC = cc()
+    if bag and CC and CC.GetContainerItemQuestInfo then
+        local q = call(CC.GetContainerItemQuestInfo, bag, slot)
+        if type(q) == "table" and (q.isQuestItem or q.questID) then return true end
+    end
+    local g = guide()
+    local Q = g and g.QuestDB
+    return Q and Q.IsItemNeeded and call(Q.IsItemNeeded, id) == true or false
+end
+local function upgradeOf(link)
+    local B = A.BagHighlight
+    if B and B.Assess then
+        local empty, up = call(B.Assess, link)
+        if empty or up then return empty and "empty" or "upgrade" end
+    end
+    local g = guide()
+    local G = g and g.Gear
+    if G and G.IsUpgrade and call(G.IsUpgrade, link) == true then return "upgrade" end
+    return nil
+end
+
+--- One item of the list the views draw: where it is, what it is and its section.
+local function describe(bag, slot, link, count, quality, icon, live, locked, isNew)
+    local id, equipLoc, instIcon, classID = itemInstant(link)
+    id = id or tonumber(type(link) == "string" and link:match("item:(%d+)"))
+    local it = {bag = bag, slot = slot, link = link, id = id, count = count or 1, quality = quality, icon = icon or instIcon,
+        classID = classID, equipLoc = equipLoc, live = live, locked = locked, name = itemName(link) or ""}
+    if it.quality == nil then local _, _, q = call(rawget(_G, "GetItemInfo"), link); it.quality = tonumber(q) end
+    local protected = id and isProtected(id)
+    it.junk = it.quality == 0 and not protected
+    it.sell = not it.junk and id ~= nil and isJunkMarked(id)
+    it.quest = classID == 12 or (live and id and questNeeds(id, bag, slot)) or false
+    it.gear = (classID == 2 or classID == 4) and type(equipLoc) == "string" and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG"
+    it.upgrade = it.gear and live and upgradeOf(link) or nil
+    it.new = isNew or false
+    if it.new then it.section = "new"
+    elseif it.junk then it.section = "junk"
+    elseif it.sell then it.section = "sell"
+    elseif it.quest then it.section = "quest"
+    elseif it.gear then it.section = "gear"
+    elseif classID == 0 then it.section = "consumable"
+    elseif classID == 7 or classID == 9 or classID == 5 or classID == 3 then it.section = "profession"
+    else it.section = "other" end
+    return it
+end
+
+local function liveItems(bags)
+    local list = {}
+    for _, bag in ipairs(bags) do
+        for slot = 1, numSlots(bag) do
+            local info = slotInfo(bag, slot)
+            if info and (info.hyperlink or info.itemID) then
+                local link = info.hyperlink or ("item:" .. tostring(info.itemID))
+                local newFlag = rawget(_G, "C_NewItems") and C_NewItems.IsNewItem and call(C_NewItems.IsNewItem, bag, slot) == true
+                list[#list + 1] = describe(bag, slot, link, tonumber(info.stackCount), tonumber(info.quality), info.iconFileID, true, info.isLocked, newFlag)
+            end
+        end
+    end
+    -- more of an item than when the window was last closed: new (the client's own flag counts too)
+    if seen then
+        local now = countById(list)
+        local grown = {}
+        for id, n in pairs(now) do if n > (seen[id] or 0) then grown[id] = true end end
+        for _, it in ipairs(list) do
+            if not it.new and grown[it.id] then it.new = true; it.section = "new" end
+        end
+    end
+    return list
+end
+local function cachedItems(entries)
+    local list = {}
+    for _, e in ipairs(entries or {}) do list[#list + 1] = describe(e[1], e[2], e[3], e[4], e[5], e[6], false) end
+    return list
+end
+
+local SECTION_ORDER = {}
+for i, key in ipairs(SECTIONS) do SECTION_ORDER[key] = i end
+local function byKind(a, b)
+    if a.section ~= b.section then return (SECTION_ORDER[a.section] or 99) < (SECTION_ORDER[b.section] or 99) end
+    if (a.quality or 1) ~= (b.quality or 1) then return (a.quality or 1) > (b.quality or 1) end
+    if (a.classID or 99) ~= (b.classID or 99) then return (a.classID or 99) < (b.classID or 99) end
+    if a.name ~= b.name then return a.name < b.name end
+    if a.count ~= b.count then return a.count > b.count end
+    if a.bag ~= b.bag then return a.bag < b.bag end
+    return a.slot < b.slot
+end
+
+-- A search: words match the name, #tags what the item is.
+local TAGS = {
+    sell = function(it) return it.sell or it.junk end, junk = function(it) return it.junk end, new = function(it) return it.new end,
+    quest = function(it) return it.quest end, gear = function(it) return it.gear end, upgrade = function(it) return it.upgrade ~= nil end,
+    consumable = function(it) return it.section == "consumable" end, profession = function(it) return it.section == "profession" end,
+}
+local function lower(s) return A.Lower and A.Lower(s) or string.lower(s or "") end
+function BW.Matches(it, query)
+    if type(query) ~= "string" or query:match("^%s*$") then return true end
+    local name = lower(it.name)
+    for word in query:gmatch("%S+") do
+        local tag = word:match("^#(%w+)$")
+        if tag then
+            local f = TAGS[lower(tag)]
+            if f and not f(it) then return false end
+        elseif not name:find(lower(word), 1, true) then return false end
+    end
+    return true
+end
+BW.Describe, BW.LiveItems = describe, liveItems
+
+-- ---------------------------------------------------------------- equip best
+-- What goes on: each bag item the guide's gear advice would wear (Equip.Placement, the rule its quest rewards and loot
+-- offers follow: the weaker ring or trinket, a one-hander against a worn two-hander), the best per slot. Without the
+-- guide, Evertally's own verdict (BagHighlight: an upgrade or an empty slot) and the client's choice of slot.
+-- Never an item marked junk or one a later step keeps.
+function BW.EquipPlan()
+    local g = guide()
+    local G = g and g.Gear
+    local QoL = g and g.QoL
+    local place = QoL and QoL.Equip and QoL.Equip.Placement
+    local best, order = {}, {}
+    for _, it in ipairs(liveItems(playerBags())) do
+        local kept = it.id and QoL and QoL.Kept and call(QoL.Kept, it.id)
+        if it.gear and it.id and not it.junk and not it.sell and not kept then
+            local slot, pct
+            if G and place then slot, pct = call(place, G, it.link)
+            elseif it.upgrade then pct = 0 end
+            if slot or (not (G and place) and it.upgrade) then
+                local key = slot or it.equipLoc
+                local cur = best[key]
+                if not cur then order[#order + 1] = key end
+                if not cur or (tonumber(pct) or 0) > (tonumber(cur.pct) or 0) then
+                    best[key] = {link = it.link, slot = slot, pct = tonumber(pct), name = it.name, id = it.id, quality = it.quality}
+                end
+            end
+        end
+    end
+    local plan = {}
+    for _, key in ipairs(order) do plan[#plan + 1] = best[key] end
+    table.sort(plan, function(a, b) return (a.pct or 0) > (b.pct or 0) end)
+    return plan
+end
+
+local equipping
+local function equipLink(link, slot)
+    local ci = rawget(_G, "C_Item")
+    local f = type(ci) == "table" and ci.EquipItemByName or rawget(_G, "EquipItemByName")
+    if type(f) ~= "function" then return false end
+    return pcall(f, link, slot)
+end
+--- Puts the plan on, one piece at a time: each next piece is weighed against what is worn once the last went on, so a
+--- second ring takes the weaker finger. Stops when nothing is better, when a piece did not go on (its bind confirmation
+--- was declined) or after twenty.
+function BW.EquipBest()
+    if call(rawget(_G, "InCombatLockdown")) then
+        if A.Print then A.Print(A.L("bwEquipCombat")) end
+        BW.equipAfterFight = true
+        return false
+    end
+    if equipping then return false end
+    local tried, done, steps = {}, {}, 0
+    local function nextPiece()
+        steps = steps + 1
+        local plan = steps <= 20 and BW.EquipPlan() or {}
+        local piece
+        for _, p in ipairs(plan) do if not tried[p.link] then piece = p; break end end
+        if not piece then
+            equipping = nil
+            if A.Print then
+                if #done > 0 then A.Print(string.format(A.L("bwEquipDone"), table.concat(done, ", ")))
+                else A.Print(A.L("bwEquipNone")) end
+            end
+            BW.Request()
+            return
+        end
+        tried[piece.link] = true
+        if equipLink(piece.link, piece.slot) then done[#done + 1] = piece.link end
+        -- the client swaps the piece and then tells the gear advice; the next one is weighed after that
+        if rawget(_G, "C_Timer") and C_Timer.After then C_Timer.After(0.6, nextPiece) else nextPiece() end
+    end
+    equipping = true
+    nextPiece()
+    return true
+end
+A.On("PLAYER_REGEN_ENABLED", function() if BW.equipAfterFight then BW.equipAfterFight = false; BW.EquipBest() end end)
+
+-- ---------------------------------------------------------------- the window
+local win
+local kit, C
+local function paint(t, c, a) kit.paint(t, c, a) end
+local function money(copper)
+    copper = math.floor(tonumber(copper) or 0)
+    local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+    local out = {}
+    if g > 0 then out[#out + 1] = string.format("|cffe6c35c%d|r|cffb08d3dg|r", g) end
+    if g > 0 or s > 0 then out[#out + 1] = string.format("|cffd8dde3%d|r|cff9aa3abs|r", s) end
+    out[#out + 1] = string.format("|cffe0a070%d|r|cffa8683ac|r", c)
+    return table.concat(out, " ")
+end
+
+-- The look every item button gets: a dark well, the icon, the count, a quality edge, and the marks.
+local function dressButton(b)
+    if b.etDressed then return b end
+    b.etDressed = true
+    local name = b.GetName and b:GetName()
+    for _, part in ipairs({"IconTexture", "Count", "IconQuestTexture", "Stock", "NewItemTexture", "SearchOverlay"}) do
+        local r = name and _G[name .. part]
+        if r and r.Hide then r:Hide(); if r.SetText then r:SetText("") end end
+    end
+    for _, key in ipairs({"icon", "Count", "IconBorder", "NewItemTexture", "BattlepayItemTexture", "searchOverlay", "IconQuestTexture"}) do
+        local r = rawget(b, key)
+        if type(r) == "table" and r.Hide then r:Hide() end
+    end
+    if b.GetNormalTexture then local n = b:GetNormalTexture(); if n then n:SetAlpha(0) end end
+    b.etWell = b:CreateTexture(nil, "BACKGROUND"); b.etWell:SetAllPoints(b); paint(b.etWell, C.well or C.card, 1)
+    b.etIcon = b:CreateTexture(nil, "ARTWORK"); b.etIcon:SetPoint("TOPLEFT", 2, -2); b.etIcon:SetPoint("BOTTOMRIGHT", -2, 2)
+    b.etIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    b.etEdge = {}
+    for i, side in ipairs({{"TOPLEFT", "TOPRIGHT", nil, 1}, {"BOTTOMLEFT", "BOTTOMRIGHT", nil, 1}, {"TOPLEFT", "BOTTOMLEFT", 1, nil}, {"TOPRIGHT", "BOTTOMRIGHT", 1, nil}}) do
+        local t = b:CreateTexture(nil, "BORDER"); t:SetPoint(side[1]); t:SetPoint(side[2])
+        if side[3] then t:SetWidth(side[3]) else t:SetHeight(side[4]) end
+        b.etEdge[i] = t
+    end
+    -- the marks sit on a frame above the button's own (cooldown, highlight)
+    local o = CreateFrame("Frame", nil, b); o:SetAllPoints(b)
+    if o.SetFrameLevel and b.GetFrameLevel then o:SetFrameLevel((b:GetFrameLevel() or 1) + 3) end
+    b.etOver = o
+    b.etCount = kit.label(o, 11, C.text); b.etCount:SetPoint("BOTTOMRIGHT", -3, 3); b.etCount:SetJustifyH("RIGHT")
+    if b.etCount.SetShadowOffset then b.etCount:SetShadowOffset(1, -1); b.etCount:SetShadowColor(0, 0, 0, 1) end
+    b.etMark = kit.label(o, 13, C.gold); b.etMark:SetPoint("TOPLEFT", 3, -1)
+    b.etArrow = A.Theme.Glyph(o, "chevron-up", 12, C.green, "OVERLAY"); b.etArrow:SetPoint("TOPRIGHT", -1, -1)
+    b.etCoin = o:CreateTexture(nil, "OVERLAY"); b.etCoin:SetSize(9, 9); b.etCoin:SetPoint("BOTTOMLEFT", 3, 3); A.Theme.Shape(b.etCoin, "dot")
+    b.etNew = o:CreateTexture(nil, "OVERLAY"); b.etNew:SetSize(7, 7); b.etNew:SetPoint("TOPRIGHT", -3, -3); A.Theme.Shape(b.etNew, "dot")
+    b.etShade = o:CreateTexture(nil, "OVERLAY", nil, 2); b.etShade:SetAllPoints(b); paint(b.etShade, {0, 0, 0}, 0.62)
+    return b
+end
+local function showItem(b, it, dim)
+    dressButton(b)
+    b.etItem = it
+    if it then
+        b.etIcon:SetTexture(it.icon or "Interface\\Icons\\INV_Misc_QuestionMark"); b.etIcon:Show()
+        b.etIcon:SetDesaturated(it.locked and true or false)
+        b.etCount:SetText((it.count or 1) > 1 and tostring(it.count) or "")
+        local edge = (it.quality or 1) >= 2 and qualityColor(it.quality) or (it.new and C.gold) or C.line
+        for _, t in ipairs(b.etEdge) do paint(t, edge, (it.quality or 1) >= 2 and 0.95 or (edge[4] or 1)) end
+        b.etMark:SetText(it.quest and "!" or "")
+        b.etArrow:SetShown(it.upgrade ~= nil)
+        if it.upgrade then paint(b.etArrow, it.upgrade == "empty" and C.sky or C.green) end
+        b.etCoin:SetShown(it.junk or it.sell)
+        if it.junk or it.sell then paint(b.etCoin, it.junk and C.faint or C.peach) end
+        b.etNew:SetShown(it.new); if it.new then paint(b.etNew, C.gold) end
+    else
+        b.etIcon:Hide(); b.etCount:SetText(""); b.etMark:SetText("")
+        for _, t in ipairs(b.etEdge) do paint(t, C.line, 0.55) end
+        b.etArrow:Hide(); b.etCoin:Hide(); b.etNew:Hide()
+    end
+    b.etShade:SetShown(dim and true or false)
+    -- the client's cooldown on a live slot
+    if it and it.live then
+        local cd = rawget(b, "Cooldown") or (b.GetName and b:GetName() and _G[b:GetName() .. "Cooldown"])
+        local start, duration, enable = call(api("GetContainerItemCooldown"), it.bag, it.slot)
+        if cd and start and rawget(_G, "CooldownFrame_Set") then call(CooldownFrame_Set, cd, start, duration, enable) end
+    end
+    b:Show()
+end
+
+-- Live slots: the client's item button under a holder that carries the bag's ID (its clicks read the parent's ID).
+local holders, liveButtons, nLive = {}, {}, 0
+local function holder(bag)
+    local h = holders[bag]
+    if h then return h end
+    h = CreateFrame("Frame", nil, win.content)
+    if h.SetID then h:SetID(bag) end
+    h:SetSize(1, 1); h:SetPoint("TOPLEFT")
+    holders[bag] = h
+    return h
+end
+local function liveButton(bag, slot)
+    liveButtons[bag] = liveButtons[bag] or {}
+    local b = liveButtons[bag][slot]
+    if b then return b end
+    nLive = nLive + 1
+    local ok, made = pcall(CreateFrame, "Button", "EvertallyBagItem" .. nLive, holder(bag), "ContainerFrameItemButtonTemplate")
+    if not ok or not made then made = CreateFrame("Button", "EvertallyBagItem" .. nLive, holder(bag)) end
+    b = made
+    if b.SetID then b:SetID(slot) end
+    b:SetSize(SLOT, SLOT)
+    b.etBag, b.etSlot = bag, slot
+    if b.RegisterForDrag then pcall(b.RegisterForDrag, b, "LeftButton") end
+    dressButton(b)
+    liveButtons[bag][slot] = b
+    return b
+end
+-- Look-only slots (the bank, other characters): the item's tooltip, Shift+click links it.
+local lookButtons = {}
+local function lookButton(i)
+    local b = lookButtons[i]
+    if b then return b end
+    b = CreateFrame("Button", nil, win.content); b:SetSize(SLOT, SLOT)
+    if b.RegisterForClicks then b:RegisterForClicks("AnyUp") end
+    b:SetScript("OnEnter", function(self)
+        local it = self.etItem
+        if not (it and GameTooltip) then return end
+        pcall(function() GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(it.link); GameTooltip:AddLine(A.L("bwHintLook"), 0.55, 0.58, 0.66, true); GameTooltip:Show() end)
+    end)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    b:SetScript("OnClick", function(self)
+        local it = self.etItem
+        if it and rawget(_G, "HandleModifiedItemClick") then call(HandleModifiedItemClick, it.link) end
+    end)
+    local hl = b:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(b); paint(hl, {1, 1, 1}, 0.10)
+    dressButton(b)
+    lookButtons[i] = b
+    return b
+end
+
+-- Pools for the drawn parts that are not item buttons.
+local function pool(name, make)
+    win[name] = win[name] or {list = {}, used = 0}
+    local p = win[name]
+    p.used = p.used + 1
+    local r = p.list[p.used]
+    if not r then r = make(); p.list[p.used] = r end
+    r:Show()
+    return r
+end
+local function resetPools()
+    for _, name in ipairs({"heads", "rows", "notes"}) do
+        local p = win[name]
+        if p then for i = 1, #p.list do p.list[i]:Hide() end; p.used = 0 end
+    end
+end
+local function sectionHead(x, y, w, label, count)
+    local h = pool("heads", function()
+        local f = CreateFrame("Frame", nil, win.content); f:SetHeight(SECTION_HEAD)
+        f.tick = f:CreateTexture(nil, "ARTWORK"); f.tick:SetSize(2, 11); f.tick:SetPoint("LEFT", 0, 0)
+        f.text = kit.label(f, 11, C.gold); f.text:SetPoint("LEFT", f.tick, "RIGHT", 7, 0)
+        f.count = kit.label(f, 11, C.faint); f.count:SetPoint("LEFT", f.text, "RIGHT", 6, 0)
+        return f
+    end)
+    paint(h.tick, C.gold, 1)
+    h:ClearAllPoints(); h:SetPoint("TOPLEFT", win.content, "TOPLEFT", x, -y); h:SetWidth(w)
+    h.text:SetText(label); h.count:SetText(count and tostring(count) or "")
+end
+local function note(y, msg)
+    local n = pool("notes", function() local f = kit.label(win.content, 12, C.faint); f:SetJustifyH("CENTER"); return f end)
+    n:ClearAllPoints(); n:SetPoint("TOPLEFT", win.content, "TOPLEFT", 0, -y); n:SetWidth(CONTENT_W); n:SetText(msg)
+end
+local function listRow(y, it)
+    local r = pool("rows", function()
+        local f = CreateFrame("Frame", nil, win.content); f:SetSize(CONTENT_W, ROW_H)
+        f.rule = f:CreateTexture(nil, "BACKGROUND"); f.rule:SetHeight(1); f.rule:SetPoint("BOTTOMLEFT"); f.rule:SetPoint("BOTTOMRIGHT")
+        f.name = kit.label(f, 12, C.text); f.name:SetPoint("LEFT", ROW_H + 8, 0); f.name:SetWordWrap(false)
+        f.tag = kit.label(f, 11, C.faint); f.tag:SetPoint("RIGHT", -70, 0); f.tag:SetJustifyH("RIGHT")
+        f.count = kit.label(f, 12, C.mist); f.count:SetPoint("RIGHT", -8, 0); f.count:SetJustifyH("RIGHT")
+        f.name:SetPoint("RIGHT", f.tag, "LEFT", -10, 0)
+        return f
+    end)
+    paint(r.rule, C.line, 0.35)
+    r:ClearAllPoints(); r:SetPoint("TOPLEFT", win.content, "TOPLEFT", 0, -y)
+    local q = qualityColor(it.quality or 1)
+    r.name:SetText(it.name ~= "" and it.name or tostring(it.id)); r.name:SetTextColor(q[1], q[2], q[3], 1)
+    r.tag:SetText(A.L("bwSec_" .. it.section)); r.count:SetText((it.count or 1) > 1 and ("×" .. it.count) or "")
+end
+
+-- ---------------------------------------------------------------- what is shown
+local function viewing()
+    local key = charKey()
+    local who = win.char or key
+    return who, who == key
+end
+local function sourceItems()
+    local who, own = viewing()
+    local root = cacheRoot() or {}
+    local entry = root[who]
+    if win.tab == "bank" then
+        if own and win.bankOpen then return cachedItems(readBags(bankBags())), slotCounts(bankBags()) end
+        if entry and entry.bank then return cachedItems(entry.bank), entry.bankUsed, entry.bankTotal end
+        return {}, 0, 0, "never"
+    end
+    if own then
+        local list = liveItems(playerBags())
+        local used, total = slotCounts(playerBags())
+        return list, used, total
+    end
+    if entry then return cachedItems(entry.bags), entry.used, entry.total end
+    return {}, 0, 0
+end
+
+local function placeButton(b, x, y, size)
+    b:ClearAllPoints(); b:SetPoint("TOPLEFT", win.content, "TOPLEFT", x, -y); b:SetSize(size or SLOT, size or SLOT)
+end
+local function hideAllButtons()
+    for _, slots in pairs(liveButtons) do for _, b in pairs(slots) do b:Hide(); b.etItem = nil end end
+    for _, b in ipairs(lookButtons) do b:Hide(); b.etItem = nil end
+end
+
+function BW.Render()
+    if not (win and win:IsShown()) then return end
+    win.dirty = false
+    resetPools(); hideAllButtons()
+    local who, own = viewing()
+    local items, used, total, state = sourceItems()
+    local live = own and win.tab == "bags"
+    local query = win.search and win.search:GetText() or ""
+    local view = settings().view
+    local nLook = 0
+    local function button(it)
+        if live and it then return liveButton(it.bag, it.slot) end
+        nLook = nLook + 1
+        return lookButton(nLook)
+    end
+    -- counts for the chips (before the search narrows anything)
+    local nSell, nNew, nJunk, nUp = 0, 0, 0, 0
+    for _, it in ipairs(items) do
+        if it.sell then nSell = nSell + 1 end
+        if it.new then nNew = nNew + 1 end
+        if it.junk then nJunk = nJunk + 1 end
+        if it.upgrade then nUp = nUp + 1 end
+    end
+    BW.UpdateChips({sell = nSell, new = nNew, junk = nJunk, upgrade = nUp})
+    local shown = {}
+    for _, it in ipairs(items) do if BW.Matches(it, query) then shown[#shown + 1] = it end end
+    table.sort(shown, byKind)
+    local y = 0
+    if state == "never" then note(20, A.L("bwBankNever")); y = 60
+    elseif view == "exact" then
+        -- bag by bag, every slot, the empty ones too; what the search leaves out is dimmed
+        local at = {}
+        for _, it in ipairs(items) do at[it.bag .. ":" .. it.slot] = it end
+        local match = {}
+        for _, it in ipairs(shown) do match[it] = true end
+        local bags = win.tab == "bank" and bankBags() or playerBags()
+        for _, bag in ipairs(bags) do
+            local n = live and numSlots(bag) or 0
+            if not live then for _, it in ipairs(items) do if it.bag == bag and it.slot > n then n = it.slot end end end
+            if n > 0 then
+                local free = 0
+                for s = 1, n do if not at[bag .. ":" .. s] then free = free + 1 end end
+                local name = bag == 0 and A.L("bwBackpack") or bag == BANK and A.L("bwBankSlots")
+                    or (live and call(api("GetBagName"), bag)) or string.format(A.L("bwBagN"), bag)
+                sectionHead(0, y, CONTENT_W, string.format(A.L("bwBagHead"), name, n - free, n))
+                y = y + SECTION_HEAD
+                local col = 0
+                for s = 1, n do
+                    local it = at[bag .. ":" .. s]
+                    local b
+                    if live then b = liveButton(bag, s) elseif it then b = button(it) end
+                    if b then
+                        placeButton(b, col * (SLOT + GAP), y)
+                        showItem(b, it, it and query ~= "" and not match[it])
+                    end
+                    col = col + 1
+                    if col >= GRID_COLS and s < n then col = 0; y = y + SLOT + GAP end
+                end
+                y = y + SLOT + GAP + 8
+            end
+        end
+    elseif #shown == 0 then
+        note(20, #items == 0 and A.L("bwNothing") or A.L("bwNoMatch")); y = 60
+    elseif view == "packed" then
+        for i, it in ipairs(shown) do
+            local b = button(it)
+            placeButton(b, ((i - 1) % GRID_COLS) * (SLOT + GAP), y + math.floor((i - 1) / GRID_COLS) * (SLOT + GAP))
+            showItem(b, it)
+        end
+        y = y + math.ceil(#shown / GRID_COLS) * (SLOT + GAP)
+    elseif view == "list" then
+        for _, it in ipairs(shown) do
+            listRow(y, it)
+            local b = button(it)
+            placeButton(b, 2, y + 2, ROW_H - 4)
+            showItem(b, it)
+            b.etCount:SetText(""); b.etMark:SetText("")   -- the row says the count
+            y = y + ROW_H
+        end
+    else
+        -- sections in three columns, each into the shortest
+        local groups, order = {}, {}
+        for _, it in ipairs(shown) do
+            if not groups[it.section] then groups[it.section] = {}; order[#order + 1] = it.section end
+            table.insert(groups[it.section], it)
+        end
+        table.sort(order, function(a, b) return SECTION_ORDER[a] < SECTION_ORDER[b] end)
+        local colY = {}
+        for c = 1, SECTION_COLS do colY[c] = 0 end
+        for _, key in ipairs(order) do
+            local list = groups[key]
+            local c = 1
+            for k = 2, SECTION_COLS do if colY[k] < colY[c] then c = k end end
+            local x = (c - 1) * (COL_W + COL_GAP)
+            sectionHead(x, colY[c], COL_W, A.L("bwSec_" .. key), #list)
+            local top = colY[c] + SECTION_HEAD
+            for i, it in ipairs(list) do
+                local b = button(it)
+                placeButton(b, x + ((i - 1) % SECTION_SLOTS) * (SLOT + GAP), top + math.floor((i - 1) / SECTION_SLOTS) * (SLOT + GAP))
+                showItem(b, it)
+            end
+            colY[c] = top + math.ceil(#list / SECTION_SLOTS) * (SLOT + GAP) + 10
+        end
+        for c = 1, SECTION_COLS do if colY[c] > y then y = colY[c] end end
+    end
+    win.content:SetHeight(math.max(y, 10))
+    -- the window fits what it shows, within bounds
+    local want = BODY_Y + y + FOOT_H + 6
+    win:SetHeight(math.max(MIN_H, math.min(MAX_H, want)))
+    BW.UpdateHeader(used or 0, total or 0)
+end
+
+function BW.UpdateChips(counts)
+    for key, chip in pairs(win.chips) do
+        local n = counts[key] or 0
+        chip.num:SetText(tostring(n)); chip.text:SetText(A.L("bwChip_" .. key))
+        chip:SetShown(n > 0 or key ~= "upgrade")
+        local on = win.search and win.search:GetText() == "#" .. key
+        paint(chip.bg, on and (C.raised or C.card) or C.card, 1)
+        chip:SetWidth(math.floor((chip.num:GetStringWidth() or 10) + (chip.text:GetStringWidth() or 40) + 32))
+    end
+    local x = 0
+    for _, key in ipairs({"sell", "new", "junk", "upgrade"}) do
+        local chip = win.chips[key]
+        if chip:IsShown() then chip:ClearAllPoints(); chip:SetPoint("TOPLEFT", win, "TOPLEFT", PAD + x, -CHIP_Y); x = x + chip:GetWidth() + 6 end
+    end
+    local _, own = viewing()
+    local live = own and win.tab == "bags"
+    local g = guide()
+    win.hint:SetText(live and (g and A.L("bwHintMarks") or "") or A.L("bwHintLook"))
+end
+
+function BW.UpdateHeader(used, total)
+    local who, own = viewing()
+    local root = cacheRoot() or {}
+    local entry = root[who]
+    win.slots:SetText(string.format("%d / %d", used, total))
+    local frac = total > 0 and used / total or 0
+    win.barFill:SetWidth(math.max(1, math.floor(110 * math.min(1, frac))))
+    paint(win.barFill, frac >= 0.9 and C.red or frac >= 0.75 and C.peach or C.green, 1)
+    for key, tab in pairs(win.tabs) do
+        local on = win.tab == key
+        paint(tab.text, on and C.bright or C.mist); tab.line:SetShown(on)
+    end
+    local name = entry and entry.name or (who and who:match("^([^%-]+)")) or "?"
+    win.charText:SetText(name)
+    local cc = entry and entry.class and rawget(_G, "RAID_CLASS_COLORS") and RAID_CLASS_COLORS[entry.class]
+    if cc then win.charText:SetTextColor(cc.r, cc.g, cc.b, 1) else win.charText:SetTextColor(C.text[1], C.text[2], C.text[3], 1) end
+    local m = own and tonumber(call(rawget(_G, "GetMoney"))) or (entry and entry.money) or 0
+    win.money:SetText(money(m))
+    local free = math.max(0, total - used)
+    win.free:SetText(string.format(A.L("bwFree"), free))
+    paint(win.free, free == 0 and C.red or C.mist)
+    local live = own and win.tab == "bags"
+    win.sort:SetShown(live)
+    local plan = live and BW.EquipPlan() or {}
+    win.equip.plan = plan
+    win.equip:SetShown(live)
+    if win.equip.text then win.equip.text:SetText(#plan > 0 and string.format(A.L("bwEquipN"), #plan) or A.L("bwEquip")) end
+    win.equip:SetAlpha(#plan > 0 and 1 or 0.45)
+    -- under the tabs: how old a look is
+    local stamp
+    if win.tab == "bank" and not (own and win.bankOpen) then
+        stamp = entry and entry.bankTime and A.L("bwBankClosed")
+    elseif not own and entry and entry.time then
+        stamp = string.format(A.L("bwAltSeen"), call(rawget(_G, "date"), "%d.%m. %H:%M", entry.time) or "?")
+    end
+    win.stamp:SetText(stamp or ""); win.stamp:SetShown(stamp ~= nil)
+    win.lock.SetTint(settings().locked and C.gold or C.mist)
+    for _, seg in ipairs(win.segs) do
+        local on = settings().view == seg.view
+        paint(seg.bg, on and (C.raised or C.card) or C.card, 1)
+        paint(seg.text, on and C.bright or C.mist)
+        seg.line:SetShown(on)
+    end
+end
+
+function BW.Request()
+    if not win then return end
+    win.dirty = true
+    if win.pending then return end
+    win.pending = true
+    local function run() win.pending = false; if win:IsShown() and win.dirty then BW.Render() end end
+    if rawget(_G, "C_Timer") and C_Timer.After then C_Timer.After(0.05, run) else run() end
+end
+
+-- A small menu under a header control: {text, checked, onClick} rows.
+local function popup(owner, items)
+    local m = win.menu
+    if not m then
+        m = CreateFrame("Frame", nil, win); m:SetFrameStrata("DIALOG"); m:EnableMouse(true)
+        A.NativeFrame(m, C)
+        m.rows = {}
+        win.menu = m
+    end
+    if m:IsShown() and m.owner == owner then m:Hide(); return end
+    m.owner = owner
+    local w = 200
+    for i, item in ipairs(items) do
+        local r = m.rows[i]
+        if not r then
+            r = CreateFrame("Button", nil, m); r:SetHeight(24)
+            local hl = r:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(r); paint(hl, C.gold, 0.12)
+            r.check = A.Theme.Glyph(r, "check", 12, C.gold); r.check:SetPoint("LEFT", 8, 0)
+            r.text = kit.label(r, 12, C.text); r.text:SetPoint("LEFT", 26, 0)
+            r:SetScript("OnClick", function(self) m:Hide(); if self.fn then pcall(self.fn) end; BW.Request() end)
+            m.rows[i] = r
+        end
+        r:ClearAllPoints(); r:SetPoint("TOPLEFT", 4, -4 - (i - 1) * 24); r:SetPoint("TOPRIGHT", -4, -4 - (i - 1) * 24)
+        r.text:SetText(item.text); r.check:SetShown(item.checked and true or false); r.fn = item.onClick
+        w = math.max(w, math.floor((r.text:GetStringWidth() or 0) + 44))
+        r:Show()
+    end
+    for i = #items + 1, #m.rows do m.rows[i]:Hide() end
+    m:SetSize(w, #items * 24 + 8)
+    m:ClearAllPoints(); m:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -4)
+    m:Show()
+end
+
+local function savePoint()
+    local point, _, rel, x, y = win:GetPoint(1)
+    settings().point = {point, rel, x, y}
+end
+local function build()
+    if win then return win end
+    kit = A.UIKit(); C = kit.C
+    win = CreateFrame("Frame", "EvertallyBagWindow", UIParent)
+    win:SetSize(WIDTH, 520); win:SetFrameStrata("HIGH"); win:SetToplevel(true); win:SetClampedToScreen(true)
+    win:EnableMouse(true); win:SetMovable(true)
+    A.NativeFrame(win, C)
+    win.tab = "bags"
+    -- header: logo, Bags | Bank, the character, the slots, lock, settings, close
+    win.head = win:CreateTexture(nil, "BORDER"); win.head:SetPoint("TOPLEFT", 1, -1); win.head:SetPoint("TOPRIGHT", -1, -1); win.head:SetHeight(HEAD_H)
+    paint(win.head, C.header or C.well, 1)
+    win.drag = CreateFrame("Frame", nil, win); win.drag:SetPoint("TOPLEFT"); win.drag:SetPoint("TOPRIGHT", -240, 0); win.drag:SetHeight(HEAD_H)
+    win.drag:EnableMouse(true); win.drag:RegisterForDrag("LeftButton")
+    win.drag:SetScript("OnDragStart", function() if not settings().locked then win:StartMoving() end end)
+    win.drag:SetScript("OnDragStop", function() win:StopMovingOrSizing(); savePoint() end)
+    win.logo = win:CreateTexture(nil, "ARTWORK"); win.logo:SetSize(24, 24); win.logo:SetPoint("TOPLEFT", PAD, -11); win.logo:SetTexture(LOGO)
+    win.tabs = {}
+    local x = PAD + 34
+    for _, key in ipairs({"bags", "bank"}) do
+        local t = CreateFrame("Button", nil, win); t:SetHeight(HEAD_H - 8)
+        t.text = kit.label(t, 14, C.mist); t.text:SetPoint("CENTER", 0, 1); t.text:SetText(A.L(key == "bags" and "bwBags" or "bwBank"))
+        t.line = t:CreateTexture(nil, "ARTWORK"); t.line:SetHeight(2); t.line:SetPoint("BOTTOMLEFT", 4, 2); t.line:SetPoint("BOTTOMRIGHT", -4, 2); paint(t.line, C.gold, 1)
+        t:SetWidth(math.floor((t.text:GetStringWidth() or 40) + 20))
+        t:SetPoint("TOPLEFT", win, "TOPLEFT", x, -4)
+        t:SetScript("OnClick", function() win.tab = key; BW.Request() end)
+        x = x + t:GetWidth() + 4
+        win.tabs[key] = t
+    end
+    win.char = nil
+    win.charBtn = CreateFrame("Button", nil, win); win.charBtn:SetSize(150, 24); win.charBtn:SetPoint("TOPLEFT", win, "TOPLEFT", x + 8, -11)
+    win.charText = kit.label(win.charBtn, 13, C.text); win.charText:SetPoint("LEFT", 0, 0)
+    win.charArrow = A.Theme.Glyph(win.charBtn, "chevron-down", 12, C.mist); win.charArrow:SetPoint("LEFT", win.charText, "RIGHT", 4, -1)
+    win.charBtn:SetScript("OnClick", function(self)
+        local items, root, mine = {}, cacheRoot() or {}, charKey()
+        local keys = {}
+        for k in pairs(root) do keys[#keys + 1] = k end
+        table.sort(keys, function(a, b) if a == mine then return true elseif b == mine then return false end return a < b end)
+        for _, k in ipairs(keys) do
+            local e = root[k]
+            items[#items + 1] = {text = (e.name or k) .. (k == mine and "" or ("  |cff8b93a8" .. (k:match("%-(.+)$") or "") .. "|r")), checked = (win.char or mine) == k,
+                onClick = function() win.char = k ~= mine and k or nil end}
+        end
+        popup(self, items)
+    end)
+    win.stamp = kit.label(win, 10, C.faint); win.stamp:SetPoint("TOPLEFT", win.charBtn, "BOTTOMLEFT", 0, 2)
+    win.close = kit.IconButton(win, "close", 24, function() win:Hide() end, "bwClose"); win.close:SetPoint("TOPRIGHT", -10, -11)
+    win.gear = kit.IconButton(win, "gear", 24, function(self)
+        popup(self, {
+            {text = A.L("bwReplace"), checked = BW.Replaces(), onClick = function() BW.SetReplace(not BW.Replaces()) end},
+            {text = A.L("bwClearNew"), onClick = function() BW.ClearNew() end},
+        })
+    end, "bwSettings")
+    win.gear:SetPoint("RIGHT", win.close, "LEFT", -2, 0)
+    win.lock = kit.IconButton(win, "lock", 24, function() settings().locked = not settings().locked; BW.Request() end, "bwLock")
+    win.lock:SetPoint("RIGHT", win.gear, "LEFT", -2, 0)
+    win.bar = win:CreateTexture(nil, "ARTWORK"); win.bar:SetSize(110, 3); win.bar:SetPoint("RIGHT", win.lock, "LEFT", -14, -8); paint(win.bar, C.off or C.line, 1)
+    win.barFill = win:CreateTexture(nil, "ARTWORK", nil, 1); win.barFill:SetHeight(3); win.barFill:SetPoint("LEFT", win.bar, "LEFT")
+    win.slots = kit.label(win, 13, C.text); win.slots:SetPoint("BOTTOMRIGHT", win.bar, "TOPRIGHT", 0, 4); win.slots:SetJustifyH("RIGHT")
+    win.slotsTip = CreateFrame("Frame", nil, win); win.slotsTip:SetPoint("TOPLEFT", win.slots, "TOPLEFT", -4, 4); win.slotsTip:SetPoint("BOTTOMRIGHT", win.bar, "BOTTOMRIGHT", 0, -4)
+    win.slotsTip:EnableMouse(true)
+    win.slotsTip:SetScript("OnEnter", function(self) if GameTooltip then pcall(function() GameTooltip:SetOwner(self, "ANCHOR_BOTTOM"); GameTooltip:SetText(A.L("bwSlotsTip")); GameTooltip:Show() end) end end)
+    win.slotsTip:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    -- the search and the views
+    local segW = 92
+    local box = CreateFrame("EditBox", nil, win)
+    box:SetPoint("TOPLEFT", PAD, -TOOL_Y); box:SetSize(CONTENT_W - segW * #VIEWS - 10, TOOL_H)
+    box:SetAutoFocus(false)
+    if box.SetFont then box:SetFont(kit.fontPath("body"), 12, "") end
+    if box.SetTextInsets then box:SetTextInsets(28, 8, 0, 0) end
+    box:SetTextColor(C.text[1], C.text[2], C.text[3], 1)
+    box.bg = box:CreateTexture(nil, "BACKGROUND"); box.bg:SetAllPoints(box); paint(box.bg, C.well or C.card, 1)
+    kit.outline(box, C.line)
+    box.icon = A.Theme.Glyph(box, "search", 13, C.faint); box.icon:SetPoint("LEFT", 9, 0)
+    box.hint = kit.label(box, 12, C.faint); box.hint:SetPoint("LEFT", 28, 0); box.hint:SetText(A.L("bwSearch"))
+    box:SetScript("OnTextChanged", function(self) self.hint:SetShown(self:GetText() == ""); BW.Request() end)
+    box:SetScript("OnEscapePressed", function(self) if self:GetText() ~= "" then self:SetText("") else self:ClearFocus() end end)
+    box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    win.search = box
+    win.segs = {}
+    for i, view in ipairs(VIEWS) do
+        local s = CreateFrame("Button", nil, win); s:SetSize(segW, TOOL_H)
+        s:SetPoint("TOPLEFT", win, "TOPLEFT", PAD + CONTENT_W - segW * (#VIEWS - i + 1), -TOOL_Y)
+        s.bg = s:CreateTexture(nil, "BACKGROUND"); s.bg:SetAllPoints(s)
+        kit.outline(s, C.line)
+        s.text = kit.label(s, 12, C.mist); s.text:SetPoint("CENTER"); s.text:SetText(A.L("bwView_" .. view))
+        s.line = s:CreateTexture(nil, "ARTWORK"); s.line:SetHeight(2); s.line:SetPoint("BOTTOMLEFT", 1, 1); s.line:SetPoint("BOTTOMRIGHT", -1, 1); paint(s.line, C.gold, 1)
+        s.view = view
+        s:SetScript("OnClick", function() settings().view = view; BW.Request() end)
+        win.segs[i] = s
+    end
+    -- the chips and the hint
+    win.chips = {}
+    local dots = {sell = C.peach, new = C.gold, junk = C.faint, upgrade = C.green}
+    for _, key in ipairs({"sell", "new", "junk", "upgrade"}) do
+        local c = CreateFrame("Button", nil, win); c:SetHeight(CHIP_H)
+        c.bg = c:CreateTexture(nil, "BACKGROUND"); c.bg:SetAllPoints(c); A.Theme.Shape(c.bg, "pill")
+        c.dot = c:CreateTexture(nil, "ARTWORK"); c.dot:SetSize(7, 7); c.dot:SetPoint("LEFT", 10, 0); A.Theme.Shape(c.dot, "dot"); paint(c.dot, dots[key], 1)
+        c.num = kit.label(c, 12, C.bright); c.num:SetPoint("LEFT", c.dot, "RIGHT", 6, 0)
+        c.text = kit.label(c, 12, C.mist); c.text:SetPoint("LEFT", c.num, "RIGHT", 5, 0)
+        c:SetScript("OnClick", function()
+            local tag = "#" .. key
+            win.search:SetText(win.search:GetText() == tag and "" or tag)
+        end)
+        win.chips[key] = c
+    end
+    win.hint = kit.label(win, 10, C.faint); win.hint:SetPoint("TOPRIGHT", win, "TOPRIGHT", -PAD, -CHIP_Y - 6); win.hint:SetJustifyH("RIGHT")
+    -- the body
+    win.scroll = CreateFrame("ScrollFrame", nil, win)
+    win.scroll:SetPoint("TOPLEFT", PAD, -BODY_Y); win.scroll:SetPoint("BOTTOMRIGHT", -PAD + 4, FOOT_H)
+    win.content = CreateFrame("Frame", nil, win.scroll); win.content:SetSize(CONTENT_W, 10)
+    win.scroll:SetScrollChild(win.content)
+    win.scroll:EnableMouseWheel(true)
+    win.scroll:SetScript("OnMouseWheel", function(self, delta)
+        local max = math.max(0, (win.content:GetHeight() or 0) - (self:GetHeight() or 0))
+        local v = math.max(0, math.min(max, (self:GetVerticalScroll() or 0) - delta * (SLOT + GAP)))
+        self:SetVerticalScroll(v)
+    end)
+    -- the footer: gold, free slots, sort
+    win.foot = win:CreateTexture(nil, "BORDER"); win.foot:SetPoint("BOTTOMLEFT", 1, 1); win.foot:SetPoint("BOTTOMRIGHT", -1, 1); win.foot:SetHeight(FOOT_H - 6)
+    paint(win.foot, C.header or C.well, 1)
+    win.footRule = win:CreateTexture(nil, "ARTWORK"); win.footRule:SetHeight(1); win.footRule:SetPoint("BOTTOMLEFT", win.foot, "TOPLEFT"); win.footRule:SetPoint("BOTTOMRIGHT", win.foot, "TOPRIGHT")
+    paint(win.footRule, C.line, 1)
+    win.goldLabel = kit.label(win, 12, C.mist); win.goldLabel:SetPoint("BOTTOMLEFT", PAD, 16); win.goldLabel:SetText(A.L("bwGold"))
+    win.money = kit.label(win, 13, C.text); win.money:SetPoint("LEFT", win.goldLabel, "RIGHT", 12, 0)
+    win.free = kit.label(win, 12, C.mist); win.free:SetPoint("LEFT", win.money, "RIGHT", 22, 0)
+    win.sort = kit.Button(win, "bwSort", 110, "ghost", function()
+        if not call(api("SortBags")) and rawget(_G, "SortBags") then call(SortBags) end
+    end)
+    win.sort:SetPoint("BOTTOMRIGHT", -PAD, 9); win.sort:SetHeight(28)
+    if win.sort.text then win.sort.text:SetText(A.L("bwSort")) end
+    win.equip = kit.Button(win, "bwEquip", 180, "primary", function() BW.EquipBest() end)
+    win.equip:SetPoint("RIGHT", win.sort, "LEFT", -8, 0); win.equip:SetHeight(28)
+    win.equip:HookScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        pcall(function()
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            local plan = self.plan or {}
+            if #plan == 0 then GameTooltip:SetText(A.L("bwEquipNone"))
+            else
+                GameTooltip:SetText(A.L("bwEquip"))
+                GameTooltip:AddLine(A.L("bwEquipTip"), 0.72, 0.75, 0.80, true)
+                for _, p in ipairs(plan) do
+                    local q = qualityColor(p.quality or 1)
+                    GameTooltip:AddDoubleLine(p.name ~= "" and p.name or p.link, p.pct and string.format("+%.0f %%", p.pct) or "", q[1], q[2], q[3], 0.40, 0.80, 0.58)
+                end
+                GameTooltip:AddLine(A.L("bwEquipBind"), 0.55, 0.58, 0.66, true)
+            end
+            GameTooltip:Show()
+        end)
+    end)
+    win.equip:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    win:Hide()
+    win:SetScript("OnShow", function() BW.Render() end)
+    win:SetScript("OnHide", function()
+        if win.menu then win.menu:Hide() end
+        BW.MarkSeen()
+        if win.search then win.search:ClearFocus() end
+    end)
+    -- the place it was left
+    local p = settings().point
+    if type(p) == "table" and p[1] then win:SetPoint(p[1], UIParent, p[2] or p[1], tonumber(p[3]) or 0, tonumber(p[4]) or 0)
+    else win:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -60, 110) end
+    if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "EvertallyBagWindow") end
+    return win
+end
+BW.Build = build
+
+--- What is in the bags now counts as seen: nothing is new.
+function BW.MarkSeen()
+    seen = countById(liveItems(playerBags()))
+end
+function BW.ClearNew()
+    if rawget(_G, "C_NewItems") and C_NewItems.ClearAll then call(C_NewItems.ClearAll) end
+    BW.MarkSeen()
+end
+
+function BW.Show(tab)
+    build()
+    if tab then win.tab = tab end
+    win.char = nil
+    win:Show(); BW.Render()
+end
+function BW.Hide() if win then win:Hide() end end
+function BW.Shown() return win ~= nil and win:IsShown() end
+function BW.Toggle() if BW.Shown() then BW.Hide() else BW.Show("bags") end end
+function A.ToggleBagWindow() BW.Toggle() end
+
+-- ---------------------------------------------------------------- the game's bag keys
+-- The game's container frames for the player's bags are hidden again whenever they open while this window stands in
+-- for them. The window's state follows the outermost call of a key press: its post-hook runs last.
+local function isPlayerBag(id) return id ~= nil and id >= 0 and id <= nBagSlots() end
+function BW.HideGameBags()
+    for i = 1, (tonumber(rawget(_G, "NUM_CONTAINER_FRAMES")) or 13) do
+        local f = rawget(_G, "ContainerFrame" .. i)
+        if f and f.IsShown and f:IsShown() and isPlayerBag(f.GetID and f:GetID()) then f:Hide() end
+    end
+end
+local stampFrame, wasShown
+local function before()
+    local now = call(rawget(_G, "GetTime")) or 0
+    if stampFrame ~= now then stampFrame = now; wasShown = BW.Shown() end
+    return wasShown
+end
+local function onKey(kind, bag)
+    if not BW.Replaces() or not A.db then return end
+    if bag ~= nil and not isPlayerBag(tonumber(bag)) then return end
+    local was = before()
+    BW.HideGameBags()
+    if kind == "toggle" then if was then BW.Hide() else BW.Show("bags") end
+    elseif kind == "open" then if not BW.Shown() then BW.Show("bags") end
+    else BW.Hide() end
+end
+local hooked = false
+function BW.Hook()
+    if hooked or type(hooksecurefunc) ~= "function" then return end
+    hooked = true
+    local kinds = {ToggleAllBags = "toggle", ToggleBackpack = "toggle", OpenAllBags = "open", OpenBackpack = "open", CloseAllBags = "close", CloseBackpack = "close"}
+    for name, kind in pairs(kinds) do
+        if type(rawget(_G, name)) == "function" then hooksecurefunc(name, function() onKey(kind) end) end
+    end
+    if type(rawget(_G, "ToggleBag")) == "function" then hooksecurefunc("ToggleBag", function(id) onKey("toggle", id or 0) end) end
+    if type(rawget(_G, "OpenBag")) == "function" then hooksecurefunc("OpenBag", function(id) onKey("open", id or 0) end) end
+end
+
+-- ---------------------------------------------------------------- events
+A.On("PLAYER_LOGIN", function()
+    BW.Hook()
+    local other = BW.OtherBagAddon()
+    if other and settings().replace == nil and settings().toldOther ~= other and A.Print then
+        settings().toldOther = other
+        A.Print(string.format(A.L("bwAnotherAddon"), other))
+    end
+end)
+A.On("BAG_UPDATE_DELAYED", function()
+    if seen == nil then BW.MarkSeen() end
+    BW.Snapshot(win ~= nil and win.bankOpen)
+    BW.Request()
+end)
+A.On("PLAYER_ENTERING_WORLD", function() BW.Snapshot(false); if seen == nil then BW.MarkSeen() end end)
+A.On("ITEM_LOCK_CHANGED", function() BW.Request() end)
+A.On("PLAYER_EQUIPMENT_CHANGED", function() BW.Request() end)
+A.On("BAG_UPDATE_COOLDOWN", function() BW.Request() end)
+A.On("PLAYER_MONEY", function() BW.Snapshot(win ~= nil and win.bankOpen); BW.Request() end)
+A.On("GET_ITEM_INFO_RECEIVED", function() BW.Request() end)
+A.On("BANKFRAME_OPENED", function() build(); win.bankOpen = true; BW.Snapshot(true); BW.Request() end)
+A.On("BANKFRAME_CLOSED", function() if win then BW.Snapshot(true); win.bankOpen = false; BW.Request() end end)
+A.On("PLAYERBANKSLOTS_CHANGED", function() if win and win.bankOpen then BW.Snapshot(true); BW.Request() end end)

@@ -47,10 +47,10 @@ export async function revokeGrant(userId:string,id:string){const row=await first
 // One statement per set, regardless of event count. JSON parameters also avoid
 // expanding a 500-event batch into hundreds of SQL bind parameters or queries.
 export const PROFILE_BATCH_SQL = String.raw`
-INSERT INTO atlas_profiles(id,user_id,producer_id,character_key,name,realm,class_id,race_id,level,"public",last_seen)
+INSERT INTO atlas_profiles(id,user_id,producer_id,character_key,name,realm,class_id,race_id,level,"public",show_item_level,show_guild,show_gear,show_chronicle,last_seen)
 SELECT json_extract(j.value,'$.id'),json_extract(j.value,'$.userId'),json_extract(j.value,'$.producerId'),
        json_extract(j.value,'$.characterKey'),json_extract(j.value,'$.name'),json_extract(j.value,'$.realm'),
-       json_extract(j.value,'$.classId'),json_extract(j.value,'$.raceId'),json_extract(j.value,'$.level'),0,
+       json_extract(j.value,'$.classId'),json_extract(j.value,'$.raceId'),json_extract(j.value,'$.level'),1,1,1,1,1,
        json_extract(j.value,'$.lastSeen')
 FROM json_each(?) AS j
 WHERE EXISTS(SELECT 1 FROM atlas_grants WHERE id=? AND user_id=? AND revoked_at IS NULL)
@@ -125,12 +125,10 @@ export async function meData(userId:string){
 
 export async function setProfileVisibility(userId:string,id:string,change:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;showChronicle?:boolean}){
   const existing=await first("SELECT * FROM atlas_profiles WHERE id=? AND user_id=?",[id,userId]);if(!existing)throw new ApiError("not_found","Character not found.",404);
-  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;showChronicle?:boolean;visibilityAt?:number}={visibilityAt:now()};
-  if(change.public!==undefined)set.public=change.public;
-  if(change.showItemLevel!==undefined)set.showItemLevel=change.showItemLevel;
-  if(change.showGuild!==undefined)set.showGuild=change.showGuild;
-  if(change.showGear!==undefined)set.showGear=change.showGear;
-  if(change.showChronicle!==undefined)set.showChronicle=change.showChronicle;
+  // Every character is public with everything shown (the leaderboards, the chronicle, the armory; the bags only by
+  // the player's own permission in the game): a change can no longer hide any of it.
+  void change;
+  const set:{public?:boolean;showItemLevel?:boolean;showGuild?:boolean;showGear?:boolean;showChronicle?:boolean;visibilityAt?:number}={visibilityAt:now(),public:true,showItemLevel:true,showGuild:true,showGear:true,showChronicle:true};
   await getDb().update(profileTable).set(set).where(eq(profileTable.id,id));
   return serializeProfile({...existing,...(set.public!==undefined?{public:set.public}:{}),...(set.showItemLevel!==undefined?{show_item_level:set.showItemLevel}:{}),...(set.showGuild!==undefined?{show_guild:set.showGuild}:{}),...(set.showGear!==undefined?{show_gear:set.showGear}:{}),...(set.showChronicle!==undefined?{show_chronicle:set.showChronicle}:{})});
 }

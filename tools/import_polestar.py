@@ -90,6 +90,7 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
          '\trefresh = function() if F and F:IsShown() and render then render() end end,\n'
          '\tshown = function() return F ~= nil and F:IsShown() end,\n'
          '\tcurrent = function() return current end,\n'
+         '\tfull = function() return full end,\n'
          '}\n'
          '-- Finish: the host first (it applies its own choices), then the close.\n'
          'local function finish()\n'
@@ -129,7 +130,9 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
          '\tunasked = deferred and true or false\n', 1),
         ('\tif seen() then return end\n\tpending = "login"\n',
          '\tif seen() then return end\n'
-         '\tif UI.WelcomeOwner then return end -- (Evertally: its setup decides when this window opens)\n'
+         '\t-- (Evertally: its setup decides when this window opens while the account has not had it; a new character on\n'
+         '\t-- an account that has gets the guide\'s own short showing, its own choices alone)\n'
+         '\tif UI.WelcomeOwner and not accountSeen() then return end\n'
          '\tpending = "login"\n', 1),
     ],
     "Core/Init.lua": [('SLASH_EVERTALLYGUIDE3 = "/ps"', 'SLASH_EVERTALLYGUIDE3 = "/evertallyguide"', 1),
@@ -227,6 +230,265 @@ PATCHES: dict[str, list[tuple[str, str, int]]] = {
          "\t\tplace(items[k], i, y)\n\t\trailButton(f, i):SetHeight(step)\n\t\ty = y + step\n\tend\n", 1),
     ],
 }
+
+
+def _more(path: str, *edits: tuple[str, str, int]) -> None:
+    PATCHES.setdefault(path, []).extend(edits)
+
+
+# ---- 2026-11-17, after the first test of 0.11.0 in the game ----
+# No stars anywhere: the starlit band's star layer (every header band), the Little Dipper and the emblem's beam in the
+# setup and What's new.
+_more("Theme/Theme.lua",
+      ('\tstars:SetTexture(Theme.Media("band-stars"))\n',
+       '\t-- (Evertally: no stars; the layer stays, empty, for the code that shows and hides it)\n', 1),
+      # One look: Evertally's own (addon/Evertally/GuideSkin.lua); the others are not offered. Without it (Evertally
+      # missing) every look is listed as before.
+      ('\t\tif s and (Theme._testShowHidden or not HIDDEN_SKINS[id]) then\n\t\t\tif s.builtin then',
+       '\t\tif s and (Theme._testShowHidden or not HIDDEN_SKINS[id]) and (id == "evertally" or not SKINS.evertally) then\n\t\t\tif s.builtin then', 1))
+_more("UI/Welcome.lua",
+      ('\t\tbeam:SetShown(house())\n', '\t\tbeam:SetShown(false) -- (Evertally: no beam, no stars)\n', 1),
+      ('\tfunction dipper(parent, ox, oy, scale, deg)\n',
+       '\tfunction dipper(parent, ox, oy, scale, deg)\n\t\tdo return end -- (Evertally: no stars)\n', 1),
+      # One look, so no page to choose it.
+      ('\t\tkey = "look",\n\t\tshown = function() return full end,',
+       '\t\tkey = "look",\n\t\tshown = function() return false end, -- (Evertally: one look, nothing to choose)', 1))
+# No beta: Evertally is released; the version shown is Evertally's (ns.ShownVersion), not Polestar's.
+_more("Core/Init.lua",
+      ('ns.stage = "Beta"', 'ns.stage = nil -- (Evertally: no beta)', 1),
+      ('ns.routesBeta = true', 'ns.routesBeta = false -- (Evertally)', 1),
+      ('ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")) or "dev"\n',
+       'ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")) or "dev"\n'
+       '-- Evertally: the version players see is Evertally\'s (ns.version stays Polestar\'s for the party and the packs).\n'
+       'function ns.ShownVersion()\n\tlocal E = rawget(_G, "Evertally")\n'
+       '\treturn type(E) == "table" and E.version and tostring(E.version) or ns.version\nend\n', 1))
+# Only English and Czech ship: no line about the other languages' missing folders (bod 3 of the handoff).
+_more("Core/Locale.lua",
+      ('local language = pack and LANGUAGE[pack:match("^Evertally_Guide_(.+)$") or ""]',
+       'local language = nil -- (Evertally: English and Czech only, nothing to miss; was LANGUAGE[pack])', 1))
+_more("Core/Data.lua",
+      ('\tif language then check(language, s) end\n',
+       '\t-- (Evertally: no language folders but Czech, which Evertally loads itself)\n', 1))
+# The party panel opens from the Evertally menu, not by itself.
+_more("Quests/Party.lua",
+      ('waitForGroup = true, lootNeeds = true, panel = true,', 'waitForGroup = true, lootNeeds = true, panel = false,', 1))
+# Lookup is the Database: with no search it browses, each kind A to Z (Search.Browse), still searched from the box.
+_more("Core/Search.lua",
+      ('function Search.Status()\n',
+       '-- Evertally: browsing, Lookup with nothing typed (the Database): a kind A to Z, a page at a time. Retired and\n'
+       '-- sourceless entries are left out. The first page of each kind (a few names) is read in one pass; a whole kind is\n'
+       '-- sorted once, when it is opened. -> results (as Query\'s), total\n'
+       'local browsed = {}\n'
+       'local BROWSE_LINE = "\\2([^\\1]*)\\1([^,]*),(%d*),(%a?),%d+\\n"\n'
+       'local function browseResult(kind, rawId, quality)\n'
+       '\tlocal C = ns.Codex\n'
+       '\tlocal id = kind == "instance" and rawId or tonumber(rawId)\n'
+       '\treturn { kind = kind, id = id, title = (localised() and localName(kind, id)) or C.Name(kind, id) or rawId,\n'
+       '\t\tquality = tonumber(quality), score = 0, curated = curated[id] or nil }\n'
+       'end\n'
+       'function Search.Browse(kind, offset, count)\n'
+       '\toffset, count = offset or 0, count or 50\n'
+       '\tlocal out = {}\n'
+       '\tif kind == "guide" then\n'
+       '\t\tlocal list = guideList()\n'
+       '\t\tlocal sorted = {}\n'
+       '\t\tfor i = 1, #list do sorted[i] = list[i] end\n'
+       '\t\ttable.sort(sorted, function(a, b) return a.folded < b.folded end)\n'
+       '\t\tfor j = offset + 1, min(#sorted, offset + count) do\n'
+       '\t\t\tlocal g = sorted[j]\n'
+       '\t\t\tout[#out + 1] = { kind = "guide", id = g.id, title = g.title, subtitle = g.subtitle, score = 0 }\n'
+       '\t\tend\n'
+       '\t\treturn out, #sorted\n'
+       '\tend\n'
+       '\tif not codexOn() then return out, 0 end\n'
+       '\tlocal C = ns.Codex\n'
+       '\tif C and C.IsLoaded and not C.IsLoaded() and C.Load then C.Load() end\n'
+       '\tlocal blob = codexBlob(kind)\n'
+       '\tif not blob then return out, 0 end\n'
+       '\tguideList() -- the curated set\n'
+       '\tlocal b = browsed[kind]\n'
+       '\tif not b or b.blob ~= blob then b = { blob = blob }; browsed[kind] = b end\n'
+       '\tif not b.lines and offset == 0 and count <= 10 and b.first and b.firstN == count then\n'
+       '\t\tfor i, res in ipairs(b.first) do out[i] = res end\n'
+       '\t\treturn out, b.total\n'
+       '\tend\n'
+       '\tif not b.lines and offset == 0 and count <= 10 then\n'
+       '\t\t-- the first few names and the count, without sorting the kind\n'
+       '\t\tlocal names, ids, quals, n, total = {}, {}, {}, 0, 0\n'
+       '\t\tfor folded, id, q, st in gmatch(blob, BROWSE_LINE) do\n'
+       '\t\t\tif st == "" and folded ~= "" then\n'
+       '\t\t\t\ttotal = total + 1\n'
+       '\t\t\t\tif n < count or folded < names[n] then\n'
+       '\t\t\t\t\tlocal pos = n < count and n + 1 or n\n'
+       '\t\t\t\t\twhile pos > 1 and names[pos - 1] > folded do\n'
+       '\t\t\t\t\t\tnames[pos], ids[pos], quals[pos] = names[pos - 1], ids[pos - 1], quals[pos - 1]\n'
+       '\t\t\t\t\t\tpos = pos - 1\n'
+       '\t\t\t\t\tend\n'
+       '\t\t\t\t\tnames[pos], ids[pos], quals[pos] = folded, id, q\n'
+       '\t\t\t\t\tif n < count then n = n + 1 end\n'
+       '\t\t\t\tend\n'
+       '\t\t\tend\n'
+       '\t\tend\n'
+       '\t\tb.total = total\n'
+       '\t\tfor i = 1, n do out[i] = browseResult(kind, ids[i], quals[i]) end\n'
+       '\t\tb.first, b.firstN = {}, count\n'
+       '\t\tfor i, res in ipairs(out) do b.first[i] = res end\n'
+       '\t\treturn out, total\n'
+       '\tend\n'
+       '\tif not b.lines then\n'
+       '\t\tlocal lines = {}\n'
+       '\t\tfor folded, id, q, st in gmatch(blob, BROWSE_LINE) do\n'
+       '\t\t\tif st == "" and folded ~= "" then lines[#lines + 1] = folded .. "\\1" .. id .. "\\1" .. q end\n'
+       '\t\tend\n'
+       '\t\ttable.sort(lines)\n'
+       '\t\tb.lines, b.total = lines, #lines\n'
+       '\tend\n'
+       '\tfor j = offset + 1, min(#b.lines, offset + count) do\n'
+       '\t\tlocal id, q = match(b.lines[j], "\\1([^\\1]*)\\1(.*)$")\n'
+       '\t\tout[#out + 1] = browseResult(kind, id, q)\n'
+       '\tend\n'
+       '\treturn out, b.total\n'
+       'end\n\n'
+       'function Search.Status()\n', 1))
+_more("UI/Lookup.lua",
+      ('local cache = {}\nlocal function current()\n',
+       '-- Evertally: nothing typed browses (the Database): every kind A to Z (Search.Browse).\n'
+       'local function browse(k, offset, count)\n'
+       '\tlocal S = ns.Search\n'
+       '\tif not (S and S.Browse) then return {}, 0 end\n'
+       '\tlocal ok, list, total = pcall(S.Browse, k, offset, count)\n'
+       '\tif not ok then return {}, 0 end\n'
+       '\treturn list or {}, total or 0\n'
+       'end\n'
+       'local function browseAll()\n'
+       '\tlocal all, counts = {}, {}\n'
+       '\tfor _, k in ipairs(kinds()) do\n'
+       '\t\tlocal list, total = browse(k.key, 0, GROUP_MAX)\n'
+       '\t\tif total > 0 then\n'
+       '\t\t\tcounts[k.key] = total\n'
+       '\t\t\tfor _, r in ipairs(list) do all[#all + 1] = r end\n'
+       '\t\tend\n'
+       '\tend\n'
+       '\treturn all, counts\n'
+       'end\n\n'
+       'local cache = {}\nlocal function current()\n', 1),
+      ('\t\t\tlist = (search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = 0, subtitles = false }))\n\t\tend\n\tend\n',
+       '\t\t\tlist = (search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = 0, subtitles = false }))\n\t\tend\n'
+       '\telse\n'
+       '\t\tall, counts = browseAll()\n'
+       '\t\tif kind == "all" then list = all else list = (browse(kind, 0, PAGE)) end\n'
+       '\tend\n', 1),
+      ('\tif kind == "all" or query == "" then return end\n'
+       '\tlocal more = search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = #c.list, subtitles = false })\n',
+       '\tif kind == "all" then return end\n'
+       '\tlocal more = query == "" and (browse(kind, #c.list, PAGE))\n'
+       '\t\tor search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = #c.list, subtitles = false })\n', 1),
+      ('local NAV_MAX = 10\n', 'local NAV_MAX = 12\n', 1),
+      ('\tlocal title = (kind == "all" or query == "") and L["Lookup"] or kindLabel(kind)\n',
+       '\tlocal title = kind == "all" and L["Database"] or kindLabel(kind)\n', 1),
+      ('\tif query == "" then\n\t\t-- No search: the recent lookups, never a data set.\n',
+       '\tif query == "" and kind == "all" then\n\t\t-- No search: the recent lookups, then (Evertally) the database, every kind A to Z.\n', 1),
+      ('\t\t\tfor _, r in ipairs(recent) do row({ kind = r.kind, id = r.id, title = r.title, quality = r.quality, status = r.status }) end\n'
+       '\t\tend\n\telse\n\t\tlocal byKind = {}\n',
+       '\t\t\tfor _, r in ipairs(recent) do row({ kind = r.kind, id = r.id, title = r.title, quality = r.quality, status = r.status }) end\n'
+       '\t\tend\n\tend\n\tdo\n\t\tlocal byKind = {}\n', 1),
+      ('\telseif query == "" then\n\t\tempty = loaded and',
+       '\telseif query == "" and #list == 0 then\n\t\tempty = loaded and', 1),
+      ('\t\tkey = "Lookup", label = L["Lookup"], icon = "search", order = 20,',
+       '\t\tkey = "Lookup", label = L["Database"], icon = "search", order = 20,', 1))
+_more("UI/GuideFrame.lua",
+      ('nav.Lookup = W.IconButton(nav, "search", 24, L["Lookup"], function() UI.ShowLookup() end)',
+       'nav.Lookup = W.IconButton(nav, "search", 24, L["Database"], function() UI.ShowLookup() end)', 1))
+# The window's height follows the grip too: dragging it up or down sets the tallest the window may be (ui.maxHeight);
+# past it the steps and the quest tracker scroll. GF.dragShare holds it while dragging (UI/GuideFrameLayout.lua).
+_more("UI/GuideFrameWindow.lua",
+      ('\tlocal function resizeUpdate(self)\n'
+       '\t\tlocal x = GetCursorPosition() / F:GetEffectiveScale()\n'
+       '\t\tlocal w = min(UI.MAX_WIDTH, max(UI.MIN_WIDTH, floor(self.psStartW + (x - self.psStartX) + 0.5)))\n'
+       '\t\tif w ~= floor(F:GetWidth() + 0.5) then\n',
+       '\tlocal function resizeUpdate(self)\n'
+       '\t\tlocal cx, cy = GetCursorPosition()\n'
+       '\t\tlocal x = cx / F:GetEffectiveScale()\n'
+       '\t\tlocal w = min(UI.MAX_WIDTH, max(UI.MIN_WIDTH, floor(self.psStartW + (x - self.psStartX) + 0.5)))\n'
+       '\t\t-- Evertally: the height too (ui.maxHeight, a share of the screen)\n'
+       '\t\tlocal dy = (self.psStartY or 0) - cy / F:GetEffectiveScale()\n'
+       '\t\tif ns.Get("ui.growUp") then dy = -dy end\n'
+       '\t\tlocal screen = UIParent:GetHeight() * UIParent:GetEffectiveScale()\n'
+       '\t\tlocal share = min(0.95, max(0.15, ((self.psStartH or F:GetHeight()) + dy) * F:GetEffectiveScale() / screen))\n'
+       '\t\tlocal tall = (GF.dragShare or math.abs(dy) > 4) and math.abs(share - (GF.dragShare or -1)) > 0.001\n'
+       '\t\tif tall then GF.dragShare = share end\n'
+       '\t\tif w ~= floor(F:GetWidth() + 0.5) or tall then\n', 1),
+      ('\t\tself.psStartW = F:GetWidth()\n',
+       '\t\tself.psStartW = F:GetWidth()\n'
+       '\t\tlocal _, cy = GetCursorPosition()\n'
+       '\t\tself.psStartY, self.psStartH, GF.dragShare = cy / F:GetEffectiveScale(), F:GetHeight(), nil\n', 1),
+      ('\t\tns.Set("ui.width", floor(F:GetWidth() + 0.5))\n',
+       '\t\tns.Set("ui.width", floor(F:GetWidth() + 0.5))\n'
+       '\t\tif GF.dragShare then\n'
+       '\t\t\tlocal share = floor(GF.dragShare * 1000 + 0.5) / 1000\n'
+       '\t\t\tGF.dragShare = nil\n'
+       '\t\t\tns.Set("ui.maxHeight", share)\n'
+       '\t\tend\n', 1))
+# The guide's own buttons (the minimap one, when a player turns it on; the floating one; the addon compartment) click as
+# Evertally's: left the Evertally menu, right hides Evertally (or shows it again) - bod 6 of the handoff.
+_more("Maps/MinimapButton.lua",
+      ('function Maps.ButtonTip(owner, drag)\n',
+       '-- Evertally: hiding goes through Evertally (its window and its minimap button too) while it is there.\n'
+       'function Maps.ToggleHidden()\n'
+       '\tlocal E = rawget(_G, "Evertally")\n'
+       '\tif type(E) == "table" and E.ToggleEvertallyHidden then return E.ToggleEvertallyHidden() end\n'
+       '\treturn ns.ToggleHidden()\n'
+       'end\n\n'
+       'function Maps.ButtonTip(owner, drag)\n', 1),
+      ('{ L["Evertally is hidden: click to show"], T.Accent() } or L["Click: hide Evertally"] }',
+       '{ L["Evertally is hidden: right-click to show"], T.Accent() } or L["Right-click: hide Evertally"] }', 1),
+      ('L["Evertally is paused: right-click to resume"]', 'L["Evertally is paused: resume it in the menu"]', 1),
+      ('\tlines[#lines + 1] = L["Right-click: menu"]\n', '\tlines[#lines + 1] = L["Click: menu"]\n', 1),
+      ('\tif which == "RightButton" then\n\t\tMaps.ShowMenu(row or UIParent)\n\telse\n\t\tns.ToggleHidden()\n\tend\n',
+       '\tif which == "RightButton" then\n\t\tMaps.ToggleHidden()\n\telse\n\t\tMaps.ShowMenu(row or UIParent)\n\tend\n', 1),
+      ('\t\tif which == "RightButton" then\n\t\t\tW.HideTooltip(self)\n\t\t\tMaps.ShowMenu(self)\n\t\telse\n\t\t\tns.ToggleHidden()\n',
+       '\t\tif which ~= "RightButton" then\n\t\t\tW.HideTooltip(self)\n\t\t\tMaps.ShowMenu(self)\n\t\telse\n\t\t\tMaps.ToggleHidden()\n', 1))
+_more("UI/Launcher.lua",
+      ('\t\tif which == "RightButton" then\n\t\t\tW.HideTooltip(self)\n\t\t\tns.Maps.ShowMenu(self)\n'
+       '\t\telseif not ns.DragMoved(self) then\n\t\t\tns.ToggleHidden()\n',
+       '\t\tif which == "RightButton" then\n\t\t\tns.Maps.ToggleHidden()\n'
+       '\t\telseif not ns.DragMoved(self) then\n\t\t\tW.HideTooltip(self)\n\t\t\tns.Maps.ShowMenu(self)\n'
+       '\t\t\tdo return end\n', 1))
+
+# The settings' About group is About alone: no Guiding Stars (Polestar's supporters, and its "Special thanks to:" in the
+# headers), no Recorder (for Polestar's guide authors). About says where Evertally Guide comes from: Polestar, its
+# engine and its guides; the version is Evertally's.
+_more("UI/Options.lua",
+      ('add({ page = L["Guiding Stars"], key = "thanks", icon = "star", order = 80,',
+       'if false then add({ page = L["Guiding Stars"], key = "thanks", icon = "star", order = 80,', 1),
+      ('\tcustom = UI.Thanks.Build }, true)\n',
+       '\tcustom = UI.Thanks.Build }, true) end -- (Evertally: no Guiding Stars)\n', 1),
+      ('add({ page = REC, key = "recorder", icon = "record", order = 90,',
+       'if false then add({ page = REC, key = "recorder", icon = "record", order = 90,', 1),
+      ('custom = buildRecorder }, true)\n', 'custom = buildRecorder }, true) end -- (Evertally: no Recorder)\n', 1),
+      ('\tlocal paras = {\n\t\tL["Leveling guides have become a business:',
+       '\tlocal paras = {\n\t\thex .. L["Evertally Guide is inspired by Polestar and built on it: the guide engine and the leveling guides are the work of the Polestar authors (github.com/fitzforge/polestar, GPL-3.0). Thank you."] .. "|r",\n'
+       '\t\tL["Leveling guides have become a business:', 1),
+      ('\t\tlocal v = L["Version"] .. " " .. tostring(ns.version or "dev")\n',
+       '\t\tlocal v = L["Version"] .. " " .. tostring(ns.ShownVersion and ns.ShownVersion() or ns.version or "dev")\n', 1),
+      ('block(L["Credits"], L["Inter typeface by',
+       'block(L["Credits"], L["Leveling guides, the guide engine and its data: Polestar by the Polestar authors (GPL-3.0)."] .. "\\n"\n\t\t.. L["Inter typeface by', 1))
+_more("UI/Thanks.lua",
+      ('function T.HeaderLink(f)\n', 'function T.HeaderLink(f)\n\tdo return end -- (Evertally: no "Special thanks to:" in the headers)\n', 1))
+
+# Evertally's own strings in Czech (not in Polestar, so not in tools/polestar-cs/keys.json).
+EXTRA_CS = {
+    "Database": "Databáze",
+    "Evertally is hidden: right-click to show": "Evertally je skrytý: pravým tlačítkem ho ukážeš",
+    "Right-click: hide Evertally": "Pravé tlačítko: skrýt Evertally",
+    "Evertally is paused: resume it in the menu": "Evertally je pozastavený: obnovíš ho v menu",
+    "Click: menu": "Klik: menu",
+    "Evertally Guide is inspired by Polestar and built on it: the guide engine and the leveling guides are the work of the Polestar authors (github.com/fitzforge/polestar, GPL-3.0). Thank you.":
+        "Evertally Guide vychází z Polestaru a je na něm postavený: engine průvodce i návody na levelování jsou práce autorů Polestaru (github.com/fitzforge/polestar, GPL-3.0). Děkujeme.",
+    "Leveling guides, the guide engine and its data: Polestar by the Polestar authors (GPL-3.0).":
+        "Návody na levelování, engine průvodce a jeho data: Polestar od autorů Polestaru (GPL-3.0).",
+}
+
 # Slash commands: Polestar's own words would clash with an installed Polestar (the game picks one of the two).
 SLASH_WORDS = [(re.compile(r"(?<![\w./])/polestar\b"), "/etguide"), (re.compile(r"(?<![\w./])/pole\b"), "/etg")]
 # Ids other add-ons key us by, spelled in lower case ("polestar_quest_needed": a Baganator corner widget). Registering
@@ -249,6 +511,36 @@ LUA_TOKEN = re.compile(
     r"|('(?:\\.|[^'\\\n])*')",             # 'string'
     re.S)
 
+
+# ---- 2026-11-18: labels read while the guide's files load (before Evertally chose Czech) are translated again by
+# Evertally (addon/Evertally/EvertallySettings.lua relabel): the local tables it cannot reach are handed out.
+_more('UI/Picker.lua', ('local VIEW_LABEL = { home = L["Home"], browse = L["Browse"], current = L["Current"], recent = L["Recent"] }\n',
+      'local VIEW_LABEL = { home = L["Home"], browse = L["Browse"], current = L["Current"], recent = L["Recent"] }\n-- Evertally: read while this file loads, before Evertally chose Czech: Evertally translates them again (EvertallySettings.lua)\nP.VIEW_LABEL = VIEW_LABEL\n', 1))
+_more('UI/Picker.lua', ('local GUIDES = { key = "Guides", label = L["Guides"], icon = "guides", order = 10, builtin = true }\n',
+      'local GUIDES = { key = "Guides", label = L["Guides"], icon = "guides", order = 10, builtin = true }\nP.GUIDES = GUIDES -- (Evertally translates its label again, as VIEW_LABEL)\n', 1))
+_more('UI/Picker.lua', ('local HUB_SEARCH = { L["Search guides, items, NPCs"], L["Search guides, items"], L["Search"] }\n',
+      'local HUB_SEARCH = { L["Search guides, items, NPCs"], L["Search guides, items"], L["Search"] }\nP.HUB_SEARCH = HUB_SEARCH -- (Evertally translates it again, as VIEW_LABEL)\n', 1))
+_more('UI/Lookup.lua', ('local FACTION = { A = ns.FactionName("A"), H = ns.FactionName("H"), AH = L["Both factions"] }\n',
+      'local FACTION = { A = ns.FactionName("A"), H = ns.FactionName("H"), AH = L["Both factions"] }\n-- Evertally: read while this file loads, before Evertally chose Czech: Evertally translates them again (EvertallySettings.lua)\nLK.FACTION, LK.FALLBACK_KINDS = FACTION, FALLBACK_KINDS\n', 1))
+_more('UI/Lookup.lua', ('local STATUS_TEXT = { retired = L["No longer obtainable"], nosource = L["No known source"] }\n',
+      'local STATUS_TEXT = { retired = L["No longer obtainable"], nosource = L["No known source"] }\nLK.STATUS_TEXT = STATUS_TEXT -- (Evertally translates it again)\n', 1))
+_more('Rares/View.lua', ('local LIST_W = 272\n',
+      "-- Evertally: the list wide and the details 372 px on the right, as the Database (UI/Lookup.lua DETAIL_W) and\n-- Evertally's own pages: 878 (the main column at the default width) - 372\nlocal LIST_W = 506\n", 1))
+# ---- 2026-11-18: the sections' categories as tabs, Evertally's menu in the sidebar of every section
+_more('UI/Picker.lua', ('local function renderSection(s)\n',
+      '-- Evertally: a section\'s own index (its nav: the Database\'s kinds, the Rares\' tabs) is a row of tabs over its page,\n-- and the sidebar holds Evertally\'s menu in every section, one click from any of its pages.\nlocal EVERTALLY_KEY = "Evertally"\nlocal function sectionTabs(s)\n\tif s.key == EVERTALLY_KEY or not s.nav then return false end\n\tlocal ok, items, activeKey = pcall(s.nav)\n\tif not ok or type(items) ~= "table" then return false end\n\tlocal tabs = {}\n\tfor _, it in ipairs(items) do\n\t\tif not it.separator and not it.heading and it.key and it.key ~= "" then tabs[#tabs + 1] = { key = it.key, label = it.label or it.key } end\n\tend\n\tif #tabs < 2 then return false end\n\tW.ShellTabs(win, tabs, activeKey, function(key) if s.onNav then s.onNav(key) end end)\n\treturn true\nend\nlocal function evertallyNav()\n\tfor _, s in ipairs(sections) do\n\t\tif s.key == EVERTALLY_KEY and s.nav then\n\t\t\tlocal ok, items = pcall(s.nav)\n\t\t\tif not ok or type(items) ~= "table" then return false end\n\t\t\tW.ShellNav(win, items, nil, function(key) P.ShowSection(s.key); if s.onNav then s.onNav(key) end end)\n\t\t\treturn true\n\t\tend\n\tend\n\treturn false\nend\n\nlocal function renderSection(s)\n', 1))
+_more('UI/Picker.lua', ('\t-- No tabs until the section sets its own (its render may).\n\tW.ShellTabs(win, nil)\n\ts.render()\n',
+      '\t-- No tabs until the section sets its own (its render may).\n\tW.ShellTabs(win, nil)\n\ts.render()\n\tsectionTabs(s) -- (Evertally: after its render, which may clear the row)\n', 1))
+_more('UI/Picker.lua', ('local function sectionNav(s)\n',
+      "local function sectionNav(s)\n\t-- Evertally: the section's own index is its tab row (sectionTabs); the sidebar is Evertally's menu\n\tif s.key ~= EVERTALLY_KEY and evertallyNav() then return end\n", 1))
+_more('UI/Picker.lua', ('\tW.ShellNav(win, navItems(counts, total), view == "browse" and category or nil, function(key) P.SetCategory(key) end)\n\tlocal tabsList = {}\n\tfor i, v in ipairs(VIEWS) do tabsList[i] = { key = v, label = VIEW_LABEL[v] } end\n\tW.ShellTabs(win, tabsList, view, function(key) P.SetView(key) end)\n',
+      '\t-- Evertally: the guides\' categories are tabs after Home, Current and Recent (Browse is the category tabs); the\n\t-- sidebar holds Evertally\'s menu (evertallyNav), or the categories when Evertally is not there.\n\tlocal navList = navItems(counts, total)\n\tlocal tabsList = {}\n\tfor _, v in ipairs(VIEWS) do if v ~= "browse" then tabsList[#tabsList + 1] = { key = v, label = VIEW_LABEL[v] } end end\n\tfor _, it in ipairs(navList) do\n\t\tif not it.heading and it.key ~= "" then tabsList[#tabsList + 1] = { key = "cat:" .. it.key, label = it.label } end\n\tend\n\tW.ShellTabs(win, tabsList, view == "browse" and ("cat:" .. category) or view, function(key)\n\t\tif key:sub(1, 4) == "cat:" then P.SetCategory(key:sub(5)) else P.SetView(key) end\n\tend)\n\tif not evertallyNav() then\n\t\tW.ShellNav(win, navList, view == "browse" and category or nil, function(key) P.SetCategory(key) end)\n\tend\n', 1))
+# ---- 2026-11-18: the guide's chat lines say Evertally, not Polestar (the user: "do chatu furt píše polestar")
+_more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
+      'local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)', 1))
+# ---- 2026-11-18: quest names without quote marks in the steps and the quest texts
+_more('Core/Init.lua', ('function ns.Quoted(name)\n\tif type(name) ~= "string" or name == "" then return name end\n',
+      'function ns.Quoted(name)\n\tif type(name) ~= "string" or name == "" then return name end\n\t-- Evertally: a quest\'s name stands as it is, without quote marks (the user: "proč to píše uvozovky")\n\tif ns.EvertallyPlainNames ~= false then return name end\n', 1))
 
 def folder_name(name: str) -> str:
     return "Evertally_Guide" + name[len("Polestar"):]
@@ -353,6 +645,9 @@ def czech(today: str, version: str) -> None:
         if v:
             lines.append(f"L[{lua_string(k)}] = {lua_string(v)}")
             n_ui += 1
+    for k, v in EXTRA_CS.items():
+        lines.append(f"L[{lua_string(k)}] = {lua_string(v)}")
+        n_ui += 1
     (dst / "Interface.lua").write_text("\n".join(lines) + "\n", encoding="utf8", newline="\n")
     out = ["-- Czech guide texts for Evertally Guide. Generated by tools/import_polestar.py from tools/polestar-cs/texts.json.",
            "", "local t = { guides = {} }", "t.pack = {"]

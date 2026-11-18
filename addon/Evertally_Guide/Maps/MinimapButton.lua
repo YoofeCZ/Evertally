@@ -85,12 +85,19 @@ end
 
 -- The tooltip of the minimap button, the floating button (UI/Launcher.lua)
 -- and the compartment's row: what a click does now, the menu, then `drag`.
+-- Evertally: hiding goes through Evertally (its window and its minimap button too) while it is there.
+function Maps.ToggleHidden()
+	local E = rawget(_G, "Evertally")
+	if type(E) == "table" and E.ToggleEvertallyHidden then return E.ToggleEvertallyHidden() end
+	return ns.ToggleHidden()
+end
+
 function Maps.ButtonTip(owner, drag)
 	local T = ns.Theme
-	local lines = { ns.Hidden() and { L["Evertally is hidden: click to show"], T.Accent() } or L["Click: hide Evertally"] }
+	local lines = { ns.Hidden() and { L["Evertally is hidden: right-click to show"], T.Accent() } or L["Right-click: hide Evertally"] }
 	-- Paused (Core/Init.lua): said, and how to resume.
-	if ns.Paused() then lines[#lines + 1] = { L["Evertally is paused: right-click to resume"], T.Accent() } end
-	lines[#lines + 1] = L["Right-click: menu"]
+	if ns.Paused() then lines[#lines + 1] = { L["Evertally is paused: resume it in the menu"], T.Accent() } end
+	lines[#lines + 1] = L["Click: menu"]
 	lines[#lines + 1] = drag
 	ns.Widgets.Tooltip(owner, "ANCHOR_LEFT", "Evertally", lines)
 end
@@ -149,9 +156,9 @@ end
 -- addon's name, the mouse button and the compartment's row.
 function Evertally_Guide_OnAddonCompartmentClick(_, which, row)
 	if which == "RightButton" then
-		Maps.ShowMenu(row or UIParent)
+		Maps.ToggleHidden()
 	else
-		ns.ToggleHidden()
+		Maps.ShowMenu(row or UIParent)
 	end
 end
 
@@ -228,11 +235,11 @@ local function build()
 	-- hover's plain circle, and showed that as Polestar's icon.
 	Maps.MinimapButtonFace(button, "EvertallyGuideMinimapButtonIcon")
 	button:SetScript("OnClick", function(self, which)
-		if which == "RightButton" then
+		if which ~= "RightButton" then
 			W.HideTooltip(self)
 			Maps.ShowMenu(self)
 		else
-			ns.ToggleHidden()
+			Maps.ToggleHidden()
 			-- The tooltip under the cursor says what the next click does.
 			if GameTooltip and GameTooltip:GetOwner() == self then showTip(self) end
 		end

@@ -124,7 +124,8 @@ local function plain(v) local text = tostring(A.Plain(v) or A.L("unknown")); ret
 -- string.upper leaves the Czech letters alone, so they are mapped by hand
 local UPPER = {["á"] = "Á", ["č"] = "Č", ["ď"] = "Ď", ["é"] = "É", ["ě"] = "Ě", ["í"] = "Í", ["ň"] = "Ň", ["ó"] = "Ó", ["ř"] = "Ř", ["š"] = "Š", ["ť"] = "Ť", ["ú"] = "Ú", ["ů"] = "Ů", ["ý"] = "Ý", ["ž"] = "Ž"}
 local function upper(text)
-    text = tostring(text or ""):upper()
+    -- (only a-z through string.upper: with a non-C locale it would also change the bytes inside the Czech letters)
+    text = tostring(text or ""):gsub("[a-z]", string.upper)
     for low, high in pairs(UPPER) do text = text:gsub(low, high) end
     return text
 end
@@ -178,7 +179,21 @@ end
 local localeButtons = {}
 -- A button: gold for the main action, a quiet raised panel with a gold-tinted line for the rest. `icon` (optional)
 -- is a line glyph from Media/Polestar drawn before the caption.
+-- On a page drawn in the guide's hub (A.InHubPage): the hub's own button (its shape, colours and type), the same
+-- calls as here (b.text is its caption, b.localeKey the caption's key).
+local function hubButton(parent, key, width, kind, onClick)
+    local g = A.HubKit and A.HubKit.Guide and A.HubKit.Guide()
+    if not (g and g.Widgets.Button and A.InHubPage and A.InHubPage(parent)) then return nil end
+    local b = g.Widgets.Button(parent, key and A.L(key) or "", function(self, ...) if onClick then onClick(self, ...) end end, {width = width, height = 30, primary = kind == "primary", danger = kind == "danger"})
+    b:SetWidth(width)
+    b.text, b.localeKey, b.hub = b.Label, key, true
+    if key then localeButtons[#localeButtons + 1] = b end
+    return b
+end
+
 local function Button(parent, key, width, kind, onClick, icon)
+    local hub = not icon and hubButton(parent, key, width, kind, onClick)
+    if hub then return hub end
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(width, 32)
     local primary = kind == "primary"
@@ -312,6 +327,10 @@ local function NewRow(parent)
     r.right = label(r, 13, C.text); r.right:SetPoint("RIGHT", -12, 0); r.right:SetJustifyH("RIGHT")
     r.tag = Pill(r); r.tag:SetPoint("RIGHT", r.right, "LEFT", -10, 0)
     r.chevron = label(r, 12, C.lilac); r.chevron:SetPoint("RIGHT", -7, 0)
+    -- the hub look (A.HubLook): the icon on a dark tile, an accent bar at the left edge while pointed at
+    r.iconTile = r:CreateTexture(nil, "BORDER"); r.iconTile:SetSize(30, 30); r.iconTile:SetPoint("CENTER", r.icon, "CENTER"); paint(r.iconTile, C.well, 1); r.iconTile:Hide()
+    r.hoverBar = r:CreateTexture(nil, "HIGHLIGHT"); r.hoverBar:SetWidth(2); r.hoverBar:SetPoint("TOPLEFT", 0, -3); r.hoverBar:SetPoint("BOTTOMLEFT", 0, 3); paint(r.hoverBar, C.gold, 1)
+    r.headTick = r:CreateTexture(nil, "ARTWORK"); r.headTick:SetSize(2, 10); r.headTick:SetPoint("BOTTOMLEFT", 4, 9); paint(r.headTick, C.gold, 1); r.headTick:Hide()
     -- a heading row (a day in the journal): text and a thin rule instead of a card
     r.head = label(r, 11, C.lilac); r.head:SetPoint("BOTTOMLEFT", 4, 7)
     r.headRight = label(r, 10, C.faint); r.headRight:SetPoint("BOTTOMRIGHT", -4, 7); r.headRight:SetJustifyH("RIGHT")
@@ -331,6 +350,7 @@ local function ListView(parent, top, striped, wrappedRows)
         local compact = (tonumber(scroll.child:GetWidth()) or 640) < 470
         scroll.compact = compact
         scroll.drawWidth = tonumber(scroll.child:GetWidth()) or 640
+        local hub = A.HubLook()
         local y, stripe = 0, 0
         for i, item in ipairs(items) do
             local r = rows[i] or NewRow(scroll.child); rows[i] = r
@@ -344,8 +364,19 @@ local function ListView(parent, top, striped, wrappedRows)
             elseif not heading then paint(r.bg, C.card, 0.55) end
             r.divider:SetShown(not heading and scroll.striped)
             r.head:SetShown(heading); r.headRight:SetShown(heading); r.headLine:SetShown(heading)
+            -- the hub look: no cards, no black rules; a heading is a folder (a tick, small capitals, its count, a hairline)
+            if hub then
+                r.bg:SetShown(false); r.divider:SetShown(false); r.hover:SetShown(not heading); r.hoverBar:SetShown(not heading)
+                r.headTick:SetShown(heading); r.iconTile:SetShown(not heading)
+                r.head:ClearAllPoints(); r.head:SetPoint("BOTTOMLEFT", 12, 7)
+                r.head:SetTextColor(C.gold[1], C.gold[2], C.gold[3]); paint(r.headLine, C.line, 0.6)
+            else
+                r.hoverBar:SetShown(false); r.headTick:SetShown(false); r.iconTile:SetShown(false)
+                r.head:ClearAllPoints(); r.head:SetPoint("BOTTOMLEFT", 4, 7)
+                r.head:SetTextColor(C.lilac[1], C.lilac[2], C.lilac[3]); paint(r.headLine, C.line)
+            end
             if heading then
-                r.head:SetText(item.heading); r.headRight:SetText(item.right or "")
+                r.head:SetText(hub and upper(item.heading) or item.heading); r.headRight:SetText(item.right or "")
                 for _, widget in ipairs({r.icon, r.raceIcon, r.title, r.sub, r.right, r.tag, r.chevron}) do widget:Hide() end
                 r.action, r.itemId = nil, nil
             else
@@ -356,7 +387,7 @@ local function ListView(parent, top, striped, wrappedRows)
                 local anchor = item.race and r.raceIcon or r.icon
                 r.title:SetWordWrap(false); r.sub:SetWordWrap(false)
                 r.right:SetWidth(compact and 60 or 100); r.right:ClearAllPoints(); r.right:SetPoint("RIGHT", item.onClick and -26 or -12, 0)
-                r.action = item.onClick; r.itemId = item.itemId; r.chevron:SetText(item.onClick and ">" or "")
+                r.action = item.onClick; r.itemId = item.itemId; r.chevron:SetText((item.onClick and not hub) and ">" or "")
                 r.title:SetText(item.title or ""); r.sub:SetText(item.sub or ""); r.right:SetText(item.right or "")
                 local tc = item.titleColor or C.text; r.title:SetTextColor(tc[1], tc[2], tc[3])
                 r.right:SetTextColor(C.bright[1], C.bright[2], C.bright[3])
@@ -471,19 +502,185 @@ end
 
 -- ---------- pages ----------
 
+--- The hub look: Evertally's pages in Evertally Guide's hub (its flat look) take the hub's language (flat rows, folders,
+--- a details pane apart, no boxes) with Evertally's own marks (the accent bar and tick, icon tiles). Without the guide
+--- Evertally's window keeps its own look.
+function A.HubLook() return A.Theme and A.Theme.Flat and A.Theme.Flat() and true or false end
+
 local function PageHeader(page, key)
+    -- In the guide's hub: marked, the header drawn as before (GuideShell.lua clips it); a page built from the hub's own
+    -- parts (hubColumn) takes the section's whole area and hides it (HubKit.lua)
+    if A.HubKit and A.HubKit.Ready(page) then page.hubMode = true end
     local emblem=CreateFrame("Frame",nil,page);emblem:SetSize(38,38);emblem:SetPoint("TOPLEFT",0,0);A.NativePanel(emblem,C)
     emblem.icon=emblem:CreateTexture(nil,"ARTWORK");emblem.icon:SetPoint("TOPLEFT",5,-5);emblem.icon:SetPoint("BOTTOMRIGHT",-5,5);setIcon(emblem.icon,ICON[key] or ICON.overview)
     page.title = label(page, 23, C.bright); page.title:SetPoint("TOPLEFT", 50, 1)
     page.subtitle = label(page, 12, C.mist)
     page.subtitle:SetPoint("TOPLEFT", page, "TOPLEFT", 50, -28); page.subtitle:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -28);page.subtitle:SetHeight(17);page.subtitle:SetWordWrap(false)
     local rule=page:CreateTexture(nil,"BORDER");rule:SetHeight(1);rule:SetPoint("TOPLEFT",0,-47);rule:SetPoint("TOPRIGHT",0,-47);paint(rule,C.line,0.55)
+    page.headerParts = {emblem, rule}
     page.titleKey = key
 end
 
 -- Shared content chrome for the older pages: the same cards and chips as the dashboard.
 -- All columns anchor to the page width; no fixed-width toolbar can escape a narrow window.
+-- ---------- the old pages in the hub: the same parts, the hub's look (HubKit.lua) ----------
+-- A page drawn in the hub (PageHeader set page.hubMode) gets a column on the left (its search, its figures, its list,
+-- top down) and the details pane on the right; its filters are the hub's tabs.
+local function hubColumn(page)
+    if page.hubLeft then return page.hubLeft end
+    -- the whole area, the old header out of sight
+    if not page.evertallyBleed then A.HubKit.Bleed(page) end
+    for _, part in ipairs({page.title, page.subtitle, unpack(page.headerParts or {})}) do part:Hide() end
+    local left = CreateFrame("Frame", nil, page)
+    left:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+    left:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -A.HubKit.DETAIL_W, 0)
+    page.hubLeft, page.hubParts = left, {}
+    -- what the old page anchors to its spread (page.book) goes to a frame nobody sees
+    page.book = CreateFrame("Frame", nil, page); page.book:Hide()
+    return left
+end
+local function hubLayout(page)
+    local left, p = page.hubLeft, page.hubParts
+    local W = A.HubKit.Guide().Widgets
+    local pad = (W.SHELL and W.SHELL.pad or 32) - 12
+    local y = 14
+    if p.search then
+        p.search:ClearAllPoints(); p.search:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -y); p.search:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -y)
+        y = y + 40
+    end
+    if p.stats then
+        p.stats:ClearAllPoints(); p.stats:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -y); p.stats:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -y)
+        y = y + 50
+    end
+    -- the page's own buttons in a row, its line of information under them
+    if p.actions then
+        local prev
+        for _, b in ipairs(p.actions) do
+            b:SetParent(left); b:ClearAllPoints()
+            if prev then b:SetPoint("LEFT", prev, "RIGHT", 8, 0) else b:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -y) end
+            b:SetHeight(28); prev = b
+        end
+        y = y + 38
+    end
+    if p.info then
+        p.info:SetParent(left); p.info:ClearAllPoints()
+        p.info:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -y); p.info:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -y)
+        y = y + 26
+    end
+    local bottom = 4
+    if p.pager then
+        local prev, next, counter = p.pager[1], p.pager[2], p.pager[3]
+        for _, f in ipairs(p.pager) do f:SetParent(left) end
+        counter:ClearAllPoints(); counter:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -pad, 14)
+        next:ClearAllPoints(); next:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -pad - 66, 6)
+        prev:ClearAllPoints(); prev:SetPoint("RIGHT", next, "LEFT", -6, 0)
+        bottom = 44
+    end
+    if p.list then
+        p.list.scroll:ClearAllPoints(); p.list.scroll:SetPoint("TOPLEFT", left, "TOPLEFT", 0, -y); p.list.scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -4, bottom)
+    end
+end
+--- Puts a page's own parts (actions: buttons, info: a line, pager: {prev, next, counter}) into its hub column.
+local function hubPlace(page, parts)
+    if not page.hubMode then return end
+    hubColumn(page)
+    for k, v in pairs(parts) do page.hubParts[k] = v end
+    hubLayout(page)
+end
+local function hubMetrics(page, definitions)
+    hubColumn(page)
+    local strip = A.HubKit.Stats(page.hubLeft, #definitions)
+    page.hubParts.stats = strip
+    hubLayout(page)
+    page.metrics = {}
+    for i = 1, #definitions do page.metrics[i] = {delta = {SetText = function() end}} end
+    function page.RefreshMetrics(values)
+        local captions = {}
+        for i, definition in ipairs(definitions) do captions[i] = A.L(definition.key) end
+        strip.Set(values, captions)
+    end
+    return strip
+end
+local function hubFilters(page, definitions, onChange)
+    page.hubFilter = definitions[1] and definitions[1][1]
+    page.hubTabs = function()
+        local tabs = {}
+        for _, definition in ipairs(definitions) do tabs[#tabs + 1] = {key = definition[1], label = A.L(definition[2])} end
+        return tabs
+    end
+    page.hubTab = function() return page.hubFilter end
+    page.OnHubTab = function(value) page.hubFilter = value; onChange(value) end
+    return function(selected) page.hubFilter = selected end
+end
+local function hubSearch(page, onChange)
+    hubColumn(page)
+    local search = A.HubKit.Search(page.hubLeft, A.L("pageSearch"), onChange)
+    -- the old pages set a hint on their box: the hub's placeholder takes it
+    search.hint = {SetText = function(_, text)
+        local W = A.HubKit.Guide().Widgets
+        if W.SetSearchPlaceholder and text then W.SetSearchPlaceholder(search, text) end
+    end}
+    page.search, page.hubParts.search = search, search
+    hubLayout(page)
+    return search
+end
+-- An old list item as a row of the hub list: its name, its icon, its value on the right.
+local function hubEntry(source, key)
+    local e = {key = key, title = source.title or "", sub = source.right or (source.tag and string.lower(source.tag)) or nil}
+    if source.titleColor then e.rgb = source.titleColor end
+    if type(source.icon) == "string" and source.icon:find("\\") then e.icon = source.icon
+    elseif type(source.icon) == "number" then e.icon = source.icon
+    else e.glyph = source.class and "icon-level" or "icon-note" end
+    return e
+end
+local function hubDocument(spec, row)
+    local blocks = {}
+    for _, entry in ipairs(spec and spec.entries or {}) do
+        blocks[#blocks + 1] = {text = entry.text, head = entry.head, onClick = entry.onClick, icon = type(entry.icon) == "string" and entry.icon or nil}
+    end
+    local icon = row and (type(row.icon) == "string" and row.icon:find("\\") and row.icon or type(row.icon) == "number" and row.icon) or nil
+    return {title = spec and spec.title or "", sub = spec and spec.subtitle or nil, icon = icon or nil, glyph = (not icon) and "icon-note" or nil,
+        rgb = row and row.titleColor or nil, blocks = blocks}
+end
+local function hubBookList(page)
+    hubColumn(page)
+    local HK = A.HubKit
+    local list = HK.List(page.hubLeft)
+    local details = HK.Details(page)
+    page.hubParts.list, page.hubDetails = list, details
+    hubLayout(page)
+    page.document = {Set = function(spec) details.Set(hubDocument(spec)) end}
+    local view = {}
+    function page.ReadRecord(row)
+        local spec = (row.buildDocument and row.buildDocument()) or row.document or {title = row.title, subtitle = row.sub, entries = {}}
+        if not row.document and not row.buildDocument and row.onClick then spec.entries = {{text = A.L("openDatabase"), icon = row.icon, onClick = row.onClick}} end
+        details.Set(hubDocument(spec, row))
+    end
+    function view.SetItems(items, empty)
+        local entries, selected = {}, nil
+        for _, source in ipairs(items or {}) do
+            if source.heading then
+                entries[#entries + 1] = {folder = source.heading, count = source.right}
+            else
+                local key = source.key or source.title
+                local e = hubEntry(source, key)
+                e.onClick = function() page.recordKey = key; list.Set(list.entries, key); page.ReadRecord(source) end
+                entries[#entries + 1] = e
+                if key == page.recordKey then selected = source end
+                selected = selected or nil
+            end
+        end
+        if not selected then for _, source in ipairs(items or {}) do if not source.heading then selected = source; break end end end
+        page.recordKey = selected and (selected.key or selected.title) or nil
+        list.Set(entries, page.recordKey)
+        if selected then page.ReadRecord(selected) else details.Empty(empty or A.L("noData"), "") end
+    end
+    view.scroll = list.scroll
+    return view
+end
+
 local function Metrics(page, definitions)
+    if page.hubMode then return hubMetrics(page, definitions) end
     local kit=A.UIKit();local weights={};for i=1,#definitions do weights[i]=1 end
     local row=kit.Columns(page,weights,10)
     row:SetPoint("TOPLEFT",0,-54);row:SetPoint("TOPRIGHT",0,-54);row:SetHeight(42)
@@ -515,6 +712,7 @@ local function documentRows(rows)
 end
 -- The old pages are now index-and-reader spreads. Selecting an entry reads it inline; actions remain explicit inside the page.
 local function BookList(page,top)
+    if page.hubMode then return hubBookList(page) end
     local kit=A.UIKit();local book=kit.Book(page,top);page.book=book
     local list=ListView(book.index,8);list:ClearAllPoints();list:SetPoint("TOPLEFT",6,-6);list:SetPoint("BOTTOMRIGHT",-10,6)
     list.readingIndex=true
@@ -544,12 +742,14 @@ local function BookList(page,top)
     return list
 end
 local function Search(page,top,onChange)
+    if page.hubMode then return hubSearch(page, onChange) end
     local search=A.UIKit().SearchBox(page,200,onChange)
     search:SetPoint("TOPLEFT",8,-top);search:SetPoint("TOPRIGHT",-8,-top)
     page.search=search
     return search
 end
 local function Filters(page,definitions,top,onChange)
+    if page.hubMode then return hubFilters(page, definitions, onChange) end
     local chips={};local kit=A.UIKit()
     for i,definition in ipairs(definitions) do
         local value,key=definition[1],definition[2]
@@ -616,10 +816,11 @@ local function buildCommunity(page)
     page.import=Button(page,"communityImport",110,"primary",showCommunityImport);page.import:SetPoint("TOPLEFT",0,-104)
     page.clear=Button(page,"communityClear",80,"ghost",function() A.ClearCommunity() end);page.clear:SetPoint("LEFT",page.import,"RIGHT",8,0)
     local refreshFilters=Filters(page,{{"","communityKind_"},{"quest","communityKind_quest"},{"npc","communityKind_npc"},{"item","communityKind_item"}},104,function(kind) page.kind=kind;A.RefreshUI() end)
-    page.filters[1]:ClearAllPoints();page.filters[1]:SetPoint("LEFT",page.clear,"RIGHT",12,0)
+    if page.filters then page.filters[1]:ClearAllPoints();page.filters[1]:SetPoint("LEFT",page.clear,"RIGHT",12,0) end
     Search(page,142,function(value) page.query=value;A.RefreshUI() end)
     page.info=label(page,10,C.mist);page.info:SetPoint("TOPLEFT",0,-176);page.info:SetPoint("TOPRIGHT",0,-176);page.info:SetHeight(24);page.info:SetWordWrap(true)
     page.list=BookList(page,206)
+    hubPlace(page, {actions = {page.import, page.clear}, info = page.info})
     function page.Refresh()
         page.import.text:SetText(A.L("communityImport"));page.clear.text:SetText(A.L("communityClear"));refreshFilters(page.kind)
         page.search.hint:SetText(A.L("pageSearch"))
@@ -913,6 +1114,7 @@ local function buildProfessions(page)
     page.prev=Button(page,nil,32,"ghost",function() page.index=math.max(1,page.index-1);A.RefreshUI() end);page.prev:SetPoint("BOTTOMRIGHT",-108,0);page.prev.text:SetText("<")
     page.next=Button(page,nil,32,"ghost",function() page.index=page.index+1;A.RefreshUI() end);page.next:SetPoint("LEFT",page.prev,"RIGHT",6,0);page.next.text:SetText(">")
     page.counter=label(page,11,C.mist);page.counter:SetPoint("BOTTOMRIGHT",0,8);page.counter:SetWidth(58);page.counter:SetJustifyH("RIGHT")
+    hubPlace(page, {info = page.info, pager = {page.prev, page.next, page.counter}})
     function page.Refresh()
         local rows,query={},fold(page.query);local entries=A.ProfessionSummaries();local recipes,cooldowns=0,0
         refreshFilters(page.mode);page.search.hint:SetText(A.L("pageSearch"));page.info:SetText(A.L("professionSnapshot"))
@@ -1110,18 +1312,7 @@ local function buildSettings(page)
 
     section("webSection")
     place(Toggle(card,"web",function() return s().web end,A.SetWeb))
-    for _,scope in ipairs({"world_facts","own_runs","own_character","own_professions","own_track","guild_share"}) do
-        local key=scope
-        local t=Toggle(card,key,function() return s().scopes[key]==true end,function(v) A.SetScope(key,v) end);t.disabled=function() return not s().web end;place(t,40,18)
-    end
-    local publishOff=function() return not (A.CanPublish and A.CanPublish()) end
-    local publish=Toggle(card,"leaderboard",function() return A.PublishChoice and A.PublishChoice().public==true end,function(v) A.SetPublish("public",v) end)
-    publish.disabled=publishOff;place(publish,40,18)
-    for _,field in ipairs({"itemLevel","guild","gear","chronicle"}) do
-        local which=field
-        local t=Toggle(card,which=="itemLevel" and "leaderboardItemLevel" or which=="guild" and "leaderboardGuild" or which=="chronicle" and "leaderboardChronicle" or "leaderboardGear",function() return A.PublishChoice and A.PublishChoice()[which]==true end,function(v) A.SetPublish(which,v) end)
-        t.disabled=function() return publishOff() or A.PublishChoice().public~=true end;place(t,62,18)
-    end
+    -- (2026-11-18: everything is public: what is sent and shown on the website is not chosen here any more)
     local liveWeb=Toggle(card,"liveWeb",function() return s().liveWeb==true end,function(v) s().liveWeb=v==true;if A.OpticalTick then A.OpticalTick() end;if A.MarkWebChanged then A.MarkWebChanged() end end)
     liveWeb.disabled=function() return not s().web end;place(liveWeb,40,18)
     place(Toggle(card,"bridgeAutostart",function() return A.BridgeAutostart and A.BridgeAutostart() end,function(v) if A.SetBridgeAutostart then A.SetBridgeAutostart(v) end end),40)
@@ -1489,12 +1680,15 @@ local function buildExternal(view, builder, errorKey, fallback)
         if ok and page.Refresh then return end
     end
     if fallback then fallback(page) end
-    if not page.title then PageHeader(page, view) end
+    -- (a page built from the hub's own parts has the hub's header: HubKit.Bleed)
+    if not page.title and not page.evertallyBleed then PageHeader(page, view) end
     if not page.Refresh then page.Refresh = function() end end
 end
 
 -- Draws one page into pages[view] (made by the caller: this window's content, or a section of Evertally Guide's hub).
 local function buildPage(view)
+    -- what is drawn on a page takes the hub look there (A.InHubPage)
+    if pages[view] then pages[view].evertallyPage = view end
     if view == "overview" then buildExternal("overview", A.BuildOverviewPage, "overview_page", overviewFallback)
     elseif view == "journal" then buildExternal("journal", A.BuildJournalPage, "journal_page")
     elseif view == "history" then buildHistory(pages.history)
@@ -1819,6 +2013,7 @@ local function slash(text)
     elseif text == "gear" then if not (A.guideShell and A.RunGuide and A.RunGuide("gear")) then A.ShowView("gear") end
     elseif text == "music" then if A.Music then A.Music.SetEnabled(not A.Music.Enabled()) end
     elseif text == "bags" then if A.BagHighlight then A.BagHighlight.Diagnose() end
+    elseif text == "bag" or text == "batoh" then if A.ToggleBagWindow then A.ToggleBagWindow() end
     elseif text == "train" or text == "training" then A.ShowView("training")
     elseif text == "guide" or text == "questguide" then if not (A.guideShell and A.RunGuide and A.RunGuide("guides")) then A.ShowView("questguide") end
     elseif text == "map" then

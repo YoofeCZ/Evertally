@@ -103,6 +103,13 @@ local function build(frame, kit)
     s.box:SetSize(260, 26); s.box:SetPoint("TOPLEFT", 6, -4); s.box:SetAutoFocus(false); s.box:SetMaxLetters(60); s.box:SetFont("Fonts\\ARIALN.TTF", 12, "")
     s.box:SetScript("OnTextChanged", function(self) s.query = self:GetText() or ""; s.offset = 0; M.WorldPlanRefresh(frame) end)
     s.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    -- in the guide's hub: the hub's search box (its look and its clear button) in place of the game's input box
+    local g = A.HubKit and A.HubKit.Guide and A.HubKit.Guide()
+    if g and A.InHubPage and A.InHubPage(frame) then
+        s.box:Hide()
+        s.box = g.Widgets.SearchBox(frame, A.L("worldPlanTo"), function(value) s.query = value or ""; s.offset = 0; M.WorldPlanRefresh(frame) end)
+        s.box:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -4); s.box:SetWidth(300)
+    end
     s.label = kit.label(frame, 11, C.mist); s.label:SetPoint("TOPLEFT", 6, -40); s.label:SetWidth(620)
     s.book = kit.Book(frame, 60)
     s.document = kit.Document(s.book.paper)

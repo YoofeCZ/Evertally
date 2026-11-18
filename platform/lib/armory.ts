@@ -85,3 +85,35 @@ export async function armoryOverview(db: Db, userId: string, at = now()): Promis
   }
   return { own, viewed, viewDays: ARMORY_VIEW_DAYS };
 }
+
+// ---- the public armory (since 2026-11-18 every character is public, lib/publish.ts ALL_PUBLIC) ----------------------
+// Every character with an armory snapshot, and the newest snapshot of one of them: gear, stats, talents and professions.
+// The bags are never in it: they stay behind the player's own permission in the game (armory.view, above).
+export interface PublicArmoryEntry { id: string; character: ArmoryCharacter; observedAt: number }
+const PUBLIC_SNAPSHOTS = `SELECT profile_id,observed_at,payload,name,realm,class_id,race_id,level FROM (
+    SELECT o.profile_id,o.observed_at,o.payload,p.name,p.realm,p.class_id,p.race_id,p.level,
+      ROW_NUMBER() OVER (PARTITION BY o.profile_id ORDER BY o.observed_at DESC,o.id DESC) AS n
+    FROM atlas_observations o
+    JOIN atlas_profiles p ON p.id=o.profile_id AND p.user_id=o.user_id
+    JOIN atlas_grants g ON g.id=o.grant_id AND g.user_id=o.user_id
+    WHERE o.kind='armory.snapshot' AND p."public"=1 AND p.name IS NOT NULL AND ${GRANT_CHARACTER} %WHERE%
+  ) WHERE n=1`;
+const characterOf = (row: Record<string, unknown>): ArmoryCharacter => ({ id: String(row.profile_id), name: (row.name as string | null) ?? null, realm: (row.realm as string | null) ?? null,
+  classId: row.class_id == null ? null : Number(row.class_id), raceId: row.race_id == null ? null : Number(row.race_id), level: row.level == null ? null : Number(row.level) });
+
+export async function publicArmoryList(db: Db, query = ""): Promise<{ characters: PublicArmoryEntry[] }> {
+  const q = query.trim().toLowerCase().slice(0, 40);
+  const rows = await db.prepare(`${PUBLIC_SNAPSHOTS.replace("%WHERE%", q ? "AND lower(p.name) LIKE ?" : "")} ORDER BY level DESC,observed_at DESC LIMIT 500`)
+    .bind(...(q ? [`%${q.replace(/[%_]/g, "")}%`] : [])).all<Record<string, unknown>>();
+  return { characters: rows.results.map(row => ({ id: String(row.profile_id), character: characterOf(row), observedAt: Number(row.observed_at) })) };
+}
+
+export async function publicArmory(db: Db, profileId: string): Promise<(Omit<OwnArmory, "kind"> & { kind: "public" }) | null> {
+  const row = await db.prepare(PUBLIC_SNAPSHOTS.replace("%WHERE%", "AND o.profile_id=?")).bind(profileId).first<Record<string, unknown>>();
+  if (!row) return null;
+  const parsed = payloadSchemas["armory.snapshot"].safeParse(decode(row.payload));
+  if (!parsed.success) return null;
+  const armory = parseBody(parsed.data);
+  armory.bags = [];   // the bags: only by the player's permission in the game
+  return { kind: "public", id: String(row.profile_id), observedAt: Number(row.observed_at), character: characterOf(row), armory };
+}

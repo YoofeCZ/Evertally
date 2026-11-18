@@ -312,5 +312,8 @@ function T.Button(button, primary)
     local skin = T.Surface(button, primary and "primary" or "button")
     paint(skin.base, primary and C.gold or C.raised, 1)
     if skin.top then skin.top:Hide() end
+    -- (square, the guide's look: the backdrop Surface gave it is in the card's colour and can cover the body; the body is
+    -- the button's whole colour)
+    if not skin.shaped and type(button.SetBackdropColor) == "function" then pcall(button.SetBackdropColor, button, 0, 0, 0, 0) end
     return skin.base
 end

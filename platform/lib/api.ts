@@ -16,7 +16,7 @@ import { circleAction, circlesOverview, circleTrail, createCircle, joinCircle } 
 import { answerFriend, getSharing, listFriends, requestFriend, setSharing, visiblePlayers } from "./sharing";
 import { createMeet, listMeets, meetInput, meetPatch, respondToMeet, rsvpInput, updateMeet } from "./meets";
 import { eraseMyTrail, guildOverview, guildTrail, myTrail, setMembership, SHARE_MODES, type Db as PeopleDb } from "./people";
-import { armoryOverview } from "./armory";
+import { armoryOverview, publicArmory, publicArmoryList } from "./armory";
 import { createThread, createPost, deleteForumPost, editForumPost, editPostInput, moderateForumThread, moderateThreadInput, isForumAdmin, deviceForum, getThread, listForum, myForumCharacters, postInput, threadInput } from "./forum";
 import { createGrant, deleteMyData, getAtlas, getGuilds, getLeaderboards, getRankingPackage, getRuns, meData, revokeGrant, setProfileVisibility, statusData, uploadEvents, profileHistory } from "./store";
 
@@ -161,6 +161,13 @@ export async function handleApi(request: Request, operation: string, id?: string
       return json(result);
     }
     if (operation === "leaderboards") return json(await cachedPublic(operation, params, () => getLeaderboards(params)));
+    // the public armory: every character's gear, stats, talents and professions (never the bags: those only by permission)
+    if (operation === "armory-public") return json(await cachedPublic(operation, params, () => publicArmoryList(getBinding() as unknown as PeopleDb, params.get("q") ?? "")));
+    if (operation === "armory-character" && id) {
+      const result = await publicArmory(getBinding() as unknown as PeopleDb, id);
+      if (!result) throw new ApiError("not_found", "There is no armory for this character.", 404);
+      return json(result);
+    }
     // public guilds: only what members of public characters chose to show
     if (operation === "guilds") return json(await cachedPublic(operation, params, () => getGuilds(params)));
     // the public leaderboard for the in-game tooltip, fetched by Evertally Sync without credentials

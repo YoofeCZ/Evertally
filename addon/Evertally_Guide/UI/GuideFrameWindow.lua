@@ -249,9 +249,17 @@ ns.UI.GuideFrame.Part(function(GF)
 	end
 
 	local function resizeUpdate(self)
-		local x = GetCursorPosition() / F:GetEffectiveScale()
+		local cx, cy = GetCursorPosition()
+		local x = cx / F:GetEffectiveScale()
 		local w = min(UI.MAX_WIDTH, max(UI.MIN_WIDTH, floor(self.psStartW + (x - self.psStartX) + 0.5)))
-		if w ~= floor(F:GetWidth() + 0.5) then
+		-- Evertally: the height too (ui.maxHeight, a share of the screen)
+		local dy = (self.psStartY or 0) - cy / F:GetEffectiveScale()
+		if ns.Get("ui.growUp") then dy = -dy end
+		local screen = UIParent:GetHeight() * UIParent:GetEffectiveScale()
+		local share = min(0.95, max(0.15, ((self.psStartH or F:GetHeight()) + dy) * F:GetEffectiveScale() / screen))
+		local tall = (GF.dragShare or math.abs(dy) > 4) and math.abs(share - (GF.dragShare or -1)) > 0.001
+		if tall then GF.dragShare = share end
+		if w ~= floor(F:GetWidth() + 0.5) or tall then
 			F:SetWidth(w)
 			GF.Layout()
 		end
@@ -268,6 +276,8 @@ ns.UI.GuideFrame.Part(function(GF)
 		end
 		self.psStartX = GetCursorPosition() / F:GetEffectiveScale()
 		self.psStartW = F:GetWidth()
+		local _, cy = GetCursorPosition()
+		self.psStartY, self.psStartH, GF.dragShare = cy / F:GetEffectiveScale(), F:GetHeight(), nil
 		self:SetScript("OnUpdate", ns.Safe(resizeUpdate))
 	end
 
@@ -275,6 +285,11 @@ ns.UI.GuideFrame.Part(function(GF)
 		if not self:GetScript("OnUpdate") then return end
 		self:SetScript("OnUpdate", nil)
 		ns.Set("ui.width", floor(F:GetWidth() + 0.5))
+		if GF.dragShare then
+			local share = floor(GF.dragShare * 1000 + 0.5) / 1000
+			GF.dragShare = nil
+			ns.Set("ui.maxHeight", share)
+		end
 		savePosition()
 	end
 

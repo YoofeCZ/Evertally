@@ -100,12 +100,12 @@ class ContentPageTests(unittest.TestCase):
             self.assertEqual(toggle.points[1][1],'TOPLEFT')
             self.assertEqual(toggle.points[2][1],'TOPRIGHT')
             self.assertGreaterEqual(toggle.h,36)
+        # everything is public since 2026-11-18: no switch per kind of data or per leaderboard detail, the website's own stays
         web=next(b for b in toggles if b.localeKey=='web')
-        scope=next(b for b in toggles if b.localeKey=='own_track')
-        self.assertFalse(self.a.db.settings.web)
-        scope.scripts.OnClick();self.assertFalse(self.a.db.settings.scopes.own_track)
-        web.scripts.OnClick();scope.scripts.OnClick()
-        self.assertTrue(self.a.db.settings.web);self.assertTrue(self.a.db.settings.scopes.own_track)
+        self.assertFalse(any(b.localeKey in ('own_track','leaderboard','leaderboardChronicle') for b in toggles))
+        self.assertTrue(self.a.db.settings.web)
+        web.scripts.OnClick();self.assertFalse(self.a.db.settings.web)
+        web.scripts.OnClick();self.assertTrue(self.a.db.settings.web)
 
     def test_summary_columns_and_search_stretch_at_the_smallest_content_width(self):
         for key in ('professions','places','facts','webfacts'):

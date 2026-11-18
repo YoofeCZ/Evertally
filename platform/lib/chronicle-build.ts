@@ -194,7 +194,7 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
       case "instance.entered": {
         const name = words(p.name, "Instance", 100);
         if (typeof p.runId === "string") runs.set(p.runId, name);
-        add({ t, k: "dungeon", a: "enter", text: name, detail: p.instanceType === "raid" ? "Raid" : "Dungeon" });
+        add({ t, k: "dungeon", a: "enter", text: name, detail: p.instanceType === "raid" ? "Raid" : "Dungeon", ...(positive(p.instanceId) ? { id: p.instanceId } : {}) });
         if (Array.isArray(p.roster)) {
           const state = journeyMomentSchema.safeParse({t:0,k:"state",roster:p.roster,groupType:p.instanceType==="raid"?"raid":"party"});
           if (state.success) stats.push({t,roster:state.data.roster,groupType:state.data.groupType});
@@ -206,7 +206,7 @@ export function composeChronicle(subject: Subject, observations: readonly Observ
         const end = finite(p.endedAt) ? p.endedAt : o.observedAt;
         if (!name && typeof p.runId === "string" && typeof p.name === "string" && finite(p.startedAt) && p.startedAt <= end) {
           name = words(p.name,"Instance",100);
-          add({t:tOf(p.startedAt),k:"dungeon",a:"enter",text:name,detail:p.instanceType==="raid"?"Raid":"Dungeon"},p.startedAt);
+          add({t:tOf(p.startedAt),k:"dungeon",a:"enter",text:name,detail:p.instanceType==="raid"?"Raid":"Dungeon",...(positive(p.instanceId)?{id:p.instanceId}:{})},p.startedAt);
         }
         const summary = summaryOf(p.combat,subject,tOf(end));
         if (name && typeof p.runId === "string") { add({ t:tOf(end), k: "dungeon", a: "leave", text: name, ...(p.instanceType === "raid" ? {detail:"Raid"} : {}), ...(summary?{summary}:{}) },end); runs.delete(p.runId); }

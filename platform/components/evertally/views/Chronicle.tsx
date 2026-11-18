@@ -18,6 +18,7 @@ import { useMaps } from "../db/store";
 import { PagedSearch, Pager, usePaged } from "../Paged";
 import type { MapDefinition } from "../world-map";
 import { FightWindow, num } from "./ChronicleFight";
+import { InstanceWindow } from "./ChronicleInstance";
 import { crossedFight } from "@/lib/chronicle-replay";
 import { MAX_SOUND_SPEED, Sfx, pickCues } from "@/lib/chronicle-sound";
 import { INK, IconChip, ItemIcon, MARK_COLOR, Portrait, SpellIcon, TypeIcon, classIconUrl, drawIcon, hasIcon } from "./ChronicleArt";
@@ -64,7 +65,7 @@ const TEXT = {
     types: { "quest.accept": "Quests accepted", "quest.turnin": "Quests turned in", "quest.abandon": "Quests abandoned", "combat.kill": "Kills", "combat.death": "Deaths", "combat.boss": "Boss encounters", "combat.pvp": "PvP matches", "loot.item": "Loot", "loot.money": "Money", "prof.skill": "Skill-ups", "travel.flight": "Flight paths", "travel.instance": "Instances", "travel.zone": "Zones", "char.level": "Levels", "char.group": "Group changes", "char.emote": "Emotes" } as Record<string, string>,
     kind: { quest: "Quest", kill: "Kill", loot: "Loot", money: "Money", level: "Level", skill: "Skill", zone: "Zone", death: "Death", dungeon: "Dungeon", travel: "Travel", boss: "Boss", group: "Group", emote: "Emote", pvp: "PvP" } as Record<string, string>,
     accepted: "Accepted", done: "Completed", handed: "Handed in", abandoned: "Abandoned", defeated: "Defeated", wipedOn: "Wiped on", victory: "Victory", defeat: "Defeat",
-    openFight: "Open the fight", sound: "Sound", volume: "Volume", win: "Victory", loss: "Defeat", damage: "Damage", healing: "Healing", taken: "Taken", inFight: "In combat",
+    openFight: "Open the fight", openInstance: "Open the dungeon", sound: "Sound", volume: "Volume", win: "Victory", loss: "Defeat", damage: "Damage", healing: "Healing", taken: "Taken", inFight: "In combat",
   },
   cs: {
     of: "Cesta postavy", toPlay: "přehrát", forHelp: "zkratky", helpTitle: "Klávesy",
@@ -97,7 +98,7 @@ const TEXT = {
     types: { "quest.accept": "Přijaté questy", "quest.turnin": "Odevzdané questy", "quest.abandon": "Opuštěné questy", "combat.kill": "Zabití", "combat.death": "Smrti", "combat.boss": "Souboje s bossy", "combat.pvp": "PvP zápasy", "loot.item": "Loot", "loot.money": "Peníze", "prof.skill": "Zlepšení dovedností", "travel.flight": "Letecké cesty", "travel.instance": "Instance", "travel.zone": "Zóny", "char.level": "Úrovně", "char.group": "Změny skupiny", "char.emote": "Emoty" } as Record<string, string>,
     kind: { quest: "Quest", kill: "Zabití", loot: "Loot", money: "Peníze", level: "Úroveň", skill: "Dovednost", zone: "Zóna", death: "Smrt", dungeon: "Dungeon", travel: "Cestování", boss: "Boss", group: "Skupina", emote: "Emote", pvp: "PvP" } as Record<string, string>,
     accepted: "Přijato", done: "Splněno", handed: "Odevzdáno", abandoned: "Opuštěno", defeated: "Poražen", wipedOn: "Neúspěch na", victory: "Vítězství", defeat: "Porážka",
-    openFight: "Otevřít souboj", sound: "Zvuk", volume: "Hlasitost", win: "Vítězství", loss: "Porážka", damage: "Poškození", healing: "Léčení", taken: "Utrženo", inFight: "V boji",
+    openFight: "Otevřít souboj", openInstance: "Otevřít dungeon", sound: "Zvuk", volume: "Hlasitost", win: "Vítězství", loss: "Porážka", damage: "Poškození", healing: "Léčení", taken: "Utrženo", inFight: "V boji",
   },
 };
 type Words = typeof TEXT.en;
@@ -383,8 +384,8 @@ const MIN_VIEW = 20;
  * It can be zoomed (wheel, pinch, + and −) and moved (shift + wheel, the bar below, or dragging it); the playback itself still runs over
  * the whole journey, the zoom only decides how much of it is drawn.
  */
-function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, onOpenFight, lang }: {
-  c: Chronicle; maps: readonly MapDefinition[]; time: number; dom: { from: number; to: number }; types: ReadonlySet<string>; minQ: number; instanceList: readonly Instance[]; onSeek: (t: number) => void; onOpenFight: (index: number) => void; lang: string;
+function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, onOpenFight, onOpenInstance, lang }: {
+  c: Chronicle; maps: readonly MapDefinition[]; time: number; dom: { from: number; to: number }; types: ReadonlySet<string>; minQ: number; instanceList: readonly Instance[]; onSeek: (t: number) => void; onOpenFight: (index: number) => void; onOpenInstance: (index: number) => void; lang: string;
 }) {
   const domSpan = Math.max(1, dom.to - dom.from);
   const [zoom, setZoom] = useState<{ from: number; to: number } | null>(null);
@@ -502,9 +503,9 @@ function Timeline({ c, maps, time, dom, types, minQ, instanceList, onSeek, onOpe
   return (
     <div className="chr-timeline" ref={root}>
       <div className="chr-levels" aria-hidden="true">{levels.map(l => <span key={l.t} style={{ left: pct(l.t) }}>{l.n}</span>)}</div>
-      <div className="chr-zones" aria-hidden="true">
-        {runs.map((r, i) => <span key={i} style={{ ...band(r.from, r.to), background: `hsl(${hue(c.zones[r.zone])} 38% 30% / .92)` }}>{nameOf(maps, c.zones[r.zone], lang)}</span>)}
-        {instanceList.filter(x => (x.to ?? c.duration) > view.from && x.from < view.to).map((x, i) => <span key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)}><TypeIcon k={x.detail === "Raid" ? "travel.raid" : "travel.instance"} size={12} /> {x.name}</span>)}
+      <div className="chr-zones">
+        {runs.map((r, i) => <span key={i} aria-hidden="true" style={{ ...band(r.from, r.to), background: `hsl(${hue(c.zones[r.zone])} 38% 30% / .92)` }}>{nameOf(maps, c.zones[r.zone], lang)}</span>)}
+        {instanceList.map((x, i) => ({ x, i })).filter(({ x }) => (x.to ?? c.duration) > view.from && x.from < view.to).map(({ x, i }) => <button type="button" key={`i${i}`} className="chr-instance" style={band(x.from, x.to ?? c.duration)} title={x.name} onClick={() => { onSeek(x.from); onOpenInstance(i); }}><TypeIcon k={x.detail === "Raid" ? "travel.raid" : "travel.instance"} size={12} /> {x.name}</button>)}
       </div>
       {fights.length > 0 && <div className="chr-combat-lane" role="group" aria-label={lang === "cs" ? "Souboje" : "Fights"}>
         {fights.map(b => {
@@ -690,6 +691,8 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
   const typeCounts = useMemo(() => countByType(c), [c]);
   const days = useMemo(() => daysOf(c), [c]);
   const instanceList = useMemo(() => instances(c), [c]);
+  /** the visit a dungeon moment (entering or leaving) belongs to */
+  const instanceIndexOf = (e: ChronicleEvent) => instanceList.findIndex(x => e.a === "leave" ? x.to === e.t : x.from === e.t);
   const root = useRef<HTMLDivElement>(null);
   const transport = useRef<HTMLElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
@@ -721,6 +724,7 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
   const [sets, setSetsState] = useState<Record<string, ReadonlySet<string>>>(DEFAULT_SETS);
   const [minQ, setMinQ] = useState(2);
   const [openFight, setOpenFight] = useState<number | null>(null);
+  const [openInstance, setOpenInstance] = useState<number | null>(null);
   const [autoFight, setAutoFight] = useState(false);
   const [soundOn, setSoundOn] = useState(!compact);
   const [volume, setVolume] = useState(0.5);
@@ -731,6 +735,11 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
   const showFight = useCallback((i: number, automatic = false) => {
     handledFights.current.add(i);
     setOpenFight(i); setAutoFight(automatic); setPlaying(false);
+  }, []);
+  const showInstance = useCallback((i: number) => { setOpenInstance(i); setPlaying(false); }, []);
+  const closeInstance = useCallback(() => {
+    setOpenInstance(null);
+    requestAnimationFrame(() => root.current?.focus({ preventScroll: true }));
   }, []);
   const closeFight = useCallback(() => {
     setOpenFight(null); setAutoFight(false);
@@ -871,6 +880,7 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
 
   const key = (event: React.KeyboardEvent) => {
     const target = event.target as HTMLElement;
+    if (event.key === "Escape" && openFight === null && openInstance !== null) { event.preventDefault(); event.stopPropagation(); closeInstance(); return; }
     if (event.key === "Escape" && (openFight !== null || pop || help)) { event.preventDefault(); event.stopPropagation(); closeFight(); setPop(null); setHelp(false); return; }
     if (event.key === "Escape" && expanded) { event.preventDefault(); collapse(); return; }
     if (event.key === "Tab" && expanded) {
@@ -1016,6 +1026,7 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
       {inside && insideSummary && (
         <aside className="chr-card chr-instance-card">
           <h3>{w.inInstance} {inside.name}</h3>
+          <button type="button" className="chr-btn is-on chr-instance-open" onClick={() => showInstance(instanceList.findIndex(x => x.from === inside.from))}>{w.openInstance}</button>
           {inside.detail && <p className="chr-muted">{inside.detail}</p>}
           <dl className="chr-stats is-row">{stat(String(insideSummary.kills), w.kills)}{stat(String(insideSummary.deaths), w.deaths)}{stat(String(insideSummary.items), w.items)}{stat(moneyText(insideSummary.copper), w.money)}</dl>
           <ul className="chr-bosses">
@@ -1053,6 +1064,7 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
               <li key={`${listStart + i}-${e.t}-${e.k}`} className={e === currentEvent ? "is-current" : ""} style={{ ["--chip" as string]: COLORS[categoryOf(e.k)] }}>
                 <button type="button" className="chr-moment-main" onClick={() => selectEvent(e)} aria-current={e === currentEvent ? "true" : undefined}><time>{clock(e.t)}</time><MomentIcon event={e} /><span className="chr-moment-copy"><b>{e.k === "speech" ? `${e.speaker ?? e.text}: ${(e.message ?? "").slice(0,150)}` : popup(e, w).text}</b>{(e.actor || e.detail) && <small>{[e.actor, e.detail].filter(Boolean).join(" · ")}</small>}</span></button>
                 {e.f !== undefined && <button type="button" className="chr-open" onClick={() => { selectEvent(e); showFight(e.f!); }} aria-label={`${w.openFight}: ${c.fights?.[e.f]?.name ?? e.text}`} title={w.openFight}>›</button>}
+                {e.k === "dungeon" && e.f === undefined && instanceIndexOf(e) >= 0 && <button type="button" className="chr-open" onClick={() => { selectEvent(e); showInstance(instanceIndexOf(e)); }} aria-label={`${w.openInstance}: ${e.text}`} title={w.openInstance}>›</button>}
               </li>
             ))}
           </ol>
@@ -1065,6 +1077,7 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
               <p className="chr-muted">{clock(currentEvent.t)} {w.into} · {when(currentEvent.t)}{c.sessions?.length ? ` · ${w.session} ${sessionAt(c, currentEvent.t) + 1}` : ""}</p>
               {currentEvent.message && <blockquote className="chr-dialogue">{currentEvent.message}</blockquote>}
               {currentEvent.f !== undefined && <button type="button" className="chr-btn is-on" onClick={() => showFight(currentEvent.f!)}>{w.openFight}</button>}
+              {currentEvent.k === "dungeon" && instanceIndexOf(currentEvent) >= 0 && <button type="button" className="chr-btn is-on" onClick={() => showInstance(instanceIndexOf(currentEvent))}>{w.openInstance}</button>}
               {currentEvent.k === "kill" && currentEvent.f === undefined && <p className="chr-muted">{lang === "cs" ? "Tento záznam obsahuje zabití a zkušenosti. Průběh ani začátek souboje se tehdy nezaznamenal." : "This record contains the kill and experience. The course and start of the fight were not recorded."}</p>}
               <h4>{w.what}</h4>
               <dl>
@@ -1110,6 +1123,10 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
           <span className="chr-hud-num" style={{ ["--s" as string]: "#e2786a" }}><b>{num(liveNow.taken)}</b><small>{w.taken}</small></span>
         </button>
       )}
+      {openInstance !== null && instanceList[openInstance] && (
+        <InstanceWindow key={openInstance} c={c} inst={instanceList[openInstance]} index={openInstance} count={instanceList.length} lang={lang}
+          onClose={closeInstance} onStep={delta => setOpenInstance(clamp(openInstance + delta, 0, instanceList.length - 1))} onOpenFight={showFight} onSeek={seek} />
+      )}
       {openFight !== null && c.fights?.[openFight] && (
         <FightWindow key={openFight} fight={c.fights[openFight]} index={openFight} count={c.fights.length} c={c} lang={lang} time={time} autoPlay={autoFight}
           onClose={closeFight} onContinue={() => { seek(c.fights![openFight].t + c.fights![openFight].d); closeFight(); setPlaying(true); }} onStep={delta => showFight(clamp(openFight + delta, 0, c.fights!.length - 1))} onSeek={seek} />
@@ -1123,12 +1140,12 @@ function Player({ c, maps, onBack, slice, compact = false, fullHref = "#chronicl
         </button>
       </div>
 
-      <footer className="chr-bar" ref={transport} inert={openFight !== null}>
+      <footer className="chr-bar" ref={transport} inert={openFight !== null || openInstance !== null}>
         <button type="button" className="chr-play" onClick={toggle} aria-label={playing ? w.pause : time >= dom.to ? w.replay : w.play}>
           {playing ? <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" /><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" /></svg>
             : <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>}
         </button>
-        <Timeline c={c} maps={maps} time={time} dom={dom} types={sets.timeline} minQ={minQ} instanceList={instanceList} onSeek={seek} onOpenFight={showFight} lang={lang} />
+        <Timeline c={c} maps={maps} time={time} dom={dom} types={sets.timeline} minQ={minQ} instanceList={instanceList} onSeek={seek} onOpenFight={showFight} onOpenInstance={showInstance} lang={lang} />
         <div className="chr-clock"><b>{clock(time)} / {clock(c.duration)}</b><span>{when(time)}</span></div>
         <button type="button" className={`chr-speed chr-sound${soundOn ? "" : " is-off"}`} aria-pressed={soundOn} aria-label={w.sound} title={w.sound}
           onClick={() => { if (!soundOn) { sfx.current ??= new Sfx(); sfx.current.unlock(); sfx.current.setVolume(volume); } setSoundOn(v => !v); }}>

@@ -236,7 +236,70 @@ local function layoutChips(p)
     return row
 end
 
+-- In the guide's hub: the Database's look (HubKit.lua). The categories are the hub's tabs; the search, New thread, the
+-- line about the copy and the threads on the left; the thread with its posts on the right.
+local function buildHub(host, k)
+    page = host; A.forumPage = host
+    local HK = A.HubKit
+    local W = HK.Guide().Widgets
+    local pad = (W.SHELL and W.SHELL.pad or 32) - 12
+    HK.Bleed(page)
+    page.category, page.query = "", ""
+    local left = CreateFrame("Frame", nil, page)
+    left:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0); left:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -HK.DETAIL_W, 0)
+    page.search = HK.Search(left, A.L("forumSearch"), function(value) if value ~= page.query then page.query = value; page.Refresh() end end)
+    page.search:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -14); page.search:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad - 150, -14)
+    page.newButton = W.Button(left, A.L("forumNew"), function() A.ForumOpenCompose({category = page.category ~= "" and page.category or "general"}) end, {primary = true, height = 30, width = 140})
+    page.newButton:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -14)
+    page.info = W.Text(left, "small", "textMuted"); page.info:SetJustifyH("LEFT"); page.info:SetWordWrap(false)
+    page.info:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -56); page.info:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -56)
+    page.list = HK.List(left)
+    page.list.scroll:SetPoint("TOPLEFT", left, "TOPLEFT", 0, -76); page.list.scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -4, 4)
+    page.details = HK.Details(page)
+    page.hubTabs = function()
+        local info = A.ForumInfo()
+        local tabs = {}
+        for _, id in ipairs({"", unpack(A.ForumCategories())}) do
+            local count = id == "" and info.total or info.counts[id] or 0
+            tabs[#tabs + 1] = {key = id == "" and "all" or id, label = A.L(id == "" and "forumAll" or "forumCatShort_" .. id) .. (count > 0 and ("  " .. count) or "")}
+        end
+        return tabs
+    end
+    page.hubTab = function() return page.category == "" and "all" or page.category end
+    page.OnHubTab = function(key) page.category = key == "all" and "" or key; page.threadId = nil end
+    function page.Refresh()
+        local info = A.ForumInfo()
+        page.info:SetText(infoLine(info))
+        local query = searchFold((page.query or ""):match("^%s*(.-)%s*$"))
+        local threads = {}
+        for _, thread in ipairs(A.ForumThreads(page.category)) do if matchesSearch(thread, query) then threads[#threads + 1] = thread end end
+        local current
+        for _, thread in ipairs(threads) do if thread.id == page.threadId then current = thread end end
+        current = current or threads[1]
+        page.threadId = current and current.id or nil
+        local entries = {}
+        for _, thread in ipairs(threads) do
+            local id = thread.id
+            entries[#entries + 1] = {key = id, title = (thread.pinned and "* " or "") .. plain(thread.title), glyph = "icon-talk",
+                color = thread.pending and "textMuted" or "text", sub = plain(thread.author) .. "  \194\183  " .. string.format(A.L("forumRepliesShort"), thread.replies),
+                onClick = function() page.threadId = id; page.Refresh() end}
+        end
+        page.list.Set(entries, page.threadId)
+        if current then
+            local blocks = {}
+            for _, e in ipairs(postEntries(current) or {}) do
+                blocks[#blocks + 1] = {text = e.text, head = e.head or (e.size and e.size >= 13 and not e.onClick) or nil, onClick = e.onClick, muted = e.color ~= nil and not e.onClick and not e.head}
+            end
+            page.details.Set({title = plain(current.title), sub = categoryName(current.category) .. "  \194\183  " .. string.format(A.L("forumReplies"), current.replies),
+                glyph = "icon-talk", color = "text", blocks = blocks})
+        else
+            page.details.Empty(A.L("forumWelcome"), A.L(query ~= "" and "forumNoResults" or info.total == 0 and "forumEmptyHelp" or "forumPickHelp"))
+        end
+    end
+end
+
 function A.BuildForumPage(host, k)
+    if A.HubKit and A.HubKit.Ready(host) then return buildHub(host, k) end
     page = host; A.forumPage = host
     local C = k.C
     k.PageHeader(page, "community")
@@ -337,7 +400,7 @@ local text = {
         forumQueued = "Saved. It is sent to the website when the game saves its files (/reload or logout) and the Evertally app is running.",
         forumCopyFrom = "Forum copy from %s", forumNoCopy = "No forum data from the website yet", forumWaiting = "%d waiting to be sent",
         forumNoData = "No threads yet. Start the first one, or run the Evertally app and /reload to load the website's forum.", forumNoThreads = "No threads in this category yet.",
-        forumWelcome = "Evertally forum", forumEmptyHelp = "There is nothing here yet. Start a thread with the button below. To read what others wrote on the website, run the Evertally desktop app (paired with your account) and type /reload: it writes the forum next to the addon and the game loads it.",
+        forumWelcome = "Evertally forum", forumEmptyHelp = "There is nothing here yet. Start a thread with the New thread button. To read what others wrote on the website, run the Evertally desktop app (paired with your account) and type /reload: it writes the forum next to the addon and the game loads it.",
         forumPickHelp = "Choose a thread on the left to read it, or start a new one.",
         forumAgoHours = "%d h ago", forumAgoDays = "%d d ago",
     },
@@ -354,7 +417,7 @@ local text = {
         forumQueued = "Uloženo. Na web se odešle, až hra uloží své soubory (/reload nebo odhlášení) a poběží aplikace Evertally.",
         forumCopyFrom = "Kopie fóra z %s", forumNoCopy = "Zatím žádná data fóra z webu", forumWaiting = "Čeká na odeslání: %d",
         forumNoData = "Zatím žádná vlákna. Začni první, nebo spusť aplikaci Evertally a dej /reload, ať se načte fórum z webu.", forumNoThreads = "V této kategorii zatím nejsou vlákna.",
-        forumWelcome = "Fórum Evertally", forumEmptyHelp = "Zatím tu nic není. Vlákno založíš tlačítkem níže. Aby ses dočetl, co napsali ostatní na webu, spusť desktopovou aplikaci Evertally (spárovanou s tvým účtem) a napiš /reload: zapíše fórum vedle addonu a hra ho načte.",
+        forumWelcome = "Fórum Evertally", forumEmptyHelp = "Zatím tu nic není. Vlákno založíš tlačítkem Nové vlákno. Aby ses dočetl, co napsali ostatní na webu, spusť desktopovou aplikaci Evertally (spárovanou s tvým účtem) a napiš /reload: zapíše fórum vedle addonu a hra ho načte.",
         forumPickHelp = "Vlevo vyber vlákno k přečtení, nebo založ nové.",
         forumAgoHours = "před %d h", forumAgoDays = "před %d d",
     },

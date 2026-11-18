@@ -74,6 +74,8 @@ local pages = {}
 local function page(spec)
     pages[#pages + 1] = {
         key = spec.key, after = spec.after, blocked = spec.blocked,
+        -- Evertally's settings are the account's: not in a later character's short showing (the guide's, K.full false)
+        shown = function() return not (K and K.full) or K.full() == true end,
         build = function(Pg)
             K.compactHero(Pg.Hero, A.L(spec.title), "", false)
             spec.build(Pg.Body, Pg)
@@ -150,7 +152,10 @@ page({key = "et-pair", after = "et-install", title = "setupPairTitle", sub = "se
         return line(p.autostartState, reported ~= nil and string.format(A.L("setupAutostartNow"), A.L(reported and "setupOn" or "setupOff")) or nil, y + 8)
     end})
 
-page({key = "et-website", after = "et-pair", title = "setupWebTitle", sub = "setupWebBody",
+-- (2026-11-18: everything is public, so the setup no longer asks what to send to the website or what to show there:
+-- the two pages are kept out of the list, A.SETUP_PUBLIC_PAGES)
+local function skipped() end
+skipped({key = "et-website", after = "et-pair", title = "setupWebTitle", sub = "setupWebBody",
     build = function(p)
         p.quick = para(p, "body", "text")
         p.presets = {}
@@ -179,7 +184,7 @@ page({key = "et-website", after = "et-pair", title = "setupWebTitle", sub = "set
         return line(p.missing, A.ExportStore() and "" or A.L("setupWebMissing"), y + 10)
     end})
 
-page({key = "et-public", after = "et-website", title = "setupPublicTitle", sub = "setupPublicBody",
+skipped({key = "et-public", after = "et-website", title = "setupPublicTitle", sub = "setupPublicBody",
     build = function(p)
         local function public() local d = D(); return d.publish == true and d.web and d.scopes.own_character end
         p.publish = toggle(p, "leaderboard", "setupPublicSub", function() return public() and true or false end,
@@ -209,7 +214,7 @@ page({key = "et-public", after = "et-website", title = "setupPublicTitle", sub =
         return line(p.note, D().liveWeb and A.L("setupChronLocked") or nil, y)
     end})
 
-page({key = "et-live", after = "et-public", title = "setupLiveTitle", sub = "setupLiveBody",
+page({key = "et-live", after = "et-pair", title = "setupLiveTitle", sub = "setupLiveBody",
     build = function(p)
         p.rows = {}
         for _, entry in ipairs({{"party", "liveParty"}, {"guild", "liveGuild"}, {"friends", "liveFriends"}}) do
@@ -282,7 +287,29 @@ page({key = "et-window", after = "et-map", title = "setupWindowTitle", sub = "se
         return K.layGroup(p.size, y, true)
     end})
 
-page({key = "et-plates", after = "et-window", title = "setupPlatesTitle", sub = "setupPlatesBody",
+-- which quest tracker: Evertally's, Blizzard's or an installed add-on's; the others are hidden (QuestTracker.lua)
+page({key = "et-tracker", after = "et-window", title = "qtPickTitle", sub = "qtPickBody",
+    -- the player picks one: Next waits for it
+    blocked = function() local QT = A.QuestTracker; return QT ~= nil and QT.Choice ~= nil and QT.Choice() == nil end,
+    build = function(p)
+        p.pick = K.optionGroup(p, {title = A.L("qtPickTitle"),
+            get = function() local QT = A.QuestTracker; return QT and QT.Choice and QT.Choice() or nil end,
+            set = function(v) if A.SetQuestTrackerChoice then A.SetQuestTrackerChoice(v) end; K.refresh() end,
+            choices = function()
+                local out = {}
+                local QT = A.QuestTracker
+                for _, c in ipairs(QT and QT.Choices and QT.Choices() or {"evertally", "blizzard"}) do
+                    out[#out + 1] = {value = c, name = A.L("qtPick_" .. c), desc = A.L("qtPickSub_" .. c)}
+                end
+                return out
+            end})
+    end,
+    layout = function(p)
+        p.pick.Title:SetText(A.L("qtPickTitle"))
+        return K.layGroup(p.pick, 0, true)
+    end})
+
+page({key = "et-plates", after = "et-tracker", title = "setupPlatesTitle", sub = "setupPlatesBody",
     build = function(p)
         p.holder = CreateFrame("Frame", nil, p); p.holder:SetSize(K.CW, 430)
         p.plates = A.BuildFriendlyPlateControls(p.holder, {chooseFirst = true,
@@ -352,8 +379,9 @@ page({key = "et-summary", after = "look", title = "setupHostSumTitle", sub = "se
     end})
 
 --- The keys of the window's pages for Onboarding.lua's steps.
-P.KEYS = {welcome = "welcome", install = "et-install", pair = "et-pair", website = "et-website", public = "et-public", live = "et-live",
-    sharing = "et-sharing", map = "et-map", window = "et-window", nameplates = "et-plates", music = "et-music", summary = "et-summary"}
+P.KEYS = {welcome = "welcome", install = "et-install", pair = "et-pair", website = "et-live", public = "et-live", live = "et-live",   -- (website, public: passed over since 2026-11-18)
+   
+    sharing = "et-sharing", map = "et-map", window = "et-window", tracker = "et-tracker", nameplates = "et-plates", music = "et-music", summary = "et-summary"}
 P.pages = pages
 
 --- Hands the pages to the guide's Install window. -> true when it took them (the setup is then that window)
@@ -366,7 +394,11 @@ function P.Register()
         if not UI.WelcomeHost(spec) then return false end
     end
     UI.WelcomeOwner = "Evertally"
-    UI.WelcomeOnFinish = function() return A.OnboardingFinish() end
+    -- a later character's short showing (the guide's own choices alone) leaves Evertally's settings as they are
+    UI.WelcomeOnFinish = function()
+        if K and K.full and K.full() ~= true then return end
+        return A.OnboardingFinish()
+    end
     UI.WelcomeOnOpen = function()
         if A.SetupResetDraft then A.SetupResetDraft() end
         if P.plates then P.plates.choosing = true end

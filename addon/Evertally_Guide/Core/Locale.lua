@@ -33,7 +33,7 @@ local LANGUAGE = {
 	deDE = "German", esES = "Spanish (Spain)", esMX = "Spanish (Latin America)", frFR = "French", koKR = "Korean",
 	ptBR = "Portuguese (Brazil)", ruRU = "Russian", zhCN = "Simplified Chinese", zhTW = "Traditional Chinese",
 }
-local language = pack and LANGUAGE[pack:match("^Evertally_Guide_(.+)$") or ""]
+local language = nil -- (Evertally: English and Czech only, nothing to miss; was LANGUAGE[pack])
 
 if language then
 	ns.OnLogin(function()

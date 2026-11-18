@@ -100,6 +100,8 @@ local QUALITY_RGB = {
 	[0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 }, { 0.9, 0.8, 0.5 },
 }
 local FACTION = { A = ns.FactionName("A"), H = ns.FactionName("H"), AH = L["Both factions"] }
+-- Evertally: read while this file loads, before Evertally chose Czech: Evertally translates them again (EvertallySettings.lua)
+LK.FACTION, LK.FALLBACK_KINDS = FACTION, FALLBACK_KINDS
 
 local shell, root, results, details -- the hub window, this section, the results scroll, the details pane
 local query, kind = "", "all"
@@ -359,6 +361,7 @@ end
 -- An entity's status (Codex item records, Search results): no longer
 -- obtainable, or no source known. Shown for reference, never guided to.
 local STATUS_TEXT = { retired = L["No longer obtainable"], nosource = L["No known source"] }
+LK.STATUS_TEXT = STATUS_TEXT -- (Evertally translates it again)
 local STATUS_NOTE = {
 	retired = L["Not obtainable any more; shown for reference."],
 	nosource = L["No source is known for this; shown for reference."],
@@ -1178,6 +1181,26 @@ local function stale() LK.gen = LK.gen + 1 end
 -- sidebar's counts and the section's list in one render): the counts with a
 -- few results per kind, and under one kind its first page. Subtitles are
 -- filled for the rows drawn only (Search.Subtitle).
+-- Evertally: nothing typed browses (the Database): every kind A to Z (Search.Browse).
+local function browse(k, offset, count)
+	local S = ns.Search
+	if not (S and S.Browse) then return {}, 0 end
+	local ok, list, total = pcall(S.Browse, k, offset, count)
+	if not ok then return {}, 0 end
+	return list or {}, total or 0
+end
+local function browseAll()
+	local all, counts = {}, {}
+	for _, k in ipairs(kinds()) do
+		local list, total = browse(k.key, 0, GROUP_MAX)
+		if total > 0 then
+			counts[k.key] = total
+			for _, r in ipairs(list) do all[#all + 1] = r end
+		end
+	end
+	return all, counts
+end
+
 local cache = {}
 local function current()
 	if cache.query == query and cache.kind == kind and cache.gen == LK.gen then return cache end
@@ -1189,6 +1212,9 @@ local function current()
 		else
 			list = (search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = 0, subtitles = false }))
 		end
+	else
+		all, counts = browseAll()
+		if kind == "all" then list = all else list = (browse(kind, 0, PAGE)) end
 	end
 	-- After the search: its first one loads the pack (or learns it is missing).
 	local loaded, reason = status()
@@ -1201,8 +1227,9 @@ end
 -- The next page of the shown kind.
 function LK.More()
 	local c = current()
-	if kind == "all" or query == "" then return end
-	local more = search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = #c.list, subtitles = false })
+	if kind == "all" then return end
+	local more = query == "" and (browse(kind, #c.list, PAGE))
+		or search(query, { [kind] = true }, { perKind = PAGE, limit = PAGE, offset = #c.list, subtitles = false })
 	for _, res in ipairs(more) do c.list[#c.list + 1] = res end
 	LK.Render()
 end
@@ -1210,7 +1237,7 @@ end
 -- The hub sidebar under the search: Everything, then the kinds this search
 -- found, with their counts (the one shown always), as many as the sidebar
 -- holds above its foot; the rest are a "Show all" away in the list.
-local NAV_MAX = 10
+local NAV_MAX = 12
 function LK.Nav()
 	local c = current()
 	local items = { { key = "all", label = L["Everything"], icon = "search", count = query ~= "" and c.total or nil } }
@@ -1317,7 +1344,7 @@ function LK.Render()
 	end
 
 	-- The header: what the list holds.
-	local title = (kind == "all" or query == "") and L["Lookup"] or kindLabel(kind)
+	local title = kind == "all" and L["Database"] or kindLabel(kind)
 	local subtitle
 	if query == "" then
 		subtitle = L["Every guide, item, mount, NPC, quest and place, and where to get it."]
@@ -1353,15 +1380,16 @@ function LK.Render()
 		entries[#entries + 1] = { t = "action", y = y, text = text, glyph = glyph, act = act, tip = tip }
 		y = y + ROW_H
 	end
-	if query == "" then
-		-- No search: the recent lookups, never a data set.
+	if query == "" and kind == "all" then
+		-- No search: the recent lookups, then (Evertally) the database, every kind A to Z.
 		local recent = LK.Recent()
 		if #recent > 0 then
 			folder(L["Recent lookups"], #recent)
 			-- Copies: the saved entries stay as saved.
 			for _, r in ipairs(recent) do row({ kind = r.kind, id = r.id, title = r.title, quality = r.quality, status = r.status }) end
 		end
-	else
+	end
+	do
 		local byKind = {}
 		for _, res in ipairs(list) do
 			byKind[res.kind] = byKind[res.kind] or {}
@@ -1389,7 +1417,7 @@ function LK.Render()
 	local empty
 	if reason == "loading" and #list == 0 then
 		empty = L["Loading the Codex\226\128\166"]
-	elseif query == "" then
+	elseif query == "" and #list == 0 then
 		empty = loaded and L["Type a name in the search box: a mount you saw, an item you want, an NPC or a quest."]
 			or L["Type a name in the search box to search the guides."]
 	elseif #list == 0 then
@@ -1567,7 +1595,7 @@ end
 
 if UI.RegisterSection then
 	UI.RegisterSection({
-		key = "Lookup", label = L["Lookup"], icon = "search", order = 20,
+		key = "Lookup", label = L["Database"], icon = "search", order = 20,
 		build = LK.Build, render = sectionRender,
 		nav = LK.Nav, onNav = LK.SetKind,
 		search = onSearch, enter = onEnter, step = LK.Step,

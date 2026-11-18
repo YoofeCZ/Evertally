@@ -127,9 +127,10 @@ test("Cookie parsing picks the exact cookie name", () => {
   assert.equal(readCookie("xet_session=abc", "et_session"), null);
   assert.equal(readCookie(null, "et_session"), null);
 });
-test("A device only sends what both the addon export and the pairing allow", () => {
-  assert.deepEqual(deviceGrantScopes(["world_facts", "own_runs"], ["own_runs", "own_character"]), ["own_runs"]);
-  assert.deepEqual(deviceGrantScopes(["own_character"], ["world_facts"]), []);
+test("A device sends what the addon export carries: the pairing no longer narrows it (everything is public, 2026-11-18)", () => {
+  assert.deepEqual(deviceGrantScopes(["world_facts", "own_runs"], ["own_runs", "own_character"]), ["own_runs", "own_character"]);
+  assert.deepEqual(deviceGrantScopes(["own_character"], ["world_facts"]), ["world_facts"]);
+  assert.deepEqual(deviceGrantScopes(["own_character"], []), []);
 });
 test("Device names are trimmed, stripped of control characters and capped", () => {
   assert.equal(sanitizeDeviceName("  PC\u0000-\u001fHERO  "), "PC-HERO");

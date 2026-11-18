@@ -681,7 +681,7 @@ function Theme.SkinChoices()
 	local out = {}
 	for _, id in ipairs(Theme.SKIN_ORDER) do
 		local s = SKINS[id]
-		if s and (Theme._testShowHidden or not HIDDEN_SKINS[id]) then
+		if s and (Theme._testShowHidden or not HIDDEN_SKINS[id]) and (id == "evertally" or not SKINS.evertally) then
 			if s.builtin then
 				out[#out + 1] = { value = id, text = s.label() }
 			else
@@ -1377,7 +1377,7 @@ function Theme.Band(parent, layer, sub, art)
 	local sky = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sub)
 	sky:SetTexture(Theme.Media("band"))
 	local stars = parent:CreateTexture(nil, layer or "BACKGROUND", nil, sub + 1)
-	stars:SetTexture(Theme.Media("band-stars"))
+	-- (Evertally: no stars; the layer stays, empty, for the code that shows and hides it)
 	stars:SetAllPoints(sky)
 	sky.psStars = stars
 	sky.psArt = art and true or nil

@@ -5,7 +5,9 @@ local A = _G.Evertally
 -- mouse), Quests (the quests of the dungeon: what they ask, who gives them, where to hand them in, what they reward) and Map (the dungeon's map with
 -- its bosses, when a map is known). The data is Evertally's own (DungeonData.lua and QuestGuideData.lua, see journal() below), no other add-on is
 -- needed; the banner is the instance's loading screen, drawn by the game by its file ID. An instance without data is listed from the entrances.
-local CARD_H, GAP, ROW_H, ROWS_MAX = 160, 14, 46, 16
+-- one card a row, the picture as wide as the list (its crop keeps the art's proportions: cropArt)
+local CARD_H, GAP, ROW_H, ROWS_MAX = 132, 12, 46, 16
+local ART_ASPECT = 160 / 418 -- the height to width the banners' crops were made for
 local GOLD = A.Theme and A.Theme.colors.gold or {0.796, 0.651, 0.373}
 local QUEST_ICON, BOSS_ICON = "Interface\\GossipFrame\\AvailableQuestIcon", "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01"
 
@@ -425,13 +427,13 @@ local function layout(dj)
     dj.w, dj.h = width, height
     dj.scroll:ClearAllPoints(); dj.scroll:SetPoint("TOPLEFT", 0, -40); dj.scroll:SetPoint("BOTTOMRIGHT", -24, 0)
     dj.gridWidth = math.max(300, width - 30)
-    dj.cols = dj.gridWidth >= 620 and 2 or 1
+    dj.cols = 1
     dj.cardW = math.floor((dj.gridWidth - GAP * (dj.cols - 1)) / dj.cols)
     dj.listWidth = math.max(175, math.min(280, width * 0.33))
     dj.list:SetWidth(dj.listWidth)
     dj.visibleRows = math.max(1, math.min(ROWS_MAX, math.floor((height - 130) / ROW_H)))
     dj.detail.SetWidth(width - dj.listWidth - 12 - 40)
-    dj.mapArea:ClearAllPoints(); dj.mapArea:SetPoint("TOPLEFT", 0, -86); dj.mapArea:SetPoint("BOTTOMRIGHT", 0, 44)
+    dj.mapArea:ClearAllPoints(); dj.mapArea:SetPoint("TOPLEFT", 0, -(dj.top or 86)); dj.mapArea:SetPoint("BOTTOMRIGHT", 0, 44)
     local actionWidth = math.min(260, (width - 8) / 2)
     dj.show:SetWidth(actionWidth); dj.go:SetWidth(actionWidth)
     dj.box:SetWidth(math.max(170, math.min(300, width * 0.48)))
@@ -456,6 +458,14 @@ function M.GuideDungeonKey(entry)
     return nil
 end
 
+-- The banner's crop for a card of this size: as wide as given, as much of its height as keeps the proportions.
+local function cropArt(tex, c, w, h)
+    local x1, x2, y1, y2 = 0, 1, 0, 1
+    if type(c) == "table" then x1, x2, y1, y2 = c[1], c[2], c[3], c[4] end
+    local s = math.min(1, (h / math.max(1, w)) / ART_ASPECT)
+    local mid, half = (y1 + y2) / 2, (y2 - y1) / 2 * s
+    tex:SetTexCoord(x1, x2, mid - half, mid + half)
+end
 local function refreshCards(dj)
     local cols, cardW = dj.cols or 2, dj.cardW or 300
     for i, card in ipairs(dj.cards) do
@@ -468,8 +478,7 @@ local function refreshCards(dj)
             card:SetSize(cardW, CARD_H)
             if entry.banner then
                 card.art:SetTexture(entry.banner)
-                local c = entry.texcoord
-                if type(c) == "table" then card.art:SetTexCoord(c[1], c[2], c[3], c[4]) else card.art:SetTexCoord(0, 1, 0, 1) end
+                cropArt(card.art, entry.texcoord, cardW, CARD_H)
                 card.art:SetVertexColor(1, 1, 1)
             else
                 card.art:SetTexture(entry.icon or M.guideQuestion); card.art:SetTexCoord(0.2, 0.8, 0.2, 0.8); card.art:SetVertexColor(0.55, 0.55, 0.65)
@@ -560,6 +569,8 @@ local function showMode(dj)
     dj.guideKey = not home and M.GuideDungeonKey(dj.selected) or nil
     if home then dj.list:Hide(); dj.listBg:Hide(); detailShown(dj, false); dj.mapArea:Hide() end
     refreshCards(dj)
+    -- in the guide's hub the tabs are the hub's: its tab row is drawn again when the journal opens or leaves a dungeon
+    if dj.onModeChange and dj.notifiedMode ~= dj.mode then dj.notifiedMode = dj.mode; dj.onModeChange() end
 end
 
 local function openDungeon(dj, entry)
@@ -745,6 +756,68 @@ function M.BuildDungeons(body, kit)
         else refreshCards(dj) end
     end)
     layout(dj)
+    -- In the guide's hub (Evertally's page drawn there, HubKit.lua): the hub's tab row for the dungeon's tabs, the hub's
+    -- header parts and flat rows, as the hub's own sections.
+    local page = body:GetParent()
+    local g = rawget(_G, "EvertallyGuide")
+    local W = type(g) == "table" and g.Widgets
+    if page and page.hubMode and W and W.Button and W.Text then
+        local Theme = g.Theme
+        dj.hub, dj.top = true, 52
+        -- the chips: out of sight (their shown state still says which tabs this dungeon has)
+        dj.chipHome = CreateFrame("Frame", nil, body); dj.chipHome:Hide()
+        for _, key in ipairs(dj.tabOrder) do dj.tabs[key]:SetParent(dj.chipHome) end
+        page.hubTabs = function()
+            if dj.mode ~= "dungeon" then return nil end
+            local tabs = {}
+            for _, key in ipairs(dj.tabOrder) do
+                local chip = dj.tabs[key]
+                if chip:IsShown() then tabs[#tabs + 1] = {key = key, label = chip.text and chip.text:GetText() or key} end
+            end
+            return tabs
+        end
+        page.hubTab = function() return dj.mode == "dungeon" and dj.tab or nil end
+        page.OnHubTab = function(key) setTab(dj, key) end
+        dj.onModeChange = function()
+            local P = g.UI and g.UI.Picker
+            if P and P.Render then pcall(P.Render) end
+        end
+        -- the header: the way back as the hub's button, the name large
+        local oldBack = dj.back
+        oldBack:Hide(); oldBack:SetParent(dj.chipHome)
+        -- (the hub's button draws its own chevron: the label without the "<" the old button had)
+        local function backLabel(value) return (tostring(value or ""):gsub("^%s*<%s*", "")) end
+        local back = W.Button(dj.head, backLabel(A.L("dungeonsBack")), function() dj.mode = "home"; showMode(dj) end, {height = 28, width = 128, icon = "chevron-left"})
+        back:SetPoint("TOPLEFT", dj.head, "TOPLEFT", 0, -4)
+        back.text = {SetText = function(_, value) if W.SetButtonText then W.SetButtonText(back, backLabel(value)) end end}
+        dj.back = back
+        dj.head:SetHeight(48)
+        dj.title:ClearAllPoints(); dj.title:SetPoint("TOPLEFT", back, "TOPRIGHT", 16, 2); dj.title:SetPoint("RIGHT", dj.head, "RIGHT", -4, 0)
+        Theme.Font(dj.title, "display"); W.Color(dj.title, "text")
+        dj.subtitle:ClearAllPoints(); dj.subtitle:SetPoint("TOPLEFT", dj.title, "BOTTOMLEFT", 0, -3); dj.subtitle:SetPoint("RIGHT", dj.head, "RIGHT", -4, 0)
+        Theme.Font(dj.subtitle, "small"); W.Color(dj.subtitle, "textDim")
+        dj.noJournal:SetParent(dj.head)
+        -- the way to the entrance: the hub's buttons
+        for _, key in ipairs({"show", "go"}) do
+            local old = dj[key]
+            old:Hide(); old:SetParent(dj.chipHome)
+            local click = old:GetScript("OnClick")
+            local b = W.Button(body, A.L(key == "show" and "dungeonsShow" or "dungeonsGo"), function() if click then click(old) end end, {height = 32, width = 230, primary = key == "show"})
+            if key == "show" then b:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", 0, 4) else b:SetPoint("LEFT", dj.show, "RIGHT", 8, 0) end
+            b.text = {SetText = function(_, value) if W.SetButtonText then W.SetButtonText(b, value) end end}
+            b:Hide()
+            dj[key] = b
+        end
+        -- the list: flat, the hub's type, no box around it
+        dj.list:ClearAllPoints(); dj.list:SetPoint("TOPLEFT", 0, -dj.top); dj.list:SetPoint("BOTTOMLEFT", 0, 44); dj.list:SetWidth(240)
+        dj.listBg:SetAlpha(0)
+        for _, row in ipairs(dj.rows) do
+            Theme.Font(row.name, "body"); W.Color(row.name, "text")
+            Theme.Font(row.sub, "small"); W.Color(row.sub, "textMuted")
+            Theme.Font(row.badge, "small"); W.Color(row.badge, "accent")
+        end
+        layout(dj)
+    end
     return dj
 end
 

@@ -48,27 +48,50 @@ end
 
 --- A scrolling detail inside `parent`. d.Reset(); d.Head(text); d.Text(text[, color, size]); d.Link(spec); d.Done().
 --- Link spec: {icon, title, sub, color, onClick, itemId, extra, badge}. The detail scrolls with the wheel and a scroll bar.
+-- In the guide's hub (an Evertally page drawn there, A.InHubPage): the guide's own scroll area (its thin bar, no arrow
+-- buttons), its type ladder and colours, flat rows and a flat pane, the way the hub's Database draws an entry.
+local function hubGuide(parent)
+    local g = rawget(_G, "EvertallyGuide")
+    if not (A.InHubPage and A.InHubPage(parent)) then return nil end
+    if type(g) == "table" and type(g.Widgets) == "table" and g.Widgets.Scroll and g.Widgets.SetScrollContent and type(g.Theme) == "table" and g.Theme.Font then return g end
+    return nil
+end
+-- the guide's role for a size the pages ask for
+local function hubRole(size)
+    size = size or 13
+    if size >= 19 then return "display" elseif size >= 15 then return "title" elseif size >= 13 then return "body" elseif size >= 12 then return "note" end
+    return "small"
+end
+
 function M.GuideDetail(kit, parent)
     local C = kit.C
     local d = {kit = kit, pools = {text = {}, link = {}, badge = {}, hit = {}}, used = {text = 0, link = 0, badge = 0, hit = 0}, y = 0, width = 360}
-    d.scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
-    d.content = CreateFrame("Frame", nil, d.scroll); d.content:SetSize(360, 100); d.scroll:SetScrollChild(d.content)
+    local hub = hubGuide(parent)
+    d.hub = hub
+    if hub then
+        d.scroll = hub.Widgets.Scroll(parent)
+        d.content = d.scroll.Child; d.content:SetSize(360, 100)
+    else
+        d.scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
+        d.content = CreateFrame("Frame", nil, d.scroll); d.content:SetSize(360, 100); d.scroll:SetScrollChild(d.content)
+    end
     d.surface = CreateFrame("Frame", nil, parent)
     d.surface:SetPoint("TOPLEFT", d.scroll, "TOPLEFT", -12, 12); d.surface:SetPoint("BOTTOMRIGHT", d.scroll, "BOTTOMRIGHT", 24, -12)
     if d.surface.SetFrameLevel and d.scroll.GetFrameLevel then d.surface:SetFrameLevel(math.max(0, (d.scroll:GetFrameLevel() or 1) - 1)) end
-    if A.NativeParchment then A.NativeParchment(d.surface, C)
+    if hub then hub.Widgets.Fill(d.surface, "panel")
+    elseif A.NativeParchment then A.NativeParchment(d.surface, C)
     else
         kit.fill(d.surface, C.well, 1)
         kit.outline(d.surface, C.line or C.gold)
     end
     d.surface:Hide()
-    d.ink, d.heading = C.text, C.bright or C.gold
+    d.ink, d.heading = C.text, hub and C.gold or C.bright or C.gold
     function d.SetTheme(theme)
         if theme == "parchment" then theme = "quest" end
         d.theme = theme
         d.surface:SetShown(theme == "quest")
         d.ink = C.text
-        d.heading = C.bright or C.gold
+        d.heading = hub and C.gold or C.bright or C.gold
     end
 
     local function textLine()
@@ -91,6 +114,10 @@ function M.GuideDetail(kit, parent)
             row.title = kit.label(row, 13, C.text); row.title:SetPoint("TOPLEFT", ICON + 16, -6); row.title:SetPoint("TOPRIGHT", -34, -6); row.title:SetWordWrap(false); row.title:SetJustifyH("LEFT")
             row.sub = kit.label(row, 11, C.mist); row.sub:SetPoint("BOTTOMLEFT", ICON + 16, 5); row.sub:SetPoint("BOTTOMRIGHT", -34, 5); row.sub:SetWordWrap(false); row.sub:SetJustifyH("LEFT")
             row.badge = kit.label(row, 11, C.mist); row.badge:SetPoint("RIGHT", -10, 0); row.badge:SetJustifyH("RIGHT")
+            if hub then
+                hub.Theme.Font(row.title, "body"); hub.Theme.Font(row.sub, "small"); hub.Theme.Font(row.badge, "number")
+                row.hubRow = true
+            end
             row:SetScript("OnEnter", function(self) if self.spec and self.spec.itemId then M.ShowItemTooltip(self, self.spec.itemId, self.spec.title, self.spec.extra) end end)
             row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
             row:SetScript("OnClick", function(self) if self.spec and self.spec.onClick then self.spec.onClick() end end)
@@ -118,7 +145,7 @@ function M.GuideDetail(kit, parent)
     function d.Text(value, color, size, width)
         local fs = textLine()
         fs:ClearAllPoints(); fs:SetPoint("TOPLEFT", d.content, "TOPLEFT", 0, -d.y); fs:SetWidth(width or d.width)
-        fs:SetFont(kit.fontPath(), size or 13, "")
+        if hub then hub.Theme.Font(fs, hubRole(size)) else fs:SetFont(kit.fontPath(), size or 13, "") end
         local c = color or d.ink
         fs:SetTextColor(c[1], c[2], c[3], 1)
         if fs.SetShadowOffset then fs:SetShadowOffset(0, 0) end
@@ -129,6 +156,12 @@ function M.GuideDetail(kit, parent)
     end
     function d.Head(value)
         d.y = d.y + 10
+        -- in the hub: the guide's small capitals in the accent, as the Database's section heads
+        if hub then
+            local fs = d.Text(A.Upper and A.Upper(value or "") or value, d.heading, 14)
+            hub.Theme.Font(fs, "label")
+            return fs
+        end
         local fs = d.Text(value, d.heading, 14)
         return fs
     end
@@ -151,7 +184,7 @@ function M.GuideDetail(kit, parent)
         row.spec = spec
         row:ClearAllPoints(); row:SetPoint("TOPLEFT", d.content, "TOPLEFT", 0, -d.y); row:SetPoint("TOPRIGHT", d.content, "TOPRIGHT", 0, -d.y)
         row:SetHeight(ROW_H - 4)
-        kit.paint(row.bg, C.card, 1); row.bg:SetAlpha(1)
+        kit.paint(row.bg, C.card, 1); row.bg:SetAlpha(row.hubRow and 0.55 or 1)
         row.icon:ClearAllPoints(); row.icon:SetSize(ICON, ICON); row.icon:SetPoint("LEFT", 6, 0)
         row.title:ClearAllPoints(); row.title:SetPoint("TOPLEFT", ICON + 16, -6); row.title:SetPoint("TOPRIGHT", -34, -6); row.title:SetHeight(15); row.title:SetWordWrap(false)
         row.badge:ClearAllPoints(); row.badge:SetPoint("RIGHT", -10, 0); row.badge:Show()
@@ -216,7 +249,14 @@ function M.GuideDetail(kit, parent)
         return badge
     end
     function d.Done()
-        d.content:SetHeight(math.max(60, d.y + 8))
+        local height = math.max(60, d.y + 8)
+        if hub then
+            hub.Widgets.SetScrollContent(d.scroll, height, d.scroll:GetHeight())
+            local maximum = math.max(0, height - (d.scroll:GetHeight() or 0))
+            hub.Widgets.ScrollTo(d.scroll, math.min(d.savedScroll or 0, maximum))
+            return
+        end
+        d.content:SetHeight(height)
         local maximum = math.max(0, (d.content:GetHeight() or 0) - (d.scroll:GetHeight() or 0))
         d.scroll:SetVerticalScroll(math.min(d.savedScroll or 0, maximum))
     end

@@ -100,7 +100,114 @@ local function grouped(n)
     return (digits:gsub("^ ", ""))
 end
 
+-- In the guide's hub: the Database's look (HubKit.lua). The recent activity, the areas and the loot are the hub's tabs
+-- and the list on the left, under the figures; on the right the character as a selection: the zone art of where they
+-- are, the portrait in the well, the name, the level, experience and money as facts, the activity of the last two
+-- weeks under them.
+local function buildHub(page, kit)
+    local HK = A.HubKit
+    local g = HK.Guide()
+    local W = g.Widgets
+    local C = kit.C
+    local pad = (W.SHELL and W.SHELL.pad or 32) - 12
+    HK.Bleed(page)
+    A.overviewPage = page
+    page.recentMode = "activity"
+    local left = CreateFrame("Frame", nil, page)
+    left:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+    left:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -HK.DETAIL_W, 0)
+    page.stats = HK.Stats(left, 4)
+    page.stats:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -16)
+    page.stats:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -16)
+    page.warning = W.Text(left, "small", "danger")
+    page.warning:SetPoint("TOPLEFT", left, "TOPLEFT", pad, -62)
+    page.warning:SetPoint("TOPRIGHT", left, "TOPRIGHT", -pad, -62)
+    page.warning:SetJustifyH("LEFT")
+    page.list = HK.List(left)
+    page.list.scroll:SetPoint("TOPLEFT", left, "TOPLEFT", 0, -70)
+    page.list.scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -4, 4)
+    page.details = HK.Details(page)
+    -- the activity chart at the bottom of the character pane
+    local chartBox = CreateFrame("Frame", nil, page.details)
+    chartBox:SetPoint("BOTTOMLEFT", page.details, "BOTTOMLEFT", 24, 16)
+    chartBox:SetPoint("BOTTOMRIGHT", page.details, "BOTTOMRIGHT", -24, 16)
+    chartBox:SetHeight(170)
+    page.chartTitle = W.Text(chartBox, "label", "accent")
+    page.chartTitle:SetPoint("TOPLEFT", chartBox, "TOPLEFT", 0, 0)
+    page.legend = kit.Legend(chartBox); page.legend:SetPoint("TOPLEFT", chartBox, "TOPLEFT", 0, -20)
+    page.chart = kit.BarChart(chartBox); page.chart:SetPoint("TOPLEFT", chartBox, "TOPLEFT", 0, -42); page.chart:SetPoint("BOTTOMRIGHT", chartBox, "BOTTOMRIGHT", 0, 0)
+    local colors = {C.gold, C.green, C.sky, C.peach}
+    page.hubTabs = function()
+        local tabs = {}
+        for _, key in ipairs({"activity", "areas", "loot"}) do tabs[#tabs + 1] = {key = key, label = A.L("dashTab_" .. key)} end
+        return tabs
+    end
+    page.hubTab = function() return page.recentMode end
+    page.OnHubTab = function(key) page.recentMode = key end
+    local function itemName(id) local name = A.Call(GetItemInfo, id); return name or ("Item #" .. tostring(id)) end
+    function page.Refresh()
+        local db, c = A.db, A.Character()
+        local quests, runs = 0, 0
+        for _, event in ipairs(db.events or {}) do if event.kind == "quest.turned_in" then quests = quests + 1 end end
+        for _, run in ipairs(db.runs or {}) do if c and run.character and run.character.id == c.id and run.status == "completed" then runs = runs + 1 end end
+        page.stats.Set({grouped(quests), grouped(runs), grouped(#A.PlaceSummaries()), grouped(#db.events)},
+            {A.L("dashQuests"), A.L("dashRuns"), A.L("dashPlaces"), A.L("dashEvents")})
+        local full = A.storageFull or A.exportFull
+        page.warning:SetText(full and A.L("capped") or "")
+        -- the list: the tab's rows
+        local entries, mode = {}, page.recentMode
+        if mode == "areas" then
+            for _, row in ipairs(A.TopAreas(kit, 30)) do
+                entries[#entries + 1] = {key = "area:" .. row.id, title = row.label, glyph = "icon-explore", color = "place", sub = grouped(row.value)}
+            end
+        elseif mode == "loot" then
+            for _, cell in ipairs(A.RecentLoot(kit, 40)) do
+                local id = cell.itemId
+                entries[#entries + 1] = {key = "item:" .. id, title = itemName(id), icon = cell.icon, color = "item", sub = "x" .. tostring(cell.count or 1),
+                    onClick = function() if A.OpenDatabaseEntry then A.OpenDatabaseEntry("item", id) end end}
+            end
+        else
+            local today
+            for i = #db.events, 1, -1 do
+                if #entries >= 40 then break end
+                local e = db.events[i]
+                if A.JournalCategory(e.kind) then
+                    local item = kit.eventItem(e, true)
+                    local day = A.Call(date, "%d. %m.", A.Number(e.observedAt, 0) or 0) or ""
+                    if day ~= today then entries[#entries + 1] = {folder = day}; today = day end
+                    local p = type(e.payload) == "table" and e.payload or {}
+                    local icon = (e.kind == "loot.received" or e.kind == "craft.result") and p.itemId and kit.itemIcon(p.itemId) or nil
+                    local glyph = e.kind:find("^quest") and (e.kind == "quest.turned_in" and "icon-turnin" or "icon-accept") or e.kind == "zone.visited" and "icon-explore"
+                        or e.kind == "character.level" and "icon-level" or e.kind:find("run") and "icon-kill" or "icon-use"
+                    entries[#entries + 1] = {key = e, title = item.title, icon = icon, glyph = glyph,
+                        color = e.kind:find("^quest") and "quest" or e.kind == "zone.visited" and "place" or e.kind == "character.level" and "accent" or "item",
+                        sub = A.Call(date, "%H:%M", A.Number(e.observedAt, 0) or 0) or ""}
+                end
+            end
+        end
+        page.list.Set(entries, nil)
+        -- the character on the right
+        local xp, maximum = A.Number(A.Call(UnitXP, "player"), 0), A.Number(A.Call(UnitXPMax, "player"), 1)
+        local money = A.Number(A.Call(GetMoney), 0)
+        local map = C_Map and C_Map.GetBestMapForUnit and A.Call(C_Map.GetBestMapForUnit, "player") or nil
+        page.details.Set({map = map, title = c and kit.plain(c.name) or A.L("unknown"), sub = c and kit.identityText(c) or "",
+            glyph = "icon-level", color = "accent",
+            facts = {
+                {A.L("jhLevel"), c and tostring(c.level or A.Call(UnitLevel, "player") or "?") or nil},
+                {A.L("dashXP"), xp and maximum and (grouped(xp) .. " / " .. grouped(maximum)) or A.L("dashMaxLevel")},
+                {A.L("dashMoney"), money and A.FormatMoney(money) or nil},
+                {A.L("jhWhere"), map and kit.mapName(map) or nil},
+                {"", c and kit.plain(c.realm) or nil},
+            }})
+        if c and type(SetPortraitTexture) == "function" then pcall(SetPortraitTexture, page.details.Icon, "player"); page.details.Icon:SetTexCoord(0, 1, 0, 1) end
+        local names = {}; for i, key in ipairs(SERIES_KEYS) do names[i] = A.L(key) end
+        page.chartTitle:SetText(A.Upper and A.Upper(A.L("dashChart")) or string.upper(A.L("dashChart")))
+        page.legend.Set(colors, names); page.chart.SetData(A.ActivityByDay(14), colors, names)
+    end
+end
+
 function A.BuildOverviewPage(page, kit)
+    if A.HubKit and A.HubKit.Ready(page) then return buildHub(page, kit) end
     local C, label = kit.C, kit.label
     local ink, muted, heading = C.text, C.mist, C.bright or C.gold
     A.overviewPage = page

@@ -41,6 +41,8 @@ class JourneyTests(unittest.TestCase):
         return out
 
     def test_nothing_is_recorded_without_the_consent_of_the_route(self):
+        # (the route is on from the start since 2026-11-18; switched off, nothing is recorded)
+        self.a.SetScope("own_track", False)
         self.on(track=False)
         self.lua.execute("MONEY=900"); self.a.Dispatch("PLAYER_MONEY"); self.a.Dispatch("PLAYER_DEAD")
         self.assertEqual(self.moments(), [])

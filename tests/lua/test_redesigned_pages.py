@@ -80,7 +80,9 @@ class RedesignedPagesTests(unittest.TestCase):
         self.assertFalse(page.kinds.g, "gold remains opt-in")
         page.sendRequest.scripts.OnClick(page.sendRequest)
         self.assertEqual(self.lua.globals().INSPECT_COUNT, 1)
-        self.assertEqual(self.lua.globals().INSPECT_KINDS, "istpqr")  # gear, stats, talents, professions, quests, reputations; never gold
+        # gear, stats, talents, professions, quests, reputations and (the website is on from the start since 2026-11-18) the
+        # website; never gold
+        self.assertEqual(self.lua.globals().INSPECT_KINDS, "istpqrw")
         self.assertTrue(page.requestLeaf.shown)
         self.assertIsNone(self.a.lastUIError)
 

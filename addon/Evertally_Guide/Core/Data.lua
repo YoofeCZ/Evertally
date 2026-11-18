@@ -206,7 +206,7 @@ function Data.CheckInstall()
 	-- the game's names, Core/Names.lua and Core/GuideTexts.lua load it): never
 	-- missing either.
 	local language = ns.Names and ns.Names.PackName()
-	if language then check(language, s) end
+	-- (Evertally: no language folders but Czech, which Evertally loads itself)
 	-- Our guide pack's race part for the player's race, when the release has
 	-- one (Core/Guides.lua loads it): never missing either.
 	local race = UnitRace and readable((select(2, UnitRace("player")))) or nil

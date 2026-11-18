@@ -26,9 +26,14 @@ class OnboardingTests(unittest.TestCase):
         return self.a.OnboardingDraft()
 
     # ---- the choices ----
-    def test_a_new_player_starts_with_everything_that_sends_something_off(self):
+    def test_a_new_player_starts_with_the_website_on_and_the_rest_that_sends_something_off(self):
+        # everything is public since 2026-11-18 (as on raider.io): the website and all its data start on; the live
+        # position and sharing in the game still start off
         d = self.draft()
-        self.assertFalse(d.web); self.assertFalse(d.liveWeb); self.assertFalse(d.ingame)
+        self.assertTrue(d.web); self.assertTrue(all(d.scopes[k] for k in ("world_facts", "own_runs", "own_character", "own_professions", "own_track")))
+        self.assertTrue(self.a.db.settings.scopes.guild_share)
+        self.assertTrue(d.publish and d.chronicle and d.gear)
+        self.assertFalse(d.liveWeb); self.assertFalse(d.ingame)
         self.assertFalse(d.live.party or d.live.guild or d.live.friends)
         self.assertEqual(str(d.language), "en")
         self.assertTrue(d.minimap)
@@ -92,6 +97,7 @@ class OnboardingTests(unittest.TestCase):
 
     def test_the_website_stays_off_with_a_note_when_the_export_helper_is_missing(self):
         self.lua.execute("EvertallyExportDB=nil")
+        self.a.db.settings.web = False
         d = self.draft()
         self.a.OnboardingPreset(d, "everything"); d.liveWeb = True
         notes = [str(n) for n in lst(self.a.OnboardingApply(d))]
@@ -105,8 +111,9 @@ class OnboardingTests(unittest.TestCase):
         self.assertIn("nameplates", lines[10].lower())
         self.assertIn("music", lines[11].lower())
         self.assertIn("paired", lines[1]); self.assertNotIn("not paired", lines[1])
-        self.assertIn("off", lines[2].lower()); self.assertIn("off", lines[3].lower(), "no public page")
-        self.assertIn(self.a.L("setupChron_off"), lines[4], "no chronicle"); self.assertIn("nothing", lines[5])
+        # everything is public since 2026-11-18: the website, the public page and the public chronicle are on
+        self.assertNotIn(": off", lines[2].lower()); self.assertNotIn(": off", lines[3].lower(), "the public page")
+        self.assertIn(self.a.L("setupChron_public"), lines[4], "the public chronicle"); self.assertIn("nothing", lines[5])
         self.assertIn("not installed", lines[7], "no OpenMap: the summary says so")
         self.assertIn("Herbs", lines[8]); self.assertIn("Chests", lines[8])
         self.lua.execute(OPENMAP)
@@ -137,14 +144,13 @@ class OnboardingTests(unittest.TestCase):
         self.assertEqual(self.a.OnboardingState()[0], 2, "then the installation")
         f.next.scripts.OnClick(f.next)
         self.assertEqual(self.a.OnboardingState()[0], 3, "then pairing")
-        for expected in range(4, 13):
+        # (the website and public steps 4 and 5 are passed over since 2026-11-18: everything is public)
+        for expected in range(6, 13):
             f.next.scripts.OnClick(f.next)
             self.assertEqual(self.a.OnboardingState()[0], expected)
         self.assertEqual(str(f.next.text.text), self.a.L("setupFinish"), "the last step ends with Finish")
         f.back.scripts.OnClick(f.back)
         self.assertEqual(self.a.OnboardingState()[0], 11)
-        self.a.OnboardingGo(4)
-        pages[4].presets["recommended"].scripts.OnClick(pages[4].presets["recommended"])
         self.a.OnboardingGo(12)
         f.next.scripts.OnClick(f.next)
         self.assertFalse(self.a.OnboardingShown())
@@ -182,12 +188,12 @@ class OnboardingTests(unittest.TestCase):
 
     def test_closing_keeps_the_settings_without_completing_setup(self):
         f = self.open()
-        pages = self.a.onboarding.pages
-        self.a.OnboardingGo(4)
-        pages[4].presets["everything"].scripts.OnClick(pages[4].presets["everything"])
+        self.a.OnboardingGo(6)
+        step, draft = self.a.OnboardingState()
+        draft.ingame = True
         f.close.scripts.OnClick(f.close)
         self.assertFalse(self.a.OnboardingShown())
-        self.assertFalse(self.a.db.settings.web, "skipping applies nothing")
+        self.assertFalse(self.a.db.settings.ingame, "skipping applies nothing")
         self.assertIsNone(self.a.db.settings.onboarded)
 
     def test_a_switch_that_needs_others_shows_what_it_switches_on(self):
@@ -198,11 +204,7 @@ class OnboardingTests(unittest.TestCase):
         step, draft = self.a.OnboardingState()
         self.assertTrue(draft.liveWeb and draft.web and draft.scopes.own_track)
         self.assertNotEqual(str(pages[6].needs.text), "", "it says what else is switched on")
-        self.a.OnboardingGo(4)
-        self.assertFalse(pages[4].scopes["own_track"].enabled, "and the route cannot be switched off while the live position needs it")
-        pages[4].web.scripts.OnClick(pages[4].web)
-        step, draft = self.a.OnboardingState()
-        self.assertFalse(draft.web or draft.liveWeb, "switching the website off takes the live position on it with it")
+        # (the website step, where the route and the website could be switched off, is passed over since 2026-11-18)
 
     def test_the_map_step_says_openmap_is_the_map_and_sets_what_evertally_adds_to_it(self):
         self.open()
@@ -261,7 +263,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertEqual(str(pages[3].status.text), self.a.L("setupPairDone"))
         self.assertFalse(pages[3].pair.shown, "nothing to pair any more")
         f.next.scripts.OnClick(f.next)
-        self.assertEqual(self.a.OnboardingState()[0], 4)
+        self.assertEqual(self.a.OnboardingState()[0], 6, "past the pairing (the website and public steps are passed over)")
 
     def test_pair_saves_a_request_for_the_app_and_reloads_so_the_game_writes_it(self):
         self.lua.execute("RELOADS=0; ReloadUI=function() RELOADS=RELOADS+1 end")
@@ -290,42 +292,14 @@ class OnboardingTests(unittest.TestCase):
         self.assertTrue(self.a.BridgeAutostart(), "the player's choice shows until the app reports it")
         self.assertTrue(self.a.webChangePending, "it reaches the app only when the game saves")
 
-    def test_the_chronicle_is_off_only_for_me_or_public_and_public_needs_the_public_page(self):
-        f = self.open()
-        page = self.a.onboarding.pages[5]
-        self.a.OnboardingGo(5)
-        self.assertEqual(str(page.title.text), self.a.L("setupPublicTitle"))
-        self.assertTrue(page.chronicle["off"].selected, "a new player sends no chronicle")
-        self.assertEqual(str(page.publish.sub.text), self.a.L("setupPublicSub"), "the public page says it is the leaderboard")
-        page.chronicle["private"].scripts.OnClick(page.chronicle["private"])
-        step, draft = self.a.OnboardingState()
-        self.assertEqual(str(self.a.OnboardingChronicle(draft)), "private")
-        self.assertTrue(draft.web and draft.scopes.own_track); self.assertFalse(draft.publish, "only for me is not public")
-        page.chronicle["public"].scripts.OnClick(page.chronicle["public"])
-        step, draft = self.a.OnboardingState()
-        self.assertTrue(draft.chronicle and draft.publish and draft.web and draft.scopes.own_character and draft.scopes.own_track,
-                        "a public chronicle needs the public page, the character and the route")
-        page.publish.scripts.OnClick(page.publish)
-        step, draft = self.a.OnboardingState()
-        self.assertEqual(str(self.a.OnboardingChronicle(draft)), "private", "without the public page the chronicle cannot stay public")
-        self.assertFalse(page.extras["gear"].enabled, "the extras of the public page need it")
-        page.chronicle["public"].scripts.OnClick(page.chronicle["public"])
-        self.a.OnboardingGo(12)
-        f.next.scripts.OnClick(f.next)
-        choice = self.a.PublishChoice()
-        self.assertTrue(choice.public and choice.chronicle)
-        self.assertTrue(self.a.SaveBarShown(), "after Finish a bar offers to save for the website right away")
-
-    def test_the_position_on_the_website_keeps_the_route_so_the_chronicle_cannot_be_off(self):
+    def test_the_setup_passes_over_what_to_send_and_show_on_the_website(self):
+        # everything is public since 2026-11-18: the website and public steps (4, 5) are passed over both ways
         self.open()
-        pages = self.a.onboarding.pages
-        self.a.OnboardingGo(6)
-        pages[6].liveWeb.scripts.OnClick(pages[6].liveWeb)
+        self.a.OnboardingGo(4)
+        self.assertEqual(self.a.OnboardingState()[0], 6)
+        self.a.OnboardingGo(3)
         self.a.OnboardingGo(5)
-        pages[5].chronicle["off"].scripts.OnClick(pages[5].chronicle["off"])
-        step, draft = self.a.OnboardingState()
-        self.assertEqual(str(self.a.OnboardingChronicle(draft)), "private")
-        self.assertEqual(str(pages[5].note.text), self.a.L("setupChronLocked"))
+        self.assertEqual(self.a.OnboardingState()[0], 6)
 
     def test_a_website_choice_in_settings_offers_to_save_now(self):
         self.a.SetPublish("public", True)

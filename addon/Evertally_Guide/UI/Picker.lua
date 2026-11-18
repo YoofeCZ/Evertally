@@ -102,6 +102,8 @@ local allCards = false -- "Show all (N)": every open tab's card, not one row; th
 
 local VIEWS = { "home", "browse", "current", "recent" }
 local VIEW_LABEL = { home = L["Home"], browse = L["Browse"], current = L["Current"], recent = L["Recent"] }
+-- Evertally: read while this file loads, before Evertally chose Czech: Evertally translates them again (EvertallySettings.lua)
+P.VIEW_LABEL = VIEW_LABEL
 
 -- The guide format's categories, in the order players look for them.
 local CATEGORIES = { "Leveling", "Class", "Professions", "Reputation", "Exploration", "Legacy", "Collectibles", "Miscellaneous" }
@@ -1782,6 +1784,7 @@ end
 ---------------------------------------------------------------------------
 
 local GUIDES = { key = "Guides", label = L["Guides"], icon = "guides", order = 10, builtin = true }
+P.GUIDES = GUIDES -- (Evertally translates its label again, as VIEW_LABEL)
 local sections, section = { GUIDES }, nil
 P.GUIDES = GUIDES.key
 
@@ -1833,6 +1836,7 @@ end
 
 -- The hub's search wordings, longest first: the box shows the first that fits.
 local HUB_SEARCH = { L["Search guides, items, NPCs"], L["Search guides, items"], L["Search"] }
+P.HUB_SEARCH = HUB_SEARCH -- (Evertally translates it again, as VIEW_LABEL)
 
 local function sectionLayout(s)
 	local on = s ~= nil
@@ -1851,6 +1855,33 @@ local function sectionLayout(s)
 	win.Search:SetShown(not s or s.search ~= nil)
 end
 
+-- Evertally: a section's own index (its nav: the Database's kinds, the Rares' tabs) is a row of tabs over its page,
+-- and the sidebar holds Evertally's menu in every section, one click from any of its pages.
+local EVERTALLY_KEY = "Evertally"
+local function sectionTabs(s)
+	if s.key == EVERTALLY_KEY or not s.nav then return false end
+	local ok, items, activeKey = pcall(s.nav)
+	if not ok or type(items) ~= "table" then return false end
+	local tabs = {}
+	for _, it in ipairs(items) do
+		if not it.separator and not it.heading and it.key and it.key ~= "" then tabs[#tabs + 1] = { key = it.key, label = it.label or it.key } end
+	end
+	if #tabs < 2 then return false end
+	W.ShellTabs(win, tabs, activeKey, function(key) if s.onNav then s.onNav(key) end end)
+	return true
+end
+local function evertallyNav()
+	for _, s in ipairs(sections) do
+		if s.key == EVERTALLY_KEY and s.nav then
+			local ok, items = pcall(s.nav)
+			if not ok or type(items) ~= "table" then return false end
+			W.ShellNav(win, items, nil, function(key) P.ShowSection(s.key); if s.onNav then s.onNav(key) end end)
+			return true
+		end
+	end
+	return false
+end
+
 local function renderSection(s)
 	if not s.psFrame then
 		local f = CreateFrame("Frame", nil, win.Main)
@@ -1863,6 +1894,7 @@ local function renderSection(s)
 	-- No tabs until the section sets its own (its render may).
 	W.ShellTabs(win, nil)
 	s.render()
+	sectionTabs(s) -- (Evertally: after its render, which may clear the row)
 	-- Under the tab row when the section set one, else under the header.
 	local f = s.psFrame
 	f:ClearAllPoints()
@@ -1900,6 +1932,8 @@ end
 -- The sidebar index of a section: its own nav, or for a one-view section
 -- the section itself, marked (the sidebar never stands empty).
 local function sectionNav(s)
+	-- Evertally: the section's own index is its tab row (sectionTabs); the sidebar is Evertally's menu
+	if s.key ~= EVERTALLY_KEY and evertallyNav() then return end
 	if not s.nav then
 		W.ShellNav(win, { { key = s.key, label = s.label or s.key, icon = s.icon } }, s.key, nil)
 		return
@@ -1941,10 +1975,20 @@ function P.Render()
 	local entries, n, counts = P.Entries(query, view == "browse" and category or "All")
 	local total = 0
 	for c, k in pairs(counts) do if c ~= "Favorites" then total = total + k end end
-	W.ShellNav(win, navItems(counts, total), view == "browse" and category or nil, function(key) P.SetCategory(key) end)
+	-- Evertally: the guides' categories are tabs after Home, Current and Recent (Browse is the category tabs); the
+	-- sidebar holds Evertally's menu (evertallyNav), or the categories when Evertally is not there.
+	local navList = navItems(counts, total)
 	local tabsList = {}
-	for i, v in ipairs(VIEWS) do tabsList[i] = { key = v, label = VIEW_LABEL[v] } end
-	W.ShellTabs(win, tabsList, view, function(key) P.SetView(key) end)
+	for _, v in ipairs(VIEWS) do if v ~= "browse" then tabsList[#tabsList + 1] = { key = v, label = VIEW_LABEL[v] } end end
+	for _, it in ipairs(navList) do
+		if not it.heading and it.key ~= "" then tabsList[#tabsList + 1] = { key = "cat:" .. it.key, label = it.label } end
+	end
+	W.ShellTabs(win, tabsList, view == "browse" and ("cat:" .. category) or view, function(key)
+		if key:sub(1, 4) == "cat:" then P.SetCategory(key:sub(5)) else P.SetView(key) end
+	end)
+	if not evertallyNav() then
+		W.ShellNav(win, navList, view == "browse" and category or nil, function(key) P.SetCategory(key) end)
+	end
 
 	local byId = headersById()
 	local tabs, active = tabsInfo()

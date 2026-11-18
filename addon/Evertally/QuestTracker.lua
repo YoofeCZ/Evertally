@@ -6,13 +6,18 @@ local _, A = ...
 --     their counts and a thin bar; a finished one says where it is turned in; a timed one its time left
 --   * click: the arrow (the guide's navigation) to the nearest goal or the turn-in; Shift+click: the quest's link in
 --     the chat; right click: a menu (the quest log, the map, share, abandon); the small sign before it folds it
---   * a section folds by its heading; the order is by distance, level or the quest log's; EVERTALLY MENU on the bar
+--   * a section folds by its heading; the order is by distance, level or the quest log's
+--   * the sections: the zone you are in first (the quests of the guide's current step at its top), the other zones,
+--     dungeons and groups, and the quests ready to turn in always last
+--   * EVERTALLY MENU, the nearby services and the bug are on the window's tools bar (GuideFrameLayout.lua), as on the
+--     Guide tab; the window's height follows its grip, and the tracker scrolls past it
 -- Distances and places come from the guide's quest database (EvertallyGuide.QuestDB, where it is loaded); without it
 -- the tracker still lists the log, without distances.
 local QT = {}
 A.QuestTracker = QT
 
-local BAR_H, SECTION_H, QUEST_H, LINE_H = 26, 20, 19, 15
+local BAR_H, SECTION_H, QUEST_H, LINE_H = 24, 28, 24, 18
+local QUEST_GAP, SECTION_GAP = 6, 8
 local SORTS = {"distance", "level", "log"}
 
 local text = {
@@ -20,18 +25,31 @@ local text = {
         qtOther = "Other quests", qtNone = "Your quest log is empty.", qtSort_distance = "Nearest first", qtSort_level = "By level", qtSort_log = "As in the log",
         qtTurnIn = "Turn in: %s", qtTurnInHere = "Ready to turn in", qtFailed = "Failed", qtTime = "Time left %s", qtMenu = "EVERTALLY MENU",
         qtYards = "%d yd", qtLog = "Show in the quest log", qtMap = "Show on the map", qtShare = "Share with the group", qtAbandon = "Abandon",
-        qtArrow = "Set the arrow here", qtFold = "Fold or unfold", qtTip = "Click: the arrow  ·  Shift+click: link in chat  ·  Right click: menu"},
+        qtArrow = "Set the arrow here", qtFold = "Fold or unfold", qtTip = "Click: the arrow and the map  ·  Shift+click: link in chat  ·  Right click: menu",
+        qtMapAfterCombat = "The map opens when the fight is over.",
+        qtPickTitle = "Quest tracker", qtPickBody = "Which quest tracker do you want on screen? The others are hidden.",
+        qtPick_evertally = "Evertally", qtPickSub_evertally = "The Quests tab of the guide window: nearest first, the arrow on a click.",
+        qtPick_blizzard = "Blizzard", qtPickSub_blizzard = "The game's own quest tracker.",
+        qtPick_questie = "Questie", qtPickSub_questie = "Questie's tracker.",
+        qtPickReload = "Questie's tracker comes on after /reload.", qtPickCombat = "The quest tracker changes when the fight is over."},
     cs = {qtGuide = "Návod", qtQuests = "Questy", qtTitle = "Questy %d/%d", qtReady = "K odevzdání", qtDungeons = "Dungeony a skupiny",
         qtOther = "Ostatní questy", qtNone = "Deník questů je prázdný.", qtSort_distance = "Nejbližší první", qtSort_level = "Podle úrovně", qtSort_log = "Jako v deníku",
         qtTurnIn = "Odevzdat u: %s", qtTurnInHere = "Hotovo, odevzdat", qtFailed = "Nesplněno", qtTime = "Zbývá %s", qtMenu = "EVERTALLY MENU",
         qtYards = "%d yd", qtLog = "Ukázat v deníku questů", qtMap = "Ukázat na mapě", qtShare = "Sdílet se skupinou", qtAbandon = "Zrušit quest",
-        qtArrow = "Šipka sem", qtFold = "Sbalit nebo rozbalit", qtTip = "Klik: šipka  ·  Shift+klik: odkaz do chatu  ·  Pravé tlačítko: menu"},
+        qtArrow = "Šipka sem", qtFold = "Sbalit nebo rozbalit", qtTip = "Klik: šipka a mapa  ·  Shift+klik: odkaz do chatu  ·  Pravé tlačítko: menu",
+        qtMapAfterCombat = "Mapa se otevře, až skončí souboj.",
+        qtPickTitle = "Quest tracker", qtPickBody = "Který quest tracker chceš mít na obrazovce? Ostatní se skryjí.",
+        qtPick_evertally = "Evertally", qtPickSub_evertally = "Karta Questy v okně návodu: nejbližší první, klik nastaví šipku.",
+        qtPick_blizzard = "Blizzard", qtPickSub_blizzard = "Tracker questů od hry.",
+        qtPick_questie = "Questie", qtPickSub_questie = "Tracker z addonu Questie.",
+        qtPickReload = "Tracker Questie se zapne po /reload.", qtPickCombat = "Quest tracker se přepne, až skončí souboj."},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
 local function settings()
     local s = A.db and A.db.settings
-    if not s then return {} end
+    -- before Evertally's saved settings are there (a redraw while the add-ons load): defaults, nothing kept
+    if not s then return {folded = {}, foldedQuests = {}} end
     if type(s.questTracker) ~= "table" then s.questTracker = {} end
     local t = s.questTracker
     if type(t.folded) ~= "table" then t.folded = {} end      -- section key -> true
@@ -45,8 +63,80 @@ end
 local function try(f, ...) if type(f) == "function" then local ok, a, b, c = pcall(f, ...); if ok then return a, b, c end end end
 
 -- ---------------------------------------------------------------- the tab
---- The window's tab: "guide" (the guide's steps, as before) or "quests" (this tracker).
-function QT.Mode() return settings().mode == "quests" and "quests" or "guide" end
+-- ---------------------------------------------------------------- which quest tracker (the setup asks)
+-- One quest tracker on screen, the player's choice (settings.questTracker.choice, asked in the setup: SetupPages.lua):
+-- Evertally's (this tab), Blizzard's (the game's objective tracker) or an installed add-on's (Questie). The others
+-- are hidden: Blizzard's through the guide's own switch (qol.hideQuestTracker, which hides it again whenever the game
+-- shows it), Questie's through its own (Questie.db.profile.trackerEnabled; turning it on takes a /reload, as in
+-- Questie), Evertally's by leaving the window without its Quests tab. Before any choice nothing is changed.
+local function questie()
+    local loader, Q = rawget(_G, "QuestieLoader"), rawget(_G, "Questie")
+    if not (type(loader) == "table" and loader.ImportModule and type(Q) == "table" and type(Q.db) == "table" and type(Q.db.profile) == "table") then return nil end
+    local ok, T = pcall(loader.ImportModule, loader, "QuestieTracker")
+    if ok and type(T) == "table" then return Q, T end
+    return nil
+end
+--- The trackers to choose from: Evertally and Blizzard always, then those installed and loaded.
+function QT.Choices()
+    local out = {"evertally", "blizzard"}
+    if questie() then out[#out + 1] = "questie" end
+    return out
+end
+--- The player's choice, or nil before the setup asked.
+function QT.Choice() return settings().choice end
+--- Whether Evertally's own tracker (the Quests tab) is in use.
+function QT.Enabled() local c = settings().choice; return c == nil or c == "evertally" end
+local choiceAfterFight = false
+--- Shows the chosen tracker and hides the others (out of combat; in a fight, once it is over).
+function QT.ApplyChoice(quiet)
+    local choice = settings().choice
+    if not choice then return false end
+    if InCombatLockdown and InCombatLockdown() then
+        if not choiceAfterFight and not quiet and A.Print then A.Print(A.L("qtPickCombat")) end
+        choiceAfterFight = true
+        return false
+    end
+    choiceAfterFight = false
+    local g = guide()
+    if g and type(g.Set) == "function" then pcall(g.Set, "qol.hideQuestTracker", choice ~= "blizzard") end
+    local Q, T = questie()
+    if Q then
+        local want = choice == "questie"
+        if (Q.db.profile.trackerEnabled and true or false) ~= want and T.Toggle then
+            pcall(T.Toggle, T)
+            if want and not quiet and A.Print then A.Print(A.L("qtPickReload")) end
+        end
+    end
+    if choice ~= "evertally" then
+        if settings().mode ~= "guide" then settings().mode = "guide" end
+        if QT.frame then QT.frame:Hide() end
+    end
+    local GF = g and g.UI and g.UI.GuideFrame
+    if GF and GF.Render then pcall(GF.Render) end
+    return true
+end
+--- The setup's choice: kept and applied at once.
+function A.SetQuestTrackerChoice(choice)
+    local known = false
+    for _, c in ipairs(QT.Choices()) do if c == choice then known = true end end
+    if not known then return false end
+    settings().choice = choice
+    if choice == "evertally" then settings().mode = "quests" end
+    return QT.ApplyChoice()
+end
+A.On("PLAYER_REGEN_ENABLED", function() if choiceAfterFight then QT.ApplyChoice() end end)
+-- at login, after the add-ons that hold the other trackers have set up theirs
+A.On("PLAYER_LOGIN", function()
+    local function apply() QT.ApplyChoice(true) end
+    if C_Timer and C_Timer.After then C_Timer.After(2, apply) else apply() end
+end)
+
+--- The window's tab: "quests" (this tracker, the first tab and the default) or "guide" (the guide's steps). Without
+--- Evertally's tracker in use (another chosen) always "guide".
+function QT.Mode()
+    if not QT.Enabled() then return "guide" end
+    return settings().mode == "guide" and "guide" or "quests"
+end
 local function relayout()
     local g = guide()
     local GF = g and g.UI and g.UI.GuideFrame
@@ -62,20 +152,20 @@ end
 --- Shows the guide window on the Quests tab (the Evertally menu's Quest tracker).
 function A.ShowQuestTracker()
     local g = guide()
-    if not g then return false end
+    if not g or not QT.Enabled() then return false end
     QT.SetMode("quests")
     try(g.SetHidden, false)
     if not try(g.GuideShown) then try(g.Fire, "TOGGLE_FRAME") end
     return true
 end
 
---- The two tabs at the left of the window's header: Guide | Quests.
+--- The two tabs at the left of the window's header: Quests | Guide.
 function QT.BuildSwitch(parent)
     local kit = A.UIKit()
     local s = CreateFrame("Frame", nil, parent); s:SetSize(10, 22)
     s.guide = kit.Chip(s, function() QT.SetMode("guide") end)
     s.quests = kit.Chip(s, function() QT.SetMode("quests") end)
-    s.guide:SetPoint("LEFT", s, "LEFT", 0, 0); s.quests:SetPoint("LEFT", s.guide, "RIGHT", 2, 0)
+    s.quests:SetPoint("LEFT", s, "LEFT", 0, 0); s.guide:SetPoint("LEFT", s.quests, "RIGHT", 2, 0)
     s.guide:SetHeight(22); s.quests:SetHeight(22)
     function s.Refresh()
         s.guide.SetLabel(A.L("qtGuide")); s.quests.SetLabel(A.L("qtQuests"))
@@ -86,6 +176,128 @@ function QT.BuildSwitch(parent)
     s.Refresh()
     return s
 end
+
+-- ---------------------------------------------------------------- Czech names (WowfCZ, read where installed)
+-- In Czech the quests' titles and objectives come from WowfCZ (wowf.cz) when the player has it installed: its global
+-- tables WowfCZ_QuestData[questID] (Title, Objectives) and WowfCZ_ItemData[itemID] ({e = English, n = Czech}). Only
+-- read here, never copied into Evertally (it has no licence: THIRD_PARTY.md). Without it, or in English, the game's
+-- own names show.
+local function czech() return A.db and A.db.settings and A.db.settings.language == "cs" or false end
+local function czQuest(id)
+    if not czech() then return nil end
+    local data = rawget(_G, "WowfCZ_QuestData")
+    local q = type(data) == "table" and data[id]
+    return type(q) == "table" and q or nil
+end
+local itemsCs
+local function czItem(name)
+    local items = rawget(_G, "WowfCZ_ItemData")
+    if type(items) ~= "table" or type(name) ~= "string" then return nil end
+    if not itemsCs then
+        itemsCs = {}
+        for _, v in pairs(items) do
+            if type(v) == "table" and type(v.e) == "string" and type(v.n) == "string" and v.n ~= "" then itemsCs[v.e] = v.n end
+        end
+    end
+    return itemsCs[name]
+end
+local function plain(s) return type(s) == "string" and s ~= "" and not s:find("%$") and s or nil end
+--- A quest's title in Czech, or nil.
+function QT.CzechTitle(id) local q = czQuest(id); return q and plain(q.Title) end
+--- An objective's label in Czech (its quest's own line, a kill, a talk, an item), or nil.
+function QT.CzechObjective(id, label)
+    if not (czech() and type(label) == "string") then return nil end
+    local q = czQuest(id)
+    if q and type(q.Objectives) == "table" and plain(q.Objectives[label]) then return q.Objectives[label] end
+    local slain = label:match("^(.-) slain$")
+    if slain then return "Zabít " .. (czItem(slain) or slain) end
+    local talk = label:match("^Speak with (.-)%.?$") or label:match("^Speak to (.-)%.?$")
+    if talk then return "Promluv si s " .. talk end
+    return czItem(label)
+end
+
+-- ---------------------------------------------------------------- quest tooltips on the map in Czech
+-- The quest tooltips on the map (OpenMap's pins, the map's own: "[14] Centaur Bracers", "- 4/15 Centaur Bracers")
+-- show the game's English. In Czech, with WowfCZ installed, the title and the objective lines are put in Czech after
+-- the tooltip is drawn, in Evertally's font (the game's lacks some Czech letters); the game's fonts come back as the
+-- tooltip hides. A tooltip is a quest's when its owner names the quest (data.id) or, over the world map, when its
+-- first line is the title of a quest in the log. Nothing of OpenMap is changed.
+local tipFontsChanged = false
+local function onWorldMap(frame)
+    local map = rawget(_G, "WorldMapFrame")
+    for _ = 1, 12 do
+        if type(frame) ~= "table" then return false end
+        if frame == map then return true end
+        local name = frame.GetName and frame:GetName()
+        if type(name) == "string" and name:find("OpenMap") then return true end
+        frame = frame.GetParent and frame:GetParent()
+    end
+    return false
+end
+local function logTitles()
+    local out = {}
+    for _, q in ipairs(QT.ReadLog()) do out[q.titleEn or q.title] = q.id end
+    return out
+end
+function QT.CzechTooltip(tip)
+    if not (czech() and rawget(_G, "WowfCZ_QuestData") and tip and tip.GetOwner) then return false end
+    local owner = tip:GetOwner()
+    local first = _G.GameTooltipTextLeft1
+    local shown = first and first.GetText and first:GetText()
+    if type(shown) ~= "string" then return false end
+    local level, bare = shown:match("^(%[[^%]]*%]%s*)(.+)$")
+    level, bare = level or "", bare or shown
+    local data = type(owner) == "table" and rawget(owner, "data")
+    local id = type(data) == "table" and tonumber(data.id)
+    if id then
+        local en = (C_QuestLog and C_QuestLog.GetTitleForQuestID and try(C_QuestLog.GetTitleForQuestID, id)) or data.name
+        if bare ~= en then id = nil end
+    end
+    if not id and onWorldMap(owner) then id = logTitles()[bare] end
+    if not id then return false end
+    local font = A.FontPath and A.FontPath()
+    local function face(fs)
+        if font and fs.GetFont and fs.SetFont then local _, size, flags = fs:GetFont(); fs:SetFont(font, size or 12, flags or "") end
+    end
+    local changed = false
+    local title = QT.CzechTitle(id)
+    if title then first:SetText(level .. title); face(first); changed = true end
+    for i = 2, (tip.NumLines and tip:NumLines() or 0) do
+        local fs = _G["GameTooltipTextLeft" .. i]
+        local text = fs and fs.GetText and fs:GetText()
+        local dash, body
+        if type(text) == "string" then dash, body = text:match("^(%s*%-%s*)(.+)$") end
+        if body then
+            -- "Label: 2/8" or "2/8 Label"
+            local label, count = body:match("^(.-):%s*(%d+%s*/%s*%d+)$")
+            local before
+            if not label then before, label = body:match("^(%d+%s*/%s*%d+)%s+(.+)$") end
+            local cz = QT.CzechObjective(id, label or body)
+            if cz then
+                fs:SetText(dash .. (before and (before .. " " .. cz) or (cz .. (count and (": " .. count) or ""))))
+                face(fs); changed = true
+            end
+        end
+    end
+    if changed then
+        tipFontsChanged = true
+        if tip.Show then tip:Show() end
+    end
+    return changed
+end
+A.On("PLAYER_LOGIN", function()
+    local tip = rawget(_G, "GameTooltip")
+    if not (tip and tip.HookScript) then return end
+    tip:HookScript("OnShow", function(self) pcall(QT.CzechTooltip, self) end)
+    tip:HookScript("OnHide", function(self)
+        if not tipFontsChanged then return end
+        tipFontsChanged = false
+        for i = 1, (self.NumLines and self:NumLines() or 0) do
+            local fs = _G["GameTooltipTextLeft" .. i]
+            if fs and fs.SetFontObject then fs:SetFontObject(i == 1 and GameTooltipHeaderText or GameTooltipText) end
+        end
+    end)
+end)
 
 -- ---------------------------------------------------------------- the log
 local function readyOf(id, info)
@@ -108,7 +320,8 @@ local function objectivesOf(id)
     local out = {}
     for i, o in ipairs(type(list) == "table" and list or {}) do
         local label = C and C.ObjectiveLabel and try(C.ObjectiveLabel, o.text) or o.text
-        out[i] = {label = (label ~= nil and label ~= "") and label or (o.text or ""), done = o.finished, have = o.numFulfilled or 0, need = o.numRequired or 0}
+        label = (label ~= nil and label ~= "") and label or (o.text or "")
+        out[i] = {label = QT.CzechObjective(id, label) or label, done = o.finished, have = o.numFulfilled or 0, need = o.numRequired or 0}
     end
     return out
 end
@@ -144,7 +357,11 @@ function QT.ReadLog()
             end
         end
     end
-    for _, q in ipairs(out) do q.objectives = objectivesOf(q.id); q.time = timeLeft(q.id) end
+    for _, q in ipairs(out) do
+        q.objectives = objectivesOf(q.id); q.time = timeLeft(q.id)
+        q.titleEn = q.title
+        q.title = QT.CzechTitle(q.id) or q.title
+    end
     return out
 end
 
@@ -239,8 +456,19 @@ local function isDungeon(q)
     local D = g and g.Dungeons
     return D and D.QuestMark and try(D.QuestMark, q.id) ~= nil or false
 end
+-- The quests of the guide's current step (its goals): they lead the zone's section.
+local function currentQuests()
+    local out = {}
+    local g = guide()
+    local GF = g and g.UI and g.UI.GuideFrame
+    local v = GF and GF.View and try(GF.View)
+    local goals = type(v) == "table" and type(v.goals) == "table" and v.goals or {}
+    for _, gv in ipairs(goals) do if type(gv) == "table" and tonumber(gv.quest) then out[tonumber(gv.quest)] = true end end
+    return out
+end
 local function sorter(mode)
     return function(a, b)
+        if (a.current == true) ~= (b.current == true) then return a.current == true end
         if mode == "distance" then
             if (a.yards ~= nil) ~= (b.yards ~= nil) then return a.yards ~= nil end
             if a.yards and b.yards and a.yards ~= b.yards then return a.yards < b.yards end
@@ -252,15 +480,19 @@ local function sorter(mode)
 end
 function QT.Sort() local s = settings().sort; for _, k in ipairs(SORTS) do if k == s then return s end end; return "distance" end
 
---- The tracker's sections from the log: {key, title, quests}; ready first, then this zone, the other zones (each its
---- own, nearest first when sorted by distance), dungeons and groups last.
+--- The tracker's sections from the log: {key, title, quests}; this zone first (the current step's quests at its top,
+--- wherever they are), the other zones (each its own, nearest first when sorted by distance), dungeons and groups,
+--- and the quests ready to turn in always last.
 function QT.Model(log)
     log = log or QT.ReadLog()
     local here = zoneName()
     local ready, local_, dungeons, zones, order = {}, {}, {}, {}, {}
+    local now = currentQuests()
     for _, q in ipairs(log) do
         q.yards, q.point = QT.Nearest(q)
+        q.current = now[q.id] or nil
         if q.ready then ready[#ready + 1] = q
+        elseif q.current then local_[#local_ + 1] = q
         elseif isDungeon(q) then dungeons[#dungeons + 1] = q
         elseif here and q.header == here then local_[#local_ + 1] = q
         else
@@ -272,7 +504,6 @@ function QT.Model(log)
     local sort = sorter(QT.Sort())
     local sections = {}
     local function add(key, title, list) if #list > 0 then table.sort(list, sort); sections[#sections + 1] = {key = key, title = title, quests = list} end end
-    add("ready", A.L("qtReady"), ready)
     add("here", here or A.L("qtOther"), local_)
     local function nearest(list) local n; for _, q in ipairs(list) do if q.yards and (not n or q.yards < n) then n = q.yards end end; return n end
     table.sort(order, function(a, b)
@@ -285,6 +516,7 @@ function QT.Model(log)
     end)
     for _, key in ipairs(order) do add("zone:" .. key, key ~= "" and key or A.L("qtOther"), zones[key]) end
     add("dungeons", A.L("qtDungeons"), dungeons)
+    add("ready", A.L("qtReady"), ready)
     return sections, #log
 end
 
@@ -312,10 +544,50 @@ local function setArrow(q)
     try(Nav.SetTarget, p.map, p.x, p.y, (p.name and p.name ~= "" and p.name) or q.title, p.f)
     return true
 end
+local mapAfterFight -- a map to open once the fight is over (false: the player's own)
+--- Opens the world map where the quest leads (its nearest goal or turn-in), else on the player's zone. In a fight it
+--- opens as the fight ends, and says so.
+function QT.OpenMap(q)
+    local g = guide()
+    local C = g and g.Compat
+    if not (C and C.OpenWorldMap) then return false end
+    local map = q and q.point and q.point.map or nil
+    if (InCombatLockdown and InCombatLockdown()) or (C.InCombat and try(C.InCombat)) then
+        if mapAfterFight == nil and A.Print then A.Print(A.L("qtMapAfterCombat")) end
+        mapAfterFight = map or false
+        return false
+    end
+    return try(C.OpenWorldMap, map) == true
+end
+A.On("PLAYER_REGEN_ENABLED", function()
+    if mapAfterFight == nil then return end
+    local map = mapAfterFight
+    mapAfterFight = nil
+    local g = guide()
+    if g and g.Compat and g.Compat.OpenWorldMap then try(g.Compat.OpenWorldMap, map or nil) end
+end)
+--- Points the arrow at a quest of the log (its nearest goal, or its turn-in). -> true when it did
+function QT.ArrowToQuest(id)
+    id = tonumber(id)
+    if not id or id <= 0 then return false end
+    for _, q in ipairs(QT.ReadLog()) do
+        if q.id == id then
+            q.yards, q.point = QT.Nearest(q)
+            return setArrow(q)
+        end
+    end
+    return false
+end
+A.On("PLAYER_LOGIN", function()
+    local ST = rawget(_G, "C_SuperTrack")
+    if type(ST) == "table" and type(ST.SetSuperTrackedQuestID) == "function" and type(hooksecurefunc) == "function" then
+        hooksecurefunc(ST, "SetSuperTrackedQuestID", function(id) pcall(QT.ArrowToQuest, id) end)
+    end
+end)
 local function chatLink(q)
     -- the client's link (as a shift-click in the quest log), else the title as plain text
     local link = GetQuestLink and try(GetQuestLink, q.id)
-    if type(link) ~= "string" or link == "" then link = "\"" .. tostring(q.title or ""):gsub("[%[%]|]", "") .. "\"" end
+    if type(link) ~= "string" or link == "" then link = "\"" .. tostring(q.titleEn or q.title or ""):gsub("[%[%]|]", "") .. "\"" end
     local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
     if insert then return try(insert, link) end
 end
@@ -328,7 +600,7 @@ local function contextMenu(owner, q)
             if QuestLog_SetSelection then try(QuestLog_SetSelection, q.index) end
             if ToggleQuestLog then try(ToggleQuestLog) elseif ShowUIPanel and QuestLogFrame then try(ShowUIPanel, QuestLogFrame) end
         end},
-        q.point and {text = A.L("qtMap"), onClick = function() if g.Compat and g.Compat.OpenWorldMap then try(g.Compat.OpenWorldMap, q.point.map) end end} or nil,
+        {text = A.L("qtMap"), onClick = function() QT.OpenMap(q) end},
         q.point and {text = A.L("qtArrow"), onClick = function() setArrow(q) end} or nil,
         {text = A.L("qtShare"), onClick = function()
             if SelectQuestLogEntry then try(SelectQuestLogEntry, q.index) end
@@ -360,9 +632,8 @@ local function build(parent)
         for i, k in ipairs(SORTS) do if k == now then nextKey = SORTS[i % #SORTS + 1] end end
         settings().sort = nextKey; QT.Refresh(true)
     end)
-    f.menu = kit.Button(f.bar, "qtMenu", 120, "primary", function(self) if A.ShowEvertallyMenu then A.ShowEvertallyMenu(self) end end)
-    f.menu:SetHeight(20); f.menu:SetPoint("RIGHT", -8, 0)
-    if f.menu.text then f.menu.text:SetFont(kit.fontPath(), 10, "") end
+    f.bar.rule = f.bar:CreateTexture(nil, "BORDER"); f.bar.rule:SetPoint("BOTTOMLEFT", 10, 0); f.bar.rule:SetPoint("BOTTOMRIGHT", -10, 0); f.bar.rule:SetHeight(1)
+    kit.paint(f.bar.rule, C.line or C.faint, 0.6)
     f.scroll = CreateFrame("ScrollFrame", nil, f); f.scroll:SetPoint("TOPLEFT", 0, -BAR_H); f.scroll:SetPoint("BOTTOMRIGHT")
     f.content = CreateFrame("Frame", nil, f.scroll); f.content:SetSize(300, 10); f.scroll:SetScrollChild(f.content)
     f.scroll:EnableMouseWheel(true)
@@ -389,6 +660,11 @@ local function row(f)
     r.badge = kit.label(r, 11, C.text); r.badge:SetPoint("LEFT", 22, 0); r.badge:SetJustifyH("LEFT")
     r.note = kit.label(r, 10, C.faint); r.note:SetPoint("RIGHT", -10, 0); r.note:SetJustifyH("RIGHT")
     r.text = kit.label(r, 12, C.text); r.text:SetPoint("LEFT", r.badge, "RIGHT", 5, 0); r.text:SetPoint("RIGHT", r.note, "LEFT", -6, 0); r.text:SetWordWrap(false)
+    -- a section's hairline under its heading; the current step's quest marked by an accent edge
+    r.rule = r:CreateTexture(nil, "BORDER"); r.rule:SetHeight(1); r.rule:SetPoint("BOTTOMLEFT", 10, 0); r.rule:SetPoint("BOTTOMRIGHT", -10, 0)
+    kit.paint(r.rule, C.line or C.faint, 0.7)
+    r.mark = r:CreateTexture(nil, "ARTWORK"); r.mark:SetWidth(2); r.mark:SetPoint("TOPLEFT", 2, -3); r.mark:SetPoint("BOTTOMLEFT", 2, 3)
+    kit.paint(r.mark, C.accent or C.gold, 1)
     r.track = r:CreateTexture(nil, "ARTWORK"); r.track:SetHeight(2); kit.paint(r.track, C.off or C.card, 1)
     r.fill = r:CreateTexture(nil, "OVERLAY"); r.fill:SetHeight(2); kit.paint(r.fill, C.gold, 1)
     r:SetScript("OnClick", function(self, which)
@@ -402,6 +678,7 @@ local function row(f)
         if which == "RightButton" then return contextMenu(self, q) end
         if IsShiftKeyDown and IsShiftKeyDown() then return chatLink(q) end
         setArrow(q)
+        QT.OpenMap(q)
     end)
     r.fold:SetScript("OnClick", function(self)
         local q = self:GetParent().quest
@@ -427,14 +704,17 @@ local function paintRow(f, r, y, width, kind, spec)
     r.quest, r.section = spec.quest, spec.section
     r.fold:SetShown(kind ~= "line")
     r.fold.text:SetText(spec.folded and "+" or "-")
+    r.rule:SetShown(kind == "section")
+    r.mark:SetShown(kind == "quest" and spec.current == true)
     r.badge:SetText(spec.badge or "")
     local bc = spec.badgeColor or C.faint
     r.badge:SetTextColor(bc[1], bc[2], bc[3], 1)
     -- a line with a bar sits a little higher, the bar under it
-    local dy = spec.bar and 2 or 0
-    r.badge:ClearAllPoints(); r.badge:SetPoint("LEFT", kind == "line" and 26 or 22, dy)
-    r.note:ClearAllPoints(); r.note:SetPoint("RIGHT", -10, dy)
-    r.text:SetFont(kit.fontPath(kind == "section" and "heading" or "body"), kind == "section" and 11 or kind == "quest" and 12 or 11, "")
+    local dy = spec.bar and 3 or 0
+    r.badge:ClearAllPoints(); r.badge:SetPoint("LEFT", kind == "line" and 40 or 24, dy)
+    r.note:ClearAllPoints(); r.note:SetPoint("RIGHT", -12, dy)
+    r.note:SetFont(kit.fontPath("body"), kind == "section" and 10 or 11, "")
+    r.text:SetFont(kit.fontPath(kind == "section" and "heading" or "body"), kind == "section" and 11 or kind == "quest" and 13 or 11, "")
     local tc = spec.color or C.text
     r.text:SetTextColor(tc[1], tc[2], tc[3], 1)
     r.text:SetText(spec.text or "")
@@ -442,7 +722,7 @@ local function paintRow(f, r, y, width, kind, spec)
     local bar = spec.bar
     r.track:SetShown(bar ~= nil); r.fill:SetShown(bar ~= nil and bar > 0)
     if bar then
-        local left, w = 30, math.max(20, width - 40)
+        local left, w = 40, math.max(20, width - 54)
         r.track:ClearAllPoints(); r.track:SetPoint("BOTTOMLEFT", left, 0); r.track:SetWidth(w)
         r.fill:ClearAllPoints(); r.fill:SetPoint("BOTTOMLEFT", left, 0); r.fill:SetWidth(math.max(1, w * math.min(1, bar)))
     end
@@ -465,17 +745,16 @@ function QT.Layout(width, room)
     local sections, count = QT.Model()
     QT.count = count
     f.sort.text:SetText(A.L("qtSort_" .. QT.Sort()))
-    if f.menu.text then f.menu.text:SetText(A.L("qtMenu")) end
     f.used = 0
     local y, folded, fq = 4, settings().folded, settings().foldedQuests
     for _, sec in ipairs(sections) do
         local closed = folded[sec.key] == true
-        y = paintRow(f, row(f), y, width, "section", {section = sec.key, folded = closed, text = sec.title, color = C.gold, note = tostring(#sec.quests)})
+        y = paintRow(f, row(f), y, width, "section", {section = sec.key, folded = closed, text = sec.title and sec.title:upper() or "", color = sec.key == "ready" and C.green or C.gold, note = tostring(#sec.quests)}) + 4
         if not closed then
             for _, q in ipairs(sec.quests) do
                 local note = q.yards and string.format(A.L("qtYards"), math.floor(q.yards + 0.5)) or nil
-                y = paintRow(f, row(f), y, width, "quest", {quest = q, folded = fq[q.id] == true, badge = "[" .. tostring(q.level or "?") .. (q.group and q.group > 1 and "+" or "") .. "]",
-                    badgeColor = difficulty(q.level), text = q.title, color = q.ready and C.green or q.failed and C.red or C.text, note = note})
+                y = paintRow(f, row(f), y, width, "quest", {quest = q, folded = fq[q.id] == true, badge = tostring(q.level or "?") .. (q.group and q.group > 1 and "+" or ""),
+                    badgeColor = difficulty(q.level), text = q.title, color = q.ready and C.green or q.failed and C.red or C.text, note = note, current = q.current})
                 if not fq[q.id] then
                     if q.failed then
                         y = paintRow(f, row(f), y, width, "line", {text = A.L("qtFailed"), color = C.red})
@@ -490,9 +769,10 @@ function QT.Layout(width, room)
                     end
                     if q.time then y = paintRow(f, row(f), y, width, "line", {text = string.format(A.L("qtTime"), clock(q.time)), color = C.peach}) end
                 end
+                y = y + QUEST_GAP
             end
         end
-        y = y + 4
+        y = y + SECTION_GAP
     end
     for i = f.used + 1, #f.rows do f.rows[i]:Hide(); f.rows[i].quest, f.rows[i].section = nil, nil end
     f.empty:SetShown(count == 0); f.empty:SetText(A.L("qtNone"))

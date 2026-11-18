@@ -12,14 +12,19 @@ EvertallyGuide = ns
 
 ns.name = ADDON
 ns.version = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")) or "dev"
+-- Evertally: the version players see is Evertally's (ns.version stays Polestar's for the party and the packs).
+function ns.ShownVersion()
+	local E = rawget(_G, "Evertally")
+	return type(E) == "table" and E.version and tostring(E.version) or ns.version
+end
 -- The release stage, the one place it is set: shown as a chip beside the
 -- version (the shell sidebar, About). nil once Polestar is released.
-ns.stage = "Beta"
+ns.stage = nil -- (Evertally: no beta)
 -- The leveling routes are planned and played in the simulator but not yet
 -- followed through the live game: the welcome (UI/Welcome.lua) says so on
 -- its own page while this is true. The owner turns it off once they have
 -- been.
-ns.routesBeta = true
+ns.routesBeta = false -- (Evertally)
 -- Dungeons in the leveling routes (`when dungeon` steps, the
 -- behavior.dungeons setting "Dungeons in my route", the per-character answers
 -- in CharState().dungeons): built, held back for a later release. While
@@ -72,6 +77,8 @@ end
 local OWN_QUOTES = { '"', "\226\128\156", "\226\128\157", "\226\128\158", "\194\171", "\194\187", "\227\128\140", "\227\128\141", "\227\128\142", "\227\128\143" }
 function ns.Quoted(name)
 	if type(name) ~= "string" or name == "" then return name end
+	-- Evertally: a quest's name stands as it is, without quote marks (the user: "proč to píše uvozovky")
+	if ns.EvertallyPlainNames ~= false then return name end
 	for _, q in ipairs(OWN_QUOTES) do
 		if name:find(q, 1, true) then return name end
 	end
@@ -1315,7 +1322,7 @@ ns.RegisterEvent("PLAYER_LOGIN", onLogin)
 -- Chat output
 ---------------------------------------------------------------------------
 
-local PREFIX = "|cff4fd1c5Polestar|r: "
+local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)
 
 function ns.Print(...)
 	local n = select("#", ...)

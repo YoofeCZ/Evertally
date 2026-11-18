@@ -41,6 +41,15 @@ function A.RequirementsStatus()
     local v=version(A.Field(receipt,"bridgeVersion"))
     local at=A.Number(A.Field(receipt,"createdAt"),1,A.Now()+300)
     local bridge=A.Field(receipt,"schemaVersion")==1 and A.Field(receipt,"kind")=="evertally-bridge-installation" and v~=nil and v>=version(A.BRIDGE_MINIMUM) and at~=nil
+    -- Once is enough: the receipt is a file inside the add-on, which every update of the add-on (CurseForge, a copy)
+    -- puts back empty, and the app writes it again only while it runs. A receipt seen once is kept for the account, so
+    -- the player is not asked to start the app again after an update or with the app closed.
+    local db=A.db
+    if bridge and db then db.bridgeVerified={bridgeVersion=A.Field(receipt,"bridgeVersion"),at=at}
+    elseif not bridge and db and type(db.bridgeVerified)=="table" then
+        local kept=version(db.bridgeVerified.bridgeVersion)
+        if kept and kept>=version(A.BRIDGE_MINIMUM) then bridge=true;v=kept;receipt=db.bridgeVerified end
+    end
     local openmap=A.OpenMapInstalled and A.OpenMapInstalled()==true or false
     return {bridge=bridge==true,openmap=openmap,ready=bridge==true and openmap,bridgeVersion=v and A.Field(receipt,"bridgeVersion") or nil}
 end

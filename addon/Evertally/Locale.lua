@@ -1,5 +1,5 @@
 local _, A = ...
-A.version = "0.11.0"
+A.version = "0.11.6"
 A.locale = {
     en = {
         title = "Evertally", overview = "Overview", history = "Runs", facts = "Atlas", peers = "Sharing", settings = "Settings",
@@ -19,7 +19,7 @@ A.locale = {
         group = "Allow sharing with party / raid", refresh = "Refresh", send = "Share now", export = "Export JSON",
         manual = "End visit manually", exportOff = "Web export is disabled.", missingExport = "Enable the optional Evertally_Export addon and reload.",
         confirm = "Mark last boss done", sharingSection = "In-game sharing", webSection = "Website export", interfaceSection = "Interface", actionsSection = "Actions",
-        webHint = "Only NEW own records are prepared. The game saves them on /reload or logout; Evertally Sync then uploads them. Data from other players is never exported.",
+        webHint = "Your characters, runs, chronicle and armory are public on the website, as on raider.io; bags only with your permission. The game saves new records on /reload or logout; Evertally Sync then uploads them. What other players showed you is never exported.",
         revokeHint = "Web export stopped. To remove data already uploaded, disconnect or delete it on the website.",
         unranked = "Times are personal measurements. Rulesets have not been verified in the live client; competitive records remain disabled.",
         scopes = "Website data scopes", world_facts = "World: quests, NPCs, loot", own_runs = "My dungeon and raid runs",
@@ -28,7 +28,7 @@ A.locale = {
         rankTooltip = "Leaderboard in player tooltips (place, item level, runs; from the website)",
         tipUser = "Uses Evertally", tipRank = "#%d of %d", tipClassRank = "Place in class", tipClassRankOf = "Place among %ss", tipItemLevel = "Item level", tipRuns = "Completed runs",
         leaderboard = "Show my characters in the public leaderboard on the website", leaderboardItemLevel = "…with item level (only the average of the gear)", leaderboardGuild = "…with guild name", leaderboardGear = "…with gear and talents on the character page (never bags)", leaderboardChronicle = "…with my chronicle: the route and what I did, to replay on the website (needs “My route”)",
-        own_track = "My route (private; guild sees it only if you confirm on the web)", guild_share = "My guild (member list for guild masters)", diagnostics = "Diagnostics", close = "Close",
+        own_track = "My route (public in your chronicle)", guild_share = "My guild (member list for guild masters)", diagnostics = "Diagnostics", close = "Close",
         copyHint = "Ctrl+A, Ctrl+C. Only currently permitted own records are included. Copying does not upload anything.",
         unknown = "unknown", visiting = "visit", completed = "completed", interrupted = "interrupted", abandoned = "abandoned",
         last_boss = "last boss", full_clear = "full clear", manualStatus = "manual", seen = "Last received", live = "live",
@@ -61,7 +61,7 @@ A.locale = {
         group = "Povolit sdílení ve skupině / raidu", refresh = "Obnovit", send = "Sdílet nyní", export = "Export JSON",
         manual = "Ukončit návštěvu ručně", exportOff = "Webový export je vypnutý.", missingExport = "Zapni také pomocný addon Evertally_Export a obnov rozhraní.",
         confirm = "Označit posledního bosse", sharingSection = "Sdílení ve hře", webSection = "Webový export", interfaceSection = "Rozhraní", actionsSection = "Akce",
-        webHint = "Připravují se jen NOVÉ vlastní záznamy. Hra je uloží při /reload nebo odhlášení, pak je odešle Evertally Sync. Data od ostatních hráčů se nikdy neexportují.",
+        webHint = "Tvoje postavy, běhy, kronika a Armory jsou na webu veřejné, jako na raider.io; batoh jen s tvým povolením. Nové záznamy hra uloží při /reload nebo odhlášení, pak je odešle Evertally Sync. Co ti ukázali ostatní hráči, se nikdy neexportuje.",
         revokeHint = "Webový export zastaven. Už odeslaná data odpojíš nebo smažeš na webu.",
         unranked = "Časy jsou osobní měření. Rulesety dosud nebyly ověřené v živém klientu; soutěžní rekordy nejsou zapnuté.",
         scopes = "Datové oblasti pro web", world_facts = "Svět: questy, NPC, loot", own_runs = "Moje běhy v dungeonech a raidech",
@@ -70,7 +70,7 @@ A.locale = {
         rankTooltip = "Žebříček v tooltipu hráčů (pořadí, item level, běhy; z webu)",
         tipUser = "Používá Evertally", tipRank = "#%d z %d", tipClassRank = "Pořadí ve třídě", tipClassRankOf = "Pořadí ve třídě %s", tipItemLevel = "Item level", tipRuns = "Dokončené běhy",
         leaderboard = "Ukázat mé postavy ve veřejném žebříčku na webu", leaderboardItemLevel = "…s item levelem (jen průměr výbavy)", leaderboardGuild = "…s názvem cechu", leaderboardGear = "…s výbavou a talenty na stránce postavy (tašky nikdy)", leaderboardChronicle = "…s mou kronikou: trasa a co jsem dělal, k přehrání na webu (vyžaduje „Moje trasa“)",
-        own_track = "Moje trasa (soukromá; cech ji uvidí, jen když to potvrdíš na webu)", guild_share = "Můj cech (seznam členů pro guildmastery)", diagnostics = "Diagnostika", close = "Zavřít",
+        own_track = "Moje trasa (veřejná v tvé kronice)", guild_share = "Můj cech (seznam členů pro guildmastery)", diagnostics = "Diagnostika", close = "Zavřít",
         copyHint = "Ctrl+A a Ctrl+C. Export obsahuje jen aktuálně povolené vlastní záznamy. Samotné kopírování nic neodesílá.",
         unknown = "neznámé", visiting = "návštěva", completed = "dokončeno", interrupted = "přerušeno", abandoned = "opuštěno",
         last_boss = "poslední boss", full_clear = "full clear", manualStatus = "ručně", seen = "Naposledy přijato", live = "živě",

@@ -33,8 +33,9 @@ class SetupPagesTests(unittest.TestCase):
     def test_every_step_is_a_page_after_the_guides_welcome_the_summary_before_its_finish(self):
         pages = self.hosted()
         keys = [str(p.key) for p in pages]
-        self.assertEqual(keys, ["et-language", "et-install", "et-pair", "et-website", "et-public", "et-live", "et-sharing",
-                                "et-map", "et-window", "et-plates", "et-music", "et-summary"])
+        # (no website and public pages since 2026-11-18: everything is public)
+        self.assertEqual(keys, ["et-language", "et-install", "et-pair", "et-live", "et-sharing",
+                                "et-map", "et-window", "et-tracker", "et-plates", "et-music", "et-summary"])
         afters = [str(p.after) for p in pages]
         self.assertEqual(afters[0], "welcome", "right after the guide's welcome")
         self.assertEqual(afters[1:-1], keys[:-2], "each after the one before")
@@ -51,7 +52,7 @@ class SetupPagesTests(unittest.TestCase):
         self.assertTrue(pages["et-pair"].blocked())
         self.a.BridgePaired = self.lua.eval("function() return true end")
         self.assertFalse(pages["et-pair"].blocked())
-        self.assertIsNone(pages["et-website"].blocked)
+        self.assertIsNone(pages["et-live"].blocked)
 
     def test_the_setup_opens_in_the_guides_window_at_the_step_and_finish_applies_the_draft(self):
         self.a.OpenOnboarding(None)
@@ -60,7 +61,7 @@ class SetupPagesTests(unittest.TestCase):
         self.a.OpenOnboarding(2)
         self.assertEqual(self.lua.globals().SHOWN_PAGE, "et-install")
         self.a.OpenOnboarding(5)
-        self.assertEqual(self.lua.globals().SHOWN_PAGE, "et-public")
+        self.assertEqual(self.lua.globals().SHOWN_PAGE, "et-live", "the public step is passed over (2026-11-18)")
         self.assertIsNone(self.lua.globals().EvertallySetup, "Evertally's own window is not built")
         # the window's Finish: the draft is applied (as Onboarding.lua's own Finish)
         self.a.RequirementsReady = self.lua.eval("function() return true end")

@@ -348,7 +348,7 @@ local function emblem(parent, size, x, y, bloom, beamH)
 		local r, g, b = Theme.Accent()
 		t:SetVertexColor(r, g, b, house() and 0.3 or 0.12)
 		local hr, hg, hb = accentHi()
-		beam:SetShown(house())
+		beam:SetShown(false) -- (Evertally: no beam, no stars)
 		vgrad(beam, r, g, b, 0, hr, hg, hb, 0.7)
 	end)
 	return e
@@ -368,6 +368,7 @@ do
 	-- Draws the Dipper on `parent`, its handle's end at (ox, oy), scaled and
 	-- turned `deg` degrees clockwise, in the neutral star colour.
 	function dipper(parent, ox, oy, scale, deg)
+		do return end -- (Evertally: no stars)
 		local a = rad(deg or 0)
 		local c, s = cos(a), sin(a)
 		local pts = {}
@@ -2552,7 +2553,7 @@ do
 
 	PAGES[#PAGES + 1] = {
 		key = "look",
-		shown = function() return full end,
+		shown = function() return false end, -- (Evertally: one look, nothing to choose)
 		build = function(P)
 			compactHero(P.Hero, L["Your look"],
 				L["Every Evertally window wears it, this one too. Colours, fonts and each look's versions are in Settings, Theme."], true)
@@ -2941,6 +2942,7 @@ UI.WelcomeKit = {
 	refresh = function() if F and F:IsShown() and render then render() end end,
 	shown = function() return F ~= nil and F:IsShown() end,
 	current = function() return current end,
+	full = function() return full end,
 }
 -- Finish: the host first (it applies its own choices), then the close.
 local function finish()
@@ -3465,7 +3467,9 @@ ns.OnLogin(function()
 	local db = ns.DB()
 	db.betaNoticeSeen = nil -- the beta notice's flag; Install has its own
 	if seen() then return end
-	if UI.WelcomeOwner then return end -- (Evertally: its setup decides when this window opens)
+	-- (Evertally: its setup decides when this window opens while the account has not had it; a new character on
+	-- an account that has gets the guide's own short showing, its own choices alone)
+	if UI.WelcomeOwner and not accountSeen() then return end
 	pending = "login"
 	if C_Timer and C_Timer.After then ns.After(DELAY, try) else try() end
 end)

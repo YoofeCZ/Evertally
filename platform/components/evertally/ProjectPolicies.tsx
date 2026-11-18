@@ -13,22 +13,22 @@ const content = {
     privacyLead: "What the addon keeps locally, what you can choose to share, and what remains after deleting web data.",
     termsLead: "Practical rules for this developing fan project and its community observations.",
     privacySections: [
-      { title: "Local play and optional sharing", paragraphs: [
-        "The WoW addon works offline. Web export and sharing with other addon users start switched off. Your local observations can include quests, NPC interactions, loot, dungeon visits, bosses, visited zones and profession snapshots. Exact player positions are discarded from world facts; the only exception is the optional “My route” choice described below. Map points otherwise represent NPC world positions or explicitly separate reference NPC data.",
-        "Web transfer requires a separate choice. You select the permitted scopes: world facts, your runs, your character details and your professions, and optionally your route and your guild. Pairing the desktop app also selects what that device may send. Records received from other players through the addon are kept separately and are never forwarded as your web export.",
+      { title: "Local play and what the website gets", paragraphs: [
+        "The WoW addon works offline. Once you install the Evertally app and pair it with the website, the addon sends everything it records: your characters, runs and bosses, quests, loot, professions, stats, talents and gear, your route and your guild. There is no choice per kind of data. Exact player positions are discarded from world facts; your route is the exception and is part of your public chronicle.",
+        "Runs and the chronicle also show the names, classes and roles of the people you grouped with, as the game showed them to you. Records received from other players through the addon (what they let you see in the game) are kept separately and are never forwarded as your web export.",
       ] },
       { title: "Discord sign-in", paragraphs: [
         "Sign-in requests Discord's identify scope. Evertally receives your Discord identifier, username/display name and avatar information to recognise your account. It does not request your Discord password, email address, direct messages or friends list.",
         "The website uses the HttpOnly et_session cookie for a login session lasting up to 30 days. The OAuth state used to connect a sign-in attempt expires after 10 minutes. The EN/CS language choice is stored on your device in localStorage under et_lang.",
       ] },
-      { title: "Private history and public data", paragraphs: [
-        "Published character history contains visited zone names, not exact positions. Zone activity is a delayed aggregate of distinct contributing accounts over 24 hours, shown only from three contributors per zone. It is not a live player tracker or a count of everyone online.",
-        "Your personal run history starts private. Profession data is private to your account. Publishing a character profile is a separate opt-in choice. A published profile can expose the selected character's identity and shared runs; character details are controlled by the character scope.",
+      { title: "Public data", paragraphs: [
+        "Like raider.io, every character recorded with Evertally is public on the website: its leaderboard places, runs, the chronicle (the journey replay with the route walked), stats, talents, professions and the armory (gear). The bags are the exception: another player sees them only after you allow it in the game.",
+        "Zone activity is a delayed aggregate of distinct contributing accounts over 24 hours, shown only from three contributors per zone. It is not a live player tracker or a count of everyone online.",
         "Shared world facts contribute to the public atlas. The community package contains anonymous world-fact summaries, with a maximum of 150 entities and 48 KiB. It carries a generation time and a seven-day expiry. An addon can keep an expired package as a visibly stale offline cache.",
         "Hiding or deleting web data affects the current service. Copies of public profiles or community packages already downloaded by other people cannot be recalled from their devices.",
       ] },
-      { title: "My route, guild, groups and meets (optional)", paragraphs: [
-        "Two optional scopes are off by default. “My route” lets the addon record where your characters walked, as map points, while web export is on. A route is private to your account, is kept for 30 days and can be deleted at any time on the map. It is never used for zone activity or public profiles, which still contain no exact positions.",
+      { title: "Your route, guild, groups and meets", paragraphs: [
+        "The addon records where your characters walked, as map points, while the app is paired. The route is kept for 30 days and shown in your public chronicle; it is not used for zone activity.",
         "“My guild” sends which guild your character is in; the addon of a guild master also sends the member list (character names, levels and classes) so members can be recognised. Nothing is shown to a guild until you confirm that guild on the map and choose what to share: nothing, your last position, or your last position and route for 72 hours. Only members who confirmed the same guild see each other.",
         "The server cannot check a guild rank. The first guild master to upload a member list owns it, and the map names that character before you confirm. A position is only as fresh as your last /reload or logout, because the game saves it only then. Leaving the guild in game, being dropped from the next member list, revoking the consent or deleting your web data ends the visibility.",
         "A group (a party, a raid, friends) is created on the website and joined with an invite code. Everyone in it chooses what to share (nothing, last position, or last position and route) and can change or stop that at any time; the owner can remove members. A meet is a place and a time somebody proposes: it shows the place the creator picked, never where they are, to the guild or group they chose, or to anyone signed in who has its link. Answers show the name the responder chose. Meets are dropped a week after they end; leaving a group removes your answers to its meets.",
@@ -41,7 +41,7 @@ const content = {
         "The Windows bridge reads Evertally's separate consent-filtered export for synchronisation. It does not collect your full WTF folder, unrelated addon files, private chat contents or passwords. Local synchronisation logs describe status and errors.",
       ] },
       { title: "Changing your choices and deleting web data", paragraphs: [
-        "In Account, you can hide published profiles, revoke upload consent and disconnect devices. Disabling export in the game changes future saved exports; the file on disk is refreshed when WoW saves it, for example after /reload or logout. Web controls can revoke an existing upload permission immediately.",
+        "Characters can no longer be hidden one by one. To stop sharing, disconnect the device or revoke the upload consent in Account, or delete your web data. Disabling export in the game changes future saved exports; the file on disk is refreshed when WoW saves it, for example after /reload or logout.",
         "Delete my web data removes uploaded observations, character profiles and upload history, and revokes grants and devices. The login account's Discord identity and security records for revoked grants/devices remain stored. This action therefore does not delete every account-related record. Your local addon history is unchanged.",
       ] },
       { title: "How to read the data", paragraphs: [
@@ -70,22 +70,22 @@ const content = {
     privacyLead: "Co addon uchovává místně, co můžeš sdílet a co zůstává po smazání webových dat.",
     termsLead: "Praktická pravidla rozvíjeného fanouškovského projektu a jeho komunitních pozorování.",
     privacySections: [
-      { title: "Místní hraní a volitelné sdílení", paragraphs: [
-        "WoW addon funguje offline. Webový export i sdílení s ostatními uživateli addonu jsou při prvním spuštění vypnuté. Místní pozorování zahrnují úkoly, NPC, kořist, návštěvy dungeonů a oblastí, bossy a profese. Přesné pozice hráčů se z faktů o světě odstraňují; jedinou výjimkou je dobrovolná volba „Moje trasa“ popsaná níže. Mapové body jinak představují polohy NPC nebo oddělená referenční data.",
-        "Přenos na web vyžaduje samostatnou volbu. Vybíráš povolené oblasti: fakta o světě, vlastní výpravy, údaje vlastní postavy a vlastní profese, a volitelně svoji trasu a svůj cech. Při párování desktopové aplikace vybíráš také to, co smí posílat dané zařízení. Záznamy přijaté od jiných hráčů addon uchovává odděleně a nikdy je nepřidává do tvého webového exportu.",
+      { title: "Místní hraní a co dostane web", paragraphs: [
+        "WoW addon funguje offline. Jakmile nainstaluješ aplikaci Evertally a spáruješ ji s webem, addon posílá všechno, co zaznamená: tvoje postavy, běhy a bossy, questy, kořist, profese, statistiky, talenty a výbavu, tvoji trasu a tvůj cech. Volba podle druhu dat není. Přesné pozice hráčů se z faktů o světě odstraňují; výjimkou je tvoje trasa, která je součástí tvé veřejné kroniky.",
+        "Běhy a kronika ukazují i jména, classy a role lidí, se kterými jsi hrál ve skupině, tak jak ti je ukázala hra. Záznamy přijaté od jiných hráčů přes addon (co ti dovolili vidět ve hře) addon uchovává odděleně a nikdy je nepřidává do tvého webového exportu.",
       ] },
       { title: "Přihlášení přes Discord", paragraphs: [
         "Přihlášení žádá oprávnění Discord identify. Evertally obdrží tvůj Discord identifikátor, uživatelské či zobrazované jméno a údaje o avataru, aby poznal tvůj účet. Nežádá tvé heslo k Discordu, e-mail, soukromé zprávy ani seznam přátel.",
         "Web používá HttpOnly cookie et_session pro přihlášení až na 30 dnů. OAuth stav propojující pokus o přihlášení vyprší po 10 minutách. Volba jazyka EN/CS se ukládá na tvém zařízení do localStorage pod klíčem et_lang.",
       ] },
-      { title: "Soukromá historie a veřejná data", paragraphs: [
-        "Veřejná historie postavy obsahuje názvy navštívených oblastí, nikdy přesné pozice. Aktivita oblastí je souhrn různých přispívajících účtů za 24 hodin, zveřejněný až od tří přispěvatelů v oblasti. Nejde o živé sledování hráčů ani počet všech online hráčů.",
-        "Vlastní historie výprav je zpočátku soukromá. Údaje o profesích jsou soukromé pro tvůj účet. Zveřejnění profilu postavy je samostatná dobrovolná volba. Veřejný profil může ukazovat identitu vybrané postavy a sdílené výpravy; přenos údajů o postavě řídí příslušná oblast souhlasu.",
+      { title: "Veřejná data", paragraphs: [
+        "Stejně jako na raider.io je každá postava zaznamenaná přes Evertally na webu veřejná: umístění v žebříčcích, běhy, kronika (přehrávání cesty včetně trasy), statistiky, talenty, profese a Armory (výbava). Výjimkou je batoh: jiný hráč ho uvidí, jen když mu to povolíš ve hře.",
+        "Aktivita oblastí je souhrn různých přispívajících účtů za 24 hodin, zveřejněný až od tří přispěvatelů v oblasti. Nejde o živé sledování hráčů ani počet všech online hráčů.",
         "Sdílená fakta o světě doplňují veřejný atlas. Komunitní balíček obsahuje anonymní souhrny faktů o světě, nejvýše 150 entit a 48 KiB. Nese čas vytvoření a platnost sedm dnů. Addon může prošlý balíček ponechat jako viditelně zastaralou místní mezipaměť.",
         "Skrytí či smazání webových dat se projeví v aktuální službě. Kopie veřejných profilů nebo komunitních balíčků, které si již stáhli jiní lidé, nelze odvolat z jejich zařízení.",
       ] },
-      { title: "Moje trasa, cech, skupiny a srazy (dobrovolné)", paragraphs: [
-        "Dvě volitelné oblasti jsou ve výchozím stavu vypnuté. „Moje trasa“ nechá addon zaznamenávat, kudy tvoje postavy šly, jako body na mapě, dokud je zapnutý webový export. Trasa je soukromá pro tvůj účet, uchovává se 30 dní a kdykoli ji smažeš na mapě. Nikdy se nepoužije pro aktivitu oblastí ani pro veřejné profily, které dál neobsahují přesné pozice.",
+      { title: "Tvoje trasa, cech, skupiny a srazy", paragraphs: [
+        "Addon zaznamenává, kudy tvoje postavy šly, jako body na mapě, dokud je aplikace spárovaná. Trasa se uchovává 30 dní a je vidět ve tvé veřejné kronice; pro aktivitu oblastí se nepoužívá.",
         "„Můj cech“ pošle, v jakém cechu je postava; addon guildmastera pošle navíc seznam členů (jména postav, levely a classy), aby šlo členy poznat. Cechu se nic nezobrazí, dokud na mapě cech nepotvrdíš a nezvolíš, co sdílet: nic, poslední polohu, nebo poslední polohu a trasu za 72 hodin. Vidí se jen členové, kteří potvrdili stejný cech.",
         "Server hodnost v cechu ověřit neumí. Seznam členů vlastní první guildmaster, který ho nahraje, a mapa jeho postavu před potvrzením pojmenuje. Poloha je jen tak čerstvá jako poslední /reload nebo odhlášení, protože hra ji ukládá jen tehdy. Odchod z cechu ve hře, vynechání v dalším seznamu členů, odvolání souhlasu nebo smazání webových dat viditelnost ukončí.",
         "Skupina (parta, raid, kamarádi) se založí na webu a připojuje se kódem pozvánky. Každý v ní volí, co sdílí (nic, poslední polohu, nebo poslední polohu i trasu), a může to kdykoli změnit či ukončit; majitel může členy odebrat. Sraz je místo a čas, které někdo navrhne: ukáže místo, které autor vybral, nikdy kde je, cechu nebo skupině podle jeho volby, nebo komukoli přihlášenému, kdo má odkaz. Odpovědi ukazují jméno, které si odpovídající zvolil. Srazy se týden po skončení smažou; odchodem ze skupiny zmizí tvoje odpovědi na její srazy.",
@@ -98,7 +98,7 @@ const content = {
         "Most pro Windows čte samostatný export Evertally omezený souhlasem pro synchronizaci. Nesbírá celou složku WTF, soubory nesouvisejících addonů, obsah soukromých chatů ani hesla. Místní synchronizační log popisuje stav a chyby.",
       ] },
       { title: "Změna voleb a smazání webových dat", paragraphs: [
-        "V Účtu můžeš skrýt veřejné profily, odvolat souhlas s uploadem a odpojit zařízení. Vypnutí exportu ve hře změní budoucí uložené exporty; soubor na disku se obnoví až při uložení WoW, například po /reload nebo odhlášení. Webové ovládání umožňuje existující oprávnění k uploadu odvolat okamžitě.",
+        "Jednotlivé postavy už skrýt nejde. Sdílení zastavíš odpojením zařízení nebo odvoláním souhlasu s uploadem v Účtu, případně smazáním webových dat. Vypnutí exportu ve hře změní budoucí uložené exporty; soubor na disku se obnoví až při uložení WoW, například po /reload nebo odhlášení.",
         "Smazat moje webová data odstraní nahraná pozorování, profily postav a historii uploadů a odvolá souhlasy i zařízení. Discord identita přihlašovacího účtu a bezpečnostní záznamy odvolaných souhlasů či zařízení zůstávají uložené. Tato akce tedy nemaže každý záznam související s účtem. Místní historie addonu zůstává beze změny.",
       ] },
       { title: "Jak údaje číst", paragraphs: [

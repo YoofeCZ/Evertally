@@ -79,20 +79,8 @@ export function AccountView({ user, signIn, authReady, onChanged }: { user: User
             <div className="row-item profile-row" key={p.id}>
               <span className="avatar">{p.name?.charAt(0) ?? "?"}</span>
               <span><strong>{fullName(p) || t("common.private")}</strong><small>{[CLASSES[p.classId ?? 0], p.level].filter(Boolean).join(" · ")}</small></span>
-              <button className={`btn btn-sm ${p.public ? "btn-on" : "btn-ghost"}`} disabled={busy}
-                onClick={() => void act(() => api(`/api/profiles/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ public: !p.public }) }))}>
-                <Icon name={p.public ? "globe" : "lock"} size={14} /> {p.public ? t("account.public") : t("account.private")}
-              </button>
-              {p.public && <div className="profile-extras" role="group" aria-label={t("account.rankingExtras")}>
-                <span>{t("account.rankingExtras")}</span>
-                {(["showItemLevel", "showGuild", "showGear", "showChronicle"] as const).map((key) => (
-                  <label key={key} className="check">
-                    <input type="checkbox" checked={Boolean(p[key])} disabled={busy}
-                      onChange={(event) => void act(() => api(`/api/profiles/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ [key]: event.target.checked }) }))} />
-                    <span>{t(key === "showItemLevel" ? "account.showItemLevel" : key === "showGuild" ? "account.showGuild" : key === "showChronicle" ? "account.showChronicle" : "account.showGear")}<small>{t(key === "showItemLevel" ? "account.showItemLevelHelp" : key === "showGuild" ? "account.showGuildHelp" : key === "showChronicle" ? "account.showChronicleHelp" : "account.showGearHelp")}</small></span>
-                  </label>
-                ))}
-              </div>}
+              {/* every character is public since 2026-11-18 (lib/publish.ts ALL_PUBLIC): nothing to switch here */}
+              <a className="btn btn-sm btn-on" href={`#armory/${encodeURIComponent(p.id)}`}><Icon name="globe" size={14} /> {t("account.public")}</a>
             </div>
           )) : <Empty icon="user" title={t("account.profiles")}>{t("account.profilesEmpty")}</Empty>}
         </ConsoleWindow>
@@ -127,7 +115,7 @@ export function LinkView({ user, signIn, authReady, initialCode }: { user: User 
   const errorText = useErrorText();
   const [code, setCode] = useState(initialCode);
   const [checked, setChecked] = useState<string | null>(initialCode || null);
-  const [scopes, setScopes] = useState<Scope[]>(["world_facts", "own_runs"]);
+  const scopes: Scope[] = [...SCOPE_ORDER];
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const pairing = useApi<{ userCode: string; name: string; expiresAt: number }>(user && checked ? `/api/pairing?code=${encodeURIComponent(checked)}` : null);
@@ -168,19 +156,11 @@ export function LinkView({ user, signIn, authReady, initialCode }: { user: User 
               <div className="pairing">
                 <div className="row-item"><Icon name="laptop" /><span><strong>{pairing.data.name}</strong><small>{t("link.device")} · <span className="mono">{pairing.data.userCode}</span></small></span><Tag tone="lilac">{t("link.code")}</Tag></div>
                 <p className="notice info">{t("link.mismatch")}</p>
-                <h3>{t("link.choose")}</h3>
-                <div className="scope-grid">
-                  {SCOPE_ORDER.map((scope) => (
-                    <label key={scope} className={`scope ${scopes.includes(scope) ? "on" : ""}`}>
-                      <input type="checkbox" checked={scopes.includes(scope)} onChange={(e) => setScopes((cur) => e.target.checked ? [...cur, scope] : cur.filter((s) => s !== scope))} />
-                      <Icon name={SCOPE_ICON[scope]} />
-                      <span><strong>{t(`scope.${scope}`)}</strong><small>{t(`scope.${scope}.help`)}</small></span>
-                    </label>
-                  ))}
-                </div>
+                {/* everything is public since 2026-11-18: the pairing no longer chooses what to share */}
+                <p className="fine-print">{t("link.allPublic")}</p>
                 <div className="button-row spread">
                   <button className="btn btn-ghost" disabled={busy} onClick={() => void decide(false)}>{t("link.deny")}</button>
-                  <button className="btn btn-primary" disabled={busy || !scopes.length} onClick={() => void decide(true)}><Icon name="check" size={16} /> {t("link.approve")}</button>
+                  <button className="btn btn-primary" disabled={busy} onClick={() => void decide(true)}><Icon name="check" size={16} /> {t("link.approve")}</button>
                 </div>
               </div>
             )}

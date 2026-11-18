@@ -463,7 +463,7 @@ end
 -- you too; chatHideOthers: other players' Polestar lines hidden;
 -- chatOnlyNeeded: nothing said while every member runs Polestar
 -- (Quests/PartyChat.lua).
-ns.RegisterDefaults("party", { share = true, show = true, waitForGroup = true, lootNeeds = true, panel = true, panelPos = false, chat = true,
+ns.RegisterDefaults("party", { share = true, show = true, waitForGroup = true, lootNeeds = true, panel = false, panelPos = false, chat = true,
 	chatLoot = true, chatEcho = false, chatHideOthers = false, chatOnlyNeeded = false })
 
 local DEBOUNCE = 2 -- seconds after a quest log change

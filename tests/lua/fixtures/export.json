@@ -1,4 +1,8 @@
 {
+  "connections": {
+    "entries": [],
+    "key": 1
+  },
   "consentEpoch": 1,
   "enabled": true,
   "events": [
@@ -147,7 +151,9 @@
     "world_facts",
     "own_runs",
     "own_character",
-    "own_professions"
+    "own_professions",
+    "own_track",
+    "guild_share"
   ],
   "since": 1794236400
 }

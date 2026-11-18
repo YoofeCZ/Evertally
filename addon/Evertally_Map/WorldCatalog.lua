@@ -4,10 +4,12 @@ local A = _G.Evertally
 local text = {
     en = {catalogSearch = "Search by name", catalogShow = "Show on map", catalogGo = "Navigate", catalogAll = "All", catalogNone = "Nothing found.",
         catalogPoints = "%d reference locations", catalogCounts = "%d entries", catalogUnknown = "No entrance is known; navigation is unavailable.",
-        catalogNearest = "No location is known on your continent. Show the map instead.", catalogAllResources = "Clear resource selection", catalogReference = "Reference data, not live resource availability."},
+        catalogNearest = "No location is known on your continent. Show the map instead.", catalogAllResources = "Clear resource selection", catalogReference = "Reference data, not live resource availability.",
+        catalogSkill = "Skill", catalogPlaces = "Places", catalogLevel = "Level", catalogPlayers = "Players", catalogWhere = "Where"},
     cs = {catalogSearch = "Hledat podle jména", catalogShow = "Ukázat na mapě", catalogGo = "Navigovat", catalogAll = "Vše", catalogNone = "Nic nenalezeno.",
         catalogPoints = "%d referenčních míst", catalogCounts = "%d záznamů", catalogUnknown = "Vchod není známý; navigace není dostupná.",
-        catalogNearest = "Na tvém kontinentu není známé místo. Použij zobrazení na mapě.", catalogAllResources = "Zrušit výběr suroviny", catalogReference = "Referenční data, ne aktuální dostupnost surovin."},
+        catalogNearest = "Na tvém kontinentu není známé místo. Použij zobrazení na mapě.", catalogAllResources = "Zrušit výběr suroviny", catalogReference = "Referenční data, ne aktuální dostupnost surovin.",
+        catalogSkill = "Dovednost", catalogPlaces = "Míst", catalogLevel = "Úroveň", catalogPlayers = "Hráčů", catalogWhere = "Kde"},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
@@ -20,9 +22,40 @@ local function spotsFor(mode, item)
     if mode == "services" then return M.ServiceSpots(item.key) end
     return item.map and {{map = item.map, x = item.x, y = item.y, title = item.name}} or {}
 end
+-- In the hub: the hub's details pane (HubKit.lua): the thing's icon and name, what it is, the facts, the way to it.
+local function hubSelect(s, item)
+    local d = s.hubDetails
+    if not item then d.Empty(A.L("worldTab_" .. s.mode), A.L("catalogNone")); return end
+    local facts, note = {}, nil
+    if s.mode == "gather" then
+        if item.skill then facts[#facts + 1] = {A.L("catalogSkill"), tostring(item.skill)} end
+        facts[#facts + 1] = {A.L("catalogPlaces"), tostring(item.count)}
+        note = A.L("catalogReference")
+    elseif s.mode == "services" then
+        facts[#facts + 1] = {A.L("catalogPlaces"), tostring(item.count)}
+        note = A.L("servicesHint")
+    else
+        if item.level then facts[#facts + 1] = {A.L("catalogLevel"), tostring(item.level[1]) .. "–" .. tostring(item.level[2])} end
+        facts[#facts + 1] = {A.L("catalogPlayers"), tostring(item.players)}
+        facts[#facts + 1] = {A.L("catalogWhere"), item.map and M.MapName(item.map) or A.L("catalogUnknown")}
+        if item.hint ~= "" then note = item.hint end
+    end
+    local sub = s.mode == "gather" and A.L("gather_" .. item.kind) or s.mode == "services" and A.L("servicesKind_" .. item.kind) or A.L("instance_" .. item.kind)
+    local places = spotsFor(s.mode, item)
+    d.Set({title = A.Plain(item.name), sub = sub, icon = item.icon, glyph = not item.icon and (s.mode == "instances" and "icon-dungeon" or "icon-goto") or nil,
+        map = item.map, facts = facts, note = note,
+        blocks = #places > 0 and {{text = A.L("catalogGo"), onClick = s.navigate}} or nil,
+        button = #places > 0 and {text = A.L("catalogShow"), onClick = s.showOnMap} or nil})
+end
+
 local function selectItem(frame, item)
     local s = frame.catalog
     s.selected = item
+    if s.hubDetails then
+        hubSelect(s, item)
+        for _, row in ipairs(s.rows) do row.bg:SetAlpha(row.item == item and 0.14 or (s.hubDetails and 0 or 0.05)) end
+        return
+    end
     s.title:SetText(item and A.Plain(item.name) or "")
     local lines = {}
     if item then
@@ -47,7 +80,7 @@ local function selectItem(frame, item)
     s.scrollContent:SetHeight(math.max(80, (s.detail:GetStringHeight() or 80) + 12))
     local places = spotsFor(s.mode, item)
     s.show:SetShown(#places > 0); s.go:SetShown(#places > 0)
-    for _, row in ipairs(s.rows) do row.bg:SetAlpha(row.item == item and 0.14 or 0.05) end
+    for _, row in ipairs(s.rows) do row.bg:SetAlpha(row.item == item and 0.14 or (s.hubDetails and 0 or 0.05)) end
 end
 
 function M.WorldCatalogRows(frame)
@@ -57,7 +90,7 @@ function M.WorldCatalogRows(frame)
         row:SetShown(row.item ~= nil)
         if row.item then
             row.name:SetText(A.Plain(row.item.name))
-            row.bg:SetAlpha(row.item == s.selected and 0.14 or 0.05)
+            row.bg:SetAlpha(row.item == s.selected and 0.14 or (s.hubDetails and 0 or 0.05))
             local ticked = s.mode == "gather" or s.mode == "services"
             row.icon:SetShown(ticked); row.check:SetShown(ticked)
             row.name:ClearAllPoints(); row.name:SetPoint("LEFT", ticked and 36 or 8, 0); row.name:SetPoint("RIGHT", ticked and -34 or -8, 0)
@@ -164,14 +197,16 @@ local function build(frame, kit, mode)
         M.ShowOnWorldMap({nearest}, nearest.map)
     end)
     s.show:SetPoint("BOTTOMLEFT", 12, 46)
+    s.showOnMap = function() local click = s.show:GetScript("OnClick"); if click then click(s.show) end end
     s.go = kit.Button(s.card, "catalogGo", 158, "ghost", function()
         local nearest = M.NearestLayerSpot(spotsFor(mode, s.selected))
         if nearest then
             nearest.source = {tab = mode, key = s.selected.key}   -- (a click on the arrow comes back to this item)
             M.NavigateLayerSpot(nearest)
-        else s.detail:SetText(A.L("catalogNearest")) end
+        elseif s.hubDetails then A.Print(A.L("catalogNearest")) else s.detail:SetText(A.L("catalogNearest")) end
     end)
     s.go:SetPoint("BOTTOMLEFT", 12, 12)
+    s.navigate = function() local click = s.go:GetScript("OnClick"); if click then click(s.go) end end
     if mode == "gather" or mode == "services" then
         s.all = kit.Button(frame, mode == "gather" and "catalogAllResources" or "catalogClearPicks", 202, "ghost", function()
             if mode == "gather" then M.SetGatherResource(nil); M.SetLayer("gather", true) else M.ClearServicePicks(); M.WorldCatalogRefresh(frame) end
@@ -187,8 +222,41 @@ local function build(frame, kit, mode)
         s.hideAll = kit.Chip(frame, function() bulk(false) end); s.hideAll:SetPoint("TOPRIGHT", 0, 0)
         s.showAll = kit.Chip(frame, function() bulk(true) end); s.showAll:SetPoint("RIGHT", s.hideAll, "LEFT", -6, 0)
     end
+    -- In the guide's hub (HubKit.lua): the hub's search box and buttons, flat rows in the hub's type, the details pane on
+    -- the right (the old card put away).
+    local g = A.HubKit and A.HubKit.Guide and A.HubKit.Guide()
+    if g and A.InHubPage and A.InHubPage(frame) then
+        local W, Theme = g.Widgets, g.Theme
+        s.box:Hide()
+        local box = W.SearchBox(frame, A.L("catalogSearch"), function(value) s.query = value or ""; s.offset = 0; M.WorldCatalogRefresh(frame) end)
+        box:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -34)
+        box:SetWidth(250)
+        s.box = box
+        s.count:ClearAllPoints(); s.count:SetPoint("LEFT", box, "RIGHT", 12, 0)
+        Theme.Font(s.count, "small"); W.Color(s.count, "textMuted")
+        s.card:Hide()
+        s.hubDetails = A.HubKit.Details(frame)
+        s.hubDetails:ClearAllPoints()
+        s.hubDetails:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -78); s.hubDetails:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+        if s.all then
+            local old = s.all
+            old:Hide()
+            local click = old:GetScript("OnClick")
+            local b = W.Button(frame, A.L(mode == "gather" and "catalogAllResources" or "catalogClearPicks"), function() if click then click(old) end end, {height = 28})
+            b:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -34)
+            b.text = {SetText = function(_, value) if W.SetButtonText then W.SetButtonText(b, value) end end}
+            s.all = b
+        end
+        for _, row in ipairs(s.rows) do Theme.Font(row.name, "body") end
+    end
     local function layout()
         local width, height = frame:GetWidth(), frame:GetHeight()
+        if s.hubDetails then
+            s.list:SetWidth(math.max(170, width - A.HubKit.DETAIL_W - 12))
+            s.visibleRows = math.max(3, math.min(MAX_ROWS, math.floor((height - 80) / ROW_HEIGHT)))
+            M.WorldCatalogRows(frame)
+            return
+        end
         local left = math.max(170, math.min(310, width * 0.45))
         s.list:SetWidth(left)
         s.visibleRows = math.max(3, math.min(MAX_ROWS, math.floor((height - 80) / ROW_HEIGHT)))

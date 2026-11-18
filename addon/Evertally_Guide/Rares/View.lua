@@ -27,7 +27,9 @@ if not (UI and W and W.SHELL) then return end
 local ZoneArt = UI.ZoneArt
 
 local SH = W.SHELL
-local LIST_W = 272
+-- Evertally: the list wide and the details 372 px on the right, as the Database (UI/Lookup.lua DETAIL_W) and
+-- Evertally's own pages: 878 (the main column at the default width) - 372
+local LIST_W = 506
 local ROW_X = 12
 local TEXT_X = SH.pad - ROW_X
 local ROW_H = 28

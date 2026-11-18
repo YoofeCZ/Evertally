@@ -39,7 +39,7 @@ class InstallationTests(unittest.TestCase):
         self.a.OnboardingApply(self.a.OnboardingDraft())
         self.a.OnboardingSkip();self.assertFalse(self.a.OnboardingShown())
         self.assertIsNone(self.a.db.settings.onboarded)
-        self.assertFalse(self.a.db.settings.web or self.a.db.settings.ingame)
+        self.assertFalse(self.a.db.settings.ingame)  # (the website itself starts on since 2026-11-18)
         self.a.OpenUI();self.assertEqual(self.a.OnboardingState()[0],2)
     def test_verify_reuses_window_and_enables_next_only_when_both_installed(self):
         gate,panel=self.open()
@@ -52,7 +52,7 @@ class InstallationTests(unittest.TestCase):
         gate.next.scripts.OnClick(gate.next);self.assertEqual(self.a.OnboardingState()[0],3)
         self.assertEqual(self.lua.globals().CREATED_WINDOWS.EvertallySetup,1)
         self.assertIsNone(self.lua.globals().CREATED_WINDOWS.EvertallyInstallation)
-        self.assertFalse(self.a.db.settings.web or self.a.db.settings.ingame)
+        self.assertFalse(self.a.db.settings.ingame)  # (the website itself starts on since 2026-11-18)
     def test_old_future_and_malformed_receipts_do_not_unlock(self):
         self.openmap()
         for version in ("0.9.8","x","0.9","0.9.9x","999999.0.0"):
@@ -62,6 +62,17 @@ class InstallationTests(unittest.TestCase):
         self.proof();self.a.bridgeInstallation.kind="other-proof"
         self.assertFalse(self.a.RequirementsReady())
         self.proof("0.10.0");self.assertTrue(self.a.RequirementsReady())
+    def test_app_verified_once_stays_verified_after_the_receipt_is_gone(self):
+        self.openmap()
+        self.assertFalse(self.a.RequirementsReady())
+        self.proof();self.assertTrue(self.a.RequirementsReady())
+        # an update of the add-on puts the placeholder back (no receipt) and the app is not running
+        self.a.bridgeInstallation=None
+        self.assertTrue(self.a.RequirementsReady())
+        self.assertEqual(self.a.RequirementsStatus().bridgeVersion,"0.9.9")
+        # a kept version below the minimum does not count
+        self.a.db.bridgeVerified.bridgeVersion="0.9.8"
+        self.assertFalse(self.a.RequirementsReady())
     def test_close_reopen_and_settings_verify_keep_exactly_one_window(self):
         gate,panel=self.open();gate.close.scripts.OnClick(gate.close)
         self.assertFalse(self.a.OnboardingShown())

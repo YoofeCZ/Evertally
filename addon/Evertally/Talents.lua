@@ -356,6 +356,95 @@ local function recommendationDialog(page,kit)
  end
  dialog:SetWidth(math.min(620,math.max(340,(page:GetWidth() or 640)-12)));dialog.list=list;dialog.index=math.max(1,math.min(dialog.index or 1,#list));dialog.Refresh();dialog:Show()
 end
+A.locale.en.talentTabPlan="Planner";A.locale.cs.talentTabPlan="Plánovač"
+A.locale.en.talentTabBuilds="Builds";A.locale.cs.talentTabBuilds="Buildy"
+A.locale.en.talentBuildsChoose="Pick a saved or a recommended build on the left.";A.locale.cs.talentBuildsChoose="Vlevo vyber uložený nebo doporučený build."
+A.locale.en.talentBuildsEmpty="No build yet. Save one in the Planner or import a profile.";A.locale.cs.talentBuildsEmpty="Zatím žádný build. Ulož si ho v Plánovači nebo naimportuj profil."
+A.locale.en.talentToPlanner="Open in the Planner";A.locale.cs.talentToPlanner="Otevřít v Plánovači"
+A.locale.en.talentPoints="Points";A.locale.cs.talentPoints="Body"
+A.locale.en.talentSource="Source";A.locale.cs.talentSource="Zdroj"
+A.locale.en.talentFactLevel="Level";A.locale.cs.talentFactLevel="Úroveň"
+
+-- In the guide's hub (HubKit.lua): two of the hub's tabs. The Planner is the trees as before (the saved builds' row
+-- gone from under them); Builds is the hub's list (saved, recommended) and details (points per tree, the level, the
+-- source, the note), the build loaded into the Planner by the button at the bottom.
+local function buildHub(page,kit)
+ local t,HK=page.talents,A.HubKit
+ local W=HK.Guide().Widgets
+ page.mode="plan"
+ for _,w in ipairs({t.savedLabel,t.saved,t.delete}) do w:Hide() end
+ -- the bottom: the hint on the left, the zoom on the right, both inside the hub's clip
+ t.zoomText:ClearAllPoints();t.zoomText:SetPoint("BOTTOMRIGHT",-31,8)
+ t.zoomLabel:ClearAllPoints();t.zoomLabel:SetPoint("RIGHT",t.zoomMinus,"LEFT",-10,0)
+ t.hint:ClearAllPoints();t.hint:SetPoint("BOTTOMLEFT",0,12);t.hint:SetPoint("RIGHT",t.zoomLabel,"LEFT",-16,0)
+ t.scroll:SetPoint("BOTTOMRIGHT",-24,40)
+ local planner={t.summary,t.level,t.levelMinus,t.levelPlus,t.load,t.clear,t.name,t.save,t.export,t.import,t.recommended,t.scroll,t.note,t.zoomLabel,t.zoomText,t.zoomMinus,t.zoomPlus,t.hint}
+ local builds=CreateFrame("Frame",nil,page);builds:SetPoint("TOPLEFT",0,-60);builds:SetPoint("BOTTOMRIGHT");builds:Hide()
+ local left=CreateFrame("Frame",nil,builds);left:SetPoint("TOPLEFT");left:SetPoint("BOTTOMRIGHT",-HK.DETAIL_W,0)
+ page.buildList=HK.List(left);page.buildList.scroll:SetPoint("TOPLEFT",left,"TOPLEFT",0,0);page.buildList.scroll:SetPoint("BOTTOMRIGHT",left,"BOTTOMRIGHT",-4,4)
+ page.buildDetails=HK.Details(builds)
+ page.hubTabs=function() return {{key="plan",label=A.L("talentTabPlan")},{key="builds",label=A.L("talentTabBuilds")}} end
+ page.hubTab=function() return page.mode end
+ page.OnHubTab=function(key) page.mode=key end
+ t.recommended:SetScript("OnClick",function() page.mode="builds";page.buildKey="rec:1";if A.RefreshUI then A.RefreshUI() end end)
+ local function toPlanner(plan,name)
+  t.plan=plan;t.name:SetText(name or "");t.notice=A.L("talentTemplateLoaded");page.mode="plan";if A.RefreshUI then A.RefreshUI() end
+ end
+ local function facts(plan,trees,level)
+  local out={}
+  if plan then for _,tree in ipairs(trees or {}) do out[#out+1]={tree.name,tostring(A.TalentPlanPoints(plan,tree.tab))} end
+   out[#out+1]={A.L("talentPoints"),A.TalentPlanPoints(plan).." / "..A.TalentPlanBudget(plan)} end
+  out[#out+1]={A.L("talentFactLevel"),tostring(level or (plan and plan.level) or 60)}
+  return out
+ end
+ function page.RefreshBuilds()
+  local trees=A.TalentTrees() or {}
+  local saved,rec=A.SavedTalentBuilds(),A.RecommendedForClass and A.RecommendedForClass() or {}
+  local entries,chosen={},nil
+  local function add(key,spec) spec.key=key;spec.onClick=function() page.buildKey=key;page.RefreshBuilds() end;entries[#entries+1]=spec;if key==page.buildKey then chosen=spec end end
+  if #saved>0 then entries[#entries+1]={folder=A.L("talentSaved"),count=tostring(#saved)} end
+  for i,build in ipairs(saved) do
+   local b=build
+   add("saved:"..i,{title=build.name or A.L("talentNameDefault"),glyph="icon-learn",sub=A.TalentPlanPoints(build).." · "..string.format(A.L("talentLevel"),build.level or 60),
+    detail=function()
+     -- (without the trees the load gives an empty plan: nothing to show or open then)
+     local plan=#trees>0 and A.LoadTalentBuild(b,trees) or nil
+     page.buildDetails.Set({title=b.name,sub=string.format(A.L("talentLevel"),b.level or 60),glyph="icon-learn",facts=facts(plan or b,plan and trees or nil,b.level),
+      note=not plan and A.L(#trees==0 and "talentNoApi" or "talentProfileInvalid") or nil,
+      blocks={{text=A.L("talentDelete"),onClick=function() for j,x in ipairs(A.SavedTalentBuilds()) do if x==b then table.remove(A.SavedTalentBuilds(),j);break end end;page.buildKey=nil;page.RefreshBuilds() end}},
+      button=plan and {text=A.L("talentToPlanner"),onClick=function() toPlanner(plan,b.name) end} or nil})
+    end})
+  end
+  if #rec>0 then entries[#entries+1]={folder=A.L("talentRecommended"),count=tostring(#rec)} end
+  for i,build in ipairs(rec) do
+   local b=build
+   add("rec:"..i,{title=localText(build.name),glyph="icon-achieve",sub=string.format(A.L("talentLevel"),build.level or 60),
+    detail=function()
+     local plan,why,detail=A.LoadRecommendedTalentBuild(b,trees)
+     local source=b.source or {}
+     local f=facts(plan,plan and trees or nil,b.level)
+     if source.title then f[#f+1]={A.L("talentSource"),source.title} end
+     local blocks={}
+     local text=localText(b.note or b.description);if text~="" then blocks[#blocks+1]={text=text} end
+     if source.url then blocks[#blocks+1]={text=source.url,muted=true} end
+     if not plan then blocks[#blocks+1]={text=detail and string.format(A.L(why),detail) or A.L(why or "talentProfileInvalid"),muted=true} end
+     page.buildDetails.Set({title=localText(b.name),sub=string.format(A.L("talentRecommendationChecked"),source.checked or source.checkedAt or ""),glyph="icon-achieve",color="accent",
+      facts=f,blocks=blocks,button=plan and {text=A.L("talentTemplateLoad"),onClick=function() toPlanner(plan,localText(b.name)) end} or nil})
+    end})
+  end
+  if not chosen then for _,e in ipairs(entries) do if e.key then chosen=e;page.buildKey=e.key;break end end end
+  page.buildList.Set(entries,page.buildKey)
+  if chosen then chosen.detail() else page.buildDetails.Empty(A.L("talentTabBuilds"),A.L("talentBuildsEmpty")) end
+ end
+ local plannerRefresh=page.Refresh
+ function page.Refresh()
+  local onPlan=page.mode~="builds"
+  for _,w in ipairs(planner) do w:SetShown(onPlan) end
+  builds:SetShown(not onPlan)
+  if onPlan then plannerRefresh() else page.RefreshBuilds() end
+ end
+end
+
 function A.BuildTalentsPage(page,kit)
  local C=kit.C;kit.PageHeader(page,"talents");local t={columns={},buttons={},lines={}};page.talents=t;A.talentPage=page
  t.summary=kit.label(page,13,C.bright or C.gold);t.summary:SetPoint("TOPLEFT",0,-55)
@@ -364,8 +453,8 @@ function A.BuildTalentsPage(page,kit)
   if not t.plan then return end;local level=math.max(10,math.min(60,t.plan.level+delta))
   if A.TalentPlanPoints(t.plan)>math.max(0,level-9) then t.notice=A.L("talentLevelBlocked") else t.plan.level=level;t.notice="" end;draw(page,kit)
  end
- local minus=kit.Button(page,nil,25,"ghost",function() levelBy(-1) end);minus.text:SetText("-");minus:SetPoint("TOPRIGHT",t.level,"TOPLEFT",-6,6)
- local plus=kit.Button(page,nil,25,"ghost",function() levelBy(1) end);plus.text:SetText("+");plus:SetPoint("TOPRIGHT",0,-49)
+ local minus=kit.Button(page,nil,25,"ghost",function() levelBy(-1) end);minus.text:SetText("-");minus:SetPoint("TOPRIGHT",t.level,"TOPLEFT",-6,6);t.levelMinus=minus
+ local plus=kit.Button(page,nil,25,"ghost",function() levelBy(1) end);plus.text:SetText("+");plus:SetPoint("TOPRIGHT",0,-49);t.levelPlus=plus
  t.load=kit.Button(page,"talentLoad",110,"ghost",function() t.plan=A.NewTalentPlan(A.TalentTrees());t.notice="";draw(page,kit) end);t.load:SetPoint("TOPLEFT",0,-79)
  t.clear=kit.Button(page,"talentClear",110,"ghost",function() t.plan=A.NewTalentPlan(A.TalentTrees(),t.plan and t.plan.level or 60,true);t.notice="";draw(page,kit) end);t.clear:SetPoint("LEFT",t.load,"RIGHT",6,0)
  t.name=CreateFrame("EditBox",nil,page,"InputBoxTemplate");t.name:SetAutoFocus(false);t.name:SetMaxLetters(48);t.name:SetFont(kit.fontPath(),11,"");t.name:SetSize(126,25);t.name:SetPoint("LEFT",t.clear,"RIGHT",12,0);t.name:SetText(A.L("talentNameDefault"));t.name:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
@@ -388,6 +477,7 @@ function A.BuildTalentsPage(page,kit)
  t.zoomPlus=kit.Button(page,nil,25,"ghost",function()A.SetTalentZoom(A.TalentZoom()+.1);draw(page,kit)end);t.zoomPlus.text:SetText("+");t.zoomPlus:SetPoint("LEFT",t.zoomText,"RIGHT",4,0)
  t.hint=kit.label(page,10,C.mist);t.hint:SetPoint("BOTTOMLEFT",0,-3);t.hint:SetPoint("BOTTOMRIGHT",0,-3);t.hint:SetWordWrap(false);t.hint:SetText(A.L("talentPlannerHint"))
  page:SetScript("OnSizeChanged",function() if page:IsShown() then draw(page,kit) end end);function page.Refresh() draw(page,kit) end
+ if page.hubMode and A.HubKit and A.HubKit.Ready(page) then buildHub(page,kit); if A.HubKit.SkinInputs then A.HubKit.SkinInputs(page) end end
 end
 
 for _,event in ipairs({"PLAYER_LOGIN","TRAIT_CONFIG_UPDATED","TRAIT_CONFIG_LIST_UPDATED","TRAIT_NODE_CHANGED","TRAIT_TREE_CHANGED","SPELL_DATA_LOAD_RESULT","ACTIVE_PLAYER_SPECIALIZATION_CHANGED"})do
