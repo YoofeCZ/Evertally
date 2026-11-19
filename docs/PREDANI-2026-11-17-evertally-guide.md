@@ -223,4 +223,4 @@ Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů proch�
 - **Pi:** zip sha256 `82c7e503…7fca`, 916 souborů, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.8). Záloha 0.11.7 v `~/evertally/backups/addon-0.11.7-2026-11-19/`. Aplikace a instalátor beze změny (0.9.19). Poznámky `VYDANI-0.11.8.md`.
 - Evertally Sync ji u uživatele nainstalovala v 18:33:53Z (log), soubory ve hře = repo.
 - Obsah: oprava zamrzlých animací (prázdné texty v instalaci), reload hned po změně jazyka, sloučené stránky nastavení bez duplicit.
-- **CurseForge ne** (tam je 0.11.7). **Ve hře zatím neověřeno.**
+- **CurseForge:** nahráno „Evertally 0.11.8“ (stav Processing File při nahrání), changelog anglicky bez Polestaru, odeslal uživatel. **Ve hře zatím neověřeno.**
