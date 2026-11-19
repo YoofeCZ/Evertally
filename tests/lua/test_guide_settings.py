@@ -56,7 +56,7 @@ class GuideSettingsTests(unittest.TestCase):
         keys = []
         for spec in specs:
             if spec.key not in keys: keys.append(spec.key)
-        self.assertEqual(keys, ["evertallysharing", "evertallyinterface", "evertallyplates", "evertallymusic", "evertallyactions",
+        self.assertEqual(keys, ["evertallysharing", "evertallyinterface", "evertallybags", "evertallyplates", "evertallymusic", "evertallyactions",
                                 "evertallydiagnostics"])
         tabs = [spec.tab for spec in specs if spec.key == "evertallysharing"]
         self.assertEqual(tabs, ["In game", "Live & map", "Website"])
@@ -66,7 +66,7 @@ class GuideSettingsTests(unittest.TestCase):
             if c.kind == "button":
                 self.assertTrue(callable(c.onClick))
             else:
-                self.assertIn(c.kind, ("toggle", "dropdown"))
+                self.assertIn(c.kind, ("toggle", "dropdown", "slider"))
                 self.assertIsNone(c.key, "no key of the guide's: the values are Evertally's")
                 self.assertTrue(callable(c.get) and callable(c.set))
             for lang in ("en", "cs"):

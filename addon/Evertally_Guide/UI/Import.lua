@@ -407,7 +407,7 @@ local function layout()
 		place(parts.Docs, x + lw + 8, y)
 		parts.Docs:Show()
 	else
-		parts.DocsLabel:SetText(L["Read more: docs/GUIDE_PACKS.md in Evertally's source"])
+		parts.DocsLabel:SetText("") -- (Evertally: no pointer to Polestar's docs)
 		parts.DocsLabel:SetWidth(width)
 		parts.Docs:Hide()
 	end

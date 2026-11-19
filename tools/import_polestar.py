@@ -617,6 +617,17 @@ _more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
 _more('Core/Init.lua', ('function ns.Quoted(name)\n\tif type(name) ~= "string" or name == "" then return name end\n',
       'function ns.Quoted(name)\n\tif type(name) ~= "string" or name == "" then return name end\n\t-- Evertally: a quest\'s name stands as it is, without quote marks (the user: "proč to píše uvozovky")\n\tif ns.EvertallyPlainNames ~= false then return name end\n', 1))
 
+# ---- 2026-11-19: no link to Polestar's repository on the Import and Community guides pages (the TOC's X-Website) ----
+_more('Core/Init.lua',
+      ('\tif site == "" then return nil end\n\treturn site .. "/blob/HEAD/docs/PACKS.md"\n',
+       '\tif site == "" then return nil end\n\tdo return nil end -- (Evertally: no links to Polestar\'s repository in the game)\n\treturn site .. "/blob/HEAD/docs/PACKS.md"\n', 1))
+_more('UI/Import.lua',
+      ('\t\tparts.DocsLabel:SetText(L["Read more: docs/GUIDE_PACKS.md in Evertally\'s source"])\n',
+       '\t\tparts.DocsLabel:SetText("") -- (Evertally: no pointer to Polestar\'s docs)\n', 1))
+_more('UI/Packs.lua',
+      ('\t\t\tdocsLabel:SetText(L["Read more: docs/GUIDE_PACKS.md in Evertally\'s source"])\n',
+       '\t\t\tdocsLabel:SetText("") -- (Evertally: no pointer to Polestar\'s docs)\n', 1))
+
 def folder_name(name: str) -> str:
     return "Evertally_Guide" + name[len("Polestar"):]
 

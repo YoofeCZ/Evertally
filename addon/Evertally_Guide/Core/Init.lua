@@ -44,6 +44,7 @@ function ns.DocsURL()
 	local site = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "X-Website")
 	site = type(site) == "string" and site:gsub("/+$", "") or ""
 	if site == "" then return nil end
+	do return nil end -- (Evertally: no links to Polestar's repository in the game)
 	return site .. "/blob/HEAD/docs/PACKS.md"
 end
 

@@ -48,7 +48,8 @@ local text = {
         bwPickTitle = "Bags", bwPickBody = "Which bags do you want? The bag key opens the one you pick.",
         bwPick_evertally = "Evertally", bwPickSub_evertally = "Sections, search with #tags, Equip best, the bank and your alts at a glance.",
         bwPick_game = "The game's bags", bwPickSub_game = "The bags as the game draws them.",
-        bwPickSub_other = "The bags of the %s add-on.", bwPickReload = "%s: the change takes effect after /reload.", bwEquip = "Equip best", bwEquipN = "Equip best (%d)",
+        bwPickSub_other = "The bags of the %s add-on.", bwPickReload = "%s: the change takes effect after /reload.", bwPickReloadNow = "Reloading the interface so that only the bags you picked open.",
+        bwPickStill = "The bag add-ons loaded (%s) do not match the bags you picked; set again. Type /reload.", bwEquip = "Equip best", bwEquipN = "Equip best (%d)",
         bwEquipTip = "Puts on what is better than what you wear, one piece at a time:", bwEquipNone = "Nothing in the bags beats what you wear.",
         bwEquipCombat = "The gear goes on when the fight is over.", bwEquipDone = "Put on: %s", bwEquipBind = "Items that bind when worn ask first.", bwAnotherAddon = "%s is loaded: the bag keys open its bags. Evertally's bags: /etally bag, or Bag settings.",
         bwCats = "Edit categories", bwCatsTitle = "Categories", bwCatsHint = "Top to bottom is the order in the bags. A category of your own takes what you drag onto its heading and what matches its search (words of the name, #tags: #consumable #profession #quest #gear #junk).",
@@ -73,7 +74,8 @@ local text = {
         bwPickTitle = "Batoh", bwPickBody = "Jaký batoh chceš? Klávesa batohu otevře ten, který vybereš.",
         bwPick_evertally = "Evertally", bwPickSub_evertally = "Sekce, hledání s #štítky, Nasadit nejlepší, banka a alti na jeden pohled.",
         bwPick_game = "Herní batoh", bwPickSub_game = "Tašky tak, jak je kreslí hra.",
-        bwPickSub_other = "Tašky z addonu %s.", bwPickReload = "%s: změna se projeví po /reload.", bwEquip = "Nasadit nejlepší", bwEquipN = "Nasadit nejlepší (%d)",
+        bwPickSub_other = "Tašky z addonu %s.", bwPickReload = "%s: změna se projeví po /reload.", bwPickReloadNow = "Načítám rozhraní znovu, aby se otevíral jen batoh, který jsi vybral.",
+        bwPickStill = "Načtené addony na batoh (%s) neodpovídají tvé volbě; nastaveno znovu. Napiš /reload.", bwEquip = "Nasadit nejlepší", bwEquipN = "Nasadit nejlepší (%d)",
         bwEquipTip = "Nasadí, co je lepší než to, co máš na sobě, po jednom kusu:", bwEquipNone = "V batohu není nic lepšího, než co máš na sobě.",
         bwEquipCombat = "Výbava se nasadí, až skončí souboj.", bwEquipDone = "Nasazeno: %s", bwEquipBind = "Předměty, které se nasazením naváží, se nejdřív zeptají.", bwAnotherAddon = "Je zapnutý %s: klávesy batohu otevírají jeho tašky. Batoh Evertally: /etally bag, nebo Nastavení batohu.",
         bwCats = "Upravit kategorie", bwCatsTitle = "Kategorie", bwCatsHint = "Pořadí shora dolů je pořadí v batohu. Do vlastní kategorie patří, co přetáhneš na její nadpis, a co odpovídá jejímu hledání (slova z názvu, #tagy: #consumable #profession #quest #gear #junk).",
@@ -213,6 +215,31 @@ function BW.SetChoice(choice)
         end
     end
     if #changed > 0 and A.Print then A.Print(string.format(A.L("bwPickReload"), table.concat(changed, ", "))) end
+    return true
+end
+--- The bag add-ons loaded now that disagree with the choice: a loaded one that was not picked, or the picked one not
+--- loaded. The client switches add-ons on and off only when the UI loads, so until a /reload both bags open on the bag
+--- key (2026-11-19: Evertally picked in the setup, Bagnon still opened beside it). -> list of titles, or nil
+function BW.Mismatch()
+    local choice = settings().choice
+    if not choice then return nil end
+    local out = {}
+    for _, name in ipairs(OTHER_BAG_ADDONS) do
+        local a = addonInfo(name)
+        if a and a.loaded ~= (name == choice) then out[#out + 1] = a.title end
+    end
+    return #out > 0 and out or nil
+end
+--- Reloads the UI (a frame later, so the caller saves first) when the bag add-ons loaded disagree with the choice.
+--- -> true when a reload is on its way
+function BW.ReloadIfNeeded()
+    if not BW.Mismatch() or A.reloadPending then return A.reloadPending == true end
+    if call(rawget(_G, "InCombatLockdown")) == true then return false end
+    A.reloadPending = true
+    if A.Print then A.Print(A.L("bwPickReloadNow")) end
+    local reload = function() call(rawget(_G, "ReloadUI")) end
+    local timer = rawget(_G, "C_Timer")
+    if type(timer) == "table" and type(timer.After) == "function" then timer.After(0, reload) else reload() end
     return true
 end
 
@@ -413,6 +440,7 @@ function BW.Untrack(id)
     return false
 end
 function BW.TrackHides() return settings().trackHide ~= false end
+function BW.SetTrackHide(on) settings().trackHide = on == true; if BW.Request then BW.Request() end end
 --- What the row shows for a list of items (one view's): {id, count, icon, pinned}, the tokens first.
 function BW.Tracked(items)
     local count, icon = {}, {}
@@ -1292,7 +1320,7 @@ local function newWindow(kind)
                 {text = A.L("bwReplace"), checked = BW.Replaces(), onClick = function() BW.SetReplace(not BW.Replaces()) end},
                 {text = A.L("bwClearNew"), onClick = function() BW.ClearNew() end},
                 {text = A.L("bwCats"), onClick = function() BW.Categories.Toggle(win) end},
-                {text = A.L("bwTrackHide"), checked = BW.TrackHides(), onClick = function() settings().trackHide = not BW.TrackHides() end},
+                {text = A.L("bwTrackHide"), checked = BW.TrackHides(), onClick = function() BW.SetTrackHide(not BW.TrackHides()) end},
             })
         end, "bwSettings")
         win.gear:SetPoint("RIGHT", win.close, "LEFT", -2, 0)
@@ -1515,6 +1543,12 @@ BW.GameBank = gameBank
 -- ---------------------------------------------------------------- events
 A.On("PLAYER_LOGIN", function()
     BW.Hook()
+    -- a bag add-on loaded against the choice (switched on again by hand, or the switch-off did not hold): off once more
+    local wrong = BW.Mismatch()
+    if wrong then
+        BW.SetChoice(settings().choice)
+        if A.Print then A.Print(string.format(A.L("bwPickStill"), table.concat(wrong, ", "))) end
+    end
     local other = BW.OtherBagAddon()
     if other and settings().replace == nil and settings().toldOther ~= other and A.Print then
         settings().toldOther = other

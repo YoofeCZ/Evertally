@@ -755,6 +755,8 @@ function A.OnboardingFinish()
     local notes = A.OnboardingApply(draft)
     if f then f:Hide() end
     A.Print(A.L("setupDone"))
+    -- the bags picked (et-bags) switched a bag add-on on or off: that holds only after a reload
+    if A.BagWindow and A.BagWindow.ReloadIfNeeded then A.BagWindow.ReloadIfNeeded() end
     if A.webChangePending and A.MarkWebChanged then A.MarkWebChanged() end
     for _, note in ipairs(notes) do
         if note == "export_missing" then A.Print(A.L("setupNoteExport"))

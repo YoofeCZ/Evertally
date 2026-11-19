@@ -15,7 +15,10 @@ local PAGES = {
     {key = "evertallysharing", title = "sharingWebSection", icon = "icon-talk",
         parts = {{tab = "setTabInGame", controls = "sharing"}, {tab = "setTabLive", controls = "live"}, {tab = "setTabWebsite", controls = "web"}}},
     {key = "evertallyinterface", title = "interfaceSection", icon = "window",
-        parts = {{section = "setSecWindows", controls = "look"}, {section = "setSecTooltips", controls = "tooltips"}, {section = "setSecChat", controls = "chat"}}},
+        parts = {{section = "setSecWindows", controls = "look"}, {section = "setSecQuests", controls = "tracker"},
+            {section = "setSecTooltips", controls = "tooltips"}, {section = "setSecChat", controls = "chat"}}},
+    -- 2026-11-19: what the setup asks about the bags (et-bags) and what the bag window's gear menu holds, in one place
+    {key = "evertallybags", title = "bagsSection", icon = "icon-treasure", parts = {{controls = "bags"}}},
     {key = "evertallyplates", title = "nameplatesSection", icon = "layers"},
     {key = "evertallymusic", title = "musicSection", icon = "speaker"},
     {key = "evertallyactions", title = "actionsSection", icon = "bolt", parts = {{controls = "actions"}}},
@@ -24,9 +27,13 @@ local PAGES = {
 A.SettingsPages = PAGES
 local setText = {
     en = {sharingWebSection = "Sharing & website", setTabInGame = "In game", setTabLive = "Live & map", setTabWebsite = "Website",
-        setSecWindows = "Evertally's windows", setSecTooltips = "Tooltips, minimap and bags", setSecChat = "Chat"},
+        setSecWindows = "Evertally's windows", setSecTooltips = "Tooltips and minimap", setSecChat = "Chat", setSecQuests = "Quests",
+        bagsSection = "Bags", bwPickLabel = "Bags to use", uiScaleLabel = "Size of Evertally's window",
+        setPairRow = "Pair the app with the website"},
     cs = {sharingWebSection = "Sdílení a web", setTabInGame = "Ve hře", setTabLive = "Živě a mapa", setTabWebsite = "Web",
-        setSecWindows = "Okna Evertally", setSecTooltips = "Tooltipy, minimapa a batoh", setSecChat = "Chat"},
+        setSecWindows = "Okna Evertally", setSecTooltips = "Tooltipy a minimapa", setSecChat = "Chat", setSecQuests = "Questy",
+        bagsSection = "Batoh", bwPickLabel = "Který batoh používat", uiScaleLabel = "Velikost okna Evertally",
+        setPairRow = "Spárovat aplikaci s webem"},
 }
 for lang, entries in pairs(setText) do for k, v in pairs(entries) do A.locale[lang][k] = v end end
 
@@ -51,15 +58,32 @@ local function toggle(key, get, apply, default, extra)
     return c
 end
 
-local function dropdown(key, choices, get, apply, default)
-    return {kind = "dropdown", label = label(key), localeKey = key,
+--- choices: a list of {value, locale key}, or a function -> {{value =, text =}, ...} (worked out each time it opens).
+--- default: a value or a function -> value (what Reset page puts back).
+local function dropdown(key, choices, get, apply, default, extra)
+    local c = {kind = "dropdown", label = label(key), localeKey = key,
         choices = function()
+            if type(choices) == "function" then return choices() end
             local out = {}
             for i, ch in ipairs(choices) do out[i] = {value = ch[1], text = A.L(ch[2])} end
             return out
         end,
         get = get,
-        set = function(v) if v == nil then v = default end; apply(v); changed(key) end}
+        set = function(v)
+            if v == nil then v = type(default) == "function" and default() or default end
+            apply(v); changed(key)
+        end}
+    for k, v in pairs(extra or {}) do c[k] = v end
+    return c
+end
+
+--- A slider over Evertally's settings: get() -> number, apply(number); nil from Reset page means `default`.
+local function slider(key, lo, hi, step, fmt, get, apply, default, extra)
+    local c = {kind = "slider", label = label(key), localeKey = key, min = lo, max = hi, step = step, format = fmt,
+        get = function() return tonumber(get()) or default end,
+        set = function(v) if v == nil then v = default end; apply(tonumber(v) or default); changed(key) end}
+    for k, v in pairs(extra or {}) do c[k] = v end
+    return c
 end
 
 local function button(key, run, extra)
@@ -144,13 +168,42 @@ local function sharingControls()
     }
 end
 
+-- The gathering places on the map (settings.mapLayers.gather, on until switched off) and which kinds
+-- (settings.gatherTypes[kind] == false hides one): the same values as the setup's map page and Evertally_Map's panel.
+local GATHER_KINDS = {"herb", "ore", "fishing", "container"}
+local function gatherOn()
+    local l = s().mapLayers
+    if type(l) ~= "table" or l.gather == nil then return true end
+    return l.gather == true
+end
+local function gatherControls()
+    local list = {toggle("setupGather", gatherOn, function(v)
+        if A.map and A.map.SetLayer then A.map.SetLayer("gather", v) end
+        if type(s().mapLayers) ~= "table" then s().mapLayers = {} end
+        s().mapLayers.gather = v
+    end, true, {help = A.L("setupGatherSub")})}
+    for _, kind in ipairs(GATHER_KINDS) do
+        list[#list + 1] = toggle("setupKind_" .. kind, function()
+            local t = s().gatherTypes
+            return not (type(t) == "table" and t[kind] == false)
+        end, function(v)
+            if A.map and A.map.SetGatherType then A.map.SetGatherType(kind, v) end
+            if type(s().gatherTypes) ~= "table" then s().gatherTypes = {} end
+            s().gatherTypes[kind] = v
+        end, true, {child = true, disabled = function() return not gatherOn() end})
+    end
+    return list
+end
+
 local function liveControls()
-    return {
+    local list = {
         toggle("liveParty", function() return s().liveParty end, function(v) A.SetLive("party", v) end, false, {help = A.L("liveHint")}),
         toggle("liveGuild", function() return s().liveGuild end, function(v) A.SetLive("guild", v) end, false),
         toggle("liveFriends", function() return s().liveFriends end, function(v) A.SetLive("friends", v) end, false),
         toggle("mapPins", function() return s().mapPins end, function(v) A.SetMapPins(v) end, false),
     }
+    for _, c in ipairs(gatherControls()) do list[#list + 1] = c end
+    return list
 end
 
 local function webControls()
@@ -165,6 +218,10 @@ local function webControls()
     end, false, {child = true, disabled = webOff, help = A.L("pageLiveWebHint")})
     list[#list + 1] = toggle("bridgeAutostart", function() return A.BridgeAutostart and A.BridgeAutostart() end,
         function(v) if A.SetBridgeAutostart then A.SetBridgeAutostart(v) end end, false)
+    local pair = button("setPairRow", function() if A.RequestPairing then A.RequestPairing() end end,
+        {help = A.L("setupPairHelp"), disabled = function() return A.BridgePaired ~= nil and A.BridgePaired() end})
+    pair.button = A.L("setupPairButton")
+    list[#list + 1] = pair
     return list
 end
 
@@ -177,17 +234,52 @@ local function lookControls()
         dropdown("uiFont", {{"guide", "uiFontGuide"}, {"game", "uiFontGame"}, {"inter", "uiFontInter"}},
             function() local f = s().uiFont; return f == "inter" and "inter" or f == "game" and "game" or "guide" end,
             function(v) A.SetUIFont(v) end, "guide"),
+        slider("uiScaleLabel", 0.6, 1.6, 0.05, function(v) return math.floor((tonumber(v) or 1) * 100 + 0.5) .. " %" end,
+            function() return A.GetUIScale and A.GetUIScale() or 1 end, function(v) if A.SetUIScale then A.SetUIScale(v) end end, 1),
+    }
+end
+
+-- Which quest tracker (et-tracker): the same choice (settings.questTracker.choice), applied at once.
+local function trackerControls()
+    local QT = function() return A.QuestTracker end
+    return {
+        dropdown("qtPickTitle", function()
+            local out = {}
+            local list = QT() and QT().Choices and QT().Choices() or {"evertally", "blizzard"}
+            for i, c in ipairs(list) do out[i] = {value = c, text = A.L("qtPick_" .. c), tip = A.L("qtPickSub_" .. c)} end
+            return out
+        end, function() return QT() and QT().Choice and QT().Choice() or nil end,
+        function(v) if A.SetQuestTrackerChoice then A.SetQuestTrackerChoice(v) end end, "evertally", {help = A.L("qtPickBody")}),
     }
 end
 local function tooltipControls()
     return {
         toggle("rankTooltip", function() return s().rankTooltip ~= false end, function(v) s().rankTooltip = v end, true),
         toggle("minimap", function() return not s().hideMinimap end, function(v) A.SetMinimapButton(v) end, true),
-        toggle("bagHighlight", function() return s().bagHighlight ~= false end, function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end, true,
-            {disabled = function() return A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows") end, help = A.L("bagHighlightGuide")}),
-        toggle("bwReplace", function() return A.BagWindow and A.BagWindow.Replaces() end, function(v) if A.BagWindow then A.BagWindow.SetReplace(v) end end, true),
+    }
+end
+
+-- The bags: which ones (et-bags, settings.bagWindow.choice: Evertally's, the game's or a bag add-on's), the loot
+-- window, the tracked items, the gear arrows and the categories (BagWindow.lua, BagCategories.lua, LootWindow.lua).
+local function bagControls()
+    local BW = function() return A.BagWindow end
+    return {
+        dropdown("bwPickLabel", function()
+            local out = {}
+            for i, ch in ipairs(BW() and BW().Choices and BW().Choices() or {}) do out[i] = {value = ch.value, text = ch.name, tip = ch.desc} end
+            return out
+        end, function() return BW() and BW().Choice and BW().Choice() or nil end,
+        function(v)
+            if BW() and BW().SetChoice and BW().SetChoice(v) and BW().ReloadIfNeeded then BW().ReloadIfNeeded() end
+        end,
+        -- Reset page: the bags in use stay (a bag add-on that is loaded, else Evertally's), no add-on is switched
+        function() return BW() and BW().OtherBagAddon and BW().OtherBagAddon() or "evertally" end, {help = A.L("bwPickBody")}),
         toggle("lootWindow", function() return A.LootWindow and A.LootWindow.Enabled() end, function(v) if A.LootWindow then A.LootWindow.SetEnabled(v) end end, false,
             {help = A.L("lootWindowHelp")}),
+        toggle("bwTrackHide", function() return BW() and BW().TrackHides() end, function(v) if BW() and BW().SetTrackHide then BW().SetTrackHide(v) end end, true),
+        toggle("bagHighlight", function() return s().bagHighlight ~= false end, function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end, true,
+            {disabled = function() return A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows") end, help = A.L("bagHighlightGuide")}),
+        button("bwCats", function() if BW() and BW().Categories then BW().Categories.Show() end end),
     }
 end
 local function chatControls()
@@ -282,7 +374,7 @@ end
 -- ---------- registration ----------
 
 local CONTROLS = {sharing = sharingControls, live = liveControls, web = webControls, look = lookControls,
-    tooltips = tooltipControls, chat = chatControls, actions = actionControls}
+    tracker = trackerControls, tooltips = tooltipControls, chat = chatControls, bags = bagControls, actions = actionControls}
 local CUSTOM = {evertallyplates = platesPage, evertallymusic = musicPage, evertallydiagnostics = diagnosticsPage}
 local SUBTITLE = {evertallyactions = "pageActionHint"}
 

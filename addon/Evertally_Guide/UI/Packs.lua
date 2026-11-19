@@ -574,7 +574,7 @@ function P.Build(view)
 			docs:SetPoint("TOPLEFT", view, "TOPLEFT", SH.pad + lw + 8, -y)
 			docs:Show()
 		else
-			docsLabel:SetText(L["Read more: docs/GUIDE_PACKS.md in Evertally's source"])
+			docsLabel:SetText("") -- (Evertally: no pointer to Polestar's docs)
 			docsLabel:SetWidth(width)
 			docs:Hide()
 		end
