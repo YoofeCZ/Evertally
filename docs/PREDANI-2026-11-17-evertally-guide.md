@@ -202,3 +202,9 @@ Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů proch�
 - **Batoh Evertally** (`addon/Evertally/BagWindow.lua`, test `tests/lua/test_bag_window.py`, náhled `BAGS=<view> QUESTS=1 python tools/ui_preview/guide_preview.py …`): živé sloty jsou `ContainerFrameItemButtonTemplate` pod rámem s ID tašky; herní klávesy přes `hooksecurefunc` (žádný globál Blizzardu). S jiným addonem na tašky (Baganator) klávesu nepřebírá. Banka a alti jen z `A.db.bagCache`. **Ve hře neověřeno.**
 - Předpona chatu průvodce `Evertally:` (`Core/Init.lua` PREFIX, `_more` v importéru).
 - Otevřené: „Stezka kopců“ nenalezena (čeká na screenshot); hlášky průvodce napůl anglicky („Spirit Healer stojí 6m resurrection sickness“).
+
+## Vydání 0.11.7 (2026-11-19)
+- **Pi:** zip sha256 `530d8f2d…5427`, ověřeno stažením (200, `application/zip`, TOC 0.11.7). Záloha 0.11.6 v `~/evertally/backups/addon-0.11.6-2026-11-19/`. Commit `91fb62d`.
+- **CurseForge:** nahráno „Evertally 0.11.7“ (stav Processing při nahrání), changelog anglicky od 0.11.1. Předtím tam byla 0.11.1.
+- **Proč chyběla trasa v kronikách** (Maegalin, Volx, Sweden): 0.11.1 z CurseForge měla `own_track=false` ve výchozím stavu, server nepřijal žádné `track.path`. Souhlasy na serveru byly v pořádku. Web teď u kroniky bez trasy říká, že hráč má starou verzi (`noRoute`, Chronicle.tsx).
+- 0.11.6 měla pád okna batohu (`Theme.lua:148`, barvení FontStringu jako textury) — opraveno v 0.11.7.
