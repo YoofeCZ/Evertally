@@ -152,6 +152,58 @@ class BagWindowTests(unittest.TestCase):
         self.assertFalse(self.bw.EquipBest())
         self.assertTrue(self.bw.equipAfterFight)
 
+    def test_the_setup_choice_turns_the_other_bag_addon_off_or_on(self):
+        self.lua.execute(r"""
+          ENABLED = {Baganator = true}
+          C_AddOns = {
+            GetAddOnInfo = function(n) if n == "Baganator" then return n, "Baganator", "", true, nil end; return nil, nil, nil, false, "MISSING" end,
+            IsAddOnLoaded = function(n) return n == "Baganator" and LOADED end,
+            GetAddOnEnableState = function(n) return ENABLED[n] and 2 or 0 end,
+            DisableAddOn = function(n) ENABLED[n] = false end, EnableAddOn = function(n) ENABLED[n] = true end}
+          LOADED = true
+          PRINTED = {}; Evertally.Print = function(m) PRINTED[#PRINTED + 1] = m end
+        """)
+        g = self.lua.globals()
+        values = [str(c.value) for c in self.bw.Choices().values()]
+        self.assertEqual(values, ["evertally", "game", "Baganator"])
+        self.assertIsNone(self.bw.Choice())
+        self.assertTrue(self.bw.SetChoice("evertally"))
+        self.assertTrue(self.bw.Replaces())
+        self.assertFalse(g.ENABLED.Baganator)
+        self.assertIn("/reload", str(g.PRINTED[1]))
+        self.assertTrue(self.bw.SetChoice("Baganator"))
+        self.assertFalse(self.bw.Replaces())
+        self.assertTrue(g.ENABLED.Baganator)
+        self.assertFalse(self.bw.SetChoice("Bagnon"))   # not on disk
+
+    def test_the_banker_opens_the_bank_window_and_the_game_bank_steps_aside(self):
+        self.lua.execute(r"""
+          BankFrame = CreateFrame("Frame"); BankFrame:Show()
+          rawset(BankFrame, "SetAlpha", function(self, a) self.alpha = a end)
+          rawset(BankFrame, "SetScale", function(self, v) self.scale = v end)
+          rawset(BankFrame, "GetScale", function(self) return self.scale or 1 end)
+          CLOSED = 0; CloseBankFrame = function() CLOSED = CLOSED + 1 end
+          SIZES[-1] = 4
+          ITEMS[#ITEMS + 1] = {-1, 1, 2592, "Wool Cloth", 1, 7, "", 20}; REINDEX()
+        """)
+        g = self.lua.globals()
+        self.lua.eval("Evertally.Dispatch")("BANKFRAME_OPENED")
+        self.assertTrue(self.bw.bank.Shown())
+        self.assertTrue(self.bw.Shown())                  # the bags come along
+        self.assertEqual(g.BankFrame.alpha, 0)            # the game's bank stays open, out of sight
+        self.assertEqual(len(self.a.db.bagCache["Fixture Hero-Fixture Realm"].bank), 1)
+        f = self.bw.bank.frame
+        self.bw.bank.Hide(); f.scripts.OnHide(f)          # closing ours leaves the banker (the mock fires no OnHide)
+        self.assertEqual(g.CLOSED, 1)
+        self.lua.eval("Evertally.Dispatch")("BANKFRAME_CLOSED")
+        self.assertEqual(g.BankFrame.alpha, 1)
+        self.assertEqual(g.CLOSED, 1)                     # the banker closing itself is not closed again
+
+    def test_text_is_coloured_as_text(self):
+        # the game's font strings have no SetTexture: the window colours them with SetTextColor (23:40 error in the game)
+        src = (Path(__file__).resolve().parents[2] / "addon" / "Evertally" / "BagWindow.lua").read_text(encoding="utf8")
+        self.assertIn('if t.SetTextColor and not t.SetTexture then t:SetTextColor', src)
+
     def test_snapshot_keeps_the_bags_for_the_alts_view(self):
         self.bw.Snapshot(False)
         cache = self.a.db.bagCache

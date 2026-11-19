@@ -309,7 +309,21 @@ page({key = "et-tracker", after = "et-window", title = "qtPickTitle", sub = "qtP
         return K.layGroup(p.pick, 0, true)
     end})
 
-page({key = "et-plates", after = "et-tracker", title = "setupPlatesTitle", sub = "setupPlatesBody",
+-- which bags: Evertally's, the game's or an installed bag add-on's (BagWindow.lua)
+page({key = "et-bags", after = "et-tracker", title = "bwPickTitle", sub = "bwPickBody",
+    blocked = function() local BW = A.BagWindow; return BW ~= nil and BW.Choice ~= nil and BW.Choice() == nil end,
+    build = function(p)
+        p.pick = K.optionGroup(p, {title = A.L("bwPickTitle"),
+            get = function() local BW = A.BagWindow; return BW and BW.Choice and BW.Choice() or nil end,
+            set = function(v) if A.BagWindow then A.BagWindow.SetChoice(v) end; K.refresh() end,
+            choices = function() local BW = A.BagWindow; return BW and BW.Choices and BW.Choices() or {} end})
+    end,
+    layout = function(p)
+        p.pick.Title:SetText(A.L("bwPickTitle"))
+        return K.layGroup(p.pick, 0, true)
+    end})
+
+page({key = "et-plates", after = "et-bags", title = "setupPlatesTitle", sub = "setupPlatesBody",
     build = function(p)
         p.holder = CreateFrame("Frame", nil, p); p.holder:SetSize(K.CW, 430)
         p.plates = A.BuildFriendlyPlateControls(p.holder, {chooseFirst = true,
@@ -381,7 +395,7 @@ page({key = "et-summary", after = "look", title = "setupHostSumTitle", sub = "se
 --- The keys of the window's pages for Onboarding.lua's steps.
 P.KEYS = {welcome = "welcome", install = "et-install", pair = "et-pair", website = "et-live", public = "et-live", live = "et-live",   -- (website, public: passed over since 2026-11-18)
    
-    sharing = "et-sharing", map = "et-map", window = "et-window", tracker = "et-tracker", nameplates = "et-plates", music = "et-music", summary = "et-summary"}
+    sharing = "et-sharing", map = "et-map", window = "et-window", tracker = "et-tracker", bags = "et-bags", nameplates = "et-plates", music = "et-music", summary = "et-summary"}
 P.pages = pages
 
 --- Hands the pages to the guide's Install window. -> true when it took them (the setup is then that window)
