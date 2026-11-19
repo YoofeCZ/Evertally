@@ -484,6 +484,9 @@ local function buildLook(f)
 	f.ring2 = f:CreateTexture(nil, "OVERLAY")
 	f.ring2:SetTexture(MAP_MEDIA .. "ring-dashed")
 	f.ring2:SetPoint("CENTER")
+	-- (Evertally, 2026-11-19: hidden from the start. A texture shows by default at its file's size, 64 px; only a map
+	-- mark set it, so a pin with a texture path icon (the game's tracking icons) kept a dashed ring round it.)
+	f.ring2:Hide()
 	-- The badge: a capsule in three slices (8 + 16 + 8 px of a 32 by 16
 	-- texture), so its width follows the text, over a black rim 1.5 px wider;
 	-- regions of the pin itself, as a minimap pin may hold no frame of its own.
@@ -630,6 +633,7 @@ local function showParts(f, p, clamped)
 		return
 	end
 	local icon = f.hasIcon
+	f.ring2:Hide() -- (Evertally: no dashed ring on a plain or icon pin)
 	f.fill:SetShown(not clamped and not icon)
 	f.ring:SetShown(not clamped and not icon)
 	f.icon:SetShown(not clamped and icon)

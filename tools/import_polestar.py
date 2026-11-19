@@ -605,6 +605,11 @@ _more('Nav/Pins.lua', ('\t\tf.ring2:SetShown(not clamped and type(p.ring2) == "t
        '\t\t-- (Evertally, 2026-11-19: the dashed ring on the world map only; the user: "vypni ty prstence")\n\t\tf.ring2:SetShown(not clamped and type(p.ring2) == "table" and not f.psMinimap)\n', 1),
       ('\t\tf = ns.CreateFrameUnder("Frame", nil, Minimap)\n\t\tbuildLook(f)\n',
        '\t\tf = ns.CreateFrameUnder("Frame", nil, Minimap)\n\t\tbuildLook(f)\n\t\tf.psMinimap = true -- (Evertally: no dashed ring here)\n', 1))
+# ---- 2026-11-19: the dashed ring hidden from the start (it showed round every icon pin, at 64 px)
+_more('Nav/Pins.lua', ('\tf.ring2:SetTexture(MAP_MEDIA .. "ring-dashed")\n\tf.ring2:SetPoint("CENTER")\n',
+       '\tf.ring2:SetTexture(MAP_MEDIA .. "ring-dashed")\n\tf.ring2:SetPoint("CENTER")\n\t-- (Evertally, 2026-11-19: hidden from the start. A texture shows by default at its file\'s size, 64 px; only a map\n\t-- mark set it, so a pin with a texture path icon (the game\'s tracking icons) kept a dashed ring round it.)\n\tf.ring2:Hide()\n', 1),
+      ('\tlocal icon = f.hasIcon\n\tf.fill:SetShown(not clamped and not icon)\n',
+       '\tlocal icon = f.hasIcon\n\tf.ring2:Hide() -- (Evertally: no dashed ring on a plain or icon pin)\n\tf.fill:SetShown(not clamped and not icon)\n', 1))
 # ---- 2026-11-18: the guide's chat lines say Evertally, not Polestar (the user: "do chatu furt píše polestar")
 _more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
       'local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)', 1))
