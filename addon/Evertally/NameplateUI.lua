@@ -88,6 +88,11 @@ function A.BuildFriendlyPlateControls(parent,options)
         end
         if not row.bg then A.NativePanel(row,k.C) end
         row:SetHeight(44);group.rows[#group.rows+1]=row;editor.controls[option.key]=row
+        -- the font's own choices count only in the Custom style ("Like the game" copies the game's name)
+        if option.key=="plateFont" or option.key=="plateFontSize" or option.key=="plateOutline" or option.key=="plateShadow" then
+            local base=row.Update
+            row.Update=function() base();row:SetAlpha(A.FriendlyPlateChoices().plateStyle=="custom" and 1 or 0.45) end
+        end
     end
     function editor.Layout()
         local width=editor:GetWidth() or 0

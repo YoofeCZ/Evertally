@@ -8,6 +8,9 @@ local function settings() return A.db and A.db.settings or {} end
 -- One schema for Settings and the setup draft. Optional elements stay off by default.
 A.FriendlyPlateOptions = {
     {key="plateName", default=true, group="names"},
+    -- (2026-11-19, the user: as close to Blizzard's names as can be) "blizzard": the font, size, outline and shadow of
+    -- the game's own name on that plate; "custom": the choices below
+    {key="plateStyle", default="blizzard", values={"blizzard","custom"}, group="names"},
     {key="plateFont", default="game", values={"game","friz","arial","morpheus","skurri"}, group="names"},
     {key="plateFontSize", default=15, min=10, max=32, step=1, group="names"},
     {key="plateScale", default=100, min=60, max=160, step=10, group="names"},
@@ -100,7 +103,39 @@ local function restore(state)
     state.frame:Hide()
 end
 local FONT_FILES={friz="Fonts\\FRIZQT__.TTF",arial="Fonts\\ARIALN.TTF",morpheus="Fonts\\MORPHEUS.TTF",skurri="Fonts\\SKURRI.TTF"}
-local function font(text, size, name)
+-- The game's own name on a plate as it draws it: {path, size, flags, shadow x, y, colour}. Without a plate (the
+-- preview) the client's nameplate font object, else Friz Quadrata at 10 with a one-pixel shadow.
+local function gameNameFont(native)
+    local source=native and allowed(native) and native or nil
+    if not source then
+        for _,name in ipairs({"SystemFont_NamePlate","SystemFont_NamePlateFixed","SystemFont_LargeNamePlate"}) do
+            local obj=rawget(_G,name)
+            if type(obj)=="table" and obj.GetFont then source=obj;break end
+        end
+    end
+    local path,size,flags
+    if source then path,size,flags=A.Call(source.GetFont,source) end
+    path=A.Text(path,200) or FONT_FILES.friz
+    size=A.Number(size,6,40) or 10
+    local sx,sy,sr,sg,sb,sa=1,-1,0,0,0,1
+    if source and source.GetShadowOffset then
+        local x,y=A.Call(source.GetShadowOffset,source)
+        sx,sy=A.Number(x,-10,10) or sx,A.Number(y,-10,10) or sy
+    end
+    if source and source.GetShadowColor then
+        local r,g,b,a=A.Call(source.GetShadowColor,source)
+        sr,sg,sb,sa=A.Number(r,0,1) or 0,A.Number(g,0,1) or 0,A.Number(b,0,1) or 0,A.Number(a,0,1) or 1
+    end
+    return {path=path,size=size,flags=type(flags)=="string" and flags or "",sx=sx,sy=sy,shadow={sr,sg,sb,sa}}
+end
+A.GameNameFont=gameNameFont
+local function font(text, size, name, game)
+    if game then
+        local ok,result=pcall(text.SetFont,text,game.path,game.size,game.flags)
+        if not ok or result==false then text:SetFont(FONT_FILES.friz,game.size,game.flags) end
+        text:SetShadowColor(game.shadow[1],game.shadow[2],game.shadow[3],game.shadow[4]);text:SetShadowOffset(game.sx,game.sy)
+        return
+    end
     local file = A.Call(GameFontNormal and GameFontNormal.GetFont, GameFontNormal)
     local s=settings()
     local flags=name and ({outline="OUTLINE",thick="THICKOUTLINE"})[s.plateOutline] or ""
@@ -217,14 +252,15 @@ local function timer(state,now)
 end
 local function layout(state,name,native)
     local s,f=settings(),state.frame
-    local px=number("plateFontSize",15,10,32)
+    local game=s.plateStyle~="custom" and gameNameFont(native) or nil
+    local px=game and game.size or number("plateFontSize",15,10,32)
     local width=number("plateWidth",140,80,300)
     local mark=s.plateMarks~=false and (state.preview and 8 or A.GetMark(name))
     local logo=s.markUsers~=false and (state.preview or A.IsEvertallyUser(name,state.realm))
     local iconPx=number("markSize",12,10,32);local logoPx=number("plateLogoSize",12,10,32)
-    local signature=table.concat({name,px,width,number("plateScale",100,60,160),iconPx,logoPx,tostring(mark),tostring(logo),tostring(s.plateName~=false),tostring(s.plateFont),tostring(s.plateOutline),tostring(s.plateShadow),number("plateMarkX",0,-100,100),number("plateMarkY",0,-100,100),number("plateLogoX",0,-100,100),number("plateLogoY",0,-100,100)},"|")
+    local signature=table.concat({name,px,width,number("plateScale",100,60,160),iconPx,logoPx,tostring(mark),tostring(logo),tostring(s.plateName~=false),tostring(s.plateFont),game and (game.path..game.size..game.flags) or "custom",tostring(s.plateOutline),tostring(s.plateShadow),number("plateMarkX",0,-100,100),number("plateMarkY",0,-100,100),number("plateLogoX",0,-100,100),number("plateLogoY",0,-100,100)},"|")
     if signature~=state.key then
-        font(f.name,px,true);f.name:SetText(s.plateName~=false and name or "")
+        font(f.name,px,true,game);f.name:SetText(s.plateName~=false and name or "")
         f.name:SetWidth(math.max(1,(A.Call(f.name.GetStringWidth,f.name) or 0)+16));f.name:SetHeight(px+4)
         local r,g,b=A.Call(native.GetTextColor,native)
         f.name:SetTextColor(A.Number(r,0,1) or 0.4,A.Number(g,0,1) or 1,A.Number(b,0,1) or 0.4)
@@ -374,6 +410,7 @@ local labels={
     plateTab_auras={"Buffs / debuffs", "Buffy / debuffy"},
     plateTab_bars={"Bars", "Lišty"},
     plateTab_icons={"Icons", "Ikony"},plateTab_position={"Position", "Pozice"},
+    plateStyle={"Name style", "Styl jména"},plateValue_blizzard={"Like the game", "Jako hra"},plateValue_custom={"Custom (font, size, outline below)", "Vlastní (písmo, velikost a obrys níže)"},
     plateFont={"Font", "Písmo"},plateOutline={"Outline", "Obrys"},plateShadow={"Text shadow", "Stín textu"},
     plateValue_game={"Game font", "Herní font"},plateValue_friz={"Friz Quadrata", "Friz Quadrata"},plateValue_arial={"Arial Narrow", "Arial Narrow"},
     plateValue_morpheus={"Morpheus", "Morpheus"},plateValue_skurri={"Skurri", "Skurri"},plateValue_none={"None", "Žádný"},plateValue_outline={"Thin", "Tenký"},plateValue_thick={"Thick", "Silný"},

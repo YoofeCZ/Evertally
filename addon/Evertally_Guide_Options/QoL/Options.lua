@@ -340,6 +340,11 @@ register(QOL, L["Vendors"], L["Trainers"], {
 	{ kind = "toggle", key = "qol.oldRanks", label = L["Old ranks on your bars"],
 		help = L["After training and at login, says which spells on your action bars are a lower rank than the one in your spellbook, with a button that puts the highest rank in the same buttons (out of combat). Macros and items are never touched. Right-click a spell on the card to keep it at its rank; a lower rank you put on a bar yourself is kept too."],
 		search = "rank, old rank, downrank, action bar, upgrade spells, highest rank, buttons" },
+	-- Evertally: the new rank onto the bars by itself
+	{ kind = "toggle", key = "qol.autoRanks", label = L["Put new ranks on your bars"],
+		help = L["When you learn a higher rank, it replaces the lower one in the same action buttons by itself (out of combat). Macros, items and the ranks you keep are left alone."],
+		disabled = function() return not QoL.On("oldRanks") end,
+		search = "auto rank, spell ranks, new rank, action bar, upgrade, automatic" },
 	{ kind = "button", icon = "reset", button = L["Forget"], label = L["Forget kept ranks"],
 		help = L["Lists the spells you kept at a lower rank again."], search = "rank, downrank, keep rank, action bar",
 		needs = function() return QoL.Spells ~= nil end,

@@ -57,7 +57,8 @@ local sort, concat = table.sort, table.concat
 local Spells = {}
 QoL.Spells = Spells
 
-ns.RegisterDefaults("qol", { levelUpSpells = true, oldRanks = true })
+-- (Evertally: autoRanks, on by default: a new rank goes onto the bars by itself, the card only for what it could not do)
+ns.RegisterDefaults("qol", { levelUpSpells = true, oldRanks = true, autoRanks = true })
 
 Spells.SLOTS = 180       -- action slots read
 Spells.SETTLE = 1        -- seconds after the last spellbook change
@@ -346,6 +347,7 @@ local function key(list)
 end
 
 -- Tell the old ranks (OLD_RANKS) when there are any not told yet. -> told
+local autoTried = {} -- (Evertally) lists of old ranks already put right by themselves this session
 function Spells.CheckRanks(force)
 	if not QoL.On("oldRanks") then return false end
 	local C = ns.Compat
@@ -359,6 +361,13 @@ function Spells.CheckRanks(force)
 	local k = key(list)
 	if k == told and not force then return false end
 	told = k
+	-- Evertally: qol.autoRanks (on by default) puts the highest rank into the same buttons at once, once per list in a
+	-- session (a slot that would not take it is not tried again and again). The card stays for what is left: something
+	-- on the cursor, a slot that did not change.
+	if QoL.On("autoRanks") and not autoTried[k] and not (GetCursorInfo and GetCursorInfo()) and Spells.Upgrade then
+		autoTried[k] = true
+		if Spells.Upgrade() ~= nil then return true end
+	end
 	ns.Fire("OLD_RANKS", { spells = list, slots = n })
 	return true
 end

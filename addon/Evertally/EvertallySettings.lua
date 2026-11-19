@@ -186,6 +186,8 @@ local function tooltipControls()
         toggle("bagHighlight", function() return s().bagHighlight ~= false end, function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end, true,
             {disabled = function() return A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows") end, help = A.L("bagHighlightGuide")}),
         toggle("bwReplace", function() return A.BagWindow and A.BagWindow.Replaces() end, function(v) if A.BagWindow then A.BagWindow.SetReplace(v) end end, true),
+        toggle("lootWindow", function() return A.LootWindow and A.LootWindow.Enabled() end, function(v) if A.LootWindow then A.LootWindow.SetEnabled(v) end end, false,
+            {help = A.L("lootWindowHelp")}),
     }
 end
 local function chatControls()
@@ -203,6 +205,7 @@ local function actionControls()
         button("export", function() if A.ShowExportCopy then A.ShowExportCopy() end end),
         button("confirm", function() A.FinishRun("manual", "last_boss") end, {confirm = true}),
         button("setupRun", function() if A.OpenOnboarding then A.OpenOnboarding() end end),
+        button("drawerEdit", function() if A.Drawers then A.Drawers.Show() end end),
     }
 end
 

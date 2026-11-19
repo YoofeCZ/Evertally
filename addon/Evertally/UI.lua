@@ -2022,6 +2022,7 @@ local function slash(text)
     elseif text == "gear" then if not (A.guideShell and A.RunGuide and A.RunGuide("gear")) then A.ShowView("gear") end
     elseif text == "music" then if A.Music then A.Music.SetEnabled(not A.Music.Enabled()) end
     elseif text == "bags" then if A.BagHighlight then A.BagHighlight.Diagnose() end
+    elseif text == "drawer" or text == "drawers" or text == "suplik" or text == "šuplík" then if A.Drawers then A.Drawers.Toggle() end
     elseif text == "bag" or text == "batoh" then if A.ToggleBagWindow then A.ToggleBagWindow() end
     elseif text == "train" or text == "training" then A.ShowView("training")
     elseif text == "guide" or text == "questguide" then if not (A.guideShell and A.RunGuide and A.RunGuide("guides")) then A.ShowView("questguide") end

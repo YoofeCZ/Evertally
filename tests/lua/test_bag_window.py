@@ -84,6 +84,68 @@ class BagWindowTests(unittest.TestCase):
         self.assertFalse(m(it["Wolfskin Bracers"], "#gear knife"))
         self.assertTrue(m(it["Hearthstone"], ""))
 
+    def test_own_categories_take_items_by_search_and_by_hand_in_their_order(self):
+        bw = self.bw
+        key = bw.AddSection("Cloth", "cloth")
+        it = self.items()
+        self.assertEqual(it["Linen Cloth"].section, key, "its search takes it before the built-in rule")
+        self.assertEqual(str(bw.SectionName(key)), "Cloth")
+        keys = [k if isinstance(k, str) else str(k.key) for k in bw.Sections().values()]
+        self.assertEqual(keys[0], key, "a new category comes first")
+        self.assertEqual(keys[1:], ["new", "quest", "consumable", "profession", "gear", "sell", "junk", "other"])
+        # dragged onto a heading: the hearthstone goes into Consumables from now on
+        self.assertTrue(bw.PutItem(6948, "consumable"))
+        self.assertEqual(self.items()["Hearthstone"].section, "consumable")
+        self.assertFalse(bw.PutItem(6948, "new"), "nothing is put into New by hand")
+        # the order: Other first, then back to the default (own categories stay, first)
+        for _ in range(8): bw.MoveSection("other", -1)
+        keys = [k if isinstance(k, str) else str(k.key) for k in bw.Sections().values()]
+        self.assertEqual(keys[0], "other")
+        bw.ResetSections()
+        keys = [k if isinstance(k, str) else str(k.key) for k in bw.Sections().values()]
+        self.assertEqual(keys, [key, "new", "quest", "consumable", "profession", "gear", "sell", "junk", "other"])
+        # deleted: the cloth goes back to Professions; a built-in section cannot be deleted
+        self.assertFalse(bw.RemoveSection("junk"))
+        self.assertTrue(bw.RemoveSection(key))
+        self.assertEqual(self.items()["Linen Cloth"].section, "profession")
+        # a broken saved list keeps every built-in section
+        self.a.db.settings.bagWindow.sections = self.lua.eval('{"other", "nonsense", {key = "c9"}, "other"}')
+        keys = [k if isinstance(k, str) else str(k.key) for k in bw.Sections().values()]
+        self.assertEqual(keys[:2], ["other", "c9"])
+        self.assertEqual(sorted(keys[2:]), sorted(["new", "quest", "consumable", "profession", "gear", "sell", "junk"]))
+
+    def test_tokens_count_beside_the_gold_and_a_dragged_item_too(self):
+        bw = self.bw
+        self.lua.execute('ITEMS[#ITEMS + 1] = {1, 3, 19182, "Darkmoon Faire Prize Ticket", 1, 15, "", 7}; REINDEX()')
+        def row():
+            return [(int(e.id), int(e.count), bool(e.pinned)) for e in bw.Tracked(bw.LiveItems(self.lua.eval("{0, 1}"))).values()]
+        self.assertEqual(row(), [(19182, 7, False)], "a ticket counts by itself")
+        self.assertTrue(bw.Track(2589)); self.assertFalse(bw.Track(2589), "once")
+        self.assertTrue(bw.Track(4306))   # silk: none in the bags
+        self.assertEqual(row(), [(19182, 7, False), (2589, 13, True)], "what you have none of is left out")
+        self.a.db.settings.bagWindow.trackHide = False
+        self.assertEqual(row(), [(19182, 7, False), (2589, 13, True), (4306, 0, True)])
+        self.assertTrue(bw.Untrack(2589))
+        self.assertEqual([r[0] for r in row()], [19182, 4306])
+        # the window shows the row
+        bw.Show("bags")
+        shown = self.lua.eval("(function() local n = 0; for _, c in ipairs(EvertallyBagWindow and EvertallyBagWindow.track and EvertallyBagWindow.track.chips or {}) do if c:IsShown() then n = n + 1 end end; return n end)()")
+        self.assertEqual(shown, 2, "the ticket and the silk (none of it, shown: trackHide off)")
+
+    def test_the_categories_panel_lists_every_section_and_adds_one(self):
+        self.bw.Show("bags")
+        cats = self.bw.Categories
+        cats.Show(None)
+        self.assertTrue(cats.Shown())
+        n = len(self.bw.Sections())
+        self.bw.AddSection()
+        cats.Refresh()
+        self.assertEqual(len(self.bw.Sections()), n + 1)
+        shown = self.lua.eval("(function() local n = 0; for _, r in ipairs(EvertallyBagCategories.rows) do if r:IsShown() then n = n + 1 end end; return n end)()")
+        self.assertEqual(shown, n + 1, "a row per section")
+        cats.Toggle(None)
+        self.assertFalse(cats.Shown())
+
     def test_more_of_an_item_than_when_last_closed_is_new(self):
         self.bw.MarkSeen()
         self.assertFalse(any(i.new for i in self.items().values()))

@@ -82,12 +82,13 @@ class FriendlyPlateTests(unittest.TestCase):
         return self.lua.eval('(function() for _,f in ipairs(FRAMES) do if f.parent==PLATE then return f end end end)()')
 
     def test_plain_name_defaults_use_owned_frame_without_changing_native_font(self):
+        # (2026-11-19) by default the name is drawn as the game's own: its font, size and outline
         f = self.render()
         self.assertTrue(f.shown)
         self.assertEqual(f.name.text, "Friend")
-        self.assertEqual(f.name.font[1], "GameFont")
-        self.assertEqual(f.name.font[2], 15)
-        self.assertEqual(f.name.font[3], "")
+        self.assertEqual(f.name.font[1], "NativeFont")
+        self.assertEqual(f.name.font[2], 12)
+        self.assertEqual(f.name.font[3], "OUTLINE")
         self.assertEqual(self.lua.globals().NAME.alpha, 0)
         self.assertEqual(self.lua.globals().NAME.font[1], "NativeFont")
         self.assertFalse(f.health.shown)
@@ -130,6 +131,7 @@ class FriendlyPlateTests(unittest.TestCase):
         s = self.a.db.settings
         self.a.SetMark("Friend", "f135940")
         self.a.NoteEvertallyUser("Friend")
+        s.plateStyle = "custom"
         s.plateFontSize, s.markSize, s.plateLogoSize, s.plateScale = 23, 18, 21, 130
         f = self.render()
         self.assertEqual((f.name.font[2], f.mark.width, f.logo.width, f.scale), (23, 18, 21, 1.3))
@@ -173,7 +175,7 @@ class FriendlyPlateTests(unittest.TestCase):
         self.a.SetMark("Friend", 8)
         self.a.NoteEvertallyUser("Friend")
         f = self.render()
-        s.plateFont, s.plateOutline, s.plateShadow = "arial", "outline", False
+        s.plateStyle, s.plateFont, s.plateOutline, s.plateShadow = "custom", "arial", "outline", False
         s.plateOffsetY, s.plateMarkY, s.plateLogoX = 22, -9, 12
         self.a.FriendlyPlatesChanged()
         self.assertEqual(f.name.font[1], "Fonts\\ARIALN.TTF")
@@ -185,7 +187,7 @@ class FriendlyPlateTests(unittest.TestCase):
     def test_preview_reuses_world_layout_and_never_mutes_any_native_name(self):
         self.lua.execute('PARENT=region()')
         state = self.a.CreateFriendlyPlatePreview(self.lua.globals().PARENT)
-        self.a.db.settings.plateFont = "morpheus"
+        self.a.db.settings.plateStyle, self.a.db.settings.plateFont = "custom", "morpheus"
         self.a.db.settings.plateBuffs = True
         state.Update()
         self.assertEqual(state.frame.name.font[1], "Fonts\\MORPHEUS.TTF")

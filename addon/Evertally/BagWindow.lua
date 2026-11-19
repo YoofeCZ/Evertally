@@ -22,7 +22,8 @@ local COL_W = SECTION_SLOTS * SLOT + (SECTION_SLOTS - 1) * GAP
 local CONTENT_W = SECTION_COLS * COL_W + (SECTION_COLS - 1) * COL_GAP
 local WIDTH = CONTENT_W + PAD * 2
 local GRID_COLS = math.floor((CONTENT_W + GAP) / (SLOT + GAP))
-local HEAD_H, TOOL_Y, TOOL_H, CHIP_Y, CHIP_H, BODY_Y, FOOT_H = 46, 54, 30, 92, 22, 124, 46
+local HEAD_H, TOOL_Y, TOOL_H, CHIP_Y, CHIP_H, BODY_Y, FOOT_H = 46, 54, 30, 92, 22, 124, 76
+local TRACK_H, TRACK_MAX = 22, 14
 local SECTION_HEAD, ROW_H = 22, 28
 local MIN_H, MAX_H = 380, 700
 local VIEWS = {"exact", "sections", "packed", "list"}
@@ -49,7 +50,13 @@ local text = {
         bwPick_game = "The game's bags", bwPickSub_game = "The bags as the game draws them.",
         bwPickSub_other = "The bags of the %s add-on.", bwPickReload = "%s: the change takes effect after /reload.", bwEquip = "Equip best", bwEquipN = "Equip best (%d)",
         bwEquipTip = "Puts on what is better than what you wear, one piece at a time:", bwEquipNone = "Nothing in the bags beats what you wear.",
-        bwEquipCombat = "The gear goes on when the fight is over.", bwEquipDone = "Put on: %s", bwEquipBind = "Items that bind when worn ask first.", bwAnotherAddon = "%s is loaded: the bag keys open its bags. Evertally's bags: /etally bag, or Bag settings."},
+        bwEquipCombat = "The gear goes on when the fight is over.", bwEquipDone = "Put on: %s", bwEquipBind = "Items that bind when worn ask first.", bwAnotherAddon = "%s is loaded: the bag keys open its bags. Evertally's bags: /etally bag, or Bag settings.",
+        bwCats = "Edit categories", bwCatsTitle = "Categories", bwCatsHint = "Top to bottom is the order in the bags. A category of your own takes what you drag onto its heading and what matches its search (words of the name, #tags: #consumable #profession #quest #gear #junk).",
+        bwCatNew = "New category", bwCatName = "Name", bwCatQuery = "Search, e.g. potion #consumable", bwCatDefault = "My category %d",
+        bwCatUp = "Move up", bwCatDown = "Move down", bwCatDelete = "Delete the category", bwCatReset = "Default order",
+        bwCatDrop = "Drop an item here: it goes into %s.", bwCatMoved = "%s now goes into %s.", bwCatBuiltin = "built in",
+        bwTrackHint = "Drag an item here to count it beside your gold", bwTrackOff = "Right-click: stop counting it", bwTrackAuto = "Counted by itself (tokens, tickets, marks).",
+        bwTrackHide = "Tracked items: hide the ones you have none of", bwTrackAdded = "%s is counted beside your gold."},
     cs = {bwTitle = "Batoh", bwBags = "Batoh", bwBank = "Banka", bwSearch = "Hledat, zkus #sell", bwView_exact = "Přesné sloty",
         bwView_sections = "Sekce", bwView_packed = "Mřížka", bwView_list = "Seznam",
         bwSec_new = "Nové", bwSec_quest = "Questy", bwSec_consumable = "Spotřební", bwSec_profession = "Profese",
@@ -68,7 +75,13 @@ local text = {
         bwPick_game = "Herní batoh", bwPickSub_game = "Tašky tak, jak je kreslí hra.",
         bwPickSub_other = "Tašky z addonu %s.", bwPickReload = "%s: změna se projeví po /reload.", bwEquip = "Nasadit nejlepší", bwEquipN = "Nasadit nejlepší (%d)",
         bwEquipTip = "Nasadí, co je lepší než to, co máš na sobě, po jednom kusu:", bwEquipNone = "V batohu není nic lepšího, než co máš na sobě.",
-        bwEquipCombat = "Výbava se nasadí, až skončí souboj.", bwEquipDone = "Nasazeno: %s", bwEquipBind = "Předměty, které se nasazením naváží, se nejdřív zeptají.", bwAnotherAddon = "Je zapnutý %s: klávesy batohu otevírají jeho tašky. Batoh Evertally: /etally bag, nebo Nastavení batohu."},
+        bwEquipCombat = "Výbava se nasadí, až skončí souboj.", bwEquipDone = "Nasazeno: %s", bwEquipBind = "Předměty, které se nasazením naváží, se nejdřív zeptají.", bwAnotherAddon = "Je zapnutý %s: klávesy batohu otevírají jeho tašky. Batoh Evertally: /etally bag, nebo Nastavení batohu.",
+        bwCats = "Upravit kategorie", bwCatsTitle = "Kategorie", bwCatsHint = "Pořadí shora dolů je pořadí v batohu. Do vlastní kategorie patří, co přetáhneš na její nadpis, a co odpovídá jejímu hledání (slova z názvu, #tagy: #consumable #profession #quest #gear #junk).",
+        bwCatNew = "Nová kategorie", bwCatName = "Název", bwCatQuery = "Hledání, např. lektvar #consumable", bwCatDefault = "Moje kategorie %d",
+        bwCatUp = "Posunout výš", bwCatDown = "Posunout níž", bwCatDelete = "Smazat kategorii", bwCatReset = "Výchozí pořadí",
+        bwCatDrop = "Pusť sem předmět: bude v kategorii %s.", bwCatMoved = "%s teď patří do %s.", bwCatBuiltin = "vestavěná",
+        bwTrackHint = "Přetáhni sem předmět a bude se počítat vedle peněz", bwTrackOff = "Pravý klik: přestat sledovat", bwTrackAuto = "Sleduje se sám (žetony, lístky, známky).",
+        bwTrackHide = "Sledované předměty: skrýt ty, které nemáš", bwTrackAdded = "%s se počítá vedle peněz."},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
@@ -261,6 +274,166 @@ function BW.Snapshot(withBank)
     end
 end
 
+-- ---------------------------------------------------------------- the sections: built in and the player's own
+-- settings.sections: the order the sections are drawn in, the built-in keys and the player's own categories
+-- ({key = "c<n>", name, query, items = {[itemID] = true}}). settings.itemSection[itemID]: the section an item was dragged
+-- onto (its heading). Where an item lands: New first; then where it was put by hand; then the player's categories in
+-- their order (an item put there, or one matching its search, #tags too); then the built-in rule (junk, to sell, quest,
+-- equipment, consumables, professions, other).
+local BUILTIN = {}
+for _, key in ipairs(SECTIONS) do BUILTIN[key] = true end
+local SECTION_ORDER = {}
+local function isProfession(classID) return classID == 7 or classID == 9 or classID == 5 or classID == 3 end
+local function sectionKey(e) return type(e) == "table" and e.key or e end
+--- The sections in their order (the player's list, the built-in ones it lacks added at the end).
+function BW.Sections()
+    local s = settings()
+    local list, have = {}, {}
+    if type(s.sections) == "table" then
+        for _, e in ipairs(s.sections) do
+            local key = sectionKey(e)
+            if type(key) == "string" and not have[key] and (BUILTIN[key] or (type(e) == "table" and key:match("^c%d+$"))) then
+                have[key] = true
+                list[#list + 1] = e
+            end
+        end
+    end
+    for _, key in ipairs(SECTIONS) do if not have[key] then list[#list + 1] = key end end
+    s.sections = list
+    for k in pairs(SECTION_ORDER) do SECTION_ORDER[k] = nil end
+    for i, e in ipairs(list) do SECTION_ORDER[sectionKey(e)] = i end
+    return list
+end
+function BW.Section(key)
+    for i, e in ipairs(BW.Sections()) do if sectionKey(e) == key then return e, i end end
+end
+function BW.SectionName(key)
+    local e = BW.Section(key)
+    if type(e) == "table" then return (type(e.name) == "string" and e.name:match("%S")) and e.name or key end
+    return A.L("bwSec_" .. tostring(key))
+end
+--- A new category of the player's, first in the order. -> its key
+function BW.AddSection(name, query)
+    local s, list = settings(), BW.Sections()
+    local n = 1
+    while BW.Section("c" .. n) do n = n + 1 end
+    local e = {key = "c" .. n, name = name or string.format(A.L("bwCatDefault"), n), query = query or "", items = {}}
+    table.insert(list, 1, e)
+    s.sections = list
+    BW.Sections()
+    return e.key
+end
+function BW.RemoveSection(key)
+    local _, i = BW.Section(key)
+    if not i or BUILTIN[key] then return false end
+    table.remove(settings().sections, i)
+    local by = settings().itemSection
+    if type(by) == "table" then for id, k in pairs(by) do if k == key then by[id] = nil end end end
+    BW.Sections()
+    return true
+end
+--- Moves a section up (-1) or down (+1) in the order.
+function BW.MoveSection(key, delta)
+    local _, i = BW.Section(key)
+    local list = settings().sections   -- (the list BW.Section left: each call builds it anew)
+    local j = i and i + delta
+    if not j or j < 1 or j > #list then return false end
+    list[i], list[j] = list[j], list[i]
+    BW.Sections()
+    return true
+end
+function BW.ResetSections()
+    local s = settings()
+    local mine = {}
+    for _, e in ipairs(BW.Sections()) do if type(e) == "table" then mine[#mine + 1] = e end end
+    for _, key in ipairs(SECTIONS) do mine[#mine + 1] = key end
+    s.sections = mine
+    BW.Sections()
+end
+--- Puts an item into a section by hand (dragged onto its heading); nil takes it back to the rules.
+function BW.PutItem(id, key)
+    id = tonumber(id)
+    if not id then return false end
+    local s = settings()
+    if type(s.itemSection) ~= "table" then s.itemSection = {} end
+    if key ~= nil and (key == "new" or not BW.Section(key)) then return false end
+    s.itemSection[id] = key
+    return true
+end
+--- The section of an item described (its flags set).
+function BW.Assign(it)
+    if it.new then return "new" end
+    local list = BW.Sections()
+    local by = type(settings().itemSection) == "table" and it.id and settings().itemSection[it.id]
+    if by and SECTION_ORDER[by] then return by end
+    for _, e in ipairs(list) do
+        if type(e) == "table" then
+            if (type(e.items) == "table" and it.id and e.items[it.id])
+                or (type(e.query) == "string" and e.query:match("%S") and BW.Matches(it, e.query)) then return e.key end
+        end
+    end
+    if it.junk then return "junk" elseif it.sell then return "sell" elseif it.quest then return "quest"
+    elseif it.gear then return "gear" elseif it.classID == 0 then return "consumable"
+    elseif isProfession(it.classID) then return "profession" end
+    return "other"
+end
+
+-- ---------------------------------------------------------------- the tracked items (beside the gold)
+-- Tokens, tickets, marks and coins are counted beside the gold by themselves while you have them (the ids from the
+-- Forever item data, platform/public/media/db/items); any other item dragged onto the row is counted too
+-- (settings.tracked, in the order added; right-click takes it off). settings.trackHide (on by default): a tracked
+-- item you have none of is left out.
+local TOKENS = {
+    19182,                          -- Darkmoon Faire Prize Ticket
+    20558, 20559, 20560, 274895,    -- Marks of Honor: Warsong Gulch, Arathi Basin, Alterac Valley, Darkspear Islands
+    12844, 22523, 22524,            -- Argent Dawn Valor Token, Insignia of the Dawn, of the Crusade
+    19698, 19699, 19700, 19701, 19702, 19703, 19704, 19705, 19706,   -- the Zandalar coins
+    21100, 21815, 23247,            -- Coin of Ancestry, Love Token, Burning Blossom (holidays)
+    274026, 208823, 220775,         -- Extravagant Extravaganza Coin, Offering Coin, Engineering Exchange Ticket
+    232454, 232455, 232456, 232457, 275009,   -- the emblems
+}
+local TOKEN = {}
+for _, id in ipairs(TOKENS) do TOKEN[id] = true end
+BW.TOKENS = TOKENS
+local function trackedList()
+    local s = settings()
+    if type(s.tracked) ~= "table" then s.tracked = {} end
+    return s.tracked
+end
+function BW.Track(id)
+    id = tonumber(id)
+    if not id then return false end
+    for _, v in ipairs(trackedList()) do if v == id then return false end end
+    table.insert(trackedList(), id)
+    return true
+end
+function BW.Untrack(id)
+    id = tonumber(id)
+    for i, v in ipairs(trackedList()) do if v == id then table.remove(trackedList(), i); return true end end
+    return false
+end
+function BW.TrackHides() return settings().trackHide ~= false end
+--- What the row shows for a list of items (one view's): {id, count, icon, pinned}, the tokens first.
+function BW.Tracked(items)
+    local count, icon = {}, {}
+    for _, it in ipairs(items or {}) do
+        if it.id then count[it.id] = (count[it.id] or 0) + (it.count or 1); icon[it.id] = icon[it.id] or it.icon end
+    end
+    local out, have = {}, {}
+    for _, id in ipairs(TOKENS) do
+        if (count[id] or 0) > 0 then out[#out + 1] = {id = id, count = count[id], icon = icon[id]}; have[id] = true end
+    end
+    for _, id in ipairs(trackedList()) do
+        if not have[id] and ((count[id] or 0) > 0 or not BW.TrackHides()) then
+            out[#out + 1] = {id = id, count = count[id] or 0, icon = icon[id] or call(rawget(_G, "GetItemIcon"), id), pinned = true}
+            have[id] = true
+        elseif have[id] then
+            for _, e in ipairs(out) do if e.id == id then e.pinned = true end end
+        end
+    end
+    return out
+end
+
 -- ---------------------------------------------------------------- what an item is
 local seen          -- itemID -> count, when the window was last closed: more than that is new
 local function countById(list)
@@ -326,14 +499,7 @@ local function describe(bag, slot, link, count, quality, icon, live, locked, isN
     it.gear = (classID == 2 or classID == 4) and type(equipLoc) == "string" and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG"
     it.upgrade = it.gear and live and upgradeOf(link) or nil
     it.new = isNew or false
-    if it.new then it.section = "new"
-    elseif it.junk then it.section = "junk"
-    elseif it.sell then it.section = "sell"
-    elseif it.quest then it.section = "quest"
-    elseif it.gear then it.section = "gear"
-    elseif classID == 0 then it.section = "consumable"
-    elseif classID == 7 or classID == 9 or classID == 5 or classID == 3 then it.section = "profession"
-    else it.section = "other" end
+    it.section = BW.Assign(it)
     return it
 end
 
@@ -366,8 +532,6 @@ local function cachedItems(entries)
     return list
 end
 
-local SECTION_ORDER = {}
-for i, key in ipairs(SECTIONS) do SECTION_ORDER[key] = i end
 local function byKind(a, b)
     if a.section ~= b.section then return (SECTION_ORDER[a.section] or 99) < (SECTION_ORDER[b.section] or 99) end
     if (a.quality or 1) ~= (b.quality or 1) then return (a.quality or 1) > (b.quality or 1) end
@@ -382,7 +546,7 @@ end
 local TAGS = {
     sell = function(it) return it.sell or it.junk end, junk = function(it) return it.junk end, new = function(it) return it.new end,
     quest = function(it) return it.quest end, gear = function(it) return it.gear end, upgrade = function(it) return it.upgrade ~= nil end,
-    consumable = function(it) return it.section == "consumable" end, profession = function(it) return it.section == "profession" end,
+    consumable = function(it) return it.classID == 0 end, profession = function(it) return isProfession(it.classID) end,
 }
 local function lower(s) return A.Lower and A.Lower(s) or string.lower(s or "") end
 function BW.Matches(it, query)
@@ -671,14 +835,34 @@ local function newWindow(kind)
             if p then for i = 1, #p.list do p.list[i]:Hide() end; p.used = 0 end
         end
     end
-    local function sectionHead(x, y, width, label, count)
+    local function sectionHead(x, y, width, label, count, key)
         local h = pool("heads", function()
             local f = CreateFrame("Frame", nil, win.content); f:SetHeight(SECTION_HEAD)
             f.tick = f:CreateTexture(nil, "ARTWORK"); f.tick:SetSize(2, 11); f.tick:SetPoint("LEFT", 0, 0)
             f.text = kit.label(f, 11, C.gold); f.text:SetPoint("LEFT", f.tick, "RIGHT", 7, 0)
             f.count = kit.label(f, 11, C.faint); f.count:SetPoint("LEFT", f.text, "RIGHT", 6, 0)
+            -- an item dragged onto the heading goes into this section from now on
+            f:EnableMouse(true)
+            local function drop(self)
+                local what, id = call(rawget(_G, "GetCursorInfo"))
+                if what ~= "item" or not self.key or self.key == "new" then return end
+                if BW.PutItem(id, self.key) then
+                    call(rawget(_G, "ClearCursor"))
+                    if A.Print then A.Print(string.format(A.L("bwCatMoved"), itemName("item:" .. tostring(id)) or tostring(id), BW.SectionName(self.key))) end
+                    BW.Request()
+                end
+            end
+            f:SetScript("OnReceiveDrag", drop)
+            f:SetScript("OnMouseUp", drop)
+            f:SetScript("OnEnter", function(self)
+                if call(rawget(_G, "GetCursorInfo")) == "item" and self.key ~= "new" then
+                    tip(self, function(t) t:SetText(string.format(A.L("bwCatDrop"), BW.SectionName(self.key)), 1, 1, 1, 1, true) end)
+                end
+            end)
+            f:SetScript("OnLeave", hideTip)
             return f
         end)
+        h.key = key
         paint(h.tick, C.gold, 1)
         h:ClearAllPoints(); h:SetPoint("TOPLEFT", win.content, "TOPLEFT", x, -y); h:SetWidth(width)
         h.text:SetText(label); h.count:SetText(count and tostring(count) or "")
@@ -701,7 +885,7 @@ local function newWindow(kind)
         r:ClearAllPoints(); r:SetPoint("TOPLEFT", win.content, "TOPLEFT", 0, -y)
         local q = qualityColor(it.quality or 1)
         r.name:SetText(it.name ~= "" and it.name or tostring(it.id)); r.name:SetTextColor(q[1], q[2], q[3], 1)
-        r.tag:SetText(A.L("bwSec_" .. it.section)); r.count:SetText((it.count or 1) > 1 and ("×" .. it.count) or "")
+        r.tag:SetText(BW.SectionName(it.section)); r.count:SetText((it.count or 1) > 1 and ("×" .. it.count) or "")
     end
 
     -- what is shown: whose, and whether it is live (the own bags; the own bank while the banker is open)
@@ -796,6 +980,7 @@ local function newWindow(kind)
         win.dirty = false
         resetPools(); hideAllButtons()
         local items, used, total, state = sourceItems()
+        win.items = items
         local live = isLive()
         local query = win.search and win.search:GetText() or ""
         local view = settings().view
@@ -876,7 +1061,8 @@ local function newWindow(kind)
                 if not groups[it.section] then groups[it.section] = {}; order[#order + 1] = it.section end
                 table.insert(groups[it.section], it)
             end
-            table.sort(order, function(a, b) return SECTION_ORDER[a] < SECTION_ORDER[b] end)
+            BW.Sections()
+            table.sort(order, function(a, b) return (SECTION_ORDER[a] or 99) < (SECTION_ORDER[b] or 99) end)
             local colY = {}
             for c = 1, SECTION_COLS do colY[c] = 0 end
             for _, key in ipairs(order) do
@@ -884,7 +1070,7 @@ local function newWindow(kind)
                 local c = 1
                 for k = 2, SECTION_COLS do if colY[k] < colY[c] then c = k end end
                 local x = (c - 1) * (COL_W + COL_GAP)
-                sectionHead(x, colY[c], COL_W, A.L("bwSec_" .. key), #list)
+                sectionHead(x, colY[c], COL_W, BW.SectionName(key), #list, key)
                 local top = colY[c] + SECTION_HEAD
                 for i, it in ipairs(list) do
                     local b = button(it)
@@ -917,6 +1103,50 @@ local function newWindow(kind)
         end
     end
 
+    -- the tracked items of the view (the live bags, a look at the bank or an alt's)
+    function w.UpdateTracker()
+        local list = BW.Tracked(win.items or {})
+        local x = 8
+        for i = 1, TRACK_MAX do
+            local c = win.track.chips[i]
+            local e = list[i]
+            if not c and e then
+                c = CreateFrame("Button", nil, win.track); c:SetHeight(TRACK_H)
+                c:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                c.icon = c:CreateTexture(nil, "ARTWORK"); c.icon:SetSize(14, 14); c.icon:SetPoint("LEFT", 0, 0); c.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                c.num = kit.label(c, 12, C.text); c.num:SetPoint("LEFT", c.icon, "RIGHT", 5, 0)
+                c:SetScript("OnClick", function(self, button)
+                    if w.dropTrack() then return end
+                    if button == "RightButton" and self.pinned then BW.Untrack(self.id); BW.Request() end
+                end)
+                c:SetScript("OnReceiveDrag", function() w.dropTrack() end)
+                c:SetScript("OnEnter", function(self)
+                    tip(self, function(t)
+                        t:SetHyperlink("item:" .. tostring(self.id))
+                        t:AddLine(self.pinned and A.L("bwTrackOff") or A.L("bwTrackAuto"), 0.55, 0.58, 0.66, true)
+                    end)
+                end)
+                c:SetScript("OnLeave", hideTip)
+                win.track.chips[i] = c
+            end
+            if c then
+                if e then
+                    c.id, c.pinned = e.id, e.pinned
+                    c.icon:SetTexture(e.icon or 134400)
+                    c.num:SetText(tostring(e.count))
+                    paint(c.num, e.count > 0 and C.text or C.faint)
+                    c:SetWidth(math.floor(14 + 5 + (c.num:GetStringWidth() or 10) + 4))
+                    c:ClearAllPoints(); c:SetPoint("LEFT", win.track, "LEFT", x, 0)
+                    x = x + c:GetWidth() + 12
+                    c:SetShown(x < CONTENT_W)
+                else
+                    c:Hide()
+                end
+            end
+        end
+        win.track.hint:SetShown(#list == 0)
+    end
+
     function w.UpdateHeader(used, total)
         local who, own = viewing()
         local entry = (cacheRoot() or {})[who]
@@ -934,6 +1164,7 @@ local function newWindow(kind)
         win.money:SetText(money(m))
         local free = math.max(0, total - used)
         win.free:SetText(string.format(A.L("bwFree"), free))
+        w.UpdateTracker()
         paint(win.free, free == 0 and C.red or C.mist)
         win.sort:SetShown(live)
         if win.equip then
@@ -1060,6 +1291,8 @@ local function newWindow(kind)
             popup(self, {
                 {text = A.L("bwReplace"), checked = BW.Replaces(), onClick = function() BW.SetReplace(not BW.Replaces()) end},
                 {text = A.L("bwClearNew"), onClick = function() BW.ClearNew() end},
+                {text = A.L("bwCats"), onClick = function() BW.Categories.Toggle(win) end},
+                {text = A.L("bwTrackHide"), checked = BW.TrackHides(), onClick = function() settings().trackHide = not BW.TrackHides() end},
             })
         end, "bwSettings")
         win.gear:SetPoint("RIGHT", win.close, "LEFT", -2, 0)
@@ -1133,6 +1366,24 @@ local function newWindow(kind)
         paint(win.foot, C.header or C.well, 1)
         win.footRule = win:CreateTexture(nil, "ARTWORK"); win.footRule:SetHeight(1); win.footRule:SetPoint("BOTTOMLEFT", win.foot, "TOPLEFT"); win.footRule:SetPoint("BOTTOMRIGHT", win.foot, "TOPRIGHT")
         paint(win.footRule, C.line, 1)
+        -- the tracked items: a row over the gold; an item dropped on it is counted from now on
+        win.track = CreateFrame("Button", nil, win); win.track:SetHeight(TRACK_H)
+        win.track:SetPoint("BOTTOMLEFT", PAD, 46); win.track:SetPoint("BOTTOMRIGHT", -PAD, 46)
+        win.track.bg = win.track:CreateTexture(nil, "BACKGROUND"); win.track.bg:SetAllPoints(win.track); paint(win.track.bg, C.well or C.card, 1)
+        kit.outline(win.track, C.line)
+        win.track.hint = kit.label(win.track, 11, C.faint); win.track.hint:SetPoint("LEFT", 10, 0); win.track.hint:SetText(A.L("bwTrackHint"))
+        win.track.chips = {}
+        local function dropTrack()
+            local what, id = call(rawget(_G, "GetCursorInfo"))
+            if what ~= "item" then return false end
+            if BW.Track(id) and A.Print then A.Print(string.format(A.L("bwTrackAdded"), itemName("item:" .. tostring(id)) or tostring(id))) end
+            call(rawget(_G, "ClearCursor"))
+            BW.Request()
+            return true
+        end
+        w.dropTrack = dropTrack
+        win.track:SetScript("OnReceiveDrag", dropTrack)
+        win.track:SetScript("OnClick", dropTrack)
         win.goldLabel = kit.label(win, 12, C.mist); win.goldLabel:SetPoint("BOTTOMLEFT", PAD, 16); win.goldLabel:SetText(A.L("bwGold"))
         win.money = kit.label(win, 13, C.text); win.money:SetPoint("LEFT", win.goldLabel, "RIGHT", 12, 0)
         win.free = kit.label(win, 12, C.mist); win.free:SetPoint("LEFT", win.money, "RIGHT", 22, 0)

@@ -505,11 +505,20 @@ local function updatePlate(unit)
 			end)
 		end
 	end
-	-- All objectives on nameplates are mobs to kill or loot: show the game's skull.
-	local skullTex = ns.Theme and ns.Theme.Media and ns.Theme.Media("icon-skull")
-		or "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8"
-	f.tex:SetTexture(skullTex)
+	-- Evertally (2026-11-19, as Questie did): a mob a quest item drops from carries a loot bag, a mob only to kill a
+	-- sword: the game's own icon art (Fat Sack of Coins 133639, Worn Shortsword 135274) with no background
+	-- (Media/UI/quest-loot, quest-kill; the user: "at to nemá pozadí"). Any open loot objective makes it the bag.
+	-- (2 = Tracker.lua's KIND_ITEM)
+	local loot = false
+	local list = Q.ObjectivesForNpc(npc)
+	for i = 1, list and #list or 0 do
+		local o = list[i]
+		if not o.done and not o.entry.ready and o.kind == 2 then loot = true; break end
+	end
+	f.tex:SetTexture("Interface\\AddOns\\Evertally_Guide\\Media\\UI\\" .. (loot and "quest-loot" or "quest-kill"))
+	if f.tex.SetTexCoord then f.tex:SetTexCoord(0, 1, 0, 1) end
 	f.tex:SetVertexColor(1, 1, 1, 1)
+	f.kind = loot and "loot" or "kill"
 	-- Show our count left of the bar only when no other addon is already showing
 	-- an "N/M" FontString on the plate (e.g. EllesmereUINameplates classText).
 	-- Walk plate + children to depth 3; skip our own frames via isIcon.

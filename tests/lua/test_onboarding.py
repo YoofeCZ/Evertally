@@ -355,6 +355,7 @@ class OnboardingTests(unittest.TestCase):
         self.assertTrue(self.a.FriendlyPlatesShown())
         self.assertFalse(editor.choosing)
         self.assertTrue(editor.config.shown)
+        self.a.SetFriendlyPlateOption("plateStyle", "custom")   # (the size counts in the Custom style)
         editor.controls.plateFontSize.plus.scripts.OnClick(editor.controls.plateFontSize.plus)
         self.assertEqual(self.a.db.settings.plateFontSize, 16)
         self.assertEqual(editor.preview.frame.name.fontSize, 16)

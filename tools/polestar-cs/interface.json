@@ -4328,5 +4328,7 @@
 "Map pins & routes": "Špendlíky a trasy",
 "Alerts & trackers": "Upozornění a trackery",
 "How the guide's pins and route lines look on the world map and the minimap.": "Jak vypadají špendlíky a čáry trasy průvodce na mapě světa a na minimapě.",
-"The alerts that pop up and the trackers on the screen: their size, their look and when they show.": "Upozornění, která vyskočí, a trackery na obrazovce: jejich velikost, vzhled a kdy se ukážou."
+"The alerts that pop up and the trackers on the screen: their size, their look and when they show.": "Upozornění, která vyskočí, a trackery na obrazovce: jejich velikost, vzhled a kdy se ukážou.",
+"Put new ranks on your bars": "Nové ranky rovnou na lišty",
+"When you learn a higher rank, it replaces the lower one in the same action buttons by itself (out of combat). Macros, items and the ranks you keep are left alone.": "Když se naučíš vyšší rank, sám nahradí nižší ve stejných tlačítkách na lištách (mimo boj). Makra, předměty a ranky, které si necháváš, zůstanou."
 }

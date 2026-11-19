@@ -224,3 +224,13 @@ Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů proch�
 - Evertally Sync ji u uživatele nainstalovala v 18:33:53Z (log), soubory ve hře = repo.
 - Obsah: oprava zamrzlých animací (prázdné texty v instalaci), reload hned po změně jazyka, sloučené stránky nastavení bez duplicit.
 - **CurseForge:** nahráno „Evertally 0.11.8“ (stav Processing File při nahrání), changelog anglicky bez Polestaru, odeslal uživatel. **Ve hře zatím neověřeno.**
+
+## Vydání 0.11.9 (2026-11-19, noc)
+- **Pi:** zip sha256 `e1fc7587…d2ef`, 921 souborů, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.9). Záloha 0.11.8 v `~/evertally/backups/addon-0.11.8-2026-11-19/`. Aplikace a instalátor beze změny (0.9.19). Sync nainstalovala u uživatele 20:04:23Z. Poznámky `VYDANI-0.11.9.md`. CurseForge ne.
+- **Batoh** (`BagWindow.lua`, `BagCategories.lua`): sledované předměty nad patičkou (`BW.TOKENS` ověřená ID z `platform/public/media/db/items`, `settings.bagWindow.tracked`, `trackHide`); vlastní kategorie (`settings.bagWindow.sections` = pořadí vestavěných klíčů a tabulek `{key = "c<n>", name, query, items}`, `itemSection[id]` = přetaženo na nadpis). Přednost: Nové → ruční → vlastní v pořadí → vestavěná pravidla.
+- **Okno lootu** (`LootWindow.lua`, `settings.lootWindow`, výchozí vypnuto): herní `LootFrame` jen přestane poslouchat `LOOT_OPENED`; master loot přes jeho vlastní `OnEvent`.
+- **Šuplíky** (`DrawerMacro.lua`, `/etally drawer`): `EvertallyDrawerN` = SecureActionButton typu `click` na `SecureHandlerClickTemplate`, AnyUp+AnyDown jako krokové tlačítko průvodce. **Nejrizikovější část, ve hře neověřeno** (dvojí reakce / žádná reakce na `/click`).
+- **Jmenovky:** styl „Jako hra“ (`plateStyle`, výchozí) kopíruje font herního jména (`A.GameNameFont`).
+- **Questoví mobové:** `Quests/Tooltips.lua` pytel (`Media/UI/quest-loot.tga`) / meč (`quest-kill.tga`) — herní kresby 133639 / 135274 s odříznutým pozadím, uložené i v overlayi; `qol.nameplateIcons` výchozí zapnuto.
+- **Auto ranky:** `qol.autoRanks` (výchozí zapnuto) v `QoL/Spells.lua` `CheckRanks` volá `Spells.Upgrade()` jednou na seznam za sezení.
+- Lua testy 872 OK; nové `test_loot_window.py`, `test_drawer_macro.py`, `test_guide_plate_icons.py`, `test_guide_auto_ranks.py`, rozšířený `test_bag_window.py`. **Ve hře neověřeno nic z 0.11.9.**
