@@ -138,7 +138,95 @@ local function dropViews(p)
 	p.views = nil
 end
 
+-- Evertally: one home per setting. A setting the guide offered on two to four pages keeps the page where the
+-- feature is switched on (Guide, Map, Questing, Discovery, Quality of Life); the Look pages keep how it looks. A key
+-- registered twice on the same page keeps its first row. A registration left with no rows adds nothing.
+local EV_DROP = {
+	guidewindow = { ["ui.compact"] = true, ["ui.maxHeight"] = true, ["ui.showNotes"] = true, ["ui.upcoming"] = true,
+		["ui.combat"] = true, ["ui.instance"] = true, ["ui.growUp"] = true, ["ui.barsBottom"] = true },
+	buttons = { ["ui.launcher"] = true, ["maps.minimapButton"] = true, ["maps.minimapButtonSize"] = true, ["qol.itemButton"] = true, ["qol.targetButton"] = true,
+		["qol.hearthButton"] = true, ["nav.castPrompt"] = true, ["qol.rareButton"] = true, ["qol.targetPlate"] = true },
+	map = { ["maps.minimapButton"] = true },
+	-- (the guide's minimap button: Evertally's own is on its Interface page)
+	guide = { ["behavior.trainReminder"] = true, ["nav.lineStyle"] = true, ["maps.minimapButton"] = true },
+	arrow = { ["nav.arrow"] = true, ["nav.hideArrowWithGuide"] = true, ["nav.arrowEta"] = true, ["nav.distanceUnit"] = true,
+		["nav.arrivalSound"] = true },
+	routelines = { ["nav.routeLines"] = true, ["nav.minimapRoute"] = true },
+	mappins = { ["nav.worldPins"] = true, ["nav.minimapPins"] = true, ["nav.trailDots"] = true, ["nav.upcomingPins"] = true },
+	trackers = { ["nav.journeySteps"] = true, ["maps.flightTimer"] = true, ["maps.instances"] = true,
+		["maps.instanceDisplay"] = true, ["qol.xpTargetMark"] = true, ["party.panel"] = true },
+	alerts = { ["nav.alerts"] = true, ["nav.alertBanner"] = true, ["nav.alertSound"] = true, ["nav.alertFlash"] = true,
+		["rares.alerts"] = true, ["rares.toastSeconds"] = true, ["rares.treasureAlerts"] = true, ["rares.soundKit"] = true,
+		["rares.sound"] = true, ["rares.combatAlerts"] = true, ["dungeons.headsUp"] = true },
+	qualityoflife = { ["maps.minimapButton"] = true, ["nav.alerts"] = true, ["nav.nearbyMenu"] = true, ["nav.nearbyButton"] = true,
+		["qol.hearthButton"] = true, ["nav.castPrompt"] = true, ["qol.itemButton"] = true,
+		["behavior.autoAccept"] = true, ["behavior.autoTurnin"] = true, ["qol.instantQuestText"] = true, ["qol.skipGossip"] = true,
+		["qol.fastLoot"] = true, ["qol.hideErrors"] = true, ["qol.hideQuestTracker"] = true, ["qol.instanceTrack"] = true,
+		["qol.rewardAutoPick"] = true, ["qol.rewardEquip"] = true, ["qol.questLoot"] = true, ["qol.stepInteract"] = true,
+		["maps.coords"] = true, ["maps.minimapCoords"] = true },
+}
+O.EV_DROP = EV_DROP
+local evSeen = {}
+-- Pages that draw the same kind of thing are one page: the map's pins and its route lines; the alerts and the
+-- trackers (cards and panels on the screen). The page merged in gives its tabs; its own Essentials stay out (one
+-- preset row per page). Old keys still open it (ALIASES).
+local EV_MERGE = {
+	mappins = { "mappins", L["Map pins & routes"], "icon-goto", 23, L["How the guide's pins and route lines look on the world map and the minimap."] },
+	routelines = { "mappins", L["Map pins & routes"], "icon-goto", 23, L["How the guide's pins and route lines look on the world map and the minimap."] },
+	alerts = { "alerts", L["Alerts & trackers"], "info", 26, L["The alerts that pop up and the trackers on the screen: their size, their look and when they show."] },
+	trackers = { "alerts", L["Alerts & trackers"], "info", 26, L["The alerts that pop up and the trackers on the screen: their size, their look and when they show."] },
+}
+O.EV_MERGE = EV_MERGE
+-- (a page's later registrations may give only its name, and that is translated: the key is the one its first
+-- registration with a key gave, so the rules hold in every language)
+local evKeyOf = {}
+local function evKey(spec)
+	local name = spec.page or ""
+	if spec.key then evKeyOf[name] = keyOf(spec.key) end
+	return evKeyOf[name] or keyOf(name)
+end
+local function evertallyKeep(spec)
+	local pk = evKey(spec)
+	local merge = EV_MERGE[pk]
+	if merge then
+		if pk ~= merge[1] and spec.tab == L["Essentials"] then return false end
+		spec.page, spec.key, spec.icon, spec.order = merge[2], merge[1], merge[3], merge[4]
+		if spec.subtitle then spec.subtitle = merge[5] end
+	end
+	local drop, seen = EV_DROP[pk], evSeen[pk] or {}
+	evSeen[pk] = seen
+	local function keep(c)
+		if type(c) ~= "table" or type(c.key) ~= "string" or rawget(c, "ref") then return true end
+		if drop and drop[c.key] then return false end
+		if seen[c.key] then return false end
+		seen[c.key] = true
+		return true
+	end
+	local had = (spec.controls and #spec.controls or 0) + (spec.toggle and 1 or 0)
+	if spec.toggle and not keep(spec.toggle) then spec.toggle = nil end
+	if spec.controls then
+		local list = {}
+		for _, c in ipairs(spec.controls) do if keep(c) then list[#list + 1] = c end end
+		spec.controls = list
+		-- a row's own extras and more (a size slider's on/off beside it) follow the same rule
+		local function inner(c)
+			for _, field in ipairs({ "extras", "more" }) do
+				local sub = rawget(c, field)
+				if type(sub) == "table" then
+					local kept = {}
+					for _, e in ipairs(sub) do if keep(e) then kept[#kept + 1] = e; inner(e) end end
+					c[field] = kept
+				end
+			end
+		end
+		for _, c in ipairs(list) do inner(c) end
+	end
+	local left = (spec.controls and #spec.controls or 0) + (spec.toggle and 1 or 0)
+	return had == 0 or left > 0 or spec.custom ~= nil or spec.preview ~= nil
+end
+
 local function add(spec, builtin)
+	if not evertallyKeep(spec) then return end
 	Index.spec = nil
 	local p = pageOf(spec.page, spec.icon, spec.order, builtin, spec.key)
 	p.psNewList = nil
@@ -929,6 +1017,8 @@ local ALIASES = {
 	appearance = { "theme" }, look = { "theme" }, qol = { "qualityoflife" },
 	-- The target list's Polestar mark (QoL/Buttons.lua): Questing > Buttons, where Targeting is.
 	targeting = { "questing", L["Buttons"] },
+	-- Evertally: pages merged into others (EV_MERGE)
+	routelines = { "mappins", L["Route"] }, trackers = { "alerts", L["Travel"] },
 }
 
 ---------------------------------------------------------------------------

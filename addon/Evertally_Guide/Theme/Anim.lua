@@ -70,24 +70,39 @@ local function finish(rec)
 	end
 end
 
+-- Evertally: a tween whose object fails is dropped (put at its end), not met again every frame. Before, one failing
+-- tween stopped the loop on it for good and froze every other: the setup's page stayed at alpha 0, its texts unseen.
+-- The error still goes to the handler (ns.Safe), once, after the others have moved.
 local function step()
 	local now = GetTime()
 	local i = 1
+	local failed
 	while i <= count do
 		local rec = active[i]
 		local p = (now - rec.t0) / rec.dur
+		local ok, err = true, nil
 		if p >= 1 then
 			active[i] = active[count]
 			active[count] = nil
 			count = count - 1
-			finish(rec)
+			ok, err = pcall(finish, rec)
 		else
 			if p < 0 then p = 0 end
-			APPLY[rec.kind](rec.obj, rec.from + (rec.to - rec.from) * rec.ease(p))
-			i = i + 1
+			ok, err = pcall(APPLY[rec.kind], rec.obj, rec.from + (rec.to - rec.from) * rec.ease(p))
+			if ok then
+				i = i + 1
+			else
+				active[i] = active[count]
+				active[count] = nil
+				count = count - 1
+				rec.running = false
+				pcall(APPLY[rec.kind], rec.obj, rec.to)
+			end
 		end
+		if not ok and failed == nil then failed = err end
 	end
 	if count == 0 then driver:SetScript("OnUpdate", nil) end
+	if failed ~= nil then error(failed, 0) end
 end
 
 function Anim.Reduced()
@@ -163,7 +178,7 @@ function Anim.Stop(obj, kind)
 	if rec and rec.running then
 		rec.dur = 1e-9
 		rec.t0 = GetTime() - 1
-		step()
+		pcall(step) -- (Evertally: another tween's failure is not the caller's)
 	end
 end
 

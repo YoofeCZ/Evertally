@@ -1895,9 +1895,18 @@ end
 --- The language of the add-on ("en" or "cs"): kept, the fonts that carry the letters follow it and every page is drawn again.
 function A.SetLanguage(language)
     if not A.db or (language ~= "en" and language ~= "cs") then return false end
+    local was = A.db.settings.language == "cs" and "cs" or "en"
     A.db.settings.language = language
     applyFonts()
     A.RefreshUI()
+    -- The guide reads its texts when its files load (Evertally_Guide_csCZ cannot be unloaded either): a new language
+    -- takes the UI reloaded, at once (the user: "při změně jazyka reload hned"). A frame later, so the caller (the
+    -- setup's Finish) saves the rest first; the setup opens again after it, in the new language.
+    if language ~= was then
+        A.reloadPending = true
+        local reload = function() A.Call(ReloadUI) end
+        if C_Timer and type(C_Timer.After) == "function" then C_Timer.After(0, reload) else reload() end
+    end
     return true
 end
 --- The font of the window: "game" (the game's own, by language) or "inter" (Media/Fonts). Kept; every text is set again.

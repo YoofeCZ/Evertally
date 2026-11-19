@@ -272,6 +272,24 @@ if os.environ.get("HUB") and os.environ.get("QUESTS"):
     print("UIERR", lua.eval("Evertally.lastUIError"))
     if os.environ.get("HUB_EVAL"): print("HUB_EVAL", lua.eval(os.environ["HUB_EVAL"]))  # a Lua expression, for debugging
     sys.exit(0)
+if os.environ.get("DUMP_OPTIONS") and os.environ.get("QUESTS"):
+    # Every settings page, tab, section and control, as the options window holds them (json to DUMP_OPTIONS)
+    lua.execute(r"""
+      local O = EvertallyGuide.UI.Options or EvertallyGuide.Options
+      DUMP = {}
+      local function L(x) return type(x) == "function" and "<fn>" or tostring(x or "") end
+      for _, pg in ipairs(O.Pages()) do DUMP[#DUMP + 1] = {kind = "page", name = pg.name, key = pg.key, group = L(pg.group), builtin = pg.builtin} end
+      for _, c in ipairs(O.AllControls()) do
+        local pg = c.page; local t = c.tab; local sec = c.section
+        DUMP[#DUMP + 1] = {kind = "control", page = type(pg) == "table" and pg.name or L(pg), tab = type(t) == "table" and t.name or L(t),
+          section = type(sec) == "table" and sec.name or L(sec), label = L(c.label), key = L(c.key), ctype = L(c.kind)}
+      end
+    """)
+    import json as _j
+    rows = PV.to_py(lua.eval("DUMP"))
+    Path(os.environ["DUMP_OPTIONS"]).write_text(_j.dumps(rows, ensure_ascii=False, indent=0), encoding="utf8")
+    print("dumped", len(rows))
+    sys.exit(0)
 if os.environ.get("BAGS") and os.environ.get("QUESTS"):
     # TEST FIXTURE: Evertally's bag window (BagWindow.lua) over invented bags; BAGS=<view> (sections, packed, exact, list),
     # BAGS_SEARCH=<text>, BAGS_TAB=bank
@@ -381,6 +399,12 @@ if os.environ.get("SETUP"):
     WEL = G.EvertallyGuide.UI.Welcome
     try:
         A.OpenOnboarding(None)
+        if os.environ.get("SETUP_SWITCH"):
+            # Starts in English, the language page picks Czech (as the player does), then the page asked for
+            WEL.Show("et-language"); lua.execute("RUN_PENDING(); TICK(5)")
+            lua.execute('local pg = EvertallyGuideWelcome.pages["et-language"]; pg.Body.lang.psSet = pg.Body.lang.psSet')
+            lua.execute('Evertally.onboarding = Evertally.onboarding or {}; local D = Evertally.onboarding.draft; if D then D.language = "cs" end; Evertally.SetLanguage("cs"); EvertallyGuide.UI.WelcomeKit.refresh()')
+            lua.execute("RUN_PENDING(); TICK(5)")
         WEL.Show(os.environ["SETUP"])
     except Exception as e: print("SETUP ERR", e)
     lua.execute("RUN_PENDING(); TICK(30); RUN_PENDING(); PREVIEW_SETTLE()")

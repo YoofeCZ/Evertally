@@ -52,8 +52,14 @@ class GuideSettingsTests(unittest.TestCase):
 
     def test_one_group_of_pages_every_control_valid_and_named_in_both_languages(self):
         specs = self.install()
-        self.assertEqual([s.key for s in specs], ["evertallysharing", "evertallylive", "evertallyweb", "evertallyinterface",
-                                                  "evertallyplates", "evertallymusic", "evertallyactions", "evertallydiagnostics"])
+        # (2026-11-19: sharing, live and website are one page in three tabs; the interface one page in three sections)
+        keys = []
+        for spec in specs:
+            if spec.key not in keys: keys.append(spec.key)
+        self.assertEqual(keys, ["evertallysharing", "evertallyinterface", "evertallyplates", "evertallymusic", "evertallyactions",
+                                "evertallydiagnostics"])
+        tabs = [spec.tab for spec in specs if spec.key == "evertallysharing"]
+        self.assertEqual(tabs, ["In game", "Live & map", "Website"])
         self.assertTrue(all(s.group == "evertally" for s in specs))
         self.assertTrue(all(s.custom for s in specs if s.key in ("evertallyplates", "evertallymusic", "evertallydiagnostics")))
         for _, c in self.controls(specs):
@@ -124,6 +130,59 @@ class GuideSettingsTests(unittest.TestCase):
         self.assertEqual(g.LOADED[1], "Evertally_Guide_csCZ")
         self.assertTrue(self.a.ApplyGuideLanguage())
         self.assertEqual(len(g.LOADED), 1, "once")
+
+    def test_a_new_language_reloads_the_ui_at_once_the_same_one_does_not(self):
+        # (the guide reads its texts when it loads: a language changed without a reload left it in English)
+        self.lua.execute("RELOADS = 0; ReloadUI = function() RELOADS = RELOADS + 1 end; "
+                         "C_Timer = C_Timer or {}; C_Timer.After = function(_, fn) fn() end")
+        g = self.lua.globals()
+        self.a.db.settings.language = "en"
+        self.assertTrue(self.a.SetLanguage("en"))
+        self.assertEqual(g.RELOADS, 0, "the same language: no reload")
+        self.assertTrue(self.a.SetLanguage("cs"))
+        self.assertEqual(self.a.db.settings.language, "cs", "saved before the reload")
+        self.assertEqual(g.RELOADS, 1)
+        self.assertTrue(self.a.SetLanguage("cs"))
+        self.assertEqual(g.RELOADS, 1)
+        self.assertTrue(self.a.SetLanguage("en"))
+        self.assertEqual(g.RELOADS, 2, "back to English too")
+
+
+class GuideOptionsWindowTests(unittest.TestCase):
+    """The real guide's settings window (preview harness): every setting has one home and the merged pages are one
+    page, in English and in Czech. (2026-11-19: in Czech the rules missed every registration that gave only its
+    translated page name; 20 settings stayed on two pages.)"""
+
+    def dump(self, czech):
+        import json, os, subprocess, tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "options.json"
+            env = dict(os.environ, QUESTS="1", DUMP_OPTIONS=str(out))
+            env.pop("CS", None)
+            if czech: env["CS"] = "1"
+            subprocess.run([sys.executable, str(ROOT / "tools" / "ui_preview" / "guide_preview.py"),
+                            "Evertally_Guide,Evertally_Guide_SkinAPI,Evertally_Guide_Options,Evertally_Guide_Guides,"
+                            "Evertally_Guide_Guides_Horde,Evertally_Guide_Guides_Scourge", "--skin"],
+                           env=env, cwd=str(ROOT), capture_output=True, timeout=300)
+            self.assertTrue(out.exists(), "the preview dumped the options")
+            return [r for r in json.loads(out.read_text(encoding="utf8")) if r]
+
+    def test_one_home_per_setting_in_both_languages(self):
+        for czech in (False, True):
+            rows = self.dump(czech)
+            pages = [r["key"] for r in rows if r.get("kind") == "page"]
+            for gone in ("routelines", "trackers"):
+                self.assertNotIn(gone, pages, "merged into another page")
+            self.assertIn("mappins", pages)
+            self.assertIn("alerts", pages)
+            seen = {}
+            for r in rows:
+                key = r.get("key")
+                if r.get("kind") != "control" or key in (None, "", "nil"): continue
+                seen.setdefault(key, []).append(r.get("page"))
+            twice = {k: v for k, v in seen.items() if len(v) > 1}
+            self.assertEqual(twice, {}, "czech" if czech else "english")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4324,5 +4324,9 @@
 "your trainer": "tvůj trenér",
 "{rt1} Evertally: ": "{rt1} Evertally: ",
 "≈ %s": "≈ %s",
-"Database": "Databáze"
+"Database": "Databáze",
+"Map pins & routes": "Špendlíky a trasy",
+"Alerts & trackers": "Upozornění a trackery",
+"How the guide's pins and route lines look on the world map and the minimap.": "Jak vypadají špendlíky a čáry trasy průvodce na mapě světa a na minimapě.",
+"The alerts that pop up and the trackers on the screen: their size, their look and when they show.": "Upozornění, která vyskočí, a trackery na obrazovce: jejich velikost, vzhled a kdy se ukážou."
 }

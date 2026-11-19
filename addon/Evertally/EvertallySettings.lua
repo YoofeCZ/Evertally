@@ -7,18 +7,28 @@ local _, A = ...
 
 local GROUP = "evertally"
 local ORDER = 1
--- The pages, in order: key, title (locale key), the guide's icon (its Media/UI).
+-- The pages, in order: key, title (locale key), the guide's icon (its Media/UI). A page of plain controls is made of
+-- parts: a tab and/or a section (locale keys) and the function that gives their controls (below). 2026-11-19: sharing,
+-- the live position and the website are one page with three tabs (they were three pages), the interface one page in
+-- three sections.
 local PAGES = {
-    {key = "evertallysharing", title = "sharingSection", icon = "icon-talk"},
-    {key = "evertallylive", title = "liveSection", icon = "eye"},
-    {key = "evertallyweb", title = "webSection", icon = "plug"},
-    {key = "evertallyinterface", title = "interfaceSection", icon = "window"},
+    {key = "evertallysharing", title = "sharingWebSection", icon = "icon-talk",
+        parts = {{tab = "setTabInGame", controls = "sharing"}, {tab = "setTabLive", controls = "live"}, {tab = "setTabWebsite", controls = "web"}}},
+    {key = "evertallyinterface", title = "interfaceSection", icon = "window",
+        parts = {{section = "setSecWindows", controls = "look"}, {section = "setSecTooltips", controls = "tooltips"}, {section = "setSecChat", controls = "chat"}}},
     {key = "evertallyplates", title = "nameplatesSection", icon = "layers"},
     {key = "evertallymusic", title = "musicSection", icon = "speaker"},
-    {key = "evertallyactions", title = "actionsSection", icon = "bolt"},
+    {key = "evertallyactions", title = "actionsSection", icon = "bolt", parts = {{controls = "actions"}}},
     {key = "evertallydiagnostics", title = "diagnostics", icon = "bug"},
 }
 A.SettingsPages = PAGES
+local setText = {
+    en = {sharingWebSection = "Sharing & website", setTabInGame = "In game", setTabLive = "Live & map", setTabWebsite = "Website",
+        setSecWindows = "Evertally's windows", setSecTooltips = "Tooltips, minimap and bags", setSecChat = "Chat"},
+    cs = {sharingWebSection = "Sdílení a web", setTabInGame = "Ve hře", setTabLive = "Živě a mapa", setTabWebsite = "Web",
+        setSecWindows = "Okna Evertally", setSecTooltips = "Tooltipy, minimapa a batoh", setSecChat = "Chat"},
+}
+for lang, entries in pairs(setText) do for k, v in pairs(entries) do A.locale[lang][k] = v end end
 
 local function s() return A.db.settings end
 local function guide() local g = rawget(_G, "EvertallyGuide"); return type(g) == "table" and g or nil end
@@ -158,7 +168,7 @@ local function webControls()
     return list
 end
 
-local function interfaceControls()
+local function lookControls()
     return {
         dropdown("language", {{"en", "langEnglish"}, {"cs", "langCzech"}}, function() return s().language == "cs" and "cs" or "en" end,
             function(v) A.SetLanguage(v) end, "en"),
@@ -167,11 +177,19 @@ local function interfaceControls()
         dropdown("uiFont", {{"guide", "uiFontGuide"}, {"game", "uiFontGame"}, {"inter", "uiFontInter"}},
             function() local f = s().uiFont; return f == "inter" and "inter" or f == "game" and "game" or "guide" end,
             function(v) A.SetUIFont(v) end, "guide"),
+    }
+end
+local function tooltipControls()
+    return {
         toggle("rankTooltip", function() return s().rankTooltip ~= false end, function(v) s().rankTooltip = v end, true),
         toggle("minimap", function() return not s().hideMinimap end, function(v) A.SetMinimapButton(v) end, true),
         toggle("bagHighlight", function() return s().bagHighlight ~= false end, function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end, true,
             {disabled = function() return A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows") end, help = A.L("bagHighlightGuide")}),
         toggle("bwReplace", function() return A.BagWindow and A.BagWindow.Replaces() end, function(v) if A.BagWindow then A.BagWindow.SetReplace(v) end end, true),
+    }
+end
+local function chatControls()
+    return {
         toggle("chatEnabled", function() return A.Chat and A.Chat.Settings().enabled ~= false end, function(v) if A.Chat then A.Chat.SetEnabled(v) end end, true),
         toggle("chatRedirect", function() return A.Chat and A.Chat.Settings().redirect end, function(v) if A.Chat then A.Chat.SetRedirect(v) end end, false,
             {child = true, disabled = function() return not (A.Chat and A.Chat.Settings().enabled ~= false) end}),
@@ -260,8 +278,8 @@ end
 
 -- ---------- registration ----------
 
-local CONTROLS = {evertallysharing = sharingControls, evertallylive = liveControls, evertallyweb = webControls,
-    evertallyinterface = interfaceControls, evertallyactions = actionControls}
+local CONTROLS = {sharing = sharingControls, live = liveControls, web = webControls, look = lookControls,
+    tooltips = tooltipControls, chat = chatControls, actions = actionControls}
 local CUSTOM = {evertallyplates = platesPage, evertallymusic = musicPage, evertallydiagnostics = diagnosticsPage}
 local SUBTITLE = {evertallyactions = "pageActionHint"}
 
@@ -269,10 +287,21 @@ local SUBTITLE = {evertallyactions = "pageActionHint"}
 function A.SettingsSpecs()
     local specs = {}
     for i, p in ipairs(PAGES) do
-        local spec = {page = A.L(p.title), key = p.key, icon = p.icon, order = ORDER + i * 0.01, group = GROUP,
+        local base = {page = A.L(p.title), key = p.key, icon = p.icon, order = ORDER + i * 0.01, group = GROUP,
             subtitle = SUBTITLE[p.key] and A.L(SUBTITLE[p.key]) or nil}
-        if CUSTOM[p.key] then spec.custom, spec.controls = CUSTOM[p.key], {} else spec.controls = CONTROLS[p.key]() end
-        specs[#specs + 1] = spec
+        if CUSTOM[p.key] then
+            base.custom, base.controls = CUSTOM[p.key], {}
+            specs[#specs + 1] = base
+        else
+            for _, part in ipairs(p.parts) do
+                local spec = {}
+                for k, v in pairs(base) do spec[k] = v end
+                spec.tab = part.tab and A.L(part.tab) or nil
+                spec.section = part.section and A.L(part.section) or nil
+                spec.controls = CONTROLS[part.controls]()
+                specs[#specs + 1] = spec
+            end
+        end
     end
     return specs
 end
