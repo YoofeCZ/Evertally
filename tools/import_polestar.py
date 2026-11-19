@@ -593,6 +593,13 @@ _more('Maps/TravelPins.lua', ('\t\t\tlocal p = pinAt(node, "map:flightmaster", 1
        '\t\t\t-- (Evertally: the game\'s flight master icon, white; not learned yet keeps its "?")\n\t\t\tlocal game = Maps.GameIcon and Maps.GameIcon("flightmaster")\n\t\t\tlocal p = pinAt(node, game or "map:flightmaster", 15, game and Maps.GAME_WHITE or (isKnown and knownCol or unknownCol),\n', 1),
       ('\t\tlocal p = pinAt(inn, "map:inn", bound and 16 or 12, color(bound and "success" or "npc"), innTooltip(inn, bound), bound and 2 or 0)\n',
        '\t\t-- (Evertally: the game\'s innkeeper icon, white; the bound inn larger and circled)\n\t\tlocal game = Maps.GameIcon and Maps.GameIcon("inn")\n\t\tlocal p = pinAt(inn, game or "map:inn", bound and 16 or (game and 14 or 12), game and Maps.GAME_WHITE or color(bound and "success" or "npc"), innTooltip(inn, bound), bound and 2 or 0)\n', 1))
+# ---- 2026-11-19: no spawn-area rings on the minimap (the user: "vypni ty prstence")
+_more('Nav/Layers.lua', ('\t}, { world = world, minimap = minimap, edge = true, scale = scale, minimapAreas = true })\n',
+       '\t}, { world = world, minimap = minimap, edge = true, scale = scale, minimapAreas = false }) -- (Evertally: no areas on the minimap)\n', 1),
+      ('\t\tPins.SetLayer(AREAS, own, { world = world, minimap = minimap, minimapAreas = true })\n',
+       '\t\t-- (Evertally, 2026-11-19: the spawn areas\' rings are the world map\'s only; the user: "vypni ty prstence")\n\t\tPins.SetLayer(AREAS, own, { world = world, minimap = minimap, minimapAreas = false })\n', 1),
+      ('\t\tPins.SetLayer(HERE_AREAS, areas, { world = world, minimap = minimap, minimapAreas = true })\n',
+       '\t\tPins.SetLayer(HERE_AREAS, areas, { world = world, minimap = minimap, minimapAreas = false }) -- (Evertally: world map only)\n', 1))
 # ---- 2026-11-18: the guide's chat lines say Evertally, not Polestar (the user: "do chatu furt píše polestar")
 _more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
       'local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)', 1))

@@ -83,7 +83,7 @@ local function updateTarget(world, minimap)
 	Pins.SetLayer(TARGET, {
 		{ map = target.map, x = target.x, y = target.y, f = target.f, color = color("arrow"), glow = glow, icon = "map:target",
 			pulse = pulse, grow = grow, area = area, tooltip = targetTooltip, priority = 100 },
-	}, { world = world, minimap = minimap, edge = true, scale = scale, minimapAreas = true })
+	}, { world = world, minimap = minimap, edge = true, scale = scale, minimapAreas = false }) -- (Evertally: no areas on the minimap)
 end
 
 -- Every other spot of the target's spawn places, so the player sees where
@@ -374,7 +374,8 @@ local function updateAreas(world, minimap, index, view)
 		end
 	end
 	if #own > 0 then
-		Pins.SetLayer(AREAS, own, { world = world, minimap = minimap, minimapAreas = true })
+		-- (Evertally, 2026-11-19: the spawn areas' rings are the world map's only; the user: "vypni ty prstence")
+		Pins.SetLayer(AREAS, own, { world = world, minimap = minimap, minimapAreas = false })
 	else
 		Pins.ClearLayer(AREAS)
 	end
@@ -452,7 +453,7 @@ local function updateHere(world, minimap)
 	end
 	Pins.SetLayer(HERE, pins, { world = world, minimap = minimap, edge = true })
 	if #areas > 0 then
-		Pins.SetLayer(HERE_AREAS, areas, { world = world, minimap = minimap, minimapAreas = true })
+		Pins.SetLayer(HERE_AREAS, areas, { world = world, minimap = minimap, minimapAreas = false }) -- (Evertally: world map only)
 	else
 		Pins.ClearLayer(HERE_AREAS)
 	end
