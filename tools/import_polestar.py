@@ -600,6 +600,11 @@ _more('Nav/Layers.lua', ('\t}, { world = world, minimap = minimap, edge = true, 
        '\t\t-- (Evertally, 2026-11-19: the spawn areas\' rings are the world map\'s only; the user: "vypni ty prstence")\n\t\tPins.SetLayer(AREAS, own, { world = world, minimap = minimap, minimapAreas = false })\n', 1),
       ('\t\tPins.SetLayer(HERE_AREAS, areas, { world = world, minimap = minimap, minimapAreas = true })\n',
        '\t\tPins.SetLayer(HERE_AREAS, areas, { world = world, minimap = minimap, minimapAreas = false }) -- (Evertally: world map only)\n', 1))
+# ---- 2026-11-19: no dashed rings on the minimap (rares seen lately wore one; the user: "vypni ty prstence")
+_more('Nav/Pins.lua', ('\t\tf.ring2:SetShown(not clamped and type(p.ring2) == "table")\n',
+       '\t\t-- (Evertally, 2026-11-19: the dashed ring on the world map only; the user: "vypni ty prstence")\n\t\tf.ring2:SetShown(not clamped and type(p.ring2) == "table" and not f.psMinimap)\n', 1),
+      ('\t\tf = ns.CreateFrameUnder("Frame", nil, Minimap)\n\t\tbuildLook(f)\n',
+       '\t\tf = ns.CreateFrameUnder("Frame", nil, Minimap)\n\t\tbuildLook(f)\n\t\tf.psMinimap = true -- (Evertally: no dashed ring here)\n', 1))
 # ---- 2026-11-18: the guide's chat lines say Evertally, not Polestar (the user: "do chatu furt píše polestar")
 _more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
       'local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)', 1))
