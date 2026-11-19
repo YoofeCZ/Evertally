@@ -559,6 +559,25 @@ _more('QoL/Spells.lua', ('ns.RegisterDefaults("qol", { levelUpSpells = true, old
        '-- Tell the old ranks (OLD_RANKS) when there are any not told yet. -> told\nlocal autoTried = {} -- (Evertally) lists of old ranks already put right by themselves this session\nfunction Spells.CheckRanks(force)', 1))
 _more('QoL/Options.lua', ('\t\tsearch = "rank, old rank, downrank, action bar, upgrade spells, highest rank, buttons" },\n',
        '\t\tsearch = "rank, old rank, downrank, action bar, upgrade spells, highest rank, buttons" },\n\t-- Evertally: the new rank onto the bars by itself\n\t{ kind = "toggle", key = "qol.autoRanks", label = L["Put new ranks on your bars"],\n\t\thelp = L["When you learn a higher rank, it replaces the lower one in the same action buttons by itself (out of combat). Macros, items and the ranks you keep are left alone."],\n\t\tdisabled = function() return not QoL.On("oldRanks") end,\n\t\tsearch = "auto rank, spell ranks, new rank, action bar, upgrade, automatic" },\n', 1))
+# ---- 2026-11-19: services, inns and flight masters on the map and the minimap by default; inns and flight masters in the tracking menu
+_more('Maps/Maps.lua', ('\ttaxiPins = false,       -- flight masters\n',
+       '\ttaxiPins = true,        -- flight masters (Evertally: on, with the minimap\'s, as the game\'s own tracking)\n', 1),
+      ('\tinnPins = false,        -- inns\n',
+       '\tinnPins = true,         -- inns (Evertally: on)\n', 1),
+      ('\ttravelMinimap = false,  -- travel icons on the minimap too\n',
+       '\ttravelMinimap = true,   -- travel icons on the minimap too (Evertally: on)\n', 1))
+_more('Maps/Services.lua', ('\t{ key = "repair", label = L["Repair"], glyph = "repair" },\n',
+       '\t{ key = "repair", label = L["Repair"], glyph = "repair", on = true },\n', 1),
+      ('\t{ key = "auctioneer", label = L["Auctioneers"], glyph = "auction" },\n',
+       '\t{ key = "auctioneer", label = L["Auctioneers"], glyph = "auction", on = true },\n', 1),
+      ('\t{ key = "banker", label = L["Bankers"], glyph = "bank" },\n',
+       '\t{ key = "banker", label = L["Bankers"], glyph = "bank", on = true },\n', 1),
+      ('\t{ key = "trainer", label = L["Profession trainers"], glyph = "trainer-profession" },\n',
+       '\t{ key = "trainer", label = L["Profession trainers"], glyph = "trainer-profession", on = true },\n', 1),
+      ('ns.RegisterDefaults("maps", { servicePins = false, serviceMinimap = false, serviceFilters = filters })\n',
+       '-- (Evertally, 2026-11-19: on by default, on the minimap too, as the game\'s own tracking; the user: "nevidím na\n-- minimapě inkeepery, trenéry")\nns.RegisterDefaults("maps", { servicePins = true, serviceMinimap = true, serviceFilters = filters })\n', 1),
+      ('\tcheckbox(menu, L["Service icons on the minimap"], "maps.serviceMinimap")\n\tmenu:CreateDivider()\n',
+       '\tcheckbox(menu, L["Service icons on the minimap"], "maps.serviceMinimap")\n\tmenu:CreateDivider()\n\t-- Evertally: the travel layer\'s inns and flight masters here too (looked for in the minimap\'s tracking menu)\n\tcheckbox(menu, L["Inns"], "maps.innPins")\n\tcheckbox(menu, L["Flight masters"], "maps.taxiPins")\n\tcheckbox(menu, L["Travel icons on the minimap"], "maps.travelMinimap")\n\tmenu:CreateDivider()\n', 1))
 # ---- 2026-11-18: the guide's chat lines say Evertally, not Polestar (the user: "do chatu furt píše polestar")
 _more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
       'local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)', 1))

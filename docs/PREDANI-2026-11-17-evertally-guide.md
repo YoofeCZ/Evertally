@@ -234,3 +234,7 @@ Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů proch�
 - **Questoví mobové:** `Quests/Tooltips.lua` pytel (`Media/UI/quest-loot.tga`) / meč (`quest-kill.tga`) — herní kresby 133639 / 135274 s odříznutým pozadím, uložené i v overlayi; `qol.nameplateIcons` výchozí zapnuto.
 - **Auto ranky:** `qol.autoRanks` (výchozí zapnuto) v `QoL/Spells.lua` `CheckRanks` volá `Spells.Upgrade()` jednou na seznam za sezení.
 - Lua testy 872 OK; nové `test_loot_window.py`, `test_drawer_macro.py`, `test_guide_plate_icons.py`, `test_guide_auto_ranks.py`, rozšířený `test_bag_window.py`. **Ve hře neověřeno nic z 0.11.9.**
+
+## Vydání 0.11.10 (2026-11-19, noc)
+- **Pi:** zip sha256 `fdda5d1b…6280`, 921 souborů, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.10). Záloha 0.11.9 v `~/evertally/backups/addon-0.11.9-2026-11-19/`. Sync nainstalovala u uživatele 20:21:00Z. Poznámky `VYDANI-0.11.10.md`. CurseForge ne.
+- Služby NPC, hostince a letci ve výchozím stavu na mapě i minimapě (`maps.servicePins`, `serviceMinimap`, `taxiPins`, `innPins`, `travelMinimap` = true; kategorie `on`: repair, mailbox, class, trainer, banker, auctioneer). Herní menu sledování na minimapě (`MENU_MINIMAP_TRACKING`, `Maps.AddServiceMenu`) má nově hostince, letce a ikony cestování. Patche v `tools/import_polestar.py`. Porovnání verzí je číselné (`V.Number`, Sync podle sha256), 0.11.10 > 0.11.9. **Ve hře neověřeno.**

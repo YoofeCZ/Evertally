@@ -13,16 +13,16 @@ local LAYER = "maps.services"
 -- `on`: the lean set a player gets when turning the layer on; the rest are opt-in.
 -- `glyph`: the map mark (Media/Map/icon-<glyph>); `icon` is its texture, for menus.
 local CATEGORIES = {
-	{ key = "repair", label = L["Repair"], glyph = "repair" },
+	{ key = "repair", label = L["Repair"], glyph = "repair", on = true },
 	{ key = "mailbox", label = L["Mailboxes"], glyph = "mailbox", on = true },
 	{ key = "class", label = L["Class trainers"], glyph = "trainer-class", on = true },
 	{ key = "weapon", label = L["Weapon masters"], glyph = "trainer-weapon" },
-	{ key = "auctioneer", label = L["Auctioneers"], glyph = "auction" },
-	{ key = "banker", label = L["Bankers"], glyph = "bank" },
+	{ key = "auctioneer", label = L["Auctioneers"], glyph = "auction", on = true },
+	{ key = "banker", label = L["Bankers"], glyph = "bank", on = true },
 	{ key = "battlemaster", label = L["Battlemasters"], glyph = "battlemaster" },
 	{ key = "spirithealer", label = L["Spirit healers"], glyph = "ankh" },
 	{ key = "stablemaster", label = L["Stable masters"], glyph = "stable" },
-	{ key = "trainer", label = L["Profession trainers"], glyph = "trainer-profession" },
+	{ key = "trainer", label = L["Profession trainers"], glyph = "trainer-profession", on = true },
 	{ key = "vendor", label = L["Vendors"], glyph = "vendor" },
 }
 Maps.ServiceCategories = CATEGORIES
@@ -42,7 +42,9 @@ function Maps.ServiceIcon(category, size)
 	return string.format("|T%s:%d:%d:0:0:64:64:0:64:0:64:%d:%d:%d|t", category.icon, size or 16, size or 16,
 		math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
 end
-ns.RegisterDefaults("maps", { servicePins = false, serviceMinimap = false, serviceFilters = filters })
+-- (Evertally, 2026-11-19: on by default, on the minimap too, as the game's own tracking; the user: "nevidím na
+-- minimapě inkeepery, trenéry")
+ns.RegisterDefaults("maps", { servicePins = true, serviceMinimap = true, serviceFilters = filters })
 
 local function rolesOf(record)
 	local roles = {}
@@ -242,6 +244,11 @@ local function addMenu(_, root)
 	end
 	checkbox(menu, L["Show NPC services"], "maps.servicePins")
 	checkbox(menu, L["Service icons on the minimap"], "maps.serviceMinimap")
+	menu:CreateDivider()
+	-- Evertally: the travel layer's inns and flight masters here too (looked for in the minimap's tracking menu)
+	checkbox(menu, L["Inns"], "maps.innPins")
+	checkbox(menu, L["Flight masters"], "maps.taxiPins")
+	checkbox(menu, L["Travel icons on the minimap"], "maps.travelMinimap")
 	menu:CreateDivider()
 	for _, category in ipairs(CATEGORIES) do
 		checkbox(menu, category.label, "maps.serviceFilters." .. category.key)

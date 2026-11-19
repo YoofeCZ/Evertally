@@ -30,10 +30,10 @@ ns.RegisterDefaults("maps", {
 	minimapButtonAngle = 225, -- where on the edge, degrees (0 = east, counter-clockwise)
 	reveal = "tint",        -- unexplored areas: "off" | "on" (revealed) | "tint" (revealed, tinted)
 	dungeonPins = false,    -- dungeon entrances on the world map (from the Codex pack)
-	taxiPins = false,       -- flight masters
+	taxiPins = true,        -- flight masters (Evertally: on, with the minimap's, as the game's own tracking)
 	dockPins = false,       -- boats, zeppelins, tram
-	innPins = false,        -- inns
-	travelMinimap = false,  -- travel icons on the minimap too
+	innPins = true,         -- inns (Evertally: on)
+	travelMinimap = true,   -- travel icons on the minimap too (Evertally: on)
 	flightTimer = true,
 	instances = true,       -- record instance entries and runs
 	instanceDisplay = false, -- compact tracker on screen, opt in
