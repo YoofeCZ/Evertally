@@ -159,7 +159,9 @@ function Maps.BuildTravelPins(o)
 	for _, node in ipairs(data.taxi or {}) do
 		if usable(node, faction, class) then
 			local isKnown = has(node, known) and true or false
-			local p = pinAt(node, "map:flightmaster", 15, isKnown and knownCol or unknownCol,
+			-- (Evertally: the game's flight master icon, white; not learned yet keeps its "?")
+			local game = Maps.GameIcon and Maps.GameIcon("flightmaster")
+			local p = pinAt(node, game or "map:flightmaster", 15, game and Maps.GAME_WHITE or (isKnown and knownCol or unknownCol),
 				taxiTooltip(node, data, faction, class, known, seen), isKnown and 2 or 3)
 			-- Not yet learned: in the warning colour, with a "?".
 			p.nodeID, p.known, p.badge = node.id, isKnown, not isKnown and "?" or nil
@@ -188,7 +190,9 @@ function Maps.BuildTravelPins(o)
 			end
 		end
 		-- The inn the Hearthstone is bound to: larger, in the success colour, circled.
-		local p = pinAt(inn, "map:inn", bound and 16 or 12, color(bound and "success" or "npc"), innTooltip(inn, bound), bound and 2 or 0)
+		-- (Evertally: the game's innkeeper icon, white; the bound inn larger and circled)
+		local game = Maps.GameIcon and Maps.GameIcon("inn")
+		local p = pinAt(inn, game or "map:inn", bound and 16 or (game and 14 or 12), game and Maps.GAME_WHITE or color(bound and "success" or "npc"), innTooltip(inn, bound), bound and 2 or 0)
 		p.ring, p.bound = bound and color("success") or nil, bound
 		inns[#inns + 1] = p
 	end

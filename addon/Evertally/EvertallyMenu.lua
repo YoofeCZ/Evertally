@@ -10,7 +10,7 @@ local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
 
 local text = {
     en = {menuTitle = "Evertally", menuOpen = "EVERTALLY MENU", menuOpenTip = "Evertally's window: your history, the journal, dungeons, settings",
-        menuGuide = "GUIDE", menuNav = "NAVIGATION", menuGame = "GAME", menuSetup = "SETTINGS", menuCommunity = "COMMUNITY",
+        menuMinimap = "MINIMAP", menuGuide = "GUIDE", menuNav = "NAVIGATION", menuGame = "GAME", menuSetup = "SETTINGS", menuCommunity = "COMMUNITY",
         menuGuideWindow = "Guide window", menuPickGuide = "Choose a guide", menuLookup = "Database", menuQuests = "Quest tracker",
         menuWindowOptions = "Window options", menuParty = "Party", menuPartySync = "Sync the party",
         menuArrow = "Arrow", menuArrowHidden = "Arrow when hidden", menuStopNav = "Clear the target", menuMap = "World map",
@@ -22,7 +22,7 @@ local text = {
         minimapLeft = "Left click: menu", minimapRight = "Right click: hide Evertally", minimapRightShow = "Right click: show Evertally",
         minimapDrag = "Drag: move around the minimap"},
     cs = {menuTitle = "Evertally", menuOpen = "EVERTALLY MENU", menuOpenTip = "Okno Evertally: tvoje historie, deník, dungeony, nastavení",
-        menuGuide = "PRŮVODCE", menuNav = "NAVIGACE", menuGame = "HRA", menuSetup = "NASTAVENÍ", menuCommunity = "KOMUNITA",
+        menuMinimap = "MINIMAPA", menuGuide = "PRŮVODCE", menuNav = "NAVIGACE", menuGame = "HRA", menuSetup = "NASTAVENÍ", menuCommunity = "KOMUNITA",
         menuGuideWindow = "Okno návodu", menuPickGuide = "Vybrat návod", menuLookup = "Databáze", menuQuests = "Quest tracker",
         menuWindowOptions = "Možnosti okna", menuParty = "Parta", menuPartySync = "Synchronizovat",
         menuArrow = "Šipka", menuArrowHidden = "Šipka i po skrytí", menuStopNav = "Zrušit cíl", menuMap = "Mapa světa",
@@ -80,6 +80,37 @@ function A.EvertallyMenuGroups()
     local Party = g and g.Party
     local groups = {}
     local function group(head, items) local list = {}; for _, item in ipairs(items) do if item then list[#list + 1] = item end end; if #list > 0 then groups[#groups + 1] = {head = head, items = list} end end
+    -- What the map and the minimap show (2026-11-19, the user: the filter at the top, under the menu's button): the
+    -- guide's inns, flight masters and NPC service categories, in the game's own tracking icons. Turning one on turns
+    -- its layer and its minimap icons on too.
+    local Maps = g and g.Maps
+    if Maps and g.Get and g.Set then
+        local GL = g.L or {}
+        local function setting(path) return try(g.Get, path) == true end
+        local function turn(path, extra)
+            local on = not setting(path)
+            try(g.Set, path, on)
+            if on then for _, p in ipairs(extra) do if not setting(p) then try(g.Set, p, true) end end end
+        end
+        local function icon(kind, fallback) return (Maps.GameIcon and Maps.GameIcon(kind)) or fallback end
+        local items = {
+            {key = "menuInns", text = GL["Inns"], icon = icon("inn", "Interface\\Icons\\INV_Misc_Rune_01"),
+                get = function() return setting("maps.innPins") end, onClick = function() turn("maps.innPins", {"maps.travelMinimap"}) end},
+            {key = "menuFlight", text = GL["Flight masters"], icon = icon("flightmaster", "Interface\\Icons\\Ability_Mount_Wyvern_01"),
+                get = function() return setting("maps.taxiPins") end, onClick = function() turn("maps.taxiPins", {"maps.travelMinimap"}) end},
+        }
+        for _, c in ipairs(Maps.ServiceCategories or {}) do
+            local path = "maps.serviceFilters." .. c.key
+            items[#items + 1] = {key = "menuService_" .. c.key, text = c.label, icon = c.icon,
+                get = function() return setting("maps.servicePins") and setting(path) end,
+                onClick = function()
+                    if not setting("maps.servicePins") then try(g.Set, "maps.servicePins", true); if not setting(path) then try(g.Set, path, true) end
+                    else turn(path, {}) end
+                    if setting(path) and not setting("maps.serviceMinimap") then try(g.Set, "maps.serviceMinimap", true) end
+                end}
+        end
+        group("menuMinimap", items)
+    end
     group("menuGuide", {
         g and {key = "menuGuideWindow", icon = "Interface\\Icons\\INV_Misc_Book_09", get = function() return try(g.GuideShown) == true end,
             onClick = function() try(g.SetHidden, false); try(g.Fire, "TOGGLE_FRAME") end} or false,
@@ -206,7 +237,7 @@ function A.RefreshEvertallyMenu()
             b:ClearAllPoints(); b:SetPoint("TOPLEFT", PAD + ((i - 1) % 2) * (TILE_W + GAP), -(y + math.floor((i - 1) / 2) * (TILE_H + GAP)))
             local label = item.key
             if item.key == "menuHide" and A.EvertallyHidden() then label = "menuShow" end
-            b.text:SetText(A.L(label))
+            b.text:SetText(item.text or A.L(label))
             b.icon:SetTexture(item.icon)
             if type(item.icon) == "string" and item.icon:find("^Interface\\Icons\\") then b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) else b.icon:SetTexCoord(0, 1, 0, 1) end
             local on = item.get and item.get() or false

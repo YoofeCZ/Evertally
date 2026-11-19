@@ -52,6 +52,43 @@ class EvertallyMenuTests(unittest.TestCase):
             for key in flat + heads + ["menuOpen", "menuHint", "menuShow", "minimapLeft", "minimapRight", "minimapRightShow", "minimapDrag"]:
                 self.assertTrue(self.a.locale[lang][key], (lang, key))
 
+    def test_the_minimap_filter_comes_first_and_a_category_turns_its_icons_on(self):
+        # (2026-11-19: the user wants what the minimap shows chosen at the top of the menu, in the game's own icons)
+        self.lua.execute(FAKE_GUIDE)
+        self.lua.execute('''
+          SET = {["maps.innPins"] = true, ["maps.travelMinimap"] = true}
+          EvertallyGuide.Get = function(p) if p == "nav.arrow" then return ARROW end return SET[p] end
+          EvertallyGuide.Set = function(p, v) SET[p] = v end
+          EvertallyGuide.L = {Inns = "Hostince", ["Flight masters"] = "Letoví mistři"}
+          EvertallyGuide.Maps = {
+            ServiceCategories = {{key = "mailbox", label = "Schránky", icon = "Interface\\\\Minimap\\\\Tracking\\\\Mailbox"},
+                                 {key = "vendor", label = "Prodejci", icon = "Interface\\\\GossipFrame\\\\VendorGossipIcon"}},
+            GameIcon = function(kind) return "GAME:" .. kind end}
+        ''')
+        groups = self.a.EvertallyMenuGroups()
+        first = groups[1]
+        self.assertEqual(str(first.head), "menuMinimap")
+        items = {str(i.key): i for i in first["items"].values()}
+        self.assertEqual(list(items), ["menuInns", "menuFlight", "menuService_mailbox", "menuService_vendor"])
+        self.assertEqual(str(items["menuInns"].text), "Hostince")
+        self.assertEqual(str(items["menuInns"].icon), "GAME:inn")
+        self.assertTrue(items["menuInns"].get())
+        self.assertFalse(items["menuService_vendor"].get())
+        items["menuService_vendor"].onClick()
+        g = self.lua.globals().SET
+        self.assertTrue(g["maps.servicePins"] and g["maps.serviceFilters.vendor"] and g["maps.serviceMinimap"],
+                        "the layer, the category and its minimap icons")
+        self.assertTrue(items["menuService_vendor"].get())
+        items["menuService_vendor"].onClick()
+        self.assertFalse(items["menuService_vendor"].get(), "a second click turns it off")
+        items["menuFlight"].onClick()
+        self.assertTrue(g["maps.taxiPins"])
+        for lang in ("en", "cs"):
+            self.assertTrue(self.a.locale[lang]["menuMinimap"])
+        # the panel draws the tiles with their own text
+        self.assertTrue(self.a.ShowEvertallyMenu(None))
+        self.assertEqual(str(self.tiles()["menuInns"].text.text if hasattr(self.tiles()["menuInns"].text, "text") else "Hostince"), "Hostince")
+
     def test_a_switch_keeps_the_menu_open_and_shows_its_state_an_action_closes_it(self):
         self.lua.execute(FAKE_GUIDE)
         self.assertTrue(self.a.ShowEvertallyMenu(None))

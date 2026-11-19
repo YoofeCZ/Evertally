@@ -43,6 +43,32 @@ ns.RegisterDefaults("maps", {
 	trackerPos = false,
 })
 
+-- Evertally (2026-11-19): the game's own minimap tracking art on the service, inn and flight master pins (the user:
+-- "original blizzard ikonky: inkeeper, mail, shop, blacksmith"), white, as the game draws them. A file this client
+-- does not have (SetTexture says false) keeps the map mark.
+local GAME_ICONS = {
+	inn = "Interface\\Minimap\\Tracking\\Innkeeper", flightmaster = "Interface\\Minimap\\Tracking\\FlightMaster",
+	mailbox = "Interface\\Minimap\\Tracking\\Mailbox", repair = "Interface\\Minimap\\Tracking\\Repair",
+	banker = "Interface\\Minimap\\Tracking\\Banker", auctioneer = "Interface\\Minimap\\Tracking\\Auctioneer",
+	class = "Interface\\Minimap\\Tracking\\Class", trainer = "Interface\\Minimap\\Tracking\\Profession",
+	stablemaster = "Interface\\Minimap\\Tracking\\StableMaster", battlemaster = "Interface\\Minimap\\Tracking\\BattleMaster",
+	vendor = "Interface\\GossipFrame\\VendorGossipIcon",
+}
+Maps.GAME_ICONS = GAME_ICONS
+Maps.GAME_WHITE = { 1, 1, 1, 1 }
+local gameProbe, gameKnown = nil, {}
+function Maps.GameIcon(kind)
+	local path = GAME_ICONS[kind]
+	if not path then return nil end
+	if gameKnown[path] == nil then
+		if not gameProbe and UIParent and UIParent.CreateTexture then gameProbe = UIParent:CreateTexture(nil, "BACKGROUND") end
+		local ok, set = false, false
+		if gameProbe then ok, set = pcall(gameProbe.SetTexture, gameProbe, path) end
+		gameKnown[path] = ok and set ~= false
+	end
+	return gameKnown[path] and path or nil
+end
+
 -- The 0.3.6 test builds saved the button off once for an account from
 -- before (never with the gamepad interface), flagged by
 -- PolestarDB.minimapButtonKept. 0.3.6 shows the button to everyone: an

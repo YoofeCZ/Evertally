@@ -91,6 +91,8 @@ local function pile(members, detail)
 		end
 	end
 	group.icon = group.stack[1]
+	-- Evertally: a game icon in its own colours (Maps.GameIcon)
+	if type(group.icon) == "string" and not group.icon:match("^map:") then group.color = Maps.GAME_WHITE end
 	group.tooltip = function(tip)
 		local info = C_Map.GetMapInfo(detail)
 		tip:SetText(info and info.name or L["NPC services"])
