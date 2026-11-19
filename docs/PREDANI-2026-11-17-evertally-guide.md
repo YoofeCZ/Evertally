@@ -247,4 +247,4 @@ Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů proch�
 ## Vydání 0.11.12 (2026-11-19, noc)
 - **Pi:** zip sha256 `40fdce8f…`, TOC 0.11.12, ověřeno stažením. Záloha 0.11.11 v `~/evertally/backups/addon-0.11.11-2026-11-19/`. Vydáno na výslovné přání uživatele ještě před doběhnutím testů (testy pak 873 OK).
 - Oblasti výskytu cílů (`nav.areas`, oblasti kroku a cíle šipky) se na minimapě nekreslí (`minimapAreas = false` v `Nav/Layers.lua`, patch v importéru); na velké mapě zůstávají.
-- **CurseForge:** formulář „Evertally 0.11.12“ s changelogem od 0.11.8 připravený, zip přetahuje uživatel.
+- **CurseForge:** nahráno „Evertally 0.11.12“ (po obnovení seznamu stav „Uploading“, tj. zpracování na straně CurseForge), changelog anglicky od 0.11.8 bez Polestaru. 0.11.8 tam je schválená.
