@@ -243,3 +243,8 @@ Ověřeno: importér prošel se všemi kontrolami počtů, 833 Lua testů proch�
 - **Pi:** zip sha256 `d9d3a584…48c3`, 921 souborů, ověřeno stažením (200, `application/zip`, `PK`, TOC 0.11.11). Záloha 0.11.10 v `~/evertally/backups/addon-0.11.10-2026-11-19/`. Sync nainstalovala 20:43:21Z. Poznámky `VYDANI-0.11.11.md`. CurseForge ne.
 - Herní ikony sledování: `Maps.GameIcon(kind)` v `Maps/Maps.lua` (tabulka `Maps.GAME_ICONS`, `Interface\Minimap\Tracking\*` + `GossipFrame\VendorGossipIcon` pro obchod; soubor ověřen sondou `SetTexture ~= false`, jinak zůstane `map:` značka), bílá barva `Maps.GAME_WHITE`. Použito v `Services.lua` (kategorie `game`), `ServiceClusters.lua`, `TravelPins.lua` (hostince, letci). **Že je Forever má, nebylo ověřeno** — jen že je používají jiné nainstalované addony (AllTheThings, DialogueUI).
 - Evertally menu: první sekce `menuMinimap` (`EvertallyMenu.lua`), dlaždice mají vlastní `text` (popisky z průvodce); zapnutí kategorie zapne i `maps.servicePins` a `serviceMinimap`, hostince/letci `travelMinimap`. Test v `test_evertally_menu.py`.
+
+## Vydání 0.11.12 (2026-11-19, noc)
+- **Pi:** zip sha256 `40fdce8f…`, TOC 0.11.12, ověřeno stažením. Záloha 0.11.11 v `~/evertally/backups/addon-0.11.11-2026-11-19/`. Vydáno na výslovné přání uživatele ještě před doběhnutím testů (testy pak 873 OK).
+- Oblasti výskytu cílů (`nav.areas`, oblasti kroku a cíle šipky) se na minimapě nekreslí (`minimapAreas = false` v `Nav/Layers.lua`, patch v importéru); na velké mapě zůstávají.
+- **CurseForge:** formulář „Evertally 0.11.12“ s changelogem od 0.11.8 připravený, zip přetahuje uživatel.
