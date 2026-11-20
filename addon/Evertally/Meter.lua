@@ -94,9 +94,13 @@ end
 function M.Available()
     local d = api()
     if not d then return false end
+    -- (2026-11-20: the data come without the game's own meter on, as Details reads them; 0.11.17 and 0.11.18 switched
+    -- it on and the game's window showed beside Evertally's: switched off once again, the player's choice after that)
+    local s = settings()
     local cvar = g("C_CVar")
-    if type(cvar) == "table" and cvar.GetCVarBool and cvar.SetCVar and not cvar.GetCVarBool("damageMeterEnabled") then
-        pcall(cvar.SetCVar, "damageMeterEnabled", "1")
+    if not s.blizzMeterOff and type(cvar) == "table" and cvar.SetCVar then
+        s.blizzMeterOff = true
+        pcall(cvar.SetCVar, "damageMeterEnabled", "0")
     end
     if type(d.IsDamageMeterAvailable) ~= "function" then return true end
     local ok, on = pcall(d.IsDamageMeterAvailable)
@@ -272,16 +276,20 @@ local function viewOf(cfg) return BY_KEY[cfg.view or ""] or M.MODES[1] end
 local function isPlugin(cfg) return viewOf(cfg).plugin ~= nil end
 local function locked() return settings().locked == true end
 
-local function popup(w, owner, items)
+local function popup(w, owner, items, level)
     local f = w.frame
-    local m = f.menu
+    local field = level == 2 and "menu2" or "menu"
+    local m = f[field]
     if not m then
         m = CreateFrame("Frame", nil, f); m:SetFrameStrata("DIALOG"); m:EnableMouse(true)
+        if level == 2 then m:SetFrameLevel((f.menu and f.menu:GetFrameLevel() or 1) + 5) end
         m.bg = m:CreateTexture(nil, "BACKGROUND"); m.bg:SetAllPoints(m); paint(m.bg, {0.06, 0.06, 0.09}, 0.97)
         m.rows = {}
-        f.menu = m
+        m:SetScript("OnHide", function() if level ~= 2 and f.menu2 then f.menu2:Hide() end end)
+        f[field] = m
     end
-    if m:IsShown() and m.owner == owner then m:Hide(); return end
+    if level ~= 2 and m:IsShown() and m.owner == owner then m:Hide(); return end
+    if level == 2 and m:IsShown() and m.owner == owner then return end
     m.owner = owner
     local width = 170
     for i, item in ipairs(items) do
@@ -292,11 +300,22 @@ local function popup(w, owner, items)
             r.icon = A.Theme.Glyph(r, "check", 12, C.mist); r.icon:SetPoint("LEFT", 6, 0)
             r.text = kit.label(r, 11, C.text); r.text:SetPoint("LEFT", 24, 0)
             if r.text.SetWordWrap then r.text:SetWordWrap(false) end
-            r:SetScript("OnClick", function(self) if not self.fn then return end; m:Hide(); pcall(self.fn); M.Request() end)
+            r.arrow = A.Theme.Glyph(r, "chevron-right", 10, C.mist); r.arrow:SetPoint("RIGHT", -6, 0)
+            -- a group: its views beside it (on the pointer or a click)
+            local function openSub(self) if self.sub then popup(w, self, self.sub, 2) end end
+            r:SetScript("OnEnter", openSub)
+            r:SetScript("OnClick", function(self)
+                if self.sub then openSub(self); return end
+                if not self.fn then return end
+                if f.menu then f.menu:Hide() end
+                if f.menu2 then f.menu2:Hide() end
+                pcall(self.fn); M.Request()
+            end)
             m.rows[i] = r
         end
         r:ClearAllPoints(); r:SetPoint("TOPLEFT", 3, -3 - (i - 1) * 18); r:SetPoint("TOPRIGHT", -3, -3 - (i - 1) * 18)
-        r.text:SetText(item.text); r.fn = item.onClick
+        r.text:SetText(item.text); r.fn = item.onClick; r.sub = item.sub
+        r.arrow:SetShown(item.sub ~= nil)
         if item.head then paint(r.text, C.gold); r.hl:SetAlpha(0) else paint(r.text, item.checked and C.bright or C.text); r.hl:SetAlpha(1) end
         r.icon:SetShown(item.icon ~= nil)
         if item.icon then A.Theme.Art(r.icon, item.icon, item.checked and C.gold or C.mist) end
@@ -304,8 +323,9 @@ local function popup(w, owner, items)
         r:Show()
     end
     for i = #items + 1, #m.rows do m.rows[i]:Hide() end
-    m:SetSize(width, #items * 18 + 6)
-    m:ClearAllPoints(); m:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
+    m:SetSize(width + (level ~= 2 and 10 or 0), #items * 18 + 6)
+    m:ClearAllPoints()
+    if level == 2 then m:SetPoint("TOPLEFT", owner, "TOPRIGHT", 4, 3) else m:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2) end
     m:Show()
 end
 
@@ -355,6 +375,12 @@ function Window:Build()
     f.title.text = kit.label(f.title, 11, C.bright); f.title.text:SetPoint("LEFT", 0, 0); f.title.text:SetPoint("RIGHT", 0, 0)
     f.title.text:SetJustifyH("LEFT"); if f.title.text.SetWordWrap then f.title.text:SetWordWrap(false) end
     f.title:SetScript("OnClick", function(b) w:ViewMenu(b) end)
+    -- held anywhere on the header, the window moves (the lock keeps the size and the rows still)
+    local function grab() f:StartMoving() end
+    local function drop() f:StopMovingOrSizing(); savePoint(w) end
+    f.head:EnableMouse(true); f.head:RegisterForDrag("LeftButton")
+    f.head:SetScript("OnDragStart", grab); f.head:SetScript("OnDragStop", drop)
+    f.title:RegisterForDrag("LeftButton"); f.title:SetScript("OnDragStart", grab); f.title:SetScript("OnDragStop", drop)
     f.close = headButton(f, "close", "mtCloseWindow", function() M.CloseWindow(w.index) end); f.close:SetPoint("RIGHT", -3, 0)
     f.new = headButton(f, "window", "mtNewWindow", function() M.AddWindow(nil, w.index) end); f.new:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
     f.reset = headButton(f, "reset", "mtReset", function() M.Reset(); A.Print(A.L("mtResetDone")) end); f.reset:SetPoint("RIGHT", f.new, "LEFT", -2, 0)
@@ -377,17 +403,21 @@ function Window:Build()
     return f
 end
 
+-- The views by group, as Details has them: Damage, Heal, Miscellaneous, Plugins; a group opens its views beside it.
+local GROUP_ICON = {damage = "icon-kill", heal = "heal", misc = "bolt", plugins = "plug"}
 function Window:ViewMenu(owner)
     local items = {}
     for _, grp in ipairs(M.GROUPS) do
-        items[#items + 1] = {text = A.L(grp.label), head = true}
+        local sub, current = {}, false
         for _, m in ipairs(M.MODES) do
             if m.group == grp.key then
                 local key = m.key
-                items[#items + 1] = {text = A.L(m.label), icon = m.icon, checked = self.cfg.view == key,
+                current = current or self.cfg.view == key
+                sub[#sub + 1] = {text = A.L(m.label), icon = m.icon, checked = self.cfg.view == key,
                     onClick = function() self.cfg.view = key; self.detail = nil end}
             end
         end
+        items[#items + 1] = {text = A.L(grp.label), icon = GROUP_ICON[grp.key], checked = current, sub = sub}
     end
     popup(self, owner, items)
 end
@@ -413,7 +443,8 @@ local function rowOf(w, i)
     r.bg = r:CreateTexture(nil, "BACKGROUND"); r.bg:SetAllPoints(r); paint(r.bg, {1, 1, 1}, 0.04)
     r.bar = CreateFrame("StatusBar", nil, r); r.bar:SetAllPoints(r)
     r.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8"); r.bar:SetMinMaxValues(0, 1); r.bar:SetValue(0)
-    r.rank = kit.label(r.bar, 11, C.text); r.rank:SetPoint("LEFT", 4, 0); r.rank:SetJustifyH("LEFT")
+    r.classIcon = r.bar:CreateTexture(nil, "OVERLAY"); r.classIcon:SetSize(ROW - 3, ROW - 3); r.classIcon:SetPoint("LEFT", 1, 0)
+    r.rank = kit.label(r.bar, 11, C.text); r.rank:SetPoint("LEFT", r.classIcon, "RIGHT", 3, 0); r.rank:SetJustifyH("LEFT")
     r.name = kit.label(r.bar, 11, C.text); r.name:SetPoint("LEFT", r.rank, "RIGHT", 2, 0); r.name:SetJustifyH("LEFT")
     if r.name.SetWordWrap then r.name:SetWordWrap(false) end
     r.extra = kit.label(r.bar, 11, C.text); r.extra:SetPoint("RIGHT", -4, 0); r.extra:SetJustifyH("RIGHT")
@@ -433,6 +464,23 @@ local function rowOf(w, i)
     r:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     f.rows[i] = r
     return r
+end
+
+--- The class's icon on a texture: the client's atlas ("classicon-mage"), else the old class sheet; hidden without a class.
+function M.SetClassIcon(tex, class)
+    if type(class) ~= "string" or class == "" then tex:Hide(); return false end
+    local lower = class:lower()
+    local CT = g("C_Texture")
+    if tex.SetAtlas and type(CT) == "table" and CT.GetAtlasInfo and CT.GetAtlasInfo("classicon-" .. lower) then
+        tex:SetTexCoord(0, 1, 0, 1); tex:SetAtlas("classicon-" .. lower); tex:Show(); return true
+    end
+    local coords = type(g("CLASS_ICON_TCOORDS")) == "table" and g("CLASS_ICON_TCOORDS")[class]
+    if coords then
+        tex:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+        tex:SetTexCoord(coords[1], coords[2], coords[3], coords[4]); tex:Show(); return true
+    end
+    tex:Hide()
+    return false
 end
 
 local function spellIcon(id)
@@ -492,6 +540,7 @@ local function drawRows(w, list, maxValue)
         else
             r.bar:SetMinMaxValues(0, 1); r.bar:SetValue(d.share or 0)
         end
+        M.SetClassIcon(r.classIcon, d.class or (d.row and d.row.class))
         r.rank:SetText(d.noRank and "" or (i .. "."))
         setText(r.name, d.name)
         local amount = d.amount
@@ -512,7 +561,7 @@ local function threatList()
     local rows, state = T.Rows("target")
     local out = {}
     for _, d in ipairs(rows) do
-        local e = {name = d.name, color = classColor(d.class), secret = d.secret, value = d.pct, noRank = false}
+        local e = {name = d.name, class = d.class, color = classColor(d.class), secret = d.secret, value = d.pct, noRank = false}
         if d.secret then e.amount = d.pct; e.extra = "%"
         else
             local pct = tonumber(d.pct) or 0
@@ -532,7 +581,7 @@ local function vanguardList()
         if role == "TANK" or (#units == 1 and unit == "player") then
             local hp, max = call(g("UnitHealth"), unit), call(g("UnitHealthMax"), unit)
             local _, class = call(g("UnitClass"), unit)
-            local e = {name = call(g("UnitName"), unit), color = classColor(class), noRank = true}
+            local e = {name = call(g("UnitName"), unit), class = class, color = classColor(class), noRank = true}
             if secret(hp) or secret(max) then
                 e.secret = true; e.value = hp; e.amount = M.Format(hp); e.extra = ""
             else
@@ -597,7 +646,7 @@ function Window:Refresh()
     if info and not info.secret then for _, r in ipairs(rows) do top = math.max(top, tonumber(r.amount) or 0) end end
     local list = {}
     for _, r in ipairs(rows) do
-        local e = {row = r, name = r.name, color = classColor(r.class), secret = r.secret}
+        local e = {row = r, name = r.name, class = r.class, color = classColor(r.class), secret = r.secret}
         if mode.deaths then
             e.amount = M.Clock(r.deathTime); e.share = 1
         else

@@ -6,7 +6,7 @@
 ## Notes: Own game observations, dungeon history and optional ingame sharing.
 ## Notes-csCZ: Vlastní herní pozorování, historie dungeonů a dobrovolné sdílení.
 ## Author: Evertally contributors
-## Version: 0.11.18
+## Version: 0.11.19
 ## X-License: GPL-3.0-or-later (LICENSE.txt); see THIRD_PARTY.md for the material it carries
 ## OptionalDeps: Evertally_Export, OpenMap, Evertally_Guide
 ## SavedVariables: EvertallyDB, EvertallyPeersDB

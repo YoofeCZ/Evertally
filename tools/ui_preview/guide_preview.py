@@ -405,6 +405,7 @@ if os.environ.get("METER") and os.environ.get("QUESTS"):
     W2.ClearAllPoints(W2); W2.SetPoint(W2, "TOPLEFT", G.UIParent, "TOPLEFT", 320, -10)
     if os.environ["METER"] == "menu":
         w = A.Meter.live[1]; w.ViewMenu(w, W1.title)
+        mr = W1.menu.rows[1]; mr.GetScript(mr, "OnEnter")(mr)   # the Damage group open beside it
     lua.execute("RUN_PENDING(); TICK(5); RUN_PENDING(); PREVIEW_SETTLE()")
     nodes_m = PV.to_py(lua.eval("PREVIEW_EXPORT")(G.UIParent))
     mout = Path("D:/addon/output/guide-preview/meter-" + os.environ["METER"] + ("-cs" if os.environ.get("CS") else ""))

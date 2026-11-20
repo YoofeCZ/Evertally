@@ -123,9 +123,14 @@ class MeterTests(unittest.TestCase):
         self.assertTrue(f.rows[2].shown)
         self.assertTrue(self.lua.eval("issecretvalue")(f.rows[1].extra.text), "per second handed on as the client gave it")
 
-    def test_the_games_combat_data_is_switched_on(self):
+    def test_the_games_own_meter_is_not_switched_on(self):
+        # (0.11.17-18 switched it on and Blizzard's window showed; now it goes off once, then it is the player's)
+        self.lua.execute('CVARS.damageMeterEnabled = "1"')
         self.assertTrue(self.m.Available())
-        self.assertEqual(self.lua.globals().CVARS.damageMeterEnabled, "1")
+        self.assertEqual(self.lua.globals().CVARS.damageMeterEnabled, "0")
+        self.lua.execute('CVARS.damageMeterEnabled = "1"')
+        self.m.Available()
+        self.assertEqual(self.lua.globals().CVARS.damageMeterEnabled, "1", "only once: then the player's own choice")
 
     def test_reset_clears_the_games_sessions(self):
         self.m.Reset()
@@ -280,18 +285,45 @@ class MeterWindowsTests(unittest.TestCase):
         self.m.CloseWindow(2)
         self.assertEqual(len(self.m.Windows()), 1)
 
-    def test_the_view_menu_lists_the_groups_and_the_plugins(self):
+    def test_the_view_menu_has_groups_that_open_their_views_beside_them(self):
         self.m.SetEnabled(True)
         w = self.m.live[1]
         w.ViewMenu(w, w.frame.title)
         menu = w.frame.menu
-        texts = [str(menu.rows[i].text.text) for i in range(1, len(menu.rows) + 1) if menu.rows[i].shown]
-        for word in ("Damage", "Heal", "Miscellaneous", "Plugins", "Threat", "Vanguard (tanks)", "Interrupts", "Deaths"):
-            self.assertIn(word, texts)
-        # choosing a view switches the window
-        k = texts.index("Threat")
-        menu.rows[k + 1].scripts.OnClick(menu.rows[k + 1])
+        rows = [menu.rows[i] for i in range(1, len(menu.rows) + 1) if menu.rows[i].shown]
+        self.assertEqual([str(r.text.text) for r in rows], ["Damage", "Heal", "Miscellaneous", "Plugins"])
+        plugins = rows[3]
+        plugins.scripts.OnEnter(plugins)
+        sub = w.frame.menu2
+        views = [sub.rows[i] for i in range(1, len(sub.rows) + 1) if sub.rows[i].shown]
+        self.assertEqual([str(r.text.text) for r in views], ["Threat", "Vanguard (tanks)"])
+        views[0].scripts.OnClick(views[0])
         self.assertEqual(str(self.m.Windows()[1].view), "threat")
+        self.assertFalse(menu.shown)
+
+    def test_the_window_moves_by_its_header_even_locked(self):
+        self.m.SetEnabled(True)
+        f = self.m.live[1].frame
+        self.a.db.settings.meter.locked = True
+        self.lua.execute("MOVED = 0")
+        f.StartMoving = self.lua.eval("function() MOVED = MOVED + 1 end")
+        f.head.scripts.OnDragStart(f.head)
+        f.title.scripts.OnDragStart(f.title)
+        self.assertEqual(self.lua.globals().MOVED, 2)
+
+    def test_rows_show_the_class_icon(self):
+        self.lua.execute('''C_Texture = {GetAtlasInfo = function(name) return name == "classicon-mage" and {} or nil end}
+          CLASS_ICON_TCOORDS = {WARRIOR = {0, 0.25, 0, 0.25}}''')
+        tex = self.lua.eval('''{SetAtlas = function(self, a) self.atlas = a end, SetTexCoord = function() end,
+          SetTexture = function(self, v) self.texture = v end, Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end}''')
+        self.assertTrue(self.m.SetClassIcon(tex, "MAGE"))
+        self.assertEqual(str(tex.atlas), "classicon-mage")
+        self.assertTrue(self.m.SetClassIcon(tex, "WARRIOR"), "the old class sheet without the atlas")
+        self.assertIn("UI-CharacterCreate-Classes", str(tex.texture))
+        self.assertFalse(self.m.SetClassIcon(tex, None))
+        self.m.SetEnabled(True)
+        f = self.m.live[1].frame
+        self.assertTrue(f.rows[2].classIcon.shown, "Noe the warrior gets the icon in the window")
 
     def test_lock_holds_every_window_and_hides_the_grip(self):
         self.m.SetEnabled(True)
