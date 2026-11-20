@@ -24,6 +24,7 @@ SETUP_TO_SETTINGS = {
     "et-window": ["minimap", "uiScaleLabel"],
     "et-tracker": ["qtPickTitle"],
     "et-bags": ["bwPickLabel"],
+    "et-combat": ["meterEnabled", "threatEnabled", "lootSparkles"],
     "et-plates": None,      # the nameplate editor: the same panel (A.BuildFriendlyPlateControls) on its own page
     "et-music": None,       # the music page (custom): on, source, Spotify id
     "et-summary": [],

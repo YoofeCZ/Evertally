@@ -322,7 +322,20 @@ page({key = "et-bags", after = "et-tracker", title = "bwPickTitle", sub = "bwPic
         return K.layGroup(p.pick, 0, true)
     end})
 
-page({key = "et-plates", after = "et-bags", title = "setupPlatesTitle", sub = "setupPlatesBody",
+-- the damage meter, the threat meter and the loot sparkles (Meter.lua, ThreatMeter.lua, LootSparkles.lua)
+page({key = "et-combat", after = "et-bags", title = "setupCombatTitle", sub = "setupCombatBody",
+    build = function(p)
+        p.meter = toggle(p, "meterEnabled", "setupMeterSub", function() return D().meter == true end, function(on) D().meter = on end)
+        p.threat = toggle(p, "threatEnabled", "setupThreatSub", function() return D().threat == true end, function(on) D().threat = on end)
+        p.sparkles = toggle(p, "lootSparkles", "setupSparklesSub", function() return D().sparkles ~= false end, function(on) D().sparkles = on end)
+    end,
+    layout = function(p)
+        local rows = {p.meter, p.threat, p.sparkles}
+        relabel(rows)
+        return K.layRows(rows, 0)
+    end})
+
+page({key = "et-plates", after = "et-combat", title = "setupPlatesTitle", sub = "setupPlatesBody",
     build = function(p)
         p.holder = CreateFrame("Frame", nil, p); p.holder:SetSize(K.CW, 430)
         p.plates = A.BuildFriendlyPlateControls(p.holder, {chooseFirst = true,
@@ -393,10 +406,105 @@ page({key = "et-summary", after = "look", title = "setupHostSumTitle", sub = "se
         return line(p.note, d.web and not A.ExportStore() and A.L("setupNoteExport") or ((d.web or d.liveWeb) and A.L("setupAppNote") or nil), y + 8)
     end})
 
+-- ---------------------------------------------------------------- the first page: Evertally's own
+-- (2026-11-20, the user: the guide's welcome "is too much Polestar"). A plain band with Evertally's mark, a greeting,
+-- what Evertally does in six tiles, and what the next pages are for. Built in the guide's window through its hook.
+local introText = {
+    en = {inTagline = "Your companion for World of Warcraft: Forever", inHello = "Hello, %s", inWelcome = "Welcome to Evertally",
+        inLine = "Evertally helps with the whole game: where to go next, your bags, your fights, and your story on the website.",
+        inF1 = "Guides and quests", inF1d = "Step by step: where to go, who to talk to, what to kill. A quest tracker and an arrow.",
+        inF2 = "Map and travel", inF2d = "Gathering places, services, flight masters and inns on the map and the minimap.",
+        inF3 = "Bags and loot", inF3d = "Bags in sections, tracked items, a fast loot window.",
+        inF4 = "Damage meter and threat", inF4d = "Damage, healing, deaths and threat of your group, in windows of your own.",
+        inF5 = "Chronicle and leaderboard", inF5d = "Your games on the website: chronicle, Armory, leaderboard (with the Evertally app).",
+        inF6 = "Party members", inF6d = "Who plays with Evertally, your party's live position, sharing gear.",
+        inAhead = "The next pages set Evertally up for how you play. Each choice works at once; you can change everything later in Settings.",
+        inAheadOwn = "Your settings come with you from your other characters. Next, the choices that are this character's own."},
+    cs = {inTagline = "Tvůj parťák pro World of Warcraft: Forever", inHello = "Ahoj, %s", inWelcome = "Vítej v Evertally",
+        inLine = "Evertally ti pomáhá s celou hrou: kam dál, batoh, souboje a tvůj příběh na webu.",
+        inF1 = "Návody a questy", inF1d = "Krok za krokem: kam jít, s kým mluvit, co zabít. Tracker questů a šipka.",
+        inF2 = "Mapa a cesty", inF2d = "Místa sbírání, služby, letci a hostince na mapě i minimapě.",
+        inF3 = "Batoh a loot", inF3d = "Batoh rozdělený do sekcí, sledované předměty, rychlé okno lootu.",
+        inF4 = "Damage meter a agro", inF4d = "Poškození, léčení, smrti a agro tvé skupiny ve vlastních oknech.",
+        inF5 = "Kronika a žebříček", inF5d = "Tvoje hraní na webu: kronika, Armory, žebříček (s aplikací Evertally).",
+        inF6 = "Spoluhráči", inF6d = "Kdo hraje s Evertally, živá poloha party, sdílení výbavy.",
+        inAhead = "Další stránky nastaví Evertally podle toho, jak hraješ. Každá volba platí hned a všechno můžeš později změnit v Nastavení.",
+        inAheadOwn = "Nastavení si neseš z ostatních postav. Dál už jen volby, které patří téhle postavě."},
+}
+for lang, entries in pairs(introText) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
+local INTRO_HERO = 168
+local FEATURES = {{"guides", "inF1"}, {"map-fold", "inF2"}, {"bag", "inF3"}, {"icon-kill", "inF4"}, {"journal", "inF5"}, {"people", "inF6"}}
+-- Everything the guide put on a page (its own welcome, built before Evertally's hook was there), hidden.
+local function wipe(f)
+    if not f then return end
+    for _, r in ipairs({f:GetRegions()}) do if r.Hide then r:Hide() end end
+    for _, c in ipairs({f:GetChildren()}) do if c.Hide then c:Hide() end end
+end
+P.intro = {
+    build = function(Pg)
+        local UI = guideUI(); K = K or (UI and UI.WelcomeKit)
+        local h, p = Pg.Hero, Pg.Body
+        Pg.etIntro = true
+        h:SetHeight(INTRO_HERO)
+        -- the band: a quiet ground, a hairline of the accent at its foot, Evertally's mark and name in the middle
+        h.etGround = h:CreateTexture(nil, "BACKGROUND"); h.etGround:SetAllPoints(h); h.etGround:SetColorTexture(0.055, 0.050, 0.085, 1)
+        h.etGlow = h:CreateTexture(nil, "BORDER"); h.etGlow:SetPoint("BOTTOMLEFT"); h.etGlow:SetPoint("BOTTOMRIGHT"); h.etGlow:SetHeight(60)
+        h.etGlow:SetColorTexture(0.45, 0.36, 0.85, 0.10)
+        h.etRule = h:CreateTexture(nil, "ARTWORK"); h.etRule:SetPoint("BOTTOMLEFT"); h.etRule:SetPoint("BOTTOMRIGHT"); h.etRule:SetHeight(1)
+        h.etRule:SetColorTexture(0.55, 0.45, 0.95, 0.55)
+        h.etLogo = h:CreateTexture(nil, "ARTWORK"); h.etLogo:SetSize(64, 64); h.etLogo:SetTexture("Interface\\AddOns\\Evertally\\Media\\Logo")
+        h.etLogo:SetPoint("TOP", h, "TOP", 0, -26)
+        h.etName = K.W.Text(h, "hero", "text"); h.etName:SetPoint("TOP", h.etLogo, "BOTTOM", 0, -10); h.etName:SetText("EVERTALLY")
+        h.etTag = K.W.Text(h, "note", "textDim"); h.etTag:SetPoint("TOP", h.etName, "BOTTOM", 0, -6)
+        p.Title = K.para(p, "hero", "text", K.CW, 2)
+        p.Line = K.para(p, "body", "textDim", K.CW, 3)
+        p.Tiles = {}
+        local tileW = math.floor((K.CW - 16) / 2)
+        for i, f in ipairs(FEATURES) do
+            local t = CreateFrame("Frame", nil, p); t:SetWidth(tileW)
+            t.bg = t:CreateTexture(nil, "BACKGROUND"); t.bg:SetAllPoints(t); t.bg:SetColorTexture(1, 1, 1, 0.035)
+            t.edge = t:CreateTexture(nil, "BORDER"); t.edge:SetPoint("TOPLEFT"); t.edge:SetPoint("BOTTOMLEFT"); t.edge:SetWidth(2)
+            t.edge:SetColorTexture(0.55, 0.45, 0.95, 0.8)
+            t.icon = A.Theme.Glyph(t, f[1], 20, {0.72, 0.62, 1.0}); t.icon:SetPoint("TOPLEFT", 12, -12)
+            t.title = K.para(t, "heading", "text", tileW - 52, 2); t.title:SetPoint("TOPLEFT", 42, -12)
+            t.desc = K.para(t, "note", "textMuted", tileW - 52, 3); t.desc:SetPoint("TOPLEFT", t.title, "BOTTOMLEFT", 0, -4)
+            t.key = f[2]
+            p.Tiles[i] = t
+        end
+        p.Ahead = K.para(p, "note", "textMuted", K.CW, 3)
+    end,
+    layout = function(Pg)
+        if not Pg.etIntro then wipe(Pg.Hero); wipe(Pg.Body); P.intro.build(Pg) end
+        local h, p = Pg.Hero, Pg.Body
+        h.etTag:SetText(A.L("inTagline"))
+        local name = A.Call(UnitName, "player")
+        p.Title:SetText(type(name) == "string" and name ~= "" and string.format(A.L("inHello"), name) or A.L("inWelcome"))
+        K.place(p.Title, 0, 4)
+        local y = 4 + p.Title:GetStringHeight() + 8
+        p.Line:SetText(A.L("inLine")); K.place(p.Line, 0, y)
+        y = y + p.Line:GetStringHeight() + 18
+        local tileW = math.floor((K.CW - 16) / 2)
+        local rowH = 0
+        for i, t in ipairs(p.Tiles) do
+            t.title:SetText(A.L(t.key)); t.desc:SetText(A.L(t.key .. "d"))
+            rowH = math.max(rowH, 12 + t.title:GetStringHeight() + 4 + t.desc:GetStringHeight() + 12)
+        end
+        for i, t in ipairs(p.Tiles) do
+            local col, line = (i - 1) % 2, math.floor((i - 1) / 2)
+            t:SetHeight(rowH)
+            K.place(t, col * (tileW + 16), y + line * (rowH + 10))
+        end
+        y = y + math.ceil(#p.Tiles / 2) * (rowH + 10) + 8
+        p.Ahead:SetText(A.L((not K.full or K.full() == true) and "inAhead" or "inAheadOwn"))
+        K.place(p.Ahead, 0, y)
+        return INTRO_HERO, y + p.Ahead:GetStringHeight()
+    end,
+}
+
 --- The keys of the window's pages for Onboarding.lua's steps.
 P.KEYS = {welcome = "welcome", install = "et-install", pair = "et-pair", website = "et-live", public = "et-live", live = "et-live",   -- (website, public: passed over since 2026-11-18)
    
-    sharing = "et-sharing", map = "et-map", window = "et-window", tracker = "et-tracker", bags = "et-bags", nameplates = "et-plates", music = "et-music", summary = "et-summary"}
+    sharing = "et-sharing", map = "et-map", window = "et-window", tracker = "et-tracker", bags = "et-bags", combat = "et-combat", nameplates = "et-plates", music = "et-music", summary = "et-summary"}
 P.pages = pages
 
 --- Hands the pages to the guide's Install window. -> true when it took them (the setup is then that window)
@@ -405,6 +513,7 @@ function P.Register()
     local UI = guideUI()
     if not UI then return false end
     K = UI.WelcomeKit
+    UI.WelcomeIntro = P.intro   -- the first page: Evertally's own
     for _, spec in ipairs(pages) do
         if not UI.WelcomeHost(spec) then return false end
     end

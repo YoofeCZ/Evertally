@@ -372,6 +372,46 @@ if os.environ.get("BAGS") and os.environ.get("QUESTS"):
     print("bags size", bw, bh, "->", bout.with_suffix(".png"))
     print("UIERR", lua.eval("Evertally.lastUIError"), lua.eval("Evertally.errors and Evertally.errors.BAG_UPDATE_DELAYED"))
     sys.exit(0)
+if os.environ.get("METER") and os.environ.get("QUESTS"):
+    # TEST FIXTURE: the damage meter's windows (Meter.lua) over invented fights: Damage done and Threat side by side;
+    # METER=menu opens the first window's view menu
+    lua.execute(r"""
+      Enum = Enum or {}
+      Enum.DamageMeterType = {DamageDone = 0, Dps = 1, HealingDone = 2, Hps = 3, Absorbs = 4, Interrupts = 5, Dispels = 6,
+        DamageTaken = 7, AvoidableDamageTaken = 8, Deaths = 9, EnemyDamageTaken = 10}
+      Enum.DamageMeterSessionType = {Overall = 0, Current = 1, Expired = 2}
+      C_CVar = C_CVar or {}; C_CVar.GetCVarBool = function() return true end
+      local src = {
+        {"Touchmebaby", "MAGE", 320930000, 1550000}, {"Spockk", "DEATHKNIGHT", 279150000, 1350000}, {"Noe", "WARRIOR", 261470000, 1260000},
+        {"Nerphys", "ROGUE", 250600000, 1210000}, {"Chillie", "HUNTER", 245510000, 1190000}, {"Blackadam", "WARLOCK", 237280000, 1150000},
+        {"Hyzel", "PALADIN", 220640000, 1070000}, {"Path", "DRUID", 210920000, 1020000}}
+      local list = {}
+      for _, s in ipairs(src) do list[#list + 1] = {name = s[1], classFilename = s[2], totalAmount = s[3], amountPerSecond = s[4]} end
+      C_DamageMeter = {IsDamageMeterAvailable = function() return true end, GetAvailableCombatSessions = function() return {} end,
+        GetCombatSessionFromType = function() return {combatSources = list, totalAmount = 3100000000, maxAmount = 320930000, durationSeconds = 207} end}
+      RAID_CLASS_COLORS = RAID_CLASS_COLORS or {MAGE = {r=0.25,g=0.78,b=0.92}, DEATHKNIGHT = {r=0.77,g=0.12,b=0.23}, WARRIOR = {r=0.78,g=0.61,b=0.43},
+        ROGUE = {r=1,g=0.96,b=0.41}, HUNTER = {r=0.67,g=0.83,b=0.45}, WARLOCK = {r=0.53,g=0.53,b=0.93}, PALADIN = {r=0.96,g=0.55,b=0.73}, DRUID = {r=1,g=0.49,b=0.04}}
+      UnitExists = function(u) return u == "target" or u == "player" or u == "party1" end
+      UnitIsFriend = function() return false end
+      GetNumGroupMembers = function() return 2 end
+      UnitName = function(u) return ({player = "Dva", party1 = "Vexara", target = "Savannah Patriarch"})[u] end
+      UnitClass = function(u) return "x", ({player = "SHAMAN", party1 = "WARRIOR"})[u] end
+      UnitDetailedThreatSituation = function(u) if u == "party1" then return true, 3, 100 elseif u == "player" then return false, 1, 62 end end
+    """)
+    A.db.settings.meter = lua.table(enabled=True, windows=lua.table(lua.table(view="damage", width=300, height=200), lua.table(view="threat", width=220, height=90)))
+    A.Meter.Update()
+    W1, W2 = A.Meter.live[1].frame, A.Meter.live[2].frame
+    W1.ClearAllPoints(W1); W1.SetPoint(W1, "TOPLEFT", G.UIParent, "TOPLEFT", 10, -10)
+    W2.ClearAllPoints(W2); W2.SetPoint(W2, "TOPLEFT", G.UIParent, "TOPLEFT", 320, -10)
+    if os.environ["METER"] == "menu":
+        w = A.Meter.live[1]; w.ViewMenu(w, W1.title)
+    lua.execute("RUN_PENDING(); TICK(5); RUN_PENDING(); PREVIEW_SETTLE()")
+    nodes_m = PV.to_py(lua.eval("PREVIEW_EXPORT")(G.UIParent))
+    mout = Path("D:/addon/output/guide-preview/meter-" + os.environ["METER"] + ("-cs" if os.environ.get("CS") else ""))
+    mp = mout.with_suffix(".html"); mp.write_text(PV.render(nodes_m, 560, 520), encoding="utf8")
+    subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(mp), str(mout.with_suffix(".png")), "560", "520"], check=True)
+    print("meter ->", mout.with_suffix(".png"), "UIERR", lua.eval("Evertally.lastUIError"))
+    sys.exit(0)
 if os.environ.get("MENU") and os.environ.get("QUESTS"):
     # The Evertally menu with the guide loaded (its palette, its tiles); needs QUESTS (that loads Evertally)
     A.ShowEvertallyMenu(None)

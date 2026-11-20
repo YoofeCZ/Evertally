@@ -206,6 +206,9 @@ function A.OnboardingDraft()
         plates = A.FriendlyPlateChoices(s), friendlyPlates = A.FriendlyPlatesShown(),
         music = A.Music ~= nil and A.Music.Enabled(), musicSource = type(s.music) == "table" and s.music.source == "youtube" and "youtube" or "spotify",
         spotifyId = type(s.music) == "table" and type(s.music.spotifyId) == "string" and s.music.spotifyId or "",
+        -- the combat page (2026-11-20): the damage meter, the threat meter, the loot sparkles
+        meter = A.Meter ~= nil and A.Meter.Enabled(), threat = A.ThreatMeter ~= nil and A.ThreatMeter.Enabled(),
+        sparkles = A.LootSparkles == nil or A.LootSparkles.Enabled(),
     }
     return draft
 end
@@ -288,6 +291,9 @@ function A.OnboardingApply(d)
         end
     end
     A.SetMinimapButton(d.minimap)
+    if A.Meter and A.Meter.Enabled() ~= (d.meter == true) then A.Meter.SetEnabled(d.meter == true) end
+    if A.ThreatMeter and A.ThreatMeter.Enabled() ~= (d.threat == true) then A.ThreatMeter.SetEnabled(d.threat == true) end
+    if A.LootSparkles and A.LootSparkles.Enabled() ~= (d.sparkles ~= false) then A.LootSparkles.SetEnabled(d.sparkles ~= false) end
     if A.SetUIScale then A.SetUIScale(d.scale) end
     if type(d.plates)=="table" then
         local want=d.friendlyPlates==true

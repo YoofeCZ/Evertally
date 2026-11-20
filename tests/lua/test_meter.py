@@ -121,7 +121,7 @@ class MeterTests(unittest.TestCase):
         self.lua.execute(SECRET_FIGHT)
         self.m.Refresh()   # must not format, compare or sort a secret
         self.assertTrue(f.rows[2].shown)
-        self.assertEqual(str(f.rows[1].extra.text), "")
+        self.assertTrue(self.lua.eval("issecretvalue")(f.rows[1].extra.text), "per second handed on as the client gave it")
 
     def test_the_games_combat_data_is_switched_on(self):
         self.assertTrue(self.m.Available())
@@ -250,6 +250,82 @@ class CombatSettingsTests(unittest.TestCase):
         found["lootSparkles"][1].set(False)
         self.assertFalse(a.LootSparkles.Enabled())
 
+
+class MeterWindowsTests(unittest.TestCase):
+    """More windows, each with its own view; the plain look's buttons; the hover with spells and targets."""
+    def setUp(self):
+        self.lua, self.a = runtime()
+        self.lua.execute(MOCK_UI_LUA)
+        self.lua.execute(FAKE_METER)
+        self.lua.execute(PLAIN)
+        self.lua.execute("C_Timer = nil")
+        self.lua.execute('''
+          SPELLS.combatSpells[2].combatSpellDetails = {unitName = "Savannah Patriarch", amount = 400}
+          SPELLS.combatSpells[1].combatSpellDetails = {{unitName = "Ornery Plainstrider", amount = 100}}
+          TIP = {}
+          GameTooltip = {SetOwner = function() TIP = {} end, AddLine = function(_, s) TIP[#TIP + 1] = s end,
+            AddDoubleLine = function(_, l, r) TIP[#TIP + 1] = l .. " | " .. r end, Show = function() end, Hide = function() end, SetText = function() end}
+        ''')
+        self.m = self.a.Meter
+
+    def test_two_windows_each_with_its_own_view(self):
+        self.m.SetEnabled(True)
+        self.assertEqual(len(self.m.Windows()), 1)
+        i = self.m.AddWindow("healing", 1)
+        self.assertEqual(i, 2)
+        self.assertEqual(str(self.m.Windows()[2].view), "healing")
+        self.assertTrue(self.m.live[1].frame.shown and self.m.live[2].frame.shown)
+        self.assertIn("Damage done", str(self.m.live[1].frame.title.text.text))
+        self.assertIn("Healing done", str(self.m.live[2].frame.title.text.text))
+        self.m.CloseWindow(2)
+        self.assertEqual(len(self.m.Windows()), 1)
+
+    def test_the_view_menu_lists_the_groups_and_the_plugins(self):
+        self.m.SetEnabled(True)
+        w = self.m.live[1]
+        w.ViewMenu(w, w.frame.title)
+        menu = w.frame.menu
+        texts = [str(menu.rows[i].text.text) for i in range(1, len(menu.rows) + 1) if menu.rows[i].shown]
+        for word in ("Damage", "Heal", "Miscellaneous", "Plugins", "Threat", "Vanguard (tanks)", "Interrupts", "Deaths"):
+            self.assertIn(word, texts)
+        # choosing a view switches the window
+        k = texts.index("Threat")
+        menu.rows[k + 1].scripts.OnClick(menu.rows[k + 1])
+        self.assertEqual(str(self.m.Windows()[1].view), "threat")
+
+    def test_lock_holds_every_window_and_hides_the_grip(self):
+        self.m.SetEnabled(True)
+        f = self.m.live[1].frame
+        f.lock.scripts.OnClick(f.lock)
+        self.assertTrue(self.a.db.settings.meter.locked)
+        self.assertFalse(f.grip.shown)
+        f.lock.scripts.OnClick(f.lock)
+        self.assertTrue(f.grip.shown)
+
+    def test_the_hover_shows_spells_and_targets(self):
+        self.m.SetEnabled(True)
+        r = self.m.live[1].frame.rows[1]
+        r.scripts.OnEnter(r)
+        tip = [str(x) for x in self.lua.globals().TIP.values()]
+        self.assertEqual(tip[0], "Touchmebaby")
+        self.assertTrue(any("Fireball" in x and "83.3%" in x for x in tip), tip)
+        self.assertTrue(any(x.startswith("Targets") for x in tip))
+        self.assertTrue(any("Savannah Patriarch" in x for x in tip))
+        self.assertTrue(any("Ornery Plainstrider" in x for x in tip))
+
+    def test_vanguard_shows_the_tanks_health(self):
+        self.lua.execute('''
+          GetNumGroupMembers = function() return 2 end
+          UnitExists = function(u) return u == "player" or u == "party1" end
+          UnitGroupRolesAssigned = function(u) return u == "party1" and "TANK" or "DAMAGER" end
+          UnitName = function(u) return u == "party1" and "Tanky" or "Me" end
+          UnitHealth = function() return 750 end
+          UnitHealthMax = function() return 1000 end
+        ''')
+        self.m.AddWindow("vanguard")
+        f = self.m.live[self.m.WindowWith("vanguard")].frame
+        self.assertEqual(str(f.rows[1].name.text), "Tanky")
+        self.assertEqual(str(f.rows[1].extra.text), "75%")
 
 if __name__ == "__main__":
     unittest.main()

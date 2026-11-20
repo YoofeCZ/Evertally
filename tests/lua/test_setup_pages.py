@@ -35,7 +35,7 @@ class SetupPagesTests(unittest.TestCase):
         keys = [str(p.key) for p in pages]
         # (no website and public pages since 2026-11-18: everything is public)
         self.assertEqual(keys, ["et-language", "et-install", "et-pair", "et-live", "et-sharing",
-                                "et-map", "et-window", "et-tracker", "et-bags", "et-plates", "et-music", "et-summary"])
+                                "et-map", "et-window", "et-tracker", "et-bags", "et-combat", "et-plates", "et-music", "et-summary"])
         afters = [str(p.after) for p in pages]
         self.assertEqual(afters[0], "welcome", "right after the guide's welcome")
         self.assertEqual(afters[1:-1], keys[:-2], "each after the one before")

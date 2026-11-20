@@ -785,6 +785,13 @@ _more('UI/Options.lua',
       ('\t\tlocal rowsH = layoutRows(view, g.controls, y + card.RowsTop + capH, SH.pad + gutter, width - gutter, whole)\n\t\tcard.psTop = y\n\t\ty = y + card:Place(SH.pad, y, width, rowsH + capH) + SECTION_GAP\n\tend\n\tfor i = n + 1, #view.cards do view.cards[i]:Hide() end\n\tmarkSections(view)\n\treturn y - (n > 0 and SECTION_GAP or 0)\nend\n',
        '\t\tlocal rowsH = layoutRows(view, g.controls, y + card.RowsTop + capH, cx + gutter, width - gutter, whole or tile)\n\t\tcard.psTop = y\n\t\tlocal h = card:Place(cx, y, width, rowsH + capH)\n\t\tif tile then\n\t\t\tcard.Title:SetWidth(max(1, width - 40))\n\t\t\tcolY[col] = y + h + TILE_GAP\n\t\telse\n\t\t\tcolY[1], colY[2] = y + h + SECTION_GAP, y + h + SECTION_GAP\n\t\tend\n\tend\n\twidth = pageW\n\ty = max(colY[1], colY[2])\n\tfor i = n + 1, #view.cards do view.cards[i]:Hide() end\n\tmarkSections(view)\n\treturn y - (n > 0 and SECTION_GAP or 0)\nend\n', 1))
 
+# ---- 2026-11-20: the setup's first page is Evertally's own (UI.WelcomeIntro, Evertally/SetupPages.lua) ----
+_more('UI/Welcome.lua',
+      ('\tkey = "welcome",\n\tbuild = function(P)\n\t\tlocal h = P.Hero\n\t\th:SetHeight(HELLO_H)\n',
+       '\tkey = "welcome",\n\tbuild = function(P)\n\t\t-- Evertally: its own first page (Evertally/SetupPages.lua, UI.WelcomeIntro)\n\t\tif UI.WelcomeIntro and UI.WelcomeIntro.build then return UI.WelcomeIntro.build(P) end\n\t\tlocal h = P.Hero\n\t\th:SetHeight(HELLO_H)\n', 1),
+      ('\tlayout = function(P)\n\t\tlocal h, p = P.Hero, P.Body\n\t\tlocal id, g = suggested()\n\t\tlocal painted = false\n',
+       '\tlayout = function(P)\n\t\tif UI.WelcomeIntro and UI.WelcomeIntro.layout then return UI.WelcomeIntro.layout(P) end\n\t\tlocal h, p = P.Hero, P.Body\n\t\tlocal id, g = suggested()\n\t\tlocal painted = false\n', 1))
+
 def folder_name(name: str) -> str:
     return "Evertally_Guide" + name[len("Polestar"):]
 

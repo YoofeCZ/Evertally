@@ -746,6 +746,8 @@ end
 PAGES[#PAGES + 1] = {
 	key = "welcome",
 	build = function(P)
+		-- Evertally: its own first page (Evertally/SetupPages.lua, UI.WelcomeIntro)
+		if UI.WelcomeIntro and UI.WelcomeIntro.build then return UI.WelcomeIntro.build(P) end
 		local h = P.Hero
 		h:SetHeight(HELLO_H)
 		-- The start zone's painting, engraved: no colour, multiplied into
@@ -809,6 +811,7 @@ PAGES[#PAGES + 1] = {
 		p.Ahead = para(p, "note", "textMuted", CW, 3)
 	end,
 	layout = function(P)
+		if UI.WelcomeIntro and UI.WelcomeIntro.layout then return UI.WelcomeIntro.layout(P) end
 		local h, p = P.Hero, P.Body
 		local id, g = suggested()
 		local painted = false
