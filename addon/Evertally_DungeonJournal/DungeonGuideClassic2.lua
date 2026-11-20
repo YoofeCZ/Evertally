@@ -1,4 +1,4 @@
-local _, M = ...
+local M = _G.Evertally.map -- (Evertally_DungeonJournal: a module of Evertally_Map's pages since 2026-11-20)
 -- Guides for the dungeons Forever took from Classic, levels 38 to 60. Written for Evertally from how these fights work in
 -- Classic; `classic = true` makes the journal say so, since Forever may have changed a fight.
 M.dungeonGuides = M.dungeonGuides or {}

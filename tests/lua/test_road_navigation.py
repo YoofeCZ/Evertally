@@ -1,5 +1,6 @@
 """The actual arrow/route contracts while a collision path is pending, failed or ready."""
 import unittest
+from test_addon import map_toc_lines
 import base64
 import time
 import zlib
@@ -89,7 +90,7 @@ class FullRoadNavigationTests(unittest.TestCase):
           function geterrorhandler() return function(e) error(e) end end
         ''')
         m = lua.table()
-        for name in (test_terrain.MAP / "Evertally_Map.toc").read_text(encoding="utf8").splitlines():
+        for name in map_toc_lines():
             if name.endswith(".lua") and not name.startswith("Libs"):
                 test_terrain.load(lua, m, name)
         lua.globals().FULLNAV = m

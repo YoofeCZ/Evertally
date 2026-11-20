@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_Bags: a module of Evertally since 2026-11-20)
 -- Marks bag items that fit an equipment slot the character has left empty and that it can wear now.
 -- Works with any bag addon: item buttons are found by what they expose (bag and slot, or an item link),
 -- not by the addon that drew them. Textures are added to the buttons; nothing is written to their tables.

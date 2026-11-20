@@ -1,5 +1,5 @@
-local _, M = ...
 local A = _G.Evertally
+local M = A.map -- (Evertally_DungeonJournal: a module of Evertally_Map's pages since 2026-11-20)
 -- The Dungeon Journal page, built like the journal itself: a grid of cards with the dungeon's banner, and inside a dungeon three tabs: Bosses (a list
 -- of them with their level; the loot of one as rows with the item's icon, its name in the colour of its quality and its slot; the game's tooltip on the
 -- mouse), Quests (the quests of the dungeon: what they ask, who gives them, where to hand them in, what they reward) and Map (the dungeon's map with

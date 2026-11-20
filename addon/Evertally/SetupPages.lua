@@ -75,7 +75,11 @@ local function page(spec)
     pages[#pages + 1] = {
         key = spec.key, after = spec.after, blocked = spec.blocked,
         -- Evertally's settings are the account's: not in a later character's short showing (the guide's, K.full false)
-        shown = function() return not (K and K.full) or K.full() == true end,
+        shown = function()
+            -- a page of a module that is not installed (spec.needs: its table) is not shown
+            if spec.needs and not spec.needs() then return false end
+            return not (K and K.full) or K.full() == true
+        end,
         build = function(Pg)
             K.compactHero(Pg.Hero, A.L(spec.title), "", false)
             spec.build(Pg.Body, Pg)
@@ -309,7 +313,7 @@ page({key = "et-tracker", after = "et-window", title = "qtPickTitle", sub = "qtP
     end})
 
 -- which bags: Evertally's, the game's or an installed bag add-on's (BagWindow.lua)
-page({key = "et-bags", after = "et-tracker", title = "bwPickTitle", sub = "bwPickBody",
+page({key = "et-bags", after = "et-tracker", title = "bwPickTitle", sub = "bwPickBody", needs = function() return A.BagWindow ~= nil end,
     blocked = function() local BW = A.BagWindow; return BW ~= nil and BW.Choice ~= nil and BW.Choice() == nil end,
     build = function(p)
         p.pick = K.optionGroup(p, {title = A.L("bwPickTitle"),
@@ -324,13 +328,19 @@ page({key = "et-bags", after = "et-tracker", title = "bwPickTitle", sub = "bwPic
 
 -- the damage meter, the threat meter and the loot sparkles (Meter.lua, ThreatMeter.lua, LootSparkles.lua)
 page({key = "et-combat", after = "et-bags", title = "setupCombatTitle", sub = "setupCombatBody",
+    needs = function() return A.Meter ~= nil or A.ThreatMeter ~= nil or A.LootSparkles ~= nil end,
     build = function(p)
         p.meter = toggle(p, "meterEnabled", "setupMeterSub", function() return D().meter == true end, function(on) D().meter = on end)
         p.threat = toggle(p, "threatEnabled", "setupThreatSub", function() return D().threat == true end, function(on) D().threat = on end)
         p.sparkles = toggle(p, "lootSparkles", "setupSparklesSub", function() return D().sparkles ~= false end, function(on) D().sparkles = on end)
     end,
     layout = function(p)
-        local rows = {p.meter, p.threat, p.sparkles}
+        -- only the modules that are installed
+        local rows = {}
+        for _, pair in ipairs({{p.meter, A.Meter}, {p.threat, A.ThreatMeter}, {p.sparkles, A.LootSparkles}}) do
+            pair[1]:SetShown(pair[2] ~= nil)
+            if pair[2] ~= nil then rows[#rows + 1] = pair[1] end
+        end
         relabel(rows)
         return K.layRows(rows, 0)
     end})

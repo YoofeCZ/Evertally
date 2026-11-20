@@ -407,7 +407,8 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
     map_table = lua.table()
 
     def load_map():
-        for line in (ROOT / "addon" / "Evertally_Map" / "Evertally_Map.toc").read_text(encoding="utf8").splitlines():
+        from test_addon import map_toc_lines  # the map, then its pages' modules (add-ons of their own since 2026-11-20)
+        for line in map_toc_lines():
             if line.endswith(".lua") and not line.startswith("Libs"):
                 chunk = lua.eval("loadstring")((ROOT / "addon" / "Evertally_Map" / line.strip()).read_text(encoding="utf8"), line)
                 if isinstance(chunk, tuple):
@@ -430,7 +431,8 @@ def make_session(ww, wh, sw=1280, sh=760, openmap=False, language="en"):
         return True
 
     lua.globals().PYLOADMAP = load_map
-    lua.execute("LoadAddOn=function(name) return PYLOADMAP() end")
+    # (the map's page modules are loaded with the map files above: asking for them loads nothing again)
+    lua.execute("LoadAddOn=function(name) if name ~= 'Evertally_Map' then return true end; return PYLOADMAP() end")
     a.db.settings.mapPins = True
     if openmap:   # a stand-in for OpenMap's interface (the shape read from OpenMap 0.8.3)
         lua.execute(OPENMAP)

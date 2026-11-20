@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_Bags: a module of Evertally since 2026-11-20)
 -- Evertally's own bag window: the bags in sections, as one grid, slot by slot or as a list, in Evertally's look.
 --   * header: Bags | Bank, the character (alts from their last snapshot), the slots used with a bar, lock, settings, close
 --   * a search (an item's name, or a tag: #sell #junk #new #quest #gear #upgrade #consumable #profession) and four views:
@@ -57,7 +57,8 @@ local text = {
         bwCatUp = "Move up", bwCatDown = "Move down", bwCatDelete = "Delete the category", bwCatReset = "Default order",
         bwCatDrop = "Drop an item here: it goes into %s.", bwCatMoved = "%s now goes into %s.", bwCatBuiltin = "built in",
         bwTrackHint = "Drag an item here to count it beside your gold", bwTrackOff = "Right-click: stop counting it", bwTrackAuto = "Counted by itself (tokens, tickets, marks).",
-        bwTrackHide = "Tracked items: hide the ones you have none of", bwTrackAdded = "%s is counted beside your gold."},
+        bwTrackHide = "Tracked items: hide the ones you have none of", bwAutoStow = "Put reagents in the reagent bag and keys on the keyring",
+        bwAutoStowHelp = "Whenever your bags change (and when you press Sort), reagents move to the reagent bag and keys to the keyring while there is room.", bwStowTitle = "Reagent bag and keyring", bwTrackAdded = "%s is counted beside your gold."},
     cs = {bwTitle = "Batoh", bwBags = "Batoh", bwBank = "Banka", bwSearch = "Hledat, zkus #sell", bwView_exact = "Přesné sloty",
         bwView_sections = "Sekce", bwView_packed = "Mřížka", bwView_list = "Seznam",
         bwSec_new = "Nové", bwSec_quest = "Questy", bwSec_consumable = "Spotřební", bwSec_profession = "Profese",
@@ -83,7 +84,8 @@ local text = {
         bwCatUp = "Posunout výš", bwCatDown = "Posunout níž", bwCatDelete = "Smazat kategorii", bwCatReset = "Výchozí pořadí",
         bwCatDrop = "Pusť sem předmět: bude v kategorii %s.", bwCatMoved = "%s teď patří do %s.", bwCatBuiltin = "vestavěná",
         bwTrackHint = "Přetáhni sem předmět a bude se počítat vedle peněz", bwTrackOff = "Pravý klik: přestat sledovat", bwTrackAuto = "Sleduje se sám (žetony, lístky, známky).",
-        bwTrackHide = "Sledované předměty: skrýt ty, které nemáš", bwTrackAdded = "%s se počítá vedle peněz."},
+        bwTrackHide = "Sledované předměty: skrýt ty, které nemáš", bwAutoStow = "Dávat reagenty do reagent batohu a klíče na keyring",
+        bwAutoStowHelp = "Při každé změně tašek (i po Seřadit) se reagenty přesunou do reagent batohu a klíče na keyring, dokud je místo.", bwStowTitle = "Reagent batoh a keyring", bwTrackAdded = "%s se počítá vedle peněz."},
 }
 for lang, entries in pairs(text) do for key, value in pairs(entries) do A.locale[lang][key] = value end end
 
@@ -122,9 +124,34 @@ local function bagFree(bag)
 end
 local function nBagSlots() return tonumber(rawget(_G, "NUM_BAG_SLOTS")) or 4 end
 local function nBankBags() return tonumber(rawget(_G, "NUM_BANKBAGSLOTS")) or 6 end
-local BANK = tonumber(rawget(_G, "BANK_CONTAINER")) or -1
-local function playerBags() local t = {}; for b = 0, nBagSlots() do t[#t + 1] = b end; return t end
-local function bankBags() local t = {BANK}; for b = nBagSlots() + 1, nBagSlots() + nBankBags() do t[#t + 1] = b end; return t end
+-- Forever's bag ids (Enum.BagIndex): the reagent bag is 5, the keyring -1, the bank -2 (2026-11-20: the reagent bag and the
+-- keyring were left out, and the bank's bags started at 5, the reagent bag).
+local function bagIndex(name)
+    local E = rawget(_G, "Enum")
+    local t = type(E) == "table" and E.BagIndex
+    return type(t) == "table" and tonumber(t[name]) or nil
+end
+-- (asked when used: Enum is the client's, read after the files load)
+local function bankId() return bagIndex("Characterbanktab") or tonumber(rawget(_G, "BANK_CONTAINER")) or -1 end
+--- The reagent bag's id while one is equipped, else nil.
+local function reagentBag() local b = bagIndex("ReagentBag"); return b and numSlots(b) > 0 and b or nil end
+--- The keyring's id while it has slots, else nil.
+local function keyring() local b = bagIndex("Keyring"); return b and b ~= bankId() and numSlots(b) > 0 and b or nil end
+BW.ReagentBag, BW.Keyring = reagentBag, keyring
+local function playerBags()
+    local t = {}
+    for b = 0, nBagSlots() do t[#t + 1] = b end
+    if reagentBag() then t[#t + 1] = reagentBag() end
+    if keyring() then t[#t + 1] = keyring() end
+    return t
+end
+local function bankBags()
+    local first = (tonumber(rawget(_G, "NUM_TOTAL_EQUIPPED_BAG_SLOTS")) or bagIndex("ReagentBag") or nBagSlots()) + 1
+    local t = {bankId()}
+    for b = first, first + nBankBags() - 1 do t[#t + 1] = b end
+    return t
+end
+BW.PlayerBags, BW.BankBags = playerBags, bankBags
 
 local QUALITY = {[0] = {0.62, 0.62, 0.62}, {1, 1, 1}, {0.12, 1, 0}, {0, 0.44, 0.87}, {0.64, 0.21, 0.93}, {1, 0.5, 0}, {0.9, 0.8, 0.5}, {0, 0.8, 1}}
 local function qualityColor(q)
@@ -774,7 +801,7 @@ local function bagInv(bag)
 end
 local function bagIcon(bag)
     if bag == 0 then return A.Theme.ART .. "bag" end
-    if bag == BANK then return A.Theme.ART .. "bank" end
+    if bag == bankId() then return A.Theme.ART .. "bank" end
     local inv = bagInv(bag)
     return inv and call(rawget(_G, "GetInventoryItemTexture"), "player", inv) or nil
 end
@@ -815,7 +842,7 @@ local function newWindow(kind)
         b.etBag, b.etSlot = bag, slot
         if b.RegisterForDrag then pcall(b.RegisterForDrag, b, "LeftButton") end
         -- the bank's own slots are inventory slots for the tooltip (the client's bag tooltip does not read them)
-        if bag == BANK then
+        if bag == bankId() then
             b:SetScript("OnEnter", function(self)
                 local inv = tonumber(call(rawget(_G, "BankButtonIDToInvSlotID"), self:GetID(), nil))
                 tip(self, function(t) if inv then t:SetInventoryItem("player", inv) elseif self.etItem then t:SetHyperlink(self.etItem.link) end end)
@@ -976,7 +1003,7 @@ local function newWindow(kind)
             local inv = isLive() and bagInv(self.bag)
             tip(self, function(t)
                 if inv and call(rawget(_G, "GetInventoryItemTexture"), "player", inv) then t:SetInventoryItem("player", inv)
-                else t:SetText(self.bag == 0 and A.L("bwBackpack") or self.bag == BANK and A.L("bwBankSlots") or string.format(A.L("bwBagN"), self.bag)) end
+                else t:SetText(self.bag == 0 and A.L("bwBackpack") or self.bag == bankId() and A.L("bwBankSlots") or string.format(A.L("bwBagN"), self.bag)) end
             end)
         end)
         b:SetScript("OnLeave", function() w.hiBag = nil; hideTip(); w.Request() end)
@@ -994,7 +1021,7 @@ local function newWindow(kind)
             n = n + 1
             local b = bagButton(n)
             b.bag = bag
-            local icon = isLive() and bagIcon(bag) or icons[bag] or (bag == 0 and bagIcon(0)) or (bag == BANK and bagIcon(BANK))
+            local icon = isLive() and bagIcon(bag) or icons[bag] or (bag == 0 and bagIcon(0)) or (bag == bankId() and bagIcon(bankId()))
             if icon then b.icon:SetTexture(icon); b.icon:Show() else b.icon:Hide() end
             b:ClearAllPoints(); b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -PAD - x, -CHIP_Y + 1)
             b:Show()
@@ -1045,7 +1072,7 @@ local function newWindow(kind)
                 if n > 0 then
                     local free = 0
                     for s = 1, n do if not at[bag .. ":" .. s] then free = free + 1 end end
-                    local name = bag == 0 and A.L("bwBackpack") or bag == BANK and A.L("bwBankSlots")
+                    local name = bag == 0 and A.L("bwBackpack") or bag == bankId() and A.L("bwBankSlots")
                         or (live and call(api("GetBagName"), bag)) or string.format(A.L("bwBagN"), bag)
                     sectionHead(0, y, CONTENT_W, string.format(A.L("bwBagHead"), name, n - free, n))
                     y = y + SECTION_HEAD
@@ -1417,7 +1444,11 @@ local function newWindow(kind)
         win.free = kit.label(win, 12, C.mist); win.free:SetPoint("LEFT", win.money, "RIGHT", 22, 0)
         win.sort = kit.Button(win, "bwSort", 110, "ghost", function()
             if kind == "bank" then if not call(api("SortBankBags")) and rawget(_G, "SortBankBags") then call(SortBankBags) end
-            elseif not call(api("SortBags")) and rawget(_G, "SortBags") then call(SortBags) end
+            else
+                -- reagents and keys first, then the game's sort
+                local function sort() if not call(api("SortBags")) and rawget(_G, "SortBags") then call(SortBags) end end
+                if not BW.Stow(sort) then sort() end
+            end
         end)
         win.sort:SetPoint("BOTTOMRIGHT", -PAD, 9); win.sort:SetHeight(28)
         if win.sort.text then win.sort.text:SetText(A.L("bwSort")) end
@@ -1484,10 +1515,77 @@ function BW.Render() BW.bags.Render(); BW.bank.Render() end
 function BW.Request() BW.bags.Request(); BW.bank.Request() end
 function A.ToggleBagWindow() BW.Toggle() end
 
+-- ---------------------------------------------------------------- reagents and keys where they belong
+-- Out of combat, one item a step (the server moves it before the next): what belongs in the reagent bag (a crafting
+-- reagent, or what the bag's family takes) and in the keyring (a key) leaves the ordinary bags for a free slot there.
+-- A move the server refuses leaves the item on the cursor: it goes back at once (ClearCursor).
+local KEY_CLASS = 13
+local function itemFamily(id) local ci = rawget(_G, "C_Item"); return tonumber(call(type(ci) == "table" and ci.GetItemFamily or rawget(_G, "GetItemFamily"), id)) or 0 end
+local function isReagent(id)
+    local ci = rawget(_G, "C_Item")
+    local info = type(ci) == "table" and ci.GetItemInfo or rawget(_G, "GetItemInfo")
+    local r = {call(info, id)}
+    if r[17] == true then return true end
+    local free, family = bagFree(reagentBag() or 0)
+    return reagentBag() ~= nil and family ~= 0 and bit and bit.band and bit.band(itemFamily(id), family) ~= 0 or false
+end
+local function isKey(id)
+    local _, _, _, classID = itemInstant(id)
+    if classID == KEY_CLASS then return true end
+    local _, family = bagFree(keyring() or 0)
+    return keyring() ~= nil and family ~= 0 and bit and bit.band and bit.band(itemFamily(id), family) ~= 0 or false
+end
+local function freeSlot(bag)
+    for slot = 1, numSlots(bag) do if not slotInfo(bag, slot) then return slot end end
+    return nil
+end
+--- The next move: {fromBag, fromSlot, toBag, toSlot}, or nil when everything is where it belongs.
+function BW.NextStow()
+    local rb, kr = reagentBag(), keyring()
+    if not rb and not kr then return nil end
+    for bag = 0, nBagSlots() do
+        for slot = 1, numSlots(bag) do
+            local info = slotInfo(bag, slot)
+            local id = info and info.itemID
+            if id and not info.isLocked then
+                local item = info.hyperlink or id
+                local to = (rb and isReagent(item) and rb) or (kr and isKey(item) and kr) or nil
+                local free = to and freeSlot(to)
+                if free then return {bag, slot, to, free} end
+            end
+        end
+    end
+    return nil
+end
+local stowing = false
+--- Moves what belongs in the reagent bag and the keyring there, a step at a time; then(optional) runs when done.
+function BW.Stow(after)
+    if stowing or call(rawget(_G, "InCombatLockdown")) == true then return false end
+    stowing = true
+    local steps = 0
+    local function step()
+        local mv = steps < 80 and call(rawget(_G, "InCombatLockdown")) ~= true and BW.NextStow() or nil
+        if not mv then stowing = false; if after then pcall(after) end; return end
+        steps = steps + 1
+        local pick = api("PickupContainerItem")
+        call(pick, mv[1], mv[2]); call(pick, mv[3], mv[4])
+        if call(rawget(_G, "CursorHasItem")) then call(rawget(_G, "ClearCursor")) end
+        local timer = rawget(_G, "C_Timer")
+        if type(timer) == "table" and timer.After then timer.After(0.15, step) else step() end
+    end
+    step()
+    return true
+end
+function BW.AutoStows() return settings().autoStow ~= false end
+function BW.SetAutoStow(on) settings().autoStow = on == true; if on then BW.Stow() end end
+
 -- ---------------------------------------------------------------- the game's bag keys
 -- The game's container frames for the player's bags are hidden again whenever they open while this window stands in
 -- for them. The window's state follows the outermost call of a key press: its post-hook runs last.
-local function isPlayerBag(id) return id ~= nil and id >= 0 and id <= nBagSlots() end
+local function isPlayerBag(id)
+    if id == nil then return false end
+    return (id >= 0 and id <= nBagSlots()) or id == bagIndex("ReagentBag") or (id == bagIndex("Keyring") and id ~= bankId())
+end
 function BW.HideGameBags()
     for i = 1, (tonumber(rawget(_G, "NUM_CONTAINER_FRAMES")) or 13) do
         local f = rawget(_G, "ContainerFrame" .. i)
@@ -1557,6 +1655,7 @@ A.On("PLAYER_LOGIN", function()
 end)
 A.On("BAG_UPDATE_DELAYED", function()
     if seen == nil then BW.MarkSeen() end
+    if BW.AutoStows() then BW.Stow() end
     BW.Snapshot(bankOpen)
     BW.Request()
 end)

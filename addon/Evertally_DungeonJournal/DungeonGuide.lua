@@ -1,5 +1,5 @@
-local _, M = ...
 local A = _G.Evertally
+local M = A.map -- (Evertally_DungeonJournal: a module of Evertally_Map's pages since 2026-11-20)
 -- The guide of a dungeon in the Dungeon Journal: an overview, advice for the tank, the healer and damage, tips for each class
 -- and a tactic for each boss. The words per dungeon and boss are in DungeonGuideData.lua (M.dungeonGuides), written for
 -- Evertally: for dungeons from Classic they follow Classic and say so (Forever may have changed a fight); for Forever's own

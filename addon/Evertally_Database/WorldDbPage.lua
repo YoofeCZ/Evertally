@@ -1,5 +1,5 @@
-local _, M = ...
 local A = _G.Evertally
+local M = A.map -- (Evertally_Database: a module of Evertally_Map's pages since 2026-11-20)
 -- The database tab as it looks: a search box, a list, and what is known about the chosen NPC, quest or item with buttons to show
 -- the places on the map or to navigate to the nearest one. The reading of QuestieDB is in WorldDb.lua (M.Db).
 local Db = M.Db

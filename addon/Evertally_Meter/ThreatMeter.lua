@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_Meter: a module of Evertally since 2026-11-20)
 -- Evertally's threat meter (settings.meter.threat): who has how much threat on your target, from
 -- UnitDetailedThreatSituation for you, your pet and your group. The client may make the values secret
 -- (SecretWhenUnitThreatValuesRestricted): then each row hands its percentage to the bar and the text as they are,

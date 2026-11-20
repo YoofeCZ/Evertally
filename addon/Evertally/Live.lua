@@ -298,12 +298,25 @@ function A.OpenMapMissing()
     local ok, found = pcall(info, "OpenMap")
     return ok and (found == nil or (type(found) == "table" and found.name == nil))
 end
+-- The map's pages as add-ons of their own (2026-11-20): loaded on demand once the map is there, each when installed.
+A.MAP_MODULES = {"Evertally_DungeonJournal", "Evertally_Database", "Evertally_Recipes"}
+function A.LoadMapModules()
+    if not A.map then return 0 end
+    local loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+    if type(loader) ~= "function" then return 0 end
+    local n = 0
+    for _, name in ipairs(A.MAP_MODULES) do
+        local ok, loaded = pcall(loader, name)
+        if ok and loaded then n = n + 1 end
+    end
+    return n
+end
 function A.LoadMap()
     if A.RequirementsReady and not A.RequirementsReady() then return false,"dependencies_required" end
     local s = settings()
     if not s or s.mapPins ~= true then return false, "disabled" end
     if A.OpenMapMissing() then A.Print(A.L("mapNeedsOpenMap")); return false, "openmap_missing" end
-    if A.map then return true end
+    if A.map then A.LoadMapModules(); return true end
     local loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
     if type(loader) ~= "function" then return false, "no_loader" end
     local ok, loaded, reason = pcall(loader, "Evertally_Map")
@@ -314,11 +327,12 @@ function A.LoadMap()
         A.errors.map_load = (A.errors.map_load or 0) + 1
         return false, A.Text(not ok and loaded or reason, 80) or "load_failed"
     end
+    A.LoadMapModules()
     return true
 end
 --- Loads the add-on the guide pages (database, dungeon journal, journeys) live in, whether or not "Map and minimap" is on and OpenMap is there.
 function A.LoadGuide()
-    if A.map then return true end
+    if A.map then A.LoadMapModules(); return true end
     local loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
     if type(loader) ~= "function" then return false, "no_loader" end
     local ok, loaded, reason = pcall(loader, "Evertally_Map")
@@ -326,6 +340,7 @@ function A.LoadGuide()
         A.errors.map_load = (A.errors.map_load or 0) + 1
         return false, A.Text(not ok and loaded or reason, 80) or "load_failed"
     end
+    A.LoadMapModules()
     return true
 end
 function A.SetMapPins(enabled)

@@ -1,4 +1,4 @@
-"""Build Evertally's own dungeon journal data: addon/Evertally_Map/DungeonData.lua.
+"""Build Evertally's own dungeon journal data: addon/Evertally_DungeonJournal/DungeonData.lua.
 
     python -I tools/build_dungeon_data.py
 
@@ -28,7 +28,7 @@ import db_sources as D  # noqa: E402
 import dungeon_facts as F  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "addon" / "Evertally_Map" / "DungeonData.lua"
+OUT = ROOT / "addon" / "Evertally_DungeonJournal" / "DungeonData.lua"  # (an add-on of its own since 2026-11-20)
 LOADING = Path(sys.argv[1]) if len(sys.argv) > 1 else D.SOURCE / "wago-wowf-70938" / "LoadingScreens.csv"   # wago.tools, Forever's own build
 
 # AtlasLoot key -> (journal name, client map ID for the loading screen or None, raid?)

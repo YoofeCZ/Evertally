@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_Bags: a module of Evertally since 2026-11-20)
 -- The bag window's categories, as the player wants them (BagWindow.lua: BW.Sections, the rules): a panel beside the
 -- bags with every section in its order. Each moves up or down; a category of the player's own has a name and a search
 -- (words of an item's name, #tags) and can be deleted; a new one comes first. Items dragged onto a section's heading in

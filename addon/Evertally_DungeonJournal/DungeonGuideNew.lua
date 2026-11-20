@@ -1,4 +1,4 @@
-local _, M = ...
+local M = _G.Evertally.map -- (Evertally_DungeonJournal: a module of Evertally_Map's pages since 2026-11-20)
 -- Guides for Forever's own dungeons. Nobody has published tactics for them yet: the advice here is general (from dungeons of
 -- the same level and kind) plus what the DungeonJournal add-on's own descriptions say about a boss. Players who know a fight
 -- are asked (DungeonGuide.lua) to send it in. `classic` is left out on purpose: these are not Classic fights.

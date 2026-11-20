@@ -318,7 +318,7 @@ class ChatWindowTests(unittest.TestCase):
     def test_texture_paths_keep_their_backslashes(self):
         import re
         from test_addon import ADDON
-        for name in ("Chat.lua", "ChatUI.lua", "BagHighlight.lua"):
+        for name in ("Chat.lua", "ChatUI.lua", "../Evertally_Bags/BagHighlight.lua"):
             source = (ADDON / name).read_text(encoding="utf8")
             self.assertIsNone(re.search(r'"Interface\\[A-Za-z]', source), name)
 

@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Evertally Loot Sparkles
+## Notes: Keeps the sparkle on lootable quest items on, also after a graphics preset switches it off.
+## Author: Evertally
+## Version: 0.11.20
+## IconTexture: Interface\AddOns\Evertally\Media\Logo
+## Dependencies: Evertally
+
+LootSparkles.lua

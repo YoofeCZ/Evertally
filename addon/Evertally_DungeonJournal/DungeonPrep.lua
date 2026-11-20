@@ -1,5 +1,5 @@
-local _, M = ...
 local A = _G.Evertally
+local M = A.map -- (Evertally_DungeonJournal: a module of Evertally_Map's pages since 2026-11-20)
 -- The Dungeon Journal's "For you" tab: what this character still has to do around a dungeon, from Evertally Guide's
 -- Dungeons (the fork of Polestar, EvertallyGuide.Dungeons): the state of the dungeon's quests, what they are worth in
 -- levels, the guides that pick them up before the run and hand them in after it, the way to the entrance, and each

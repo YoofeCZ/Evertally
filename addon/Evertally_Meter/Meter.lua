@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_Meter: a module of Evertally since 2026-11-20)
 -- Evertally's damage meter (settings.meter): the game's own combat data (C_DamageMeter, the client's built-in meter,
 -- CVar damageMeterEnabled), drawn in Evertally's look. Forever gives add-ons no combat log
 -- (CombatLogGetCurrentEventInfo is not in the client), so this is the source the other meters use too.

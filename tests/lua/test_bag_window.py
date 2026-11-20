@@ -184,7 +184,7 @@ class BagWindowTests(unittest.TestCase):
         self.assertTrue(g.ContainerFrame1.IsShown(g.ContainerFrame1))
 
     def test_the_hook_writes_no_blizzard_global_but_the_ones_it_hooks(self):
-        src = (Path(__file__).resolve().parents[2] / "addon" / "Evertally" / "BagWindow.lua").read_text(encoding="utf8")
+        src = (Path(__file__).resolve().parents[2] / "addon" / "Evertally_Bags" / "BagWindow.lua").read_text(encoding="utf8")
         import re
         self.assertIsNone(re.search(r"^\s*(ToggleAllBags|ToggleBackpack|OpenAllBags|CloseAllBags|SortBags)\s*=", src, re.M))
 
@@ -238,6 +238,38 @@ class BagWindowTests(unittest.TestCase):
         self.assertTrue(g.ENABLED.Baganator)
         self.assertFalse(self.bw.SetChoice("Bagnon"))   # not on disk
 
+    def test_the_reagent_bag_and_the_keyring_are_bags_and_get_what_belongs_there(self):
+        self.lua.execute('''
+          Enum = Enum or {}
+          Enum.BagIndex = {Keyring = -1, Characterbanktab = -2, Backpack = 0, ReagentBag = 5}
+          SIZES[5] = 4; SIZES[-1] = 4
+          -- a reagent (Linen Cloth, crafting reagent) and a key in the backpack
+          table.insert(ITEMS, {0, 7, 5396, "Key to Searing Gorge", 1, 13, "", 1})
+          REINDEX()
+          local info = GetItemInfo
+          GetItemInfo = function(link) local id = tonumber(tostring(link):match("item:(%d+)") or link)
+            local a, b, c = info(link); if id == 2589 then return a, b, c, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, true end; return a, b, c end
+          CURSOR = nil
+          C_Container.PickupContainerItem = function(bag, slot)
+            local key = bag .. ":" .. slot
+            if CURSOR then local it = CURSOR; it[1], it[2] = bag, slot; CURSOR = nil; REINDEX()
+            else CURSOR = BY[key] end
+          end
+          CursorHasItem = function() return CURSOR ~= nil end
+          ClearCursor = function() CURSOR = nil end
+          C_Timer = nil
+        ''')
+        bags = [self.bw.PlayerBags()[i] for i in range(1, len(self.bw.PlayerBags()) + 1)]
+        self.assertEqual(bags, [0, 1, 2, 3, 4, 5, -1])
+        bank = self.bw.BankBags()
+        self.assertEqual([bank[i] for i in range(1, len(bank) + 1)][:2], [-2, 6], "the bank: its own bag, then its bags after the reagent bag")
+        self.assertTrue(self.bw.Stow())
+        by = self.lua.globals().BY
+        self.assertEqual(by[2589][1], 5, "the cloth went to the reagent bag")
+        self.assertEqual(by[5396][1], -1, "the key went to the keyring")
+        self.assertEqual(by[159][1], 0, "water stays")
+        self.assertIsNone(self.bw.NextStow())
+
     def test_the_banker_opens_the_bank_window_and_the_game_bank_steps_aside(self):
         self.lua.execute(r"""
           BankFrame = CreateFrame("Frame"); BankFrame:Show()
@@ -263,7 +295,7 @@ class BagWindowTests(unittest.TestCase):
 
     def test_text_is_coloured_as_text(self):
         # the game's font strings have no SetTexture: the window colours them with SetTextColor (23:40 error in the game)
-        src = (Path(__file__).resolve().parents[2] / "addon" / "Evertally" / "BagWindow.lua").read_text(encoding="utf8")
+        src = (Path(__file__).resolve().parents[2] / "addon" / "Evertally_Bags" / "BagWindow.lua").read_text(encoding="utf8")
         self.assertIn('if t.SetTextColor and not t.SetTexture then t:SetTextColor', src)
 
     def test_snapshot_keeps_the_bags_for_the_alts_view(self):

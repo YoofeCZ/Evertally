@@ -1,5 +1,5 @@
-local _, M = ...
 local A = _G.Evertally
+local M = A.map -- (Evertally_Recipes: a module of Evertally_Map's pages since 2026-11-20)
 -- The Recipes page: every profession recipe Forever has (2,339, from the website's database), by profession, with what it makes, the skill it turns orange,
 -- yellow, green and grey at, and its reagents as rows with the item's icon that open the item in the database. The list is data shipped with this add-on
 -- (GuideData.lua: ids, numbers and names); icons and tooltips are the game's own.

@@ -49,7 +49,9 @@ def runtime(record_globals=False, enforce_requirements=False):
     ns = lua.table()
     export_source = (ROOT / "addon" / "Evertally_Export" / "Export.lua").read_text(encoding="utf-8")
     lua.execute(export_source)
-    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "GuideHub.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "NativeTalents.lua", "Gear.lua", "GearUI.lua", "BagHighlight.lua", "BagWindow.lua", "BagCategories.lua", "LootWindow.lua", "Meter.lua", "ThreatMeter.lua", "LootSparkles.lua", "DrawerMacro.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "SpellbookTraining.lua", "LfgJournal.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua", "EvertallySettings.lua", "GuideShell.lua", "EvertallyMenu.lua", "QuestTracker.lua", "SetupPages.lua"]:
+    for name in ["Locale.lua", "Codec.lua", "Core.lua", "Theme.lua", "BridgeInstallation.lua", "Identity.lua", "Rulesets.lua", "Combat.lua", "Runs.lua", "Collectors.lua", "Publish.lua", "People.lua", "Journey.lua", "Connections.lua", "Optical.lua", "Sync.lua", "Social.lua", "Armory.lua", "Marks.lua", "FriendlyPlates.lua", "Live.lua", "Community.lua", "Forum.lua", "Tooltip.lua", "UI.lua", "Widgets.lua", "Requirements.lua", "BridgeLink.lua", "NameplateUI.lua", "UnitMenu.lua", "Dashboard.lua", "Journal.lua", "InstanceCatalog.lua", "Rankings.lua", "Onboarding.lua", "SocialUI.lua", "ForumUI.lua", "WorldHost.lua", "Guides.lua", "GuideHub.lua", "SleepingBagGuide.lua", "RecommendedBuilds.lua", "Talents.lua", "TalentProfiles.lua", "NativeTalents.lua", "Gear.lua", "GearUI.lua", "DrawerMacro.lua", "Chat.lua", "ChatUI.lua", "Presence.lua", "Version.lua", "Announce.lua", "MusicData.lua", "Music.lua", "TrainingData.lua", "Training.lua", "TrainingUI.lua", "SpellbookTraining.lua", "LfgJournal.lua", "QuestGuideData.lua", "QuestGuide.lua", "QuestGuideUI.lua", "EvertallySettings.lua", "GuideShell.lua", "EvertallyMenu.lua", "QuestTracker.lua", "SetupPages.lua",
+                 # the modules: add-ons of their own since 2026-11-20, loaded after the core
+                 "../Evertally_Bags/BagHighlight.lua", "../Evertally_Bags/BagWindow.lua", "../Evertally_Bags/BagCategories.lua", "../Evertally_Bags/LootWindow.lua", "../Evertally_Meter/Meter.lua", "../Evertally_Meter/ThreatMeter.lua", "../Evertally_LootSparkles/LootSparkles.lua"]:
         source = (ADDON / name).read_text(encoding="utf-8")
         fn = lua.eval("loadstring")(source, name)
         if isinstance(fn, tuple):
@@ -70,6 +72,18 @@ def runtime(record_globals=False, enforce_requirements=False):
         ns.RequirementsReady = lua.eval('function() return true end')
     ns.Initialize()
     return lua, ns
+
+
+# Evertally_Map's files in the order of its toc, then the map pages' modules (add-ons of their own since 2026-11-20,
+# loaded after the map), as paths from addon/Evertally_Map.
+MAP_MODULES = ["Evertally_DungeonJournal", "Evertally_Database", "Evertally_Recipes"]
+def map_toc_lines():
+    lines = (ROOT / "addon" / "Evertally_Map" / "Evertally_Map.toc").read_text(encoding="utf8").splitlines()
+    for mod in MAP_MODULES:
+        for l in (ROOT / "addon" / mod / f"{mod}.toc").read_text(encoding="utf8").splitlines():
+            if l.endswith(".lua"):
+                lines.append(f"../{mod}/{l}")
+    return lines
 
 
 MOCK_UI_LUA = '''

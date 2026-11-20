@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_LootSparkles: a module of Evertally since 2026-11-20)
 -- Loot sparkles (settings.lootSparkles, on by default): the client's sparkle on lootable quest items stays on. It is
 -- the CVar outlineModeShowLootEffectWhenDisabled; a graphics preset (or the outline mode) switches it off, so it is set
 -- again at login, after a fight (a CVar may not change in combat) and whenever the client reports it changed. Switched

@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_addon import MOCK_UI_LUA, ROOT, runtime
+from test_addon import MOCK_UI_LUA, ROOT, runtime, map_toc_lines
 import test_navigation as navigation_tests   # (the module, so that its tests are not collected again here)
 from test_navigation import FAKE_LIBS, RECORD_ROTATION
 
@@ -37,7 +37,7 @@ class ArrowTests(unittest.TestCase):
         """)
         self.lua.execute(navigation_tests.MapTests.FAKE_QUESTIE)
         self.m = self.lua.table()
-        for line in (MAP_DIR / "Evertally_Map.toc").read_text(encoding="utf8").splitlines():
+        for line in map_toc_lines():
             if line.endswith(".lua") and not line.startswith("Libs"):
                 chunk = self.lua.eval("loadstring")((MAP_DIR / line).read_text(encoding="utf8"), line)
                 if isinstance(chunk, tuple):

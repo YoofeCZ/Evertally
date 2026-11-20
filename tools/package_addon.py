@@ -55,6 +55,37 @@ with zipfile.ZipFile(dest) as archive:
     for item in sources:
         assert archive.read(item.relative_to(ROOT / "addon").as_posix()) == item.read_bytes()
 addon = dest.read_bytes()
+
+# CurseForge: one project per add-on (2026-11-20). The modules are projects of their own; the main project "Evertally"
+# is everything else (the core, the export, the map and the guide) and lists the modules as required dependencies.
+# The zips go to releases/curseforge/ with the version in the name; the app still installs the whole bundle above.
+CURSEFORGE_MODULES = ("Evertally_Meter", "Evertally_LootSparkles", "Evertally_Bags", "Evertally_DungeonJournal",
+                      "Evertally_Database", "Evertally_Recipes")
+version = re.search(r"^## Version:\s*(\S+)", (ROOT / "addon" / "Evertally" / "Evertally.toc").read_text(encoding="utf-8"), re.M).group(1)
+for name in CURSEFORGE_MODULES:
+    if name not in NAMES:
+        raise SystemExit(f"Missing module: addon/{name}")
+    toc_version = re.search(r"^## Version:\s*(\S+)", (ROOT / "addon" / name / f"{name}.toc").read_text(encoding="utf-8"), re.M)
+    if not toc_version or toc_version.group(1) != version:
+        raise SystemExit(f"{name}.toc must have ## Version: {version}")
+cf = out / "curseforge"
+cf.mkdir(exist_ok=True)
+for old in cf.glob("*.zip"):
+    old.unlink()
+projects = {"Evertally": [n for n in NAMES if n not in CURSEFORGE_MODULES]}
+projects.update({n: [n] for n in CURSEFORGE_MODULES})
+cf_list = []
+for project, folders in projects.items():
+    zpath = cf / f"{project}-{version}.zip"
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as archive:
+        for item in sources:
+            rel = item.relative_to(ROOT / "addon")
+            if rel.parts[0] in folders:
+                archive.write(item, rel.as_posix())
+    with zipfile.ZipFile(zpath) as archive:
+        assert archive.testzip() is None
+    cf_list.append({"project": project, "file": zpath.name, "folders": folders, "bytes": zpath.stat().st_size})
+(cf / "projects.json").write_text(json.dumps(cf_list, indent=2), encoding="utf-8")
 # The bundle is larger than wrangler's 25 MiB asset limit: it is not a web asset. On the Pi it lives in
 # ~/evertally/files/downloads/ (evertally-files.service; the tunnel sends /downloads/Evertally.zip there), here in
 # platform/files/downloads/. A copy under public/ would bring the web server down, so an old one is removed.

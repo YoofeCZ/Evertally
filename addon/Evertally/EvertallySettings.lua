@@ -27,17 +27,20 @@ local PAGES = {
         parts = {{section = "setSecWindows", controls = "look"}, {section = "setSecQuests", controls = "tracker"},
             {section = "setSecTooltips", controls = "tooltips"}, {section = "setSecChat", controls = "chat"}}},
     -- 2026-11-19: what the setup asks about the bags (et-bags) and what the bag window's gear menu holds, in one place
-    {key = "evertallybags", title = "bagsSection", icon = "icon-treasure",
+    -- (2026-11-20: the bags, the meter and the sparkles are add-ons of their own: `needs` = the module's table, a page or
+    -- part without it is left out)
+    {key = "evertallybags", title = "bagsSection", icon = "icon-treasure", needs = "BagWindow",
         parts = {{section = "bwPickTitle", controls = "bags", keys = {"bwPickLabel"}},
             {section = "setSecLoot", controls = "bags", keys = {"lootWindow"}},
             {section = "setSecTracked", controls = "bags", keys = {"bwTrackHide"}},
+            {section = "bwStowTitle", controls = "bags", keys = {"bwAutoStow"}},
             {section = "setSecGear", controls = "bags", keys = {"bagHighlight"}},
             {section = "bwCatsTitle", controls = "bags", keys = {"bwCats"}}}},
     -- 2026-11-20: the damage meter, the threat meter and the loot sparkles (Meter.lua, ThreatMeter.lua, LootSparkles.lua)
     {key = "evertallycombat", title = "combatSection", icon = "icon-kill",
-        parts = {{section = "setSecMeter", controls = "combat", keys = {"meterEnabled", "meterLock", "meterShow", "meterResetData"}},
-            {section = "setSecThreat", controls = "combat", keys = {"threatEnabled", "threatGroupOnly", "threatShow"}},
-            {section = "setSecSparkles", controls = "combat", keys = {"lootSparkles"}}}},
+        parts = {{section = "setSecMeter", controls = "combat", keys = {"meterEnabled", "meterLock", "meterShow", "meterResetData"}, needs = "Meter"},
+            {section = "setSecThreat", controls = "combat", keys = {"threatEnabled", "threatGroupOnly", "threatShow"}, needs = "ThreatMeter"},
+            {section = "setSecSparkles", controls = "combat", keys = {"lootSparkles"}, needs = "LootSparkles"}}},
     {key = "evertallyplates", title = "nameplatesSection", icon = "layers"},
     {key = "evertallymusic", title = "musicSection", icon = "speaker"},
     {key = "evertallyactions", title = "actionsSection", icon = "bolt",
@@ -307,6 +310,8 @@ local function bagControls()
         toggle("lootWindow", function() return A.LootWindow and A.LootWindow.Enabled() end, function(v) if A.LootWindow then A.LootWindow.SetEnabled(v) end end, false,
             {help = A.L("lootWindowHelp")}),
         toggle("bwTrackHide", function() return BW() and BW().TrackHides() end, function(v) if BW() and BW().SetTrackHide then BW().SetTrackHide(v) end end, true),
+        toggle("bwAutoStow", function() return BW() and BW().AutoStows and BW().AutoStows() end,
+            function(v) if BW() and BW().SetAutoStow then BW().SetAutoStow(v) end end, true, {help = A.L("bwAutoStowHelp")}),
         toggle("bagHighlight", function() return s().bagHighlight ~= false end, function(v) if A.BagHighlight then A.BagHighlight.SetEnabled(v) end end, true,
             {disabled = function() return A.Gear and A.Gear.GuideHas and A.Gear.GuideHas("bagArrows") end, help = A.L("bagHighlightGuide")}),
         button("bwCats", function() if BW() and BW().Categories then BW().Categories.Show() end end),
@@ -434,11 +439,14 @@ function A.SettingsSpecs()
     for i, p in ipairs(PAGES) do
         local base = {page = A.L(p.title), key = p.key, icon = p.icon, order = ORDER + i * 0.01, group = GROUP,
             subtitle = SUBTITLE[p.key] and A.L(SUBTITLE[p.key]) or nil}
-        if CUSTOM[p.key] then
+        if p.needs and A[p.needs] == nil then
+            -- the module is not installed: no page
+        elseif CUSTOM[p.key] then
             base.custom, base.controls = CUSTOM[p.key], {}
             specs[#specs + 1] = base
         else
             for _, part in ipairs(p.parts) do
+              if not (part.needs and A[part.needs] == nil) then
                 local spec = {}
                 for k, v in pairs(base) do spec[k] = v end
                 spec.tab = part.tab and A.L(part.tab) or nil
@@ -453,6 +461,7 @@ function A.SettingsSpecs()
                 end
                 spec.controls = list
                 specs[#specs + 1] = spec
+              end
             end
         end
     end

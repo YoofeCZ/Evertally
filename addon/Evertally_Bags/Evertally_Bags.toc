@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: Evertally Bags
+## Notes: Bags in sections with search and #tags, tracked items, gear arrows and a fast loot window.
+## Author: Evertally
+## Version: 0.11.20
+## IconTexture: Interface\AddOns\Evertally\Media\Logo
+## Dependencies: Evertally
+
+BagHighlight.lua
+BagWindow.lua
+BagCategories.lua
+LootWindow.lua

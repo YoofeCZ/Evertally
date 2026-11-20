@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_addon import MOCK_UI_LUA, ROOT, runtime  # noqa: E402
 
 MAP_DIR = ROOT / "addon" / "Evertally_Map"
-MAP_FILES = ["Data.lua", "Planner.lua", "Navigator.lua", "WorldPage.lua", "WorldDb.lua", "GuideKit.lua", "WorldDbPage.lua", "WorldPlan.lua", "MapLayers.lua", "MapPanel.lua", "Pins.lua"]  # the order of Evertally_Map.toc after the libraries
+MAP_FILES = ["Data.lua", "Planner.lua", "Navigator.lua", "WorldPage.lua", "WorldDb.lua", "GuideKit.lua", "WorldPlan.lua", "MapLayers.lua", "MapPanel.lua", "Pins.lua",
+             "../Evertally_Database/WorldDbPage.lua"]  # (the database page: an add-on of its own since 2026-11-20, after the map)  # the order of Evertally_Map.toc after the libraries
 JOURNEYS = json.loads((ROOT / "tests" / "lua" / "fixtures" / "journeys.json").read_text(encoding="utf-8"))
 ELWYNN, WESTFALL, STORMWIND, DUROTAR = 1429, 1436, 1453, 1411
 
@@ -303,14 +304,14 @@ class MapTests(unittest.TestCase):
 
     # ================================================================ loading the map add-on
     def test_the_map_add_on_is_not_loaded_unless_switched_on(self):
-        self.lua.execute("""LOADS=0;C_AddOns={LoadAddOn=function(name) LOADS=LOADS+1;return PYLOAD() end};C_Timer={After=function(s,fn) fn() end}""")
+        self.lua.execute("""LOADS=0;MODS={};C_AddOns={LoadAddOn=function(name) if name~="Evertally_Map" then MODS[#MODS+1]=name;return true end;LOADS=LOADS+1;return PYLOAD() end};C_Timer={After=function(s,fn) fn() end}""")
         self.assertEqual(tuple(self.a.LoadMap()), (False, "disabled"))
         self.a.Dispatch("PLAYER_LOGIN")
         self.assertEqual(self.lua.globals().LOADS, 0)
         self.assertIsNone(self.a.map)
 
     def test_switching_it_on_loads_it_once_and_off_removes_the_pins(self):
-        self.lua.execute("""LOADS=0;C_AddOns={LoadAddOn=function(name) LOADS=LOADS+1;return PYLOAD() end}""")
+        self.lua.execute("""LOADS=0;MODS={};C_AddOns={LoadAddOn=function(name) if name~="Evertally_Map" then MODS[#MODS+1]=name;return true end;LOADS=LOADS+1;return PYLOAD() end}""")
         self.a.SetMapPins(True)
         self.assertEqual(self.lua.globals().LOADS, 1)
         self.assertIsNotNone(self.a.map)
@@ -336,10 +337,13 @@ class MapTests(unittest.TestCase):
         self.assertFalse(self.a.NavigateByName("Bran")[0])
 
     def test_login_loads_the_map_add_on_when_it_was_on(self):
-        self.lua.execute("""LOADS=0;C_AddOns={LoadAddOn=function(name) LOADS=LOADS+1;return PYLOAD() end};C_Timer={After=function(s,fn) fn() end}""")
+        self.lua.execute("""LOADS=0;MODS={};C_AddOns={LoadAddOn=function(name) if name~="Evertally_Map" then MODS[#MODS+1]=name;return true end;LOADS=LOADS+1;return PYLOAD() end};C_Timer={After=function(s,fn) fn() end}""")
         self.a.db.settings.mapPins = True
         self.a.Dispatch("PLAYER_LOGIN")
         self.assertEqual(self.lua.globals().LOADS, 1)
+        # the map's pages, add-ons of their own since 2026-11-20, load with it
+        mods = self.lua.globals().MODS
+        self.assertEqual([str(mods[i]) for i in range(1, len(mods) + 1)], ["Evertally_DungeonJournal", "Evertally_Database", "Evertally_Recipes"])
 
     # ================================================================ pins
     def test_pins_for_people_meets_and_pings_with_the_right_places(self):
@@ -397,7 +401,7 @@ class MapTests(unittest.TestCase):
     def test_navigation_needs_the_map_switched_on_and_a_known_target(self):
         self.assertEqual(tuple(self.a.NavigateByName("Bran")), (False, "map_off"))
         self.a.db.settings.mapPins = True
-        self.lua.execute("C_AddOns={LoadAddOn=function() return PYLOAD() end}")
+        self.lua.execute("C_AddOns={LoadAddOn=function(name) if name~='Evertally_Map' then return true end;return PYLOAD() end}")
         self.assertEqual(tuple(self.a.NavigateByName("Bran")), (False, "unknown_player"))
         self.assertEqual(tuple(self.a.NavigateByName("meet")), (False, "no_meet"))
         self.assertEqual(tuple(self.a.NavigateByName("ping")), (False, "no_ping"))
@@ -570,7 +574,7 @@ class MapTests(unittest.TestCase):
 
     def test_navigate_by_keyword_to_the_newest_meet_and_ping(self):
         self.a.db.settings.mapPins = True
-        self.lua.execute("C_AddOns={LoadAddOn=function() return PYLOAD() end}")
+        self.lua.execute("C_AddOns={LoadAddOn=function(name) if name~='Evertally_Map' then return true end;return PYLOAD() end}")
         self.stand(ELWYNN, 0.5, 0.5)
         self.a.ReceiveMessage("Evtly1", "S|M|abcdef|%d|700|500|0|Hostinec" % ELWYNN, "PARTY", "Ilyra-Fixture Realm")
         self.assertTrue(ok(self.a.NavigateByName("meet")))
@@ -582,7 +586,7 @@ class MapTests(unittest.TestCase):
 
     def test_slash_commands_for_navigation_and_ping(self):
         self.a.db.settings.mapPins = True
-        self.lua.execute("C_AddOns={LoadAddOn=function() return PYLOAD() end};IsInGuild=function() return true end")
+        self.lua.execute("C_AddOns={LoadAddOn=function(name) if name~='Evertally_Map' then return true end;return PYLOAD() end};IsInGuild=function() return true end")
         self.stand(ELWYNN, 0.5, 0.5)
         self.beacon("Bran-Fixture Realm", ELWYNN, 0.6, 0.5)
         self.lua.execute('SlashCmdList.EVERTALLY("go bran")')

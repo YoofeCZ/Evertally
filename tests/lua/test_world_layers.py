@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_addon import MOCK_UI_LUA, ROOT, runtime
+from test_addon import MOCK_UI_LUA, ROOT, runtime, map_toc_lines
 from test_navigation import FAKE_LIBS
 
 MAP_DIR = ROOT / "addon/Evertally_Map"
@@ -34,7 +34,7 @@ class WorldLayerTests(unittest.TestCase):
         ''')
         self.m = self.lua.table()
         # The distribution's own load order, including data modules, is the test contract.
-        for line in (MAP_DIR / "Evertally_Map.toc").read_text(encoding="utf8").splitlines():
+        for line in map_toc_lines():
             if line.endswith(".lua") and not line.startswith("Libs"):
                 chunk = self.lua.eval("loadstring")((MAP_DIR / line).read_text(encoding="utf8"), line)
                 if isinstance(chunk, tuple):

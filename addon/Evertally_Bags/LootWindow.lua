@@ -1,4 +1,4 @@
-local _, A = ...
+local A = _G.Evertally -- (Evertally_Bags: a module of Evertally since 2026-11-20)
 -- Evertally's loot window (settings.lootWindow, off by default; Interface page of the settings). While it is on:
 --   * looting by hand: the corpse's items in Evertally's look, a click takes one (LootSlot), Take all, close (CloseLoot);
 --   * with auto loot (autoLootDefault, inverted by the auto-loot key): every slot is taken at once, again on a repeat

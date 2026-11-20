@@ -1,4 +1,4 @@
-local _, M = ...
+local M = _G.Evertally.map -- (Evertally_DungeonJournal: a module of Evertally_Map's pages since 2026-11-20)
 -- Boss tactics for Forever's own dungeons, written in our own words from the facts (abilities, adds, what to avoid) in the guides
 -- published for Forever in November 2026: Wowhead's dungeon overviews and Warcraft Tavern's Shaper's Terrace guide. Nothing is
 -- quoted. Loaded after DungeonGuideNew.lua: a boss here replaces its general advice there; `published` tells the page so.
