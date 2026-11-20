@@ -191,11 +191,14 @@ impl Worker {
                     && let Err(error)=crate::addon_update::write_installation_receipts(config,&addon_lock) {
                     let _=update_tx.send(Command::AddonStatus(format!("Installation receipt: {error}")));
                 }
-                let result=match &config {Ok(config)=>updater.check(config,&addon_lock),Err(_)=>Ok(None)};
+                // Updates download by themselves only when the player keeps that on (prefs.json); the tray's
+                // "Check for updates" asks anyway.
+                let manual=crate::app_update::take_manual();if manual {last.clear();}
+                let auto=manual || crate::prefs::load(config_path.parent().unwrap_or_else(||std::path::Path::new("."))).auto_update;
+                let result=match &config {Ok(config) if auto=>updater.check(config,&addon_lock),_=>Ok(None)};
                 if let Ok(config)=&config {let _=crate::addon_update::write_installation_receipts(config,&addon_lock);}
                 // A newer published installer replaces this app; setup closes the bridge and starts the new one.
-                let manual=crate::app_update::take_manual();if manual {last.clear();}
-                let app=match &config {Ok(config)=>crate::app_update::check(config_path.parent().unwrap_or_else(||std::path::Path::new(".")),config,manual),Err(_)=>Ok(crate::app_update::Outcome::Nothing)};
+                let app=match &config {Ok(config) if auto=>crate::app_update::check(config_path.parent().unwrap_or_else(||std::path::Path::new(".")),config,manual),_=>Ok(crate::app_update::Outcome::Nothing)};
                 let cs=crate::platform::prefers_czech();
                 // The website's public facts for the in-game Website facts page: once an hour, and on a manual check.
                 let community_note=match &config {

@@ -773,8 +773,8 @@ local function bagInv(bag)
     return tonumber(call(api("ContainerIDToInventoryID"), bag))
 end
 local function bagIcon(bag)
-    if bag == 0 then return "Interface\\Buttons\\Button-Backpack-Up" end
-    if bag == BANK then return "Interface\\Icons\\INV_Misc_Bag_10_Blue" end
+    if bag == 0 then return A.Theme.ART .. "bag" end
+    if bag == BANK then return A.Theme.ART .. "bank" end
     local inv = bagInv(bag)
     return inv and call(rawget(_G, "GetInventoryItemTexture"), "player", inv) or nil
 end

@@ -6,7 +6,7 @@ use eframe::egui::{self, Color32, RichText};
 use evertally_sync::{
     bridge::{self, Action, Snapshot},
     config::{self, Config, Paths},
-    platform, shutdown,
+    platform, prefs, shutdown,
 };
 use std::path::PathBuf;
 type Permission = Option<(bool, Vec<String>)>;
@@ -31,12 +31,20 @@ struct ConnectionSettings {
     permissions: Vec<Permission>,
     permission_cache: PermissionCache,
     action_until: Option<std::time::Instant>,
+    /// Download updates of the add-on and the app by themselves (prefs.json).
+    auto_update: bool,
+    /// The first-run guide's step while it is open (prefs.json `onboarded` false, or `--onboarding`).
+    wizard: Option<usize>,
 }
+
+/// The first-run guide's steps: welcome, WoW folder, pairing, start-up, updates, done.
+const WIZARD_STEPS: usize = 6;
 
 impl ConnectionSettings {
     fn new(config_path: PathBuf, config: Config, cs: bool, preview: bool) -> Self {
         let autostart = !preview && platform::autostart_enabled();
         let login_start = !preview && platform::login_start_enabled();
+        let auto_update = preview || prefs_dir_of(&config_path).is_none_or(|d| prefs::load(&d).auto_update);
         Self {
             config_path,
             server: config.server,
@@ -62,7 +70,163 @@ impl ConnectionSettings {
             permissions: vec![],
             permission_cache: std::collections::HashMap::new(),
             action_until: None,
+            auto_update,
+            wizard: None,
         }
+    }
+    fn prefs_dir(&self) -> Option<PathBuf> { prefs_dir_of(&self.config_path) }
+    fn save_prefs(&self, onboarded: bool) -> Result<(), String> {
+        if self.preview { return Ok(()); }
+        let Some(dir) = self.prefs_dir() else { return Ok(()) };
+        prefs::save(&dir, &prefs::Prefs { auto_update: self.auto_update, onboarded }).map_err(|e| e.to_string())
+    }
+    fn candidate(&self) -> Config {
+        Config { server: self.server.clone(), wow_path: (!self.wow.trim().is_empty()).then(|| PathBuf::from(self.wow.trim())) }
+    }
+    /// Saves the connection, the start-up choices and the updates choice (Save settings, the guide's Finish).
+    fn save_all(&mut self, onboarded: bool) -> Result<(), String> {
+        let candidate = self.candidate();
+        validate(&candidate)?;
+        if self.preview { return Ok(()); }
+        if self.autostart != self.original_autostart { platform::set_autostart(self.autostart).map_err(|e| e.to_string())?; self.original_autostart = self.autostart; }
+        if self.login_start != self.original_login_start { platform::set_login_start(self.login_start).map_err(|e| e.to_string())?; self.original_login_start = self.login_start; }
+        save_config(&self.config_path, &candidate)?;
+        self.save_prefs(onboarded)?;
+        shutdown::request(shutdown::BRIDGE_RELOAD);
+        Ok(())
+    }
+
+    /// The first-run guide: one step at a time, Back / Next, and Skip (everything stays in Connection settings).
+    fn wizard_ui(&mut self, ui: &mut egui::Ui, step: usize) {
+        let accent = Color32::from_rgb(182, 159, 250);
+        let muted = Color32::from_rgb(187, 180, 205);
+        ui.label(RichText::new(format!("{} {}/{WIZARD_STEPS}", self.t("Setup", "Průvodce"), step + 1)).color(accent));
+        ui.add_space(6.0);
+        let para = |ui: &mut egui::Ui, text: &str| { ui.label(RichText::new(text).color(muted)); ui.add_space(4.0); };
+        match step {
+            0 => {
+                ui.label(RichText::new(self.t("Welcome to Evertally", "Vítej v Evertally")).size(24.0));
+                ui.add_space(10.0);
+                para(ui, self.t("This app runs quietly next to the Windows clock and connects the Evertally add-on in the game with the website:",
+                    "Tahle aplikace běží potichu vedle hodin Windows a propojuje addon Evertally ve hře s webem:"));
+                for line in [
+                    self.t("•  it uploads what the add-on saves: your chronicle, the leaderboard, Armory and your page on the website,", "•  nahrává, co addon uloží: tvoji kroniku, žebříček, Armory a tvoji stránku na webu,"),
+                    self.t("•  it shares your live position with your party and guild when you want it,", "•  sdílí tvoji živou polohu s partou a guildou, když chceš,"),
+                    self.t("•  it keeps the add-on up to date.", "•  udržuje addon aktuální."),
+                ] { para(ui, line); }
+                ui.add_space(6.0);
+                para(ui, self.t("A few steps and you are done. You can change everything later in Connection settings.",
+                    "Pár kroků a máš hotovo. Všechno můžeš později změnit v Nastavení spojení."));
+            }
+            1 => {
+                ui.label(RichText::new(self.t("Where is World of Warcraft?", "Kde je World of Warcraft?")).size(22.0));
+                ui.add_space(8.0);
+                para(ui, self.t("Leave the field empty and the app finds the game by itself. Fill it in only when it does not.",
+                    "Nech pole prázdné a aplikace hru najde sama. Vyplň ho, jen když ji nenajde."));
+                let placeholder = self.t("Leave empty to detect automatically", "Prázdné pole = automatické hledání");
+                ui.add(egui::TextEdit::singleline(&mut self.wow).hint_text(placeholder).desired_width(f32::INFINITY));
+                let (hint_en, hint_cs) = game_folder_hint();
+                ui.weak(self.t(hint_en, hint_cs));
+                let found = self.snapshot.as_ref().map_or(0, |s| s.state.folders.len());
+                if found > 0 {
+                    ui.add_space(6.0);
+                    ui.colored_label(Color32::LIGHT_GREEN, format!("{} {found}", self.t("Game folders found:", "Nalezené složky hry:")));
+                }
+            }
+            2 => {
+                ui.label(RichText::new(self.t("Pair this PC with the website", "Spáruj počítač s webem")).size(22.0));
+                ui.add_space(8.0);
+                para(ui, self.t("Pairing tells the website that the data from this PC are yours. The website opens: sign in with Discord and approve the code.",
+                    "Párování řekne webu, že data z tohohle počítače jsou tvoje. Otevře se web: přihlas se přes Discord a potvrď kód."));
+                let state = self.snapshot.as_ref().map(|s| s.state.clone());
+                let paired = state.as_ref().is_some_and(|s| s.paired);
+                let code = state.as_ref().and_then(|s| s.pairing_code.clone());
+                let ready = state.is_some() && self.action_until.is_none_or(|at| std::time::Instant::now() >= at);
+                if paired {
+                    ui.colored_label(Color32::LIGHT_GREEN, self.t("This PC is paired.", "Tento počítač je spárovaný."));
+                } else if let Some(code) = code {
+                    ui.label(RichText::new(&code).monospace().size(28.0).color(accent));
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button(self.t("Copy code", "Kopírovat kód")).clicked() { ui.ctx().copy_text(code.clone()); }
+                        if ui.button(self.t("Open approval page", "Otevřít schvalovací stránku")).clicked() && !self.preview
+                            && let Some(snapshot) = &self.snapshot && let Some(url) = approval_url(&snapshot.server, &code) { let _ = open::that(url); }
+                    });
+                } else if ui.add_enabled(ready, egui::Button::new(self.t("Pair this PC", "Spárovat tento počítač"))).clicked() {
+                    self.send(Action::Pair);
+                }
+                ui.add_space(6.0);
+                ui.weak(self.t("Not now? Skip it: you can pair any time from the icon next to the clock.",
+                    "Teď ne? Přeskoč to: spárovat můžeš kdykoli z ikony vedle hodin."));
+            }
+            3 => {
+                ui.label(RichText::new(self.t("When should the app start?", "Kdy se má aplikace spouštět?")).size(22.0));
+                ui.add_space(8.0);
+                let label = self.t("With WoW (it starts when you start the game)", "S WoW (spustí se, když spustíš hru)");
+                ui.checkbox(&mut self.autostart, label);
+                if cfg!(windows) {
+                    let label = self.t("With Windows (in the tray, no window)", "Se startem Windows (v liště, bez okna)");
+                    ui.checkbox(&mut self.login_start, label);
+                }
+                ui.add_space(6.0);
+                para(ui, self.t("The app needs to run while you play or right after, so that your games reach the website.",
+                    "Aplikace musí běžet, když hraješ nebo hned potom, aby se tvoje hraní dostalo na web."));
+            }
+            4 => {
+                ui.label(RichText::new(self.t("Updates", "Aktualizace")).size(22.0));
+                ui.add_space(8.0);
+                let label = self.t("Download updates automatically (the add-on and this app)", "Automaticky stahovat aktualizace (addon i tuto aplikaci)");
+                ui.checkbox(&mut self.auto_update, label);
+                ui.add_space(6.0);
+                para(ui, if self.auto_update {
+                    self.t("New versions download and install by themselves. A new add-on takes effect after you restart WoW.",
+                        "Nové verze se stáhnou a nainstalují samy. Nový addon začne platit po restartu WoW.")
+                } else {
+                    self.t("Nothing downloads by itself. To update, use Check for updates in the menu of the icon next to the clock.",
+                        "Nic se nestáhne samo. Aktualizuješ přes Zkontrolovat aktualizace v nabídce ikony vedle hodin.")
+                });
+            }
+            _ => {
+                ui.label(RichText::new(self.t("All set", "Hotovo")).size(24.0));
+                ui.add_space(10.0);
+                para(ui, self.t("The app now runs next to the clock. In the game, type /etally setup to choose what the add-on does.",
+                    "Aplikace teď běží vedle hodin. Ve hře napiš /etally setup a vyber, co má addon dělat."));
+                para(ui, self.t("The OpenMap add-on (free, on CurseForge) shows your party members and gathering places on the map.",
+                    "Addon OpenMap (zdarma, na CurseForge) ukáže na mapě spoluhráče a místa sbírání."));
+                if ui.button(self.t("Get OpenMap", "Získat OpenMap")).clicked() && !self.preview {
+                    let _ = open::that("https://www.curseforge.com/wow/addons/openmap");
+                }
+            }
+        }
+        if let Some((message, error)) = &self.message {
+            ui.add_space(6.0);
+            ui.colored_label(if *error { Color32::LIGHT_RED } else { Color32::LIGHT_GREEN }, message);
+        }
+        ui.add_space(18.0);
+        ui.horizontal(|ui| {
+            if step > 0 && ui.button(self.t("Back", "Zpět")).clicked() { self.message = None; self.wizard = Some(step - 1); }
+            let last = step + 1 >= WIZARD_STEPS;
+            let next = if last { self.t("Finish", "Dokončit") } else { self.t("Next", "Další") };
+            if ui.add(egui::Button::new(RichText::new(next).strong()).fill(Color32::from_rgb(110, 86, 200))).clicked() {
+                self.message = None;
+                if step == 1 && let Err(error) = validate(&self.candidate()) {
+                    self.message = Some((error, true));
+                } else if last {
+                    match self.save_all(true) {
+                        Ok(()) => { self.wizard = None; self.sync_page = true; }
+                        Err(error) => self.message = Some((error, true)),
+                    }
+                } else {
+                    self.wizard = Some(step + 1);
+                }
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(self.t("Skip setup", "Přeskočit průvodce")).clicked() {
+                    let _ = self.save_prefs(true);
+                    self.wizard = None;
+                    self.sync_page = true;
+                }
+            });
+        });
     }
     fn t<'a>(&self, en: &'a str, cs: &'a str) -> &'a str {
         if self.cs { cs } else { en }
@@ -120,12 +284,13 @@ impl ConnectionSettings {
                     ui.selectable_value(&mut self.cs, false, "EN");
                 });
             });
-            ui.horizontal(|ui| {
+            if self.wizard.is_none() { ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.sync_page,true,"Web sync");
                 let title=self.t("Connection settings", "Nastavení spojení");
                 ui.selectable_value(&mut self.sync_page,false,title);
-            });
+            }); }
             ui.separator();
+            if let Some(step) = self.wizard { self.wizard_ui(ui, step); return; }
             if self.sync_page { self.web_sync(ui); return; }
             ui.label(RichText::new(self.t("Connection settings", "Nastavení spojení")).size(20.0));
             ui.add_space(8.0);
@@ -147,19 +312,21 @@ impl ConnectionSettings {
                 let label = self.t("Start with Windows (in the tray, no window)", "Spouštět při startu Windows (v liště, bez okna)");
                 ui.checkbox(&mut self.login_start, label);
             }
+            let label = self.t("Download updates automatically (the add-on and this app)", "Automaticky stahovat aktualizace (addon i tuto aplikaci)");
+            ui.checkbox(&mut self.auto_update, label);
+            if !self.auto_update {
+                ui.weak(self.t("Updates: Check for updates in the menu of the icon next to the clock.", "Aktualizace: Zkontrolovat aktualizace v nabídce ikony vedle hodin."));
+            }
+            if ui.button(self.t("Run the setup again", "Spustit průvodce znovu")).clicked() { self.message = None; self.wizard = Some(0); }
             ui.add_space(14.0);
             ui.label(self.t("Map, database, rankings and your history are on the website. The addon works inside the game.", "Mapu, databázi, žebříčky a historii najdeš na webu. Addon funguje přímo ve hře."));
             ui.weak(self.t("Live position reads the addon marker while the game corner is visible, including on a second monitor. Enable Website export, My character, My route and Live position on the website.", "Živá poloha čte značku addonu, když je vidět levý horní roh hry, i na druhém monitoru. Zapni Webový export, Moji postavu, Moji trasu a Živou polohu na webu."));
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 if ui.button(self.t("Save settings", "Uložit nastavení")).clicked() && !self.preview {
-                    let candidate = Config { server: self.server.clone(), wow_path: (!self.wow.trim().is_empty()).then(|| PathBuf::from(self.wow.trim())) };
-                    let result = validate(&candidate).and_then(|()| {
-                        if self.autostart != self.original_autostart { platform::set_autostart(self.autostart).map_err(|e| e.to_string())?; self.original_autostart = self.autostart; }
-                        if self.login_start != self.original_login_start { platform::set_login_start(self.login_start).map_err(|e| e.to_string())?; self.original_login_start = self.login_start; }
-                        save_config(&self.config_path, &candidate)
-                    });
-                    self.message = Some(match result { Ok(()) => { shutdown::request(shutdown::BRIDGE_RELOAD); (self.t("Saved. The bridge will apply the connection.", "Uloženo. Most použije nové spojení.").to_owned(), false) }, Err(error) => (error, true) });
+                    let onboarded = self.prefs_dir().is_none_or(|d| prefs::load(&d).onboarded);
+                    let result = self.save_all(onboarded);
+                    self.message = Some(match result { Ok(()) => (self.t("Saved. The bridge will apply the connection.", "Uloženo. Most použije nové spojení.").to_owned(), false), Err(error) => (error, true) });
                 }
                 if ui.button(self.t("Close", "Zavřít")).clicked() { ctx.send_viewport_cmd(egui::ViewportCommand::Close); }
             });
@@ -302,6 +469,11 @@ impl ConnectionSettings {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
     }
+}
+
+/// The settings folder (prefs.json lives beside config.json).
+fn prefs_dir_of(config_path: &std::path::Path) -> Option<PathBuf> {
+    config_path.parent().filter(|p| !p.as_os_str().is_empty()).map(std::path::Path::to_path_buf)
 }
 
 /// What the WoW folder field expects, per operating system.
@@ -488,11 +660,12 @@ fn run() -> Result<(), String> {
         let output = args.get(at + 1).ok_or("Missing preview directory")?;
         std::fs::create_dir_all(output).map_err(|e| e.to_string())?;
         for cs in [true, false] {
-            for page in ["settings", "paired", "pairing", "unpaired"] {
+            for page in ["settings", "paired", "pairing", "unpaired", "wizard0", "wizard1", "wizard2", "wizard3", "wizard4", "wizard5"] {
                 let ctx = egui::Context::default();
                 style(&ctx);
                 let mut app = ConnectionSettings::new(PathBuf::new(), Config::default(), cs, true);
                 app.sync_page = page != "settings";
+                app.wizard = page.strip_prefix("wizard").and_then(|n| n.parse().ok());
                 app.snapshot = Some(Snapshot {
                     at: bridge::now(),
                     server: config::DEFAULT_SERVER.to_owned(),
@@ -582,8 +755,10 @@ fn run() -> Result<(), String> {
         options,
         Box::new(move |cc| {
             style(&cc.egui_ctx);
+            let first = !prefs::load(&paths.dir).onboarded || std::env::args().any(|a| a == "--onboarding");
             let mut app =
                 ConnectionSettings::new(paths.config, config, platform::prefers_czech(), false);
+            if first { app.wizard = Some(0); }
             app.message = error.map(|e| (e, true));
             Ok(Box::new(app))
         }),

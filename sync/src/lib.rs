@@ -19,6 +19,7 @@ pub mod music;
 pub mod notify;
 pub mod optical;
 pub mod platform;
+pub mod prefs;
 pub mod ranking;
 pub mod savedvars;
 #[cfg(not(windows))]
@@ -50,6 +51,15 @@ pub fn run() -> anyhow::Result<()> {
         return Ok(());
     };
     let paths = Paths::new()?;
+    // The first run (no prefs.json and no config.json yet): the guide opens beside the tray. Asked before the config
+    // below is written, and kept, so that the guide's window finds it too.
+    let prefs = crate::prefs::load(&paths.dir);
+    if !prefs.onboarded {
+        let _ = crate::prefs::save(&paths.dir, &prefs);
+        if let Ok(exe) = std::env::current_exe() {
+            let _ = std::process::Command::new(exe).arg("--connection-settings").spawn();
+        }
+    }
     // Keep the tray and its repair settings available even when the local file is damaged.
     let config = config::load_config(&paths.config).unwrap_or_else(|_| config::Config {
         server: String::new(),

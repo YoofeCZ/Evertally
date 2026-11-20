@@ -1874,12 +1874,38 @@ local function layoutSections(view, groups, y, opts)
 	view.psMid = 0
 	local width = win.BodyWidth
 	local n = 0
+	-- Evertally: a page's sections are tiles in two columns, each in the shorter one (search results, a section
+	-- without a heading, one with picture cards or captions over halves, and a page of one section stay across).
+	local TILE_GAP = 14
+	local tileW = floor((width - TILE_GAP) / 2)
+	local function across(g)
+		local s = g.section
+		if g.name == "" or (s and s.columns) then return true end
+		for _, c in ipairs(g.controls or {}) do if c.kind == "cards" or c.wide then return true end end
+		return false
+	end
+	local tiles = not opts and tileW >= 330
+	if tiles then
+		local k = 0
+		for _, g in ipairs(groups) do if not across(g) then k = k + 1 end end
+		tiles = k > 1
+	end
+	local colY = { y, y }
+	local pageW = width
 	for _, g in ipairs(groups) do
 		n = n + 1
 		local card = cardOf(view, n)
 		local s = g.section
 		local t = s and s.toggle and available(s.toggle) and s.toggle or nil
 		local header = g.name ~= "" or t ~= nil
+		local tile = tiles and header and not across(g)
+		local col, cx
+		if tile then
+			col = colY[1] <= colY[2] and 1 or 2
+			cx, y, width = SH.pad + (col - 1) * (tileW + TILE_GAP), colY[col], tileW
+		else
+			cx, y, width = SH.pad, max(colY[1], colY[2]), pageW
+		end
 		card.psHeader, card.psName, card.psSettings, card.psSection = header, g.name, g.settings, g.section
 		card:SetTitle(g.name)
 		card.Header:SetShown(header)
@@ -1917,10 +1943,18 @@ local function layoutSections(view, groups, y, opts)
 		elseif rawget(card, "Columns") then
 			card.Columns:Hide()
 		end
-		local rowsH = layoutRows(view, g.controls, y + card.RowsTop + capH, SH.pad + gutter, width - gutter, whole)
+		local rowsH = layoutRows(view, g.controls, y + card.RowsTop + capH, cx + gutter, width - gutter, whole or tile)
 		card.psTop = y
-		y = y + card:Place(SH.pad, y, width, rowsH + capH) + SECTION_GAP
+		local h = card:Place(cx, y, width, rowsH + capH)
+		if tile then
+			card.Title:SetWidth(max(1, width - 40))
+			colY[col] = y + h + TILE_GAP
+		else
+			colY[1], colY[2] = y + h + SECTION_GAP, y + h + SECTION_GAP
+		end
 	end
+	width = pageW
+	y = max(colY[1], colY[2])
 	for i = n + 1, #view.cards do view.cards[i]:Hide() end
 	markSections(view)
 	return y - (n > 0 and SECTION_GAP or 0)

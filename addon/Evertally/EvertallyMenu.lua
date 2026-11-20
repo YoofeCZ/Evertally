@@ -73,6 +73,7 @@ end
 --- The menu's groups: {head, items = {{key, icon, onClick, get (a switch: its state)}}}. Built each time the menu
 --- opens, so what the guide offers right now is what shows.
 function A.EvertallyMenuGroups()
+    local art = A.Theme.ART
     local g = guide()
     local Nav = g and g.Nav
     local GF = g and g.UI and g.UI.GuideFrame
@@ -81,27 +82,27 @@ function A.EvertallyMenuGroups()
     local groups = {}
     local function group(head, items) local list = {}; for _, item in ipairs(items) do if item then list[#list + 1] = item end end; if #list > 0 then groups[#groups + 1] = {head = head, items = list} end end
     -- What the map and the minimap show (2026-11-19, the user: the filter at the top, under the menu's button): the
-    -- guide's inns, flight masters and NPC service categories, in the game's own tracking icons. Turning one on turns
+    -- guide's inns, flight masters and NPC service categories. Turning one on turns
     -- its layer and its minimap icons on too.
     local Maps = g and g.Maps
     if Maps and g.Get and g.Set then
         local GL = g.L or {}
+        local minimapIcon = Maps.MinimapIcon or function() return nil end
         local function setting(path) return try(g.Get, path) == true end
         local function turn(path, extra)
             local on = not setting(path)
             try(g.Set, path, on)
             if on then for _, p in ipairs(extra) do if not setting(p) then try(g.Set, p, true) end end end
         end
-        local function icon(kind, fallback) return (Maps.GameIcon and Maps.GameIcon(kind)) or fallback end
         local items = {
-            {key = "menuInns", text = GL["Inns"], icon = icon("inn", "Interface\\Icons\\INV_Misc_Rune_01"),
+            {key = "menuInns", text = GL["Inns"], icon = minimapIcon("inn") or art .. "bed",
                 get = function() return setting("maps.innPins") end, onClick = function() turn("maps.innPins", {"maps.travelMinimap"}) end},
-            {key = "menuFlight", text = GL["Flight masters"], icon = icon("flightmaster", "Interface\\Icons\\Ability_Mount_Wyvern_01"),
+            {key = "menuFlight", text = GL["Flight masters"], icon = minimapIcon("flightmaster") or art .. "icon-fly",
                 get = function() return setting("maps.taxiPins") end, onClick = function() turn("maps.taxiPins", {"maps.travelMinimap"}) end},
         }
         for _, c in ipairs(Maps.ServiceCategories or {}) do
             local path = "maps.serviceFilters." .. c.key
-            items[#items + 1] = {key = "menuService_" .. c.key, text = c.label, icon = c.icon,
+            items[#items + 1] = {key = "menuService_" .. c.key, text = c.label, icon = minimapIcon(c.key) or c.icon,
                 get = function() return setting("maps.servicePins") and setting(path) end,
                 onClick = function()
                     if not setting("maps.servicePins") then try(g.Set, "maps.servicePins", true); if not setting(path) then try(g.Set, path, true) end
@@ -112,52 +113,52 @@ function A.EvertallyMenuGroups()
         group("menuMinimap", items)
     end
     group("menuGuide", {
-        g and {key = "menuGuideWindow", icon = "Interface\\Icons\\INV_Misc_Book_09", get = function() return try(g.GuideShown) == true end,
+        g and {key = "menuGuideWindow", icon = art .. "guides", get = function() return try(g.GuideShown) == true end,
             onClick = function() try(g.SetHidden, false); try(g.Fire, "TOGGLE_FRAME") end} or false,
-        g and {key = "menuPickGuide", icon = "Interface\\Icons\\INV_Misc_Book_11", onClick = fire("SHOW_PICKER")} or false,
-        g and {key = "menuLookup", icon = "Interface\\Icons\\INV_Misc_Spyglass_02", onClick = fire("SHOW_LOOKUP")} or false,
-        A.ShowQuestTracker and (not A.QuestTracker or not A.QuestTracker.Enabled or A.QuestTracker.Enabled()) and {key = "menuQuests", icon = "Interface\\Icons\\INV_Letter_15", onClick = function() A.ShowQuestTracker() end} or false,
+        g and {key = "menuPickGuide", icon = art .. "database", onClick = fire("SHOW_PICKER")} or false,
+        g and {key = "menuLookup", icon = art .. "search", onClick = fire("SHOW_LOOKUP")} or false,
+        A.ShowQuestTracker and (not A.QuestTracker or not A.QuestTracker.Enabled or A.QuestTracker.Enabled()) and {key = "menuQuests", icon = art .. "icon-accept", onClick = function() A.ShowQuestTracker() end} or false,
         -- the guide window's own menu (compact, transparent, lock, reset progress, quick settings...), opened under the
         -- window's EVERTALLY MENU button, where its "..." was
-        GF and GF.OpenMenu and {key = "menuWindowOptions", icon = "Interface\\Icons\\INV_Misc_Gear_02", onClick = function()
+        GF and GF.OpenMenu and {key = "menuWindowOptions", icon = art .. "sliders", onClick = function()
             local anchor = GF.etMenu
             if anchor and anchor.IsVisible and anchor:IsVisible() then try(GF.OpenMenu, anchor) end
         end} or false,
         -- the party (party sync): its panel, and asking the party to move to your step
-        PP and PP.Toggle and {key = "menuParty", icon = "Interface\\Icons\\INV_Misc_GroupNeedMore", get = function() local f = try(PP.Frame); return f ~= nil and f:IsShown() end,
+        PP and PP.Toggle and {key = "menuParty", icon = art .. "people", get = function() local f = try(PP.Frame); return f ~= nil and f:IsShown() end,
             onClick = function() try(PP.Toggle) end} or false,
-        Party and Party.RequestSync and {key = "menuPartySync", icon = "Interface\\Icons\\Spell_Holy_PrayerOfSpirit", onClick = function() try(Party.RequestSync) end} or false,
+        Party and Party.RequestSync and {key = "menuPartySync", icon = art .. "reload", onClick = function() try(Party.RequestSync) end} or false,
     })
     group("menuNav", {
-        Nav and Nav.ToggleArrow and {key = "menuArrow", icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", get = function() return try(g.Get, "nav.arrow") and true or false end,
+        Nav and Nav.ToggleArrow and {key = "menuArrow", icon = art .. "route", get = function() return try(g.Get, "nav.arrow") and true or false end,
             onClick = function() try(Nav.ToggleArrow) end} or false,
-        g and g.HideKeepsArrow and {key = "menuArrowHidden", icon = "Interface\\Icons\\Ability_Hunter_EagleEye", get = function() return try(g.HideKeepsArrow) == true end,
+        g and g.HideKeepsArrow and {key = "menuArrowHidden", icon = art .. "eye", get = function() return try(g.HideKeepsArrow) == true end,
             onClick = function() try(g.SetHideKeepsArrow, not try(g.HideKeepsArrow)) end} or false,
-        Nav and Nav.ClearTarget and {key = "menuStopNav", icon = "Interface\\Icons\\Ability_Seal", onClick = function() try(Nav.ClearTarget) end} or false,
-        {key = "menuMap", icon = "Interface\\Icons\\INV_Misc_Map_01", onClick = function() if type(ToggleWorldMap) == "function" then pcall(ToggleWorldMap) end end},
+        Nav and Nav.ClearTarget and {key = "menuStopNav", icon = art .. "stop", onClick = function() try(Nav.ClearTarget) end} or false,
+        {key = "menuMap", icon = art .. "map-fold", onClick = function() if type(ToggleWorldMap) == "function" then pcall(ToggleWorldMap) end end},
     })
     group("menuGame", {
-        A.ToggleBagWindow and {key = "menuBags", icon = "Interface\\Icons\\INV_Misc_Bag_08", get = function() return A.BagWindow and A.BagWindow.Shown() end,
+        A.ToggleBagWindow and {key = "menuBags", icon = art .. "bag", get = function() return A.BagWindow and A.BagWindow.Shown() end,
             onClick = function() A.ToggleBagWindow() end} or false,
-        {key = "menuDungeons", icon = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01", onClick = view("dungeons")},
-        {key = "menuTalents", icon = "Interface\\Icons\\Ability_Marksmanship", onClick = view("talents")},
-        {key = "menuTraining", icon = "Interface\\Icons\\INV_Scroll_03", onClick = view("training")},
-        {key = "menuRecipes", icon = "Interface\\Icons\\Trade_BlackSmithing", onClick = view("recipes")},
-        g and {key = "menuRares", icon = "Interface\\Icons\\Ability_Tracking", onClick = fire("SHOW_RARES")} or false,
-        g and g.TogglePaused and {key = "menuPause", icon = "Interface\\Icons\\Spell_Nature_TimeStop", get = function() return try(g.Paused) ~= nil end,
+        {key = "menuDungeons", icon = art .. "icon-dungeon", onClick = view("dungeons")},
+        {key = "menuTalents", icon = art .. "star", onClick = view("talents")},
+        {key = "menuTraining", icon = art .. "icon-learn", onClick = view("training")},
+        {key = "menuRecipes", icon = art .. "recipes", onClick = view("recipes")},
+        g and {key = "menuRares", icon = art .. "rare", onClick = fire("SHOW_RARES")} or false,
+        g and g.TogglePaused and {key = "menuPause", icon = art .. "pause", get = function() return try(g.Paused) ~= nil end,
             onClick = function() try(g.TogglePaused) end} or false,
     })
     group("menuSetup", {
-        {key = "menuSettings", icon = "Interface\\Icons\\INV_Misc_Gear_01", onClick = function() if not (A.ShowGuideSettings and A.ShowGuideSettings()) then view("settings")() end end},
-        {key = "menuSetupAgain", icon = "Interface\\Icons\\INV_Misc_Note_01", onClick = function() if A.OpenOnboarding then A.OpenOnboarding() end end},
-        g and {key = "menuHide", icon = "Interface\\Icons\\Ability_Stealth", get = function() return A.EvertallyHidden() end,
+        {key = "menuSettings", icon = art .. "gear", onClick = function() if not (A.ShowGuideSettings and A.ShowGuideSettings()) then view("settings")() end end},
+        {key = "menuSetupAgain", icon = art .. "journal", onClick = function() if A.OpenOnboarding then A.OpenOnboarding() end end},
+        g and {key = "menuHide", icon = art .. "eye", get = function() return A.EvertallyHidden() end,
             onClick = function() A.ToggleEvertallyHidden() end, keep = true} or false,
     })
     group("menuCommunity", {
         g and {key = "menuDiscord", icon = "Interface\\AddOns\\Evertally_Guide\\Media\\UI\\discord", onClick = fire("SHOW_DISCORD")} or false,
-        g and {key = "menuReport", icon = "Interface\\Icons\\INV_Misc_Note_02", onClick = fire("SHOW_REPORT")} or false,
-        {key = "menuForum", icon = "Interface\\Icons\\INV_Letter_02", onClick = view("community")},
-        {key = "menuRankings", icon = "Interface\\Icons\\Ability_Warrior_BattleShout", onClick = view("rankings")},
+        g and {key = "menuReport", icon = art .. "bug", onClick = fire("SHOW_REPORT")} or false,
+        {key = "menuForum", icon = art .. "icon-talk", onClick = view("community")},
+        {key = "menuRankings", icon = art .. "icon-achieve", onClick = view("rankings")},
     })
     return groups
 end

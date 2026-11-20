@@ -11,6 +11,7 @@
 --           onClick = function(button, owner), priority, text }
 --   text: a few characters (a step number) drawn on the pin, outlined, in its colour's alpha.
 --   Additive pin fields: c, wx, wy (world position instead of map/x/y), glow (soft halo),
+--   minimapIcon (a client texture displayed at full size and in its own colours on the minimap),
 --   area (yards: a soft disc of that radius under the pin, in the pin's colour, on the world
 --   map; on the minimap too in a layer with minimapAreas, cut at the minimap's rim),
 --   hull ({ wx1, wy1, wx2, wy2, ... }: a convex region in world yards on the pin's continent,
@@ -647,7 +648,7 @@ end
 
 -- A map mark (see the header): the glyph, tinted, in the skin's medallion,
 -- with its ring, dashed ring, glow, badge and edge pointer.
-local function applyMark(f, p, size, path)
+local function applyMark(f, p, size, path, native)
 	if p.state == "focus" then size = size * FOCUS_SCALE end
 	f:SetSize(size, size)
 	local r, g, b, a = pinColor(p)
@@ -655,13 +656,14 @@ local function applyMark(f, p, size, path)
 	f.mapMark, f.hasIcon = true, true
 	f.icon:ClearAllPoints()
 	f.icon:SetPoint("CENTER")
-	f.icon:SetSize(size * GLYPH_FRAME, size * GLYPH_FRAME)
+	local glyphSize = native and size or size * GLYPH_FRAME
+	f.icon:SetSize(glyphSize, glyphSize)
 	f.icon:SetTexture(path)
-	f.icon:SetVertexColor(r, g, b, a)
+	if native then f.icon:SetVertexColor(1, 1, 1, a) else f.icon:SetVertexColor(r, g, b, a) end
 	local medal = tonumber(p.medalSize) or (2 * floor(size * MEDAL_SCALE / 2 + 0.5))
 	local pack = Pins.IconPack()
-	f.bare = p.medal == false or pack == "bare"
-	if p.medal == false then medal = size end
+	f.bare = native or p.medal == false or pack == "bare"
+	if native or p.medal == false then medal = size end
 	f.medalPx, f.sizePx, f.footPx = medal, size, medal
 	-- The skin's own medallion art, when the pack is the skin's (Theme.SkinMedia):
 	-- a file, or the client's atlas for a game look's (Theme.SetArt), drawn its
@@ -702,7 +704,7 @@ local function applyMark(f, p, size, path)
 	f.edgeReach = medal / 2 + medal * EDGE_H / 2 - 0.5
 	f.clamped = nil
 	showParts(f, p, false)
-	Pins.SkinHook(f, "mark")
+	if not native then Pins.SkinHook(f, "mark") end
 end
 
 -- Pin fields for its own look (Nav/Upcoming.lua's numbered pins): grow (its
@@ -710,6 +712,7 @@ end
 -- rim, else nav.medalColor, else white), textScale and textColor (its number).
 local function applyLook(f, p, size)
 	f.grow = tonumber(p.grow) or 1
+	if f.psMinimap and p.minimapIcon then return applyMark(f, p, size, p.minimapIcon, true) end
 	local path, mark = iconPath(p.icon)
 	if mark then return applyMark(f, p, size, path) end
 	if f.mapMark then

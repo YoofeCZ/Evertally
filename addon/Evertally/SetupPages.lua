@@ -109,8 +109,8 @@ page({key = "et-language", after = "welcome", title = "setupLangTitle", sub = "s
         return line(p.existing, A.onboarding.existing and A.L("setupExisting") or nil, y)
     end})
 
+-- (2026-11-20: the app and OpenMap are optional; the page says what goes missing without them, Next never waits)
 page({key = "et-install", after = "et-language", title = "setupGetTitle", sub = "setupGetBody",
-    blocked = function() return A.RequirementsReady ~= nil and not A.RequirementsReady() end,
     build = function(p)
         p.holder = CreateFrame("Frame", nil, p); p.holder:SetSize(K.CW, 370)
         p.install = A.BuildInstallationControls(p.holder)
@@ -123,7 +123,6 @@ page({key = "et-install", after = "et-language", title = "setupGetTitle", sub = 
     end})
 
 page({key = "et-pair", after = "et-install", title = "setupPairTitle", sub = "setupPairBody",
-    blocked = function() return A.BridgePaired ~= nil and not A.BridgePaired() end,
     build = function(p)
         p.status = para(p, "body", "text")
         p.pair = button(p, function() A.RequestPairing() end, true)
@@ -389,6 +388,8 @@ page({key = "et-summary", after = "look", title = "setupHostSumTitle", sub = "se
         local y = 0
         local lines = A.OnboardingSummary(d)
         for i, fs in ipairs(p.lines) do y = line(fs, lines[i] and ("•  " .. lines[i]) or nil, y, 4) end
+        -- without the app or OpenMap: what goes missing, before Finish
+        if A.RequirementsComplete and not A.RequirementsComplete() then return line(p.note, A.L("installLimited"), y + 8) end
         return line(p.note, d.web and not A.ExportStore() and A.L("setupNoteExport") or ((d.web or d.liveWeb) and A.L("setupAppNote") or nil), y + 8)
     end})
 

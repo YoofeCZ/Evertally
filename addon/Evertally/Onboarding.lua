@@ -64,7 +64,7 @@ local text = {
         setupNotePlates = "The game could not switch friendly nameplates. Outside combat, enable them in Settings → Nameplates.",
         -- 8
         setupGetTitle = "What you need",
-        setupGetBody = "The Evertally app and OpenMap are required. Verify their installation here at any time.",
+        setupGetBody = "The Evertally app and OpenMap are optional, but without them you lose the online part. Verify their installation here at any time.",
         setupGetApp = "Evertally app for Windows",
         setupGetAppSub = "Sends your data and your position (not live) to your page on the website. Download it on the website, on the Download page:",
         setupGetOpenMap = "OpenMap add-on",
@@ -88,7 +88,7 @@ local text = {
         setupChronLocked = "Your position on the website needs the route, so “Do not send” is not available while it is on.", setupSumApp = "App: %s; start with WoW: %s", setupSumPaired = "paired", setupSumUnpaired = "not paired",
         -- 2: pairing
         setupPairTitle = "Pair the app with the website",
-        setupPairBody = "Your data reaches your page on the website only through the Evertally app for Windows, paired with your account. The setup continues once the app is paired.",
+        setupPairBody = "Your data reaches your page on the website only through the Evertally app for Windows, paired with your account. Without the app you can go on: then nothing reaches the website.",
         setupPairNot = "The app is not paired yet.",
         setupPairWaiting = "Pairing requested. The pairing page opened in your browser (Alt+Tab): sign in with Discord and confirm the code, then press Verify.",
         setupPairOld = "The app did not report whether it is paired. Start the Evertally app (update it if it is older than 0.9.13), then press Verify.",
@@ -138,7 +138,7 @@ local text = {
         setupMusicYoutubeHelp = "Po dokončení aplikace Evertally otevře YouTube Music ve vlastním okně (Chrome nebo Edge, oddělený profil). Jednou se v něm přihlas; pak v okně hudby ve hře stiskni Obnovit knihovnu a Načíst knihovnu.",
         setupNotePlates = "Hra nedovolila přepnout jmenovky spojenců. Mimo boj je zapni v Nastavení → Jmenovky.",
         setupGetTitle = "Co potřebuješ",
-        setupGetBody = "Aplikace Evertally a OpenMap jsou vyžadované. Jejich instalaci můžeš tady kdykoli znovu ověřit.",
+        setupGetBody = "Aplikace Evertally a OpenMap jsou dobrovolné, ale bez nich přijdeš o online část. Jejich instalaci můžeš tady kdykoli ověřit.",
         setupGetApp = "Aplikace Evertally pro Windows",
         setupGetAppSub = "Posílá tvoje data a tvoji polohu (ne živě) na tvoji stránku na webu. Stáhneš ji na webu, na stránce Stažení:",
         setupGetOpenMap = "Addon OpenMap",
@@ -160,7 +160,7 @@ local text = {
         setupChron_public = "Veřejně", setupChronSub_public = "Kdokoli ji na webu přehraje. Potřebuje veřejnou stránku nahoře, takže ji zapne a objevíš se v žebříčku.",
         setupChronLocked = "Poloha na webu potřebuje trasu, takže „Neposílat“ nejde, dokud je zapnutá.", setupSumApp = "Aplikace: %s; spouštět s WoW: %s", setupSumPaired = "spárovaná", setupSumUnpaired = "nespárovaná",
         setupPairTitle = "Spáruj aplikaci s webem",
-        setupPairBody = "Tvoje data se na tvoji stránku na webu dostanou jen přes aplikaci Evertally pro Windows spárovanou s tvým účtem. Nastavení pokračuje, až bude aplikace spárovaná.",
+        setupPairBody = "Tvoje data se na tvoji stránku na webu dostanou jen přes aplikaci Evertally pro Windows spárovanou s tvým účtem. Bez aplikace můžeš pokračovat: na web se pak nic nedostane.",
         setupPairNot = "Aplikace zatím není spárovaná.",
         setupPairWaiting = "Žádost odeslaná. V prohlížeči se otevřela stránka párování (Alt+Tab): přihlas se přes Discord a potvrď kód, potom klikni Ověřit.",
         setupPairOld = "Aplikace nenahlásila, jestli je spárovaná. Spusť aplikaci Evertally (je-li starší než 0.9.13, aktualizuj ji) a klikni Ověřit.",
@@ -755,6 +755,8 @@ function A.OnboardingFinish()
     local notes = A.OnboardingApply(draft)
     if f then f:Hide() end
     A.Print(A.L("setupDone"))
+    -- without the app or OpenMap: said once more at the end (the player chose to go on without them)
+    if A.RequirementsComplete and not A.RequirementsComplete() then A.Print(A.L("installLimited")) end
     -- the bags picked (et-bags) switched a bag add-on on or off: that holds only after a reload
     if A.BagWindow and A.BagWindow.ReloadIfNeeded then A.BagWindow.ReloadIfNeeded() end
     if A.webChangePending and A.MarkWebChanged then A.MarkWebChanged() end

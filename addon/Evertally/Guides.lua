@@ -11,7 +11,7 @@ local function cz()return A.db and A.db.settings.language=="cs"end
 local function tr(en,cs)return cz()and cs or en end
 local function s(en,cs,textEn,textCs,action)return{title=tr(en,cs),body=tr(textEn,textCs),action=action}end
 local BOOKS={}
-local function add(id,category,en,cs,sections,icon)BOOKS[#BOOKS+1]={id=id,category=category,en=en,cs=cs,sections=sections,icon=icon or"Interface\\Icons\\INV_Misc_Book_09"}end
+local function add(id,category,en,cs,sections,icon)BOOKS[#BOOKS+1]={id=id,category=category,en=en,cs=cs,sections=sections,icon=icon or (A.Theme.ART .. "guides")}end
 function A.RegisterGuide(id,category,en,cs,sections,icon)
  for _,book in ipairs(BOOKS)do if book.id==id then return false end end
  add(id,category,en,cs,sections,icon);return true
@@ -132,7 +132,7 @@ local function professionSections(p)
  for _,v in ipairs(shopping)do result[#result+1]={title=string.format(A.L("guideUnits"),v.count,itemName(v.id)),body="",action="item:"..v.id,itemId=v.id}end
  return result
 end
-for _,profession in ipairs(PROFESSIONS)do local p=profession;add("profession-"..p[1],"professions",p[2].." 1–300",p[3].." 1–300",function()return professionSections(p)end,"Interface\\Icons\\Trade_Engineering")end
+for _,profession in ipairs(PROFESSIONS)do local p=profession;add("profession-"..p[1],"professions",p[2].." 1–300",p[3].." 1–300",function()return professionSections(p)end,A.Theme.ART .. "icon-craft")end
 function A.GuideLibrary()return BOOKS end
 function A.GuideArticle(id)for _,b in ipairs(BOOKS)do if b.id==id then return{id=id,title=tr(b.en,b.cs),category=b.category,sections=b.sections(),icon=b.icon}end end end
 local function readStore()if not A.db then return{}end;if type(A.db.guideRead)~="table"then A.db.guideRead={}end;return A.db.guideRead end

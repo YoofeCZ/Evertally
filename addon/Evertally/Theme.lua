@@ -4,7 +4,7 @@ local _, A = ...
 -- under it and a small gold jewel in each corner (Evertally's own mark). Cards, fields and buttons inside are rounded.
 -- The player picks how deep the night runs (a colour scheme: Night, Dusk or Graphite, Settings > Interface); the gold,
 -- the status colours and the text ladder are the same in every scheme, so text never changes its contrast.
--- The band, the glow and the line glyphs are Polestar's art (GPL-3.0, Media/NOTICE-Polestar.txt).
+-- The band and glow are Polestar art (GPL-3.0, Media/NOTICE-Polestar.txt). The glyphs are Evertally art.
 local MEDIA = "Interface\\AddOns\\Evertally\\Media\\"
 local ART = MEDIA .. "Polestar\\"
 

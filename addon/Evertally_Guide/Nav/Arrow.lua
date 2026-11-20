@@ -74,7 +74,7 @@ local TURN = { snappy = 48, smooth = 24, gentle = 12 }
 local CLOSE_RANGE = 250      -- yards over which the colour shifts toward success (nav.arrowNearRange)
 local DIAL = 64
 
--- Sprite sheet layout; must match tools/media/nav/arrow3d.js LAYOUT.
+-- Sprite sheet layout; must match tools/build_evertally_icons.py.
 local FRAMES, COLS, CELL, SHEET = 100, 10, 102, 1024
 local TWO_PI = 2 * pi
 local STEP = TWO_PI / FRAMES
@@ -651,8 +651,8 @@ end
 grabArea(true)
 
 local UI_MEDIA = UI_DIR
-local LEG_ICON = { hearth = "icon-hearth", teleport = "icon-use", fly = "icon-fly", boat = "icon-boat", zeppelin = "icon-boat", airship = "icon-boat",
-	tram = "icon-boat", portal = "icon-gate", lift = "icon-lift" }
+local LEG_ICON = { hearth = "icon-hearth", teleport = "icon-use", fly = "icon-fly", boat = "icon-boat", zeppelin = "icon-zeppelin", airship = "icon-zeppelin",
+	tram = "icon-tram", portal = "icon-gate", lift = "icon-lift" }
 
 -- The catch-up's hourglass (Arrow.SetBusy; Media/UI hourglass and
 -- hourglass-sand, tools/media/ui.js): while the guide window goes over the

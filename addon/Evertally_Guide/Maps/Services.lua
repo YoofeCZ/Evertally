@@ -32,14 +32,10 @@ for _, category in ipairs(CATEGORIES) do
 	filters[category.key] = category.on == true
 	category.mark = "map:" .. category.glyph
 	category.icon = MAP_MEDIA .. "icon-" .. category.glyph
-	-- Evertally: the game's own tracking icon where it has one (Maps.GameIcon)
-	local game = Maps.GameIcon and Maps.GameIcon(category.key)
-	if game then category.mark, category.icon, category.game = game, game, true end
 end
 
 -- A category's glyph in a menu line, in the NPC colour (the map marks are white masks).
 function Maps.ServiceIcon(category, size)
-	if category.game then return string.format("|T%s:%d:%d|t", category.icon, size or 16, size or 16) end
 	local T = ns.Theme
 	local r, g, b = 0.58, 0.79, 1
 	if T and T.Color then r, g, b = T.Color("npc") end
@@ -120,6 +116,7 @@ function Maps.BuildServicePins(records)
 				end
 			end
 			if selected then
+				local minimapIcon = Maps.MinimapIcon(selected.key)
 				for _, spawn in ipairs(record.spawns or {}) do
 					local map, x, y = spawn.map, spawn.x, spawn.y
 					if type(map) == "number" and map > 0 and type(x) == "number" and type(y) == "number"
@@ -131,7 +128,7 @@ function Maps.BuildServicePins(records)
 							local p = { id = record.id, kind = record.kind or "npc", category = selected.key,
 								name = name, subName = record.subName,
 								map = map, x = x, y = y, f = spawn.f, icon = selected.mark, menuIcon = selected.icon,
-								size = 16, color = selected.game and Maps.GAME_WHITE or color, priority = 1 }
+								minimapIcon = minimapIcon, size = 16, color = color, priority = 1 }
 							p.tooltip = function(tip)
 								tip:SetText(name, rgb("text"))
 								if record.subName and record.subName ~= "" then tip:AddLine(record.subName, rgb("textDim")) end

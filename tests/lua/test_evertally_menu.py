@@ -53,7 +53,6 @@ class EvertallyMenuTests(unittest.TestCase):
                 self.assertTrue(self.a.locale[lang][key], (lang, key))
 
     def test_the_minimap_filter_comes_first_and_a_category_turns_its_icons_on(self):
-        # (2026-11-19: the user wants what the minimap shows chosen at the top of the menu, in the game's own icons)
         self.lua.execute(FAKE_GUIDE)
         self.lua.execute('''
           SET = {["maps.innPins"] = true, ["maps.travelMinimap"] = true}
@@ -61,9 +60,12 @@ class EvertallyMenuTests(unittest.TestCase):
           EvertallyGuide.Set = function(p, v) SET[p] = v end
           EvertallyGuide.L = {Inns = "Hostince", ["Flight masters"] = "Letoví mistři"}
           EvertallyGuide.Maps = {
-            ServiceCategories = {{key = "mailbox", label = "Schránky", icon = "Interface\\\\Minimap\\\\Tracking\\\\Mailbox"},
-                                 {key = "vendor", label = "Prodejci", icon = "Interface\\\\GossipFrame\\\\VendorGossipIcon"}},
-            GameIcon = function(kind) return "GAME:" .. kind end}
+            ServiceCategories = {{key = "mailbox", label = "Schránky", icon = "Interface\\\\AddOns\\\\Evertally_Guide\\\\Media\\\\Map\\\\icon-mailbox"},
+                                 {key = "vendor", label = "Prodejci", icon = "Interface\\\\AddOns\\\\Evertally_Guide\\\\Media\\\\Map\\\\icon-vendor"}},
+            MinimapIcon = function(kind)
+                local name = ({inn = "Innkeeper", flightmaster = "FlightMaster", mailbox = "Mailbox"})[kind]
+                if name then return "Interface\\\\Minimap\\\\Tracking\\\\" .. name end
+            end}
         ''')
         groups = self.a.EvertallyMenuGroups()
         first = groups[1]
@@ -71,7 +73,11 @@ class EvertallyMenuTests(unittest.TestCase):
         items = {str(i.key): i for i in first["items"].values()}
         self.assertEqual(list(items), ["menuInns", "menuFlight", "menuService_mailbox", "menuService_vendor"])
         self.assertEqual(str(items["menuInns"].text), "Hostince")
-        self.assertEqual(str(items["menuInns"].icon), "GAME:inn")
+        tracking = "Interface\\Minimap\\Tracking\\"
+        self.assertEqual(items["menuInns"].icon, tracking + "Innkeeper")
+        self.assertEqual(items["menuFlight"].icon, tracking + "FlightMaster")
+        self.assertEqual(items["menuService_mailbox"].icon, tracking + "Mailbox")
+        self.assertTrue(items["menuService_vendor"].icon.endswith("\\icon-vendor"))
         self.assertTrue(items["menuInns"].get())
         self.assertFalse(items["menuService_vendor"].get())
         items["menuService_vendor"].onClick()

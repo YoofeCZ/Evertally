@@ -56,9 +56,11 @@ class GuideSettingsTests(unittest.TestCase):
         keys = []
         for spec in specs:
             if spec.key not in keys: keys.append(spec.key)
-        self.assertEqual(keys, ["evertallysharing", "evertallyinterface", "evertallybags", "evertallyplates", "evertallymusic", "evertallyactions",
+        self.assertEqual(keys, ["evertallysharing", "evertallyinterface", "evertallybags", "evertallycombat", "evertallyplates", "evertallymusic", "evertallyactions",
                                 "evertallydiagnostics"])
-        tabs = [spec.tab for spec in specs if spec.key == "evertallysharing"]
+        tabs = []
+        for spec in specs:
+            if spec.key == "evertallysharing" and spec.tab not in tabs: tabs.append(spec.tab)
         self.assertEqual(tabs, ["In game", "Live & map", "Website"])
         self.assertTrue(all(s.group == "evertally" for s in specs))
         self.assertTrue(all(s.custom for s in specs if s.key in ("evertallyplates", "evertallymusic", "evertallydiagnostics")))

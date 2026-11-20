@@ -10,19 +10,18 @@ local COMPACT_SIDEBAR, COMPACT_BELOW, HEAD_ROW = 56, 860, 30
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
 -- Legacy accent names remain aliases for pages that use the shared kit.
 local C = A.Theme.colors
+local ART = A.Theme.ART
 local ICON = {
-    overview = "Interface\\Icons\\INV_Misc_Book_09", journal = "Interface\\Icons\\INV_Scroll_03", history = "Interface\\Icons\\INV_Sword_04",
-    facts = "Interface\\Icons\\INV_Misc_Map_01", rankings = "Interface\\Icons\\Ability_Warrior_BattleShout",
-    peers = "Interface\\Icons\\INV_Misc_GroupNeedMore", settings = "Interface\\Icons\\INV_Misc_Gear_01",
-    social = "Interface\\Icons\\INV_Misc_GroupNeedMore", webfacts = "Interface\\Icons\\Spell_Nature_FarSight", community = "Interface\\Icons\\INV_Misc_GroupLooking", professions = "Interface\\Icons\\Trade_Engineering", places = "Interface\\Icons\\Ability_Tracking", world = "Interface\\Icons\\Spell_Nature_FarSight",
-    database = "Interface\\Icons\\INV_Misc_Book_11", dungeons = "Interface\\Icons\\INV_Misc_Key_13", guides = "Interface\\Icons\\INV_Misc_Note_01", recipes = "Interface\\Icons\\INV_Scroll_06", talents = "Interface\\Icons\\Ability_Marksmanship",
-    gear = "Interface\\Icons\\INV_Chest_Chain_04", training = "Interface\\Icons\\INV_Misc_Book_07", questguide = "Interface\\Icons\\INV_Misc_Map_01", leveling = "Interface\\Icons\\Ability_Hunter_Pathfinding",
-    quest = "Interface\\GossipFrame\\AvailableQuestIcon", questDone = "Interface\\GossipFrame\\ActiveQuestIcon",
-    npc = "Interface\\Icons\\INV_Misc_Head_Human_01", vendor = "Interface\\Icons\\INV_Misc_Bag_10",
-    item = "Interface\\Icons\\INV_Misc_Bag_08", profession = "Interface\\Icons\\Trade_Engineering",
-    craft = "Interface\\Icons\\Trade_BlackSmithing", cooldown = "Interface\\Icons\\INV_Misc_PocketWatch_01",
-    raid = "Interface\\Icons\\INV_Misc_Head_Dragon_01", run = "Interface\\Icons\\INV_Sword_04",
-    unknown = "Interface\\Icons\\INV_Misc_QuestionMark",
+    overview = ART .. "house", journal = ART .. "journal", history = ART .. "hourglass",
+    facts = ART .. "layers", rankings = ART .. "icon-achieve", peers = ART .. "people", settings = ART .. "gear",
+    social = ART .. "people", webfacts = ART .. "plug", community = ART .. "icon-talk",
+    professions = ART .. "icon-craft", places = ART .. "icon-explore", world = ART .. "route",
+    database = ART .. "database", dungeons = ART .. "icon-dungeon", guides = ART .. "guides",
+    recipes = ART .. "recipes", talents = ART .. "star", gear = ART .. "armor", training = ART .. "icon-learn",
+    questguide = ART .. "map-fold", leveling = ART .. "icon-level", quest = ART .. "icon-accept",
+    questDone = ART .. "icon-turnin", npc = ART .. "person", vendor = ART .. "icon-vendor", item = ART .. "bag",
+    profession = ART .. "icon-craft", craft = ART .. "icon-craft", cooldown = ART .. "watch", raid = ART .. "icon-elite",
+    run = ART .. "icon-kill", unknown = "Interface\\Icons\\INV_Misc_QuestionMark",
 }
 -- The side menu: groups with a small heading, in the order the pages are built.
 -- (what you did: history; what the game has: the guide; who plays with you: people)
@@ -1816,9 +1815,9 @@ local function build()
     -- the corner that resizes the window
     local grip = CreateFrame("Button", nil, frame)
     grip:SetSize(18, 18); grip:SetPoint("BOTTOMRIGHT", -3, 3); grip:SetFrameLevel((frame:GetFrameLevel() or 1) + 30)
-    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetNormalTexture(ART .. "resize")
+    grip:SetHighlightTexture(ART .. "resize")
+    grip:SetPushedTexture(ART .. "resize")
     grip:SetScript("OnMouseDown", function() if frame.StartSizing then frame:StartSizing("BOTTOMRIGHT") end end)
     grip:SetScript("OnMouseUp", function() frame:StopMovingOrSizing(); A.SetUISize(frame:GetWidth(), frame:GetHeight()) end)
     shell.grip = grip
@@ -2024,6 +2023,8 @@ local function slash(text)
     elseif text == "bags" then if A.BagHighlight then A.BagHighlight.Diagnose() end
     elseif text == "drawer" or text == "drawers" or text == "suplik" or text == "šuplík" then if A.Drawers then A.Drawers.Toggle() end
     elseif text == "bag" or text == "batoh" then if A.ToggleBagWindow then A.ToggleBagWindow() end
+    elseif text == "meter" or text == "dmg" then if A.Meter then A.Meter.Toggle() end
+    elseif text == "threat" or text == "agro" or text == "aggro" then if A.ThreatMeter then A.ThreatMeter.Toggle() end
     elseif text == "train" or text == "training" then A.ShowView("training")
     elseif text == "guide" or text == "questguide" then if not (A.guideShell and A.RunGuide and A.RunGuide("guides")) then A.ShowView("questguide") end
     elseif text == "map" then

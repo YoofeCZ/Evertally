@@ -13,10 +13,10 @@ local KEY = "Evertally"
 local LOGO = "Interface\\AddOns\\Evertally\\Media\\Logo"
 -- The sidebar draws the guide's own line icons (its Media/UI), not the game's coloured ones.
 local PAGE_ICON = {
-    overview = "house", journal = "icon-note", history = "hourglass", places = "icon-explore", facts = "layers",
-    professions = "icon-craft", questguide = "icon-accept", gear = "qol-upgrade", training = "icon-train", database = "search",
-    dungeons = "icon-dungeon", recipes = "icon-skill", talents = "star", world = "icon-goto", guides = "guides",
-    community = "icon-talk", social = "flag", rankings = "icon-achieve", webfacts = "plug", settings = "gear",
+    overview = "house", journal = "journal", history = "hourglass", places = "icon-explore", facts = "layers",
+    professions = "icon-craft", questguide = "map-fold", gear = "armor", training = "icon-learn", database = "database",
+    dungeons = "icon-dungeon", recipes = "recipes", talents = "star", world = "route", guides = "guides",
+    community = "icon-talk", social = "people", rankings = "icon-achieve", webfacts = "plug", settings = "gear",
 }
 -- The Leveling page only led to the guide's windows; in the hub they are its neighbours on the rail.
 local SKIP = {leveling = true}

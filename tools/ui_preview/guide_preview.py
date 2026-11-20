@@ -15,7 +15,7 @@ exec(_src, PV.__dict__)
 from lupa.lua51 import LuaRuntime
 lua = LuaRuntime(unpack_returned_tuples=True, encoding="utf-8")
 import os as _os0
-lua.execute("SCREEN_W, SCREEN_H = 900, %d" % (900 if _os0.environ.get("SETUP") else 700))  # (the setup at full size: no fit to the screen)
+lua.execute("SCREEN_W, SCREEN_H = %s" % (_os0.environ.get("SCREEN") or ("900, %d" % (900 if _os0.environ.get("SETUP") else 700))))  # SCREEN="1600, 1000": a bigger screen  # (the setup at full size: no fit to the screen)
 lua.execute((ROOT/"tools/ui_preview/layout_mock.lua").read_text(encoding="utf8"))
 lua.execute(r'''
 STUB = setmetatable({}, {__call=function() return nil end, __index=function(t,k) return t end})
@@ -437,6 +437,8 @@ subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(page), str
 for t in [n for n in nodes if n.get("text")][:60]: print(repr(t.get("text"))[:80])
 if os.environ.get("OPTIONS"):
     UI = G.EvertallyGuide.UI
+    # Evertally's own pages (registered at PLAYER_LOGIN in the game)
+    lua.execute("if Evertally and Evertally.InstallGuideSettings then local ok, e = pcall(Evertally.InstallGuideSettings); print('evertally settings', ok, e) end")
     try:
         UI.ShowOptions(os.environ["OPTIONS"])
     except Exception as e: print("OPT ERR", e)
@@ -446,8 +448,9 @@ if os.environ.get("OPTIONS"):
     if of:
         of.ClearAllPoints(of); of.SetPoint(of, "TOPLEFT", G.UIParent, "TOPLEFT", 10, -10); lua.execute("PREVIEW_SETTLE()")
         on = PV.to_py(lua.eval("PREVIEW_EXPORT")(of))
-        pg = out.with_name("options.html"); pg.write_text(PV.render(on, 1000, 720), encoding="utf8")
-        subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(pg), str(pg.with_suffix(".png")), "1000", "720"], check=True)
+        _sw, _sh = (int(v) for v in (os.environ.get("SCREEN") or "1000, 720").split(","))
+        pg = out.with_name("options.html"); pg.write_text(PV.render(on, _sw, _sh), encoding="utf8")
+        subprocess.run(["node", str(ROOT/"tools/ui_preview/capture.cjs"), str(pg), str(pg.with_suffix(".png")), str(_sw), str(_sh)], check=True)
 import json
 for n in nodes:
     if n["kind"]=="Texture" and n["w"]*n["h"]>3000:

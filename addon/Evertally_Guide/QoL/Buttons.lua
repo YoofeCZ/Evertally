@@ -940,7 +940,10 @@ end
 local function paintItem(b)
 	local id = b.itemID
 	if not id then return end
-	b.Icon:SetTexture(Client.ItemIcon(id) or media("icon-use"))
+	local hearth = id == Client.HEARTHSTONE
+	b.Icon:SetTexture(hearth and media("hearthstone") or Client.ItemIcon(id) or media("icon-use"))
+	local inset = hearth and 0 or 0.08
+	b.Icon:SetTexCoord(inset, 1 - inset, inset, 1 - inset)
 	local n = Client.ItemCount(id)
 	b.Count:SetText(n > 1 and tostring(n) or "")
 	local start, duration = Client.ItemCooldown(id)
@@ -3194,7 +3197,7 @@ local function create()
 	local useIcon = function() return media("icon-use") end
 	QB.Add(itemButton, { force = true, enabled = function() return QoL.On("itemButton") end, icon = useIcon })
 	QB.Add(hearthButton, { force = true, enabled = function() return QoL.On("hearthButton") end,
-		icon = function() return Client.ItemIcon(Client.HEARTHSTONE) or media("icon-hearth") end })
+		icon = function() return media("hearthstone") end })
 	-- Beside the list the button is hidden and the Polestar mark in its slot
 	-- binds the button's key (the first name in the list that is close).
 	QB.Add(targetButton, { force = true, enabled = function() return QoL.On("targetButton") and simple() end })

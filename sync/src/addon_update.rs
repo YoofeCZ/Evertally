@@ -89,6 +89,17 @@ pub enum Status {
 }
 
 /// Like [`read_url`], calling `progress(read, expected)` as the bytes come in (for the update notification).
+/// The agent for the big downloads (the add-on bundle, the installer): no time limit on the download itself. 25 s
+/// covered the 58 MB bundle only above ~2.3 MB/s and slower connections failed with "timeout: global" (2026-11-20,
+/// the user: no limit at all). Only reaching the server and its first answer give up, so a dead server is not waited on.
+pub(crate) fn download_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(20)))
+        .timeout_recv_response(Some(Duration::from_secs(30)))
+        .max_redirects(0)
+        .build()
+        .into()
+}
 pub(crate) fn read_url_progress(agent: &ureq::Agent, url: &str, limit: u64, expected: u64, mut progress: impl FnMut(u64, u64)) -> Result<Vec<u8>> {
     let mut response=agent.get(url).header("Cache-Control", "no-cache").call()?;
     ensure!(response.status().is_success(), "HTTP {}", response.status());
@@ -368,7 +379,7 @@ pub fn check(&mut self, config: &crate::config::Config, forum_lock: &std::sync::
             None=>{
                 let cs=crate::platform::prefers_czech();
                 let mut note=crate::notify::Progress::start("addon",if cs {"Stahuji novou verzi addonu Evertally"} else {"Downloading the new Evertally add-on"},if cs {"Stahuji…"} else {"Downloading…"});
-                let data=read_url_progress(&agent,&format!("{origin}/downloads/Evertally.zip"),MAX_ARCHIVE,manifest.addon.bytes,|done,total| note.set(done,total,if cs {"Stahuji…"} else {"Downloading…"}))?;
+                let data=read_url_progress(&download_agent(),&format!("{origin}/downloads/Evertally.zip"),MAX_ARCHIVE,manifest.addon.bytes,|done,total| note.set(done,total,if cs {"Stahuji…"} else {"Downloading…"}))?;
                 note.set(1,1,if cs {"Instaluji…"} else {"Installing…"});
                 ensure!(valid(&data),"archive checksum mismatch");
                 let temp=self.cache_file.with_extension("zip.tmp");

@@ -2,6 +2,8 @@
 
     python -I tools/import_polestar.py ["D:/World of Warcraft/_forever_/Interface/AddOns"]
 
+Pillow is used to draw the Evertally guide textures after the import.
+
 Polestar changes every day, so the fork is generated, never edited by hand: run this again to take a newer Polestar. What
 Evertally changes in the fork lives here (RENAMES, KEEP, PATCHES), so it survives every import. The renames keep the fork
 apart from an installed Polestar: other folders, globals, frames, SavedVariables and key bindings.
@@ -19,6 +21,7 @@ import datetime
 import hashlib
 import json
 import re
+import runpy
 import shutil
 import sys
 from pathlib import Path
@@ -558,7 +561,7 @@ _more('Theme/Anim.lua', ('local function step()\n\tlocal now = GetTime()\n\tloca
       ('\t\trec.dur = 1e-9\n\t\trec.t0 = GetTime() - 1\n\t\tstep()\n', "\t\trec.dur = 1e-9\n\t\trec.t0 = GetTime() - 1\n\t\tpcall(step) -- (Evertally: another tween's failure is not the caller's)\n", 1))
 # ---- 2026-11-19: quest mobs' nameplate icon: a loot bag where a quest item drops, a sword where it is only a kill
 _more('Quests/Tooltips.lua', ('\t-- All objectives on nameplates are mobs to kill or loot: show the game\'s skull.\n\tlocal skullTex = ns.Theme and ns.Theme.Media and ns.Theme.Media("icon-skull")\n\t\tor "Interface\\\\TargetingFrame\\\\UI-RaidTargetingIcon_8"\n\tf.tex:SetTexture(skullTex)\n\tf.tex:SetVertexColor(1, 1, 1, 1)\n',
-      '\t-- Evertally (2026-11-19, as Questie did): a mob a quest item drops from carries a loot bag, a mob only to kill a\n\t-- sword: the game\'s own icon art (Fat Sack of Coins 133639, Worn Shortsword 135274) with no background\n\t-- (Media/UI/quest-loot, quest-kill; the user: "at to nemá pozadí"). Any open loot objective makes it the bag.\n\t-- (2 = Tracker.lua\'s KIND_ITEM)\n\tlocal loot = false\n\tlocal list = Q.ObjectivesForNpc(npc)\n\tfor i = 1, list and #list or 0 do\n\t\tlocal o = list[i]\n\t\tif not o.done and not o.entry.ready and o.kind == 2 then loot = true; break end\n\tend\n\tf.tex:SetTexture("Interface\\\\AddOns\\\\Evertally_Guide\\\\Media\\\\UI\\\\" .. (loot and "quest-loot" or "quest-kill"))\n\tif f.tex.SetTexCoord then f.tex:SetTexCoord(0, 1, 0, 1) end\n\tf.tex:SetVertexColor(1, 1, 1, 1)\n\tf.kind = loot and "loot" or "kill"\n', 1))
+      '\t-- A mob with an open loot objective gets the bag. A kill-only objective gets a sword.\n\t-- The Evertally glyphs in Media/UI have transparent backgrounds.\n\t-- (2 = Tracker.lua\'s KIND_ITEM)\n\tlocal loot = false\n\tlocal list = Q.ObjectivesForNpc(npc)\n\tfor i = 1, list and #list or 0 do\n\t\tlocal o = list[i]\n\t\tif not o.done and not o.entry.ready and o.kind == 2 then loot = true; break end\n\tend\n\tf.tex:SetTexture("Interface\\\\AddOns\\\\Evertally_Guide\\\\Media\\\\UI\\\\" .. (loot and "quest-loot" or "quest-kill"))\n\tif f.tex.SetTexCoord then f.tex:SetTexCoord(0, 1, 0, 1) end\n\tf.tex:SetVertexColor(1, 1, 1, 1)\n\tf.kind = loot and "loot" or "kill"\n', 1))
 # ---- 2026-11-19: quest icons on nameplates on by default (the user removed Questie)
 _more('Quests/QuestDB.lua', ('\tnameplateIcons = false, -- quest icon on nameplates of objective mobs\n', "\tnameplateIcons = true, -- quest icon on nameplates of objective mobs (Evertally: on, in place of Questie's)\n", 1))
 # ---- 2026-11-19: auto spell ranks (the user: the new rank onto the bars by itself, on by default)
@@ -589,21 +592,60 @@ _more('Maps/Services.lua', ('\t{ key = "repair", label = L["Repair"], glyph = "r
        '-- (Evertally, 2026-11-19: on by default, on the minimap too, as the game\'s own tracking; the user: "nevidím na\n-- minimapě inkeepery, trenéry")\nns.RegisterDefaults("maps", { servicePins = true, serviceMinimap = true, serviceFilters = filters })\n', 1),
       ('\tcheckbox(menu, L["Service icons on the minimap"], "maps.serviceMinimap")\n\tmenu:CreateDivider()\n',
        '\tcheckbox(menu, L["Service icons on the minimap"], "maps.serviceMinimap")\n\tmenu:CreateDivider()\n\t-- Evertally: the travel layer\'s inns and flight masters here too (looked for in the minimap\'s tracking menu)\n\tcheckbox(menu, L["Inns"], "maps.innPins")\n\tcheckbox(menu, L["Flight masters"], "maps.taxiPins")\n\tcheckbox(menu, L["Travel icons on the minimap"], "maps.travelMinimap")\n\tmenu:CreateDivider()\n', 1))
-# ---- 2026-11-19: the game's own tracking icons on the service, inn and flight master pins
-_more('Maps/Maps.lua', ('\ttrackerPos = false,\n})\n',
-       '\ttrackerPos = false,\n})\n\n-- Evertally (2026-11-19): the game\'s own minimap tracking art on the service, inn and flight master pins (the user:\n-- "original blizzard ikonky: inkeeper, mail, shop, blacksmith"), white, as the game draws them. A file this client\n-- does not have (SetTexture says false) keeps the map mark.\nlocal GAME_ICONS = {\n\tinn = "Interface\\\\Minimap\\\\Tracking\\\\Innkeeper", flightmaster = "Interface\\\\Minimap\\\\Tracking\\\\FlightMaster",\n\tmailbox = "Interface\\\\Minimap\\\\Tracking\\\\Mailbox", repair = "Interface\\\\Minimap\\\\Tracking\\\\Repair",\n\tbanker = "Interface\\\\Minimap\\\\Tracking\\\\Banker", auctioneer = "Interface\\\\Minimap\\\\Tracking\\\\Auctioneer",\n\tclass = "Interface\\\\Minimap\\\\Tracking\\\\Class", trainer = "Interface\\\\Minimap\\\\Tracking\\\\Profession",\n\tstablemaster = "Interface\\\\Minimap\\\\Tracking\\\\StableMaster", battlemaster = "Interface\\\\Minimap\\\\Tracking\\\\BattleMaster",\n\tvendor = "Interface\\\\GossipFrame\\\\VendorGossipIcon",\n}\nMaps.GAME_ICONS = GAME_ICONS\nMaps.GAME_WHITE = { 1, 1, 1, 1 }\nlocal gameProbe, gameKnown = nil, {}\nfunction Maps.GameIcon(kind)\n\tlocal path = GAME_ICONS[kind]\n\tif not path then return nil end\n\tif gameKnown[path] == nil then\n\t\tif not gameProbe and UIParent and UIParent.CreateTexture then gameProbe = UIParent:CreateTexture(nil, "BACKGROUND") end\n\t\tlocal ok, set = false, false\n\t\tif gameProbe then ok, set = pcall(gameProbe.SetTexture, gameProbe, path) end\n\t\tgameKnown[path] = ok and set ~= false\n\tend\n\treturn gameKnown[path] and path or nil\nend\n', 1))
-_more('Maps/Services.lua', ('\tcategory.mark = "map:" .. category.glyph\n\tcategory.icon = MAP_MEDIA .. "icon-" .. category.glyph\n',
-       '\tcategory.mark = "map:" .. category.glyph\n\tcategory.icon = MAP_MEDIA .. "icon-" .. category.glyph\n\t-- Evertally: the game\'s own tracking icon where it has one (Maps.GameIcon)\n\tlocal game = Maps.GameIcon and Maps.GameIcon(category.key)\n\tif game then category.mark, category.icon, category.game = game, game, true end\n', 1),
-      ('function Maps.ServiceIcon(category, size)\n',
-       'function Maps.ServiceIcon(category, size)\n\tif category.game then return string.format("|T%s:%d:%d|t", category.icon, size or 16, size or 16) end\n', 1),
-      ('\t\t\t\t\t\t\t\tsize = 16, color = color, priority = 1 }\n',
-       '\t\t\t\t\t\t\t\tsize = 16, color = selected.game and Maps.GAME_WHITE or color, priority = 1 }\n', 1))
-_more('Maps/ServiceClusters.lua', ('\tgroup.icon = group.stack[1]\n',
-       '\tgroup.icon = group.stack[1]\n\t-- Evertally: a game icon in its own colours (Maps.GameIcon)\n\tif type(group.icon) == "string" and not group.icon:match("^map:") then group.color = Maps.GAME_WHITE end\n', 1))
-_more('Maps/TravelPins.lua', ('\t\t\tlocal p = pinAt(node, "map:flightmaster", 15, isKnown and knownCol or unknownCol,\n',
-       '\t\t\t-- (Evertally: the game\'s flight master icon, white; not learned yet keeps its "?")\n\t\t\tlocal game = Maps.GameIcon and Maps.GameIcon("flightmaster")\n\t\t\tlocal p = pinAt(node, game or "map:flightmaster", 15, game and Maps.GAME_WHITE or (isKnown and knownCol or unknownCol),\n', 1),
-      ('\t\tlocal p = pinAt(inn, "map:inn", bound and 16 or 12, color(bound and "success" or "npc"), innTooltip(inn, bound), bound and 2 or 0)\n',
-       '\t\t-- (Evertally: the game\'s innkeeper icon, white; the bound inn larger and circled)\n\t\tlocal game = Maps.GameIcon and Maps.GameIcon("inn")\n\t\tlocal p = pinAt(inn, game or "map:inn", bound and 16 or (game and 14 or 12), game and Maps.GAME_WHITE or color(bound and "success" or "npc"), innTooltip(inn, bound), bound and 2 or 0)\n', 1))
+# ---- Evertally's UI glyphs and travel icons ----
+_more("Maps/TravelPins.lua",
+      ('\t\tlocal p = pinAt(inn, "map:inn", bound and 16 or 12,',
+       '\t\tlocal p = pinAt(inn, "map:inn", bound and 16 or 14,', 1))
+_more('Nav/Arrow.lua',
+      ('-- Sprite sheet layout; must match tools/media/nav/arrow3d.js LAYOUT.\n',
+       '-- Sprite sheet layout; must match tools/build_evertally_icons.py.\n', 1),
+      ('local LEG_ICON = { hearth = "icon-hearth", teleport = "icon-use", fly = "icon-fly", boat = "icon-boat", zeppelin = "icon-boat", airship = "icon-boat",\n'
+       '\ttram = "icon-boat", portal = "icon-gate", lift = "icon-lift" }\n',
+       'local LEG_ICON = { hearth = "icon-hearth", teleport = "icon-use", fly = "icon-fly", boat = "icon-boat", zeppelin = "icon-zeppelin", airship = "icon-zeppelin",\n'
+       '\ttram = "icon-tram", portal = "icon-gate", lift = "icon-lift" }\n', 1))
+_more('Nav/Prompts.lua',
+      ('local function iconOf(kind, id)\n'
+       '\tif kind == "item" then\n',
+       'local function iconOf(kind, id)\n'
+       '\tif kind == "item" then\n'
+       '\t\tif id == HEARTHSTONE then return "Interface\\\\AddOns\\\\" .. ADDON .. "\\\\Media\\\\UI\\\\hearthstone" end\n', 1),
+      ('\tbutton.Icon:SetTexture(iconOf(applied.kind, applied.id))\n',
+       '\tbutton.Icon:SetTexture(iconOf(applied.kind, applied.id))\n'
+       '\tlocal inset = applied.kind == "item" and applied.id == HEARTHSTONE and 0 or 0.08\n'
+       '\tbutton.Icon:SetTexCoord(inset, 1 - inset, inset, 1 - inset)\n', 1),
+      ('\ticon:SetTexCoord(0.08, 0.92, 0.08, 0.92)\n',
+       '', 1))
+_more('QoL/Buttons.lua',
+      ('\tb.Icon:SetTexture(Client.ItemIcon(id) or media("icon-use"))\n',
+       '\tlocal hearth = id == Client.HEARTHSTONE\n'
+       '\tb.Icon:SetTexture(hearth and media("hearthstone") or Client.ItemIcon(id) or media("icon-use"))\n'
+       '\tlocal inset = hearth and 0 or 0.08\n'
+       '\tb.Icon:SetTexCoord(inset, 1 - inset, inset, 1 - inset)\n', 1),
+      ('\t\ticon = function() return Client.ItemIcon(Client.HEARTHSTONE) or media("icon-hearth") end })\n',
+       '\t\ticon = function() return media("hearthstone") end })\n', 1))
+_more('Rares/View.lua',
+      ('\t\tkey = "Rares", label = L["Rares"], icon = "qol-target", order = 50,\n',
+       '\t\tkey = "Rares", label = L["Rares"], icon = "rare", order = 50,\n', 1))
+_more('Theme/Theme.lua',
+      ('\tif name == "icon-skull" then return "Interface\\\\TargetingFrame\\\\UI-RaidTargetingIcon_8" end\n',
+       '', 1))
+_more('UI/Lookup.lua',
+      ('\t\tkey = "Lookup", label = L["Database"], icon = "search", order = 20,\n',
+       '\t\tkey = "Lookup", label = L["Database"], icon = "database", order = 20,\n', 1))
+_more('Parts.lua',
+      ('-- colour, with no Polestar edge round it. WoW Forever: its quest arrow and\n'
+       "-- the campaign quest's shield. Classic: the world map's arrow (the vanilla\n"
+       "-- silver arrow, at 64 px the client's sharpest) and the minimap's dark\n"
+       "-- disc. Blizzard: Polestar's own dart in the accent, the damage meter's\n",
+       "-- colour, with no edge round it. The built-in looks use Evertally's needle.\n"
+       "-- WoW Forever keeps the campaign quest's shield and Classic the minimap's\n"
+       "-- dark disc for map pins. Blizzard uses the dart in the damage meter's\n", 1),
+      ('\tforever = { dart = "atlas:Minimap-QuestArrow", dartArt = true, dartScale = 1.3,\n'
+       '\t\tmedallion = "atlas:UI-QuestPoiCampaign-QuestNumber", medallionScale = 1.35 },\n',
+       '\tforever = { medallion = "atlas:UI-QuestPoiCampaign-QuestNumber", medallionScale = 1.35 },\n', 1),
+      ('\tclassic = { dart = "atlas:UI-WorldMapArrow", dartArt = true, dartScale = 1.1, medallion = "Interface\\\\Minimap\\\\UI-Minimap-Background" },\n',
+       '\tclassic = { medallion = "Interface\\\\Minimap\\\\UI-Minimap-Background" },\n', 1))
+
 # ---- 2026-11-19: no spawn-area rings on the minimap (the user: "vypni ty prstence")
 _more('Nav/Layers.lua', ('\t}, { world = world, minimap = minimap, edge = true, scale = scale, minimapAreas = true })\n',
        '\t}, { world = world, minimap = minimap, edge = true, scale = scale, minimapAreas = false }) -- (Evertally: no areas on the minimap)\n', 1),
@@ -621,6 +663,75 @@ _more('Nav/Pins.lua', ('\tf.ring2:SetTexture(MAP_MEDIA .. "ring-dashed")\n\tf.ri
        '\tf.ring2:SetTexture(MAP_MEDIA .. "ring-dashed")\n\tf.ring2:SetPoint("CENTER")\n\t-- (Evertally, 2026-11-19: hidden from the start. A texture shows by default at its file\'s size, 64 px; only a map\n\t-- mark set it, so a pin with a texture path icon (the game\'s tracking icons) kept a dashed ring round it.)\n\tf.ring2:Hide()\n', 1),
       ('\tlocal icon = f.hasIcon\n\tf.fill:SetShown(not clamped and not icon)\n',
        '\tlocal icon = f.hasIcon\n\tf.ring2:Hide() -- (Evertally: no dashed ring on a plain or icon pin)\n\tf.fill:SetShown(not clamped and not icon)\n', 1))
+# ---- Use client tracking textures on the minimap where available ----
+_more('Maps/Maps.lua',
+      ('\ttrackerPos = false,\n'
+       '})\n',
+       '\ttrackerPos = false,\n'
+       '})\n'
+       '\n'
+       'local TRACKING = "Interface\\\\Minimap\\\\Tracking\\\\"\n'
+       'local MINIMAP_ICONS = {\n'
+       '\tinn = TRACKING .. "Innkeeper", flightmaster = TRACKING .. "FlightMaster",\n'
+       '\tmailbox = TRACKING .. "Mailbox", repair = TRACKING .. "Repair",\n'
+       '\tbanker = TRACKING .. "Banker", auctioneer = TRACKING .. "Auctioneer",\n'
+       '\tclass = TRACKING .. "Class", trainer = TRACKING .. "Profession",\n'
+       '\tstablemaster = TRACKING .. "StableMaster", battlemaster = TRACKING .. "BattleMaster",\n'
+       '\tvendor = "Interface\\\\GossipFrame\\\\VendorGossipIcon",\n'
+       '}\n'
+       'local minimapProbe, minimapKnown = nil, {}\n'
+       'function Maps.MinimapIcon(kind)\n'
+       '\tlocal path = MINIMAP_ICONS[kind]\n'
+       '\tif not path then return nil end\n'
+       '\tif minimapKnown[path] == nil then\n'
+       '\t\tif not minimapProbe then\n'
+       '\t\t\tif not (UIParent and UIParent.CreateTexture) then return nil end\n'
+       '\t\t\tminimapProbe = UIParent:CreateTexture(nil, "BACKGROUND")\n'
+       '\t\t\tminimapProbe:Hide()\n'
+       '\t\tend\n'
+       '\t\tlocal ok, set = pcall(minimapProbe.SetTexture, minimapProbe, path)\n'
+       '\t\tminimapKnown[path] = ok and set ~= false\n'
+       '\tend\n'
+       '\treturn minimapKnown[path] and path or nil\n'
+       'end\n', 1))
+_more('Maps/Services.lua',
+      ('\t\t\tif selected then\n',
+       '\t\t\tif selected then\n'
+       '\t\t\t\tlocal minimapIcon = Maps.MinimapIcon(selected.key)\n', 1),
+      ('size = 16, color = color, priority = 1 }',
+       'minimapIcon = minimapIcon, size = 16, color = color, priority = 1 }', 1))
+_more('Maps/TravelPins.lua',
+      ('\tlocal knownCol, unknownCol = color("success"), color("warning")\n',
+       '\tlocal knownCol, unknownCol = color("success"), color("warning")\n'
+       '\tlocal taxiIcon, innIcon = Maps.MinimapIcon("flightmaster"), Maps.MinimapIcon("inn")\n', 1),
+      ('\t\t\tp.minimapSize = 14\n',
+       '\t\t\tp.minimapIcon, p.minimapSize = taxiIcon, 14\n', 1),
+      ('\t\tp.ring, p.bound = bound and color("success") or nil, bound\n',
+       '\t\tp.minimapIcon = innIcon\n'
+       '\t\tp.ring, p.bound = bound and color("success") or nil, bound\n', 1))
+_more('Nav/Pins.lua',
+      ('--   Additive pin fields: c, wx, wy (world position instead of map/x/y), glow (soft halo),\n',
+       '--   Additive pin fields: c, wx, wy (world position instead of map/x/y), glow (soft halo),\n'
+       '--   minimapIcon (a client texture displayed at full size and in its own colours on the minimap),\n', 1),
+      ('local function applyMark(f, p, size, path)\n',
+       'local function applyMark(f, p, size, path, native)\n', 1),
+      ('\tf.icon:SetSize(size * GLYPH_FRAME, size * GLYPH_FRAME)\n',
+       '\tlocal glyphSize = native and size or size * GLYPH_FRAME\n'
+       '\tf.icon:SetSize(glyphSize, glyphSize)\n', 1),
+      ('\tf.icon:SetTexture(path)\n'
+       '\tf.icon:SetVertexColor(r, g, b, a)\n',
+       '\tf.icon:SetTexture(path)\n'
+       '\tif native then f.icon:SetVertexColor(1, 1, 1, a) else f.icon:SetVertexColor(r, g, b, a) end\n', 1),
+      ('\tf.bare = p.medal == false or pack == "bare"\n'
+       '\tif p.medal == false then medal = size end\n',
+       '\tf.bare = native or p.medal == false or pack == "bare"\n'
+       '\tif native or p.medal == false then medal = size end\n', 1),
+      ('\tPins.SkinHook(f, "mark")\n',
+       '\tif not native then Pins.SkinHook(f, "mark") end\n', 1),
+      ('\tf.grow = tonumber(p.grow) or 1\n',
+       '\tf.grow = tonumber(p.grow) or 1\n'
+       '\tif f.psMinimap and p.minimapIcon then return applyMark(f, p, size, p.minimapIcon, true) end\n', 1))
+
 # ---- 2026-11-18: the guide's chat lines say Evertally, not Polestar (the user: "do chatu furt píše polestar")
 _more('Core/Init.lua', ('local PREFIX = "|cff4fd1c5Polestar|r: "',
       'local PREFIX = "|cffd8b66aEvertally:|r " -- (Evertally: its own name and colour in the chat, as Evertally.Print)', 1))
@@ -666,6 +777,13 @@ _more('UI/Welcome.lua',
 _more('UI/Options.lua',
       ('L["This translation was made with AI. Help improve it on Discord."]',
        'L["This translation was made with AI. Help improve it on the Evertally forum."]', 1))
+
+# ---- 2026-11-20: the settings pages' sections as tiles in two columns (layoutSections) ----
+_more('UI/Options.lua',
+      ('\tlocal width = win.BodyWidth\n\tlocal n = 0\n\tfor _, g in ipairs(groups) do\n\t\tn = n + 1\n\t\tlocal card = cardOf(view, n)\n\t\tlocal s = g.section\n\t\tlocal t = s and s.toggle and available(s.toggle) and s.toggle or nil\n\t\tlocal header = g.name ~= "" or t ~= nil\n',
+       '\tlocal width = win.BodyWidth\n\tlocal n = 0\n\t-- Evertally: a page\'s sections are tiles in two columns, each in the shorter one (search results, a section\n\t-- without a heading, one with picture cards or captions over halves, and a page of one section stay across).\n\tlocal TILE_GAP = 14\n\tlocal tileW = floor((width - TILE_GAP) / 2)\n\tlocal function across(g)\n\t\tlocal s = g.section\n\t\tif g.name == "" or (s and s.columns) then return true end\n\t\tfor _, c in ipairs(g.controls or {}) do if c.kind == "cards" or c.wide then return true end end\n\t\treturn false\n\tend\n\tlocal tiles = not opts and tileW >= 330\n\tif tiles then\n\t\tlocal k = 0\n\t\tfor _, g in ipairs(groups) do if not across(g) then k = k + 1 end end\n\t\ttiles = k > 1\n\tend\n\tlocal colY = { y, y }\n\tlocal pageW = width\n\tfor _, g in ipairs(groups) do\n\t\tn = n + 1\n\t\tlocal card = cardOf(view, n)\n\t\tlocal s = g.section\n\t\tlocal t = s and s.toggle and available(s.toggle) and s.toggle or nil\n\t\tlocal header = g.name ~= "" or t ~= nil\n\t\tlocal tile = tiles and header and not across(g)\n\t\tlocal col, cx\n\t\tif tile then\n\t\t\tcol = colY[1] <= colY[2] and 1 or 2\n\t\t\tcx, y, width = SH.pad + (col - 1) * (tileW + TILE_GAP), colY[col], tileW\n\t\telse\n\t\t\tcx, y, width = SH.pad, max(colY[1], colY[2]), pageW\n\t\tend\n', 1),
+      ('\t\tlocal rowsH = layoutRows(view, g.controls, y + card.RowsTop + capH, SH.pad + gutter, width - gutter, whole)\n\t\tcard.psTop = y\n\t\ty = y + card:Place(SH.pad, y, width, rowsH + capH) + SECTION_GAP\n\tend\n\tfor i = n + 1, #view.cards do view.cards[i]:Hide() end\n\tmarkSections(view)\n\treturn y - (n > 0 and SECTION_GAP or 0)\nend\n',
+       '\t\tlocal rowsH = layoutRows(view, g.controls, y + card.RowsTop + capH, cx + gutter, width - gutter, whole or tile)\n\t\tcard.psTop = y\n\t\tlocal h = card:Place(cx, y, width, rowsH + capH)\n\t\tif tile then\n\t\t\tcard.Title:SetWidth(max(1, width - 40))\n\t\t\tcolY[col] = y + h + TILE_GAP\n\t\telse\n\t\t\tcolY[1], colY[2] = y + h + SECTION_GAP, y + h + SECTION_GAP\n\t\tend\n\tend\n\twidth = pageW\n\ty = max(colY[1], colY[2])\n\tfor i = n + 1, #view.cards do view.cards[i]:Hide() end\n\tmarkSections(view)\n\treturn y - (n > 0 and SECTION_GAP or 0)\nend\n', 1))
 
 def folder_name(name: str) -> str:
     return "Evertally_Guide" + name[len("Polestar"):]
@@ -812,6 +930,7 @@ def main() -> None:
     if not sources or not (SOURCE / "Polestar" / "Polestar.toc").is_file():
         raise SystemExit(f"Polestar not found in {SOURCE}")
     version = re.search(r"^## Version: (.+)$", (SOURCE / "Polestar" / "Polestar.toc").read_text(encoding="utf8"), re.M).group(1).strip()
+    build_guide = runpy.run_path(str(ROOT / "tools" / "build_evertally_icons.py"))["build_guide"]
     today = datetime.date.today().isoformat()
     for old in DEST.glob("Evertally_Guide*"):
         if (old / "NOTICE-EVERTALLY.txt").is_file():          # only folders this script made
@@ -864,6 +983,7 @@ def main() -> None:
             out = DEST / path.relative_to(OVERLAY)
             out.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, out)
+    build_guide()
     czech(today, version)
     (ROOT / "tools" / "polestar-import.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf8")
     print(f"Polestar {version}: {len(sources)} folders, {sum(report['folders'].values())} files -> {DEST}\\Evertally_Guide*")

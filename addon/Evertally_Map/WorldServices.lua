@@ -5,7 +5,7 @@ local A = _G.Evertally
 -- ("Journeyman Alchemist", "Expert Alchemist" and "Alchemy Trainer" are one: "Alchemy trainers"), read by the same scan the service layers
 -- use (WorldDb.lua). The list is kept in the settings once read, so OpenMap's menu can show it without reading the database again.
 local KINDS = {"trainer", "vendor"}
-local GOSSIP = {trainer = "Interface\\GossipFrame\\TrainerGossipIcon", vendor = "Interface\\GossipFrame\\VendorGossipIcon"}
+local GOSSIP = {trainer = A.Theme.ART .. "icon-learn", vendor = A.Theme.ART .. "icon-vendor"}
 local COLOR = {trainer = {0.4, 0.8, 1}, vendor = {1, 0.78, 0.3}}
 local MAX_PINS = 400
 local MENU_MIN_VENDOR_PLACES, MENU_MAX_VENDORS = 6, 60

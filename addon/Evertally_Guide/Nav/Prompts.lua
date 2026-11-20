@@ -204,6 +204,7 @@ end
 
 local function iconOf(kind, id)
 	if kind == "item" then
+		if id == HEARTHSTONE then return "Interface\\AddOns\\" .. ADDON .. "\\Media\\UI\\hearthstone" end
 		if C_Item and C_Item.GetItemIconByID then
 			local icon = C_Item.GetItemIconByID(id)
 			if icon then return icon end
@@ -233,6 +234,8 @@ end
 local function paint()
 	if not button or not applied.kind then return end
 	button.Icon:SetTexture(iconOf(applied.kind, applied.id))
+	local inset = applied.kind == "item" and applied.id == HEARTHSTONE and 0 or 0.08
+	button.Icon:SetTexCoord(inset, 1 - inset, inset, 1 - inset)
 	local start, duration = cooldownOf(applied.kind, applied.id)
 	if duration and duration > 1.5 then button.Cooldown:SetCooldown(start, duration) else button.Cooldown:Clear() end
 end
@@ -267,7 +270,6 @@ local function create()
 	local icon = b:CreateTexture(nil, "ARTWORK")
 	icon:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
 	icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
-	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 	b.Icon = icon
 
 	local hl = b:CreateTexture(nil, "HIGHLIGHT")

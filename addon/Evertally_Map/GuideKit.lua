@@ -424,7 +424,7 @@ function M.RenderQuestCard(d, model)
                 hit:SetScript("OnClick", function() if person.kind and person.id and A.OpenDatabaseEntry then A.OpenDatabaseEntry(person.kind, person.id) end end)
                 if not hit.map then
                     hit.map = CreateFrame("Button", nil, hit); hit.map:SetSize(18, 18); hit.map:SetPoint("RIGHT", 0, 0)
-                    hit.map.icon = hit.map:CreateTexture(nil, "ARTWORK"); hit.map.icon:SetAllPoints(); hit.map.icon:SetTexture("Interface\\Icons\\INV_Misc_Map_01")
+                    hit.map.icon = hit.map:CreateTexture(nil, "ARTWORK"); hit.map.icon:SetAllPoints(); hit.map.icon:SetTexture(A.Theme.ART .. "map-fold")
                 end
                 hit.map:SetShown(person.spot ~= nil)
                 if person.spot then

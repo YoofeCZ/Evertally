@@ -49,10 +49,9 @@ METRICS.classic = setmetatable({ guideTabCloseRest = 1 }, { __index = GAME_METRI
 -- the client's own art ("atlas:<name>": an atlas as the client draws it,
 -- Theme.SetArt). A dart of the client's (dartArt) shows in the art's own
 -- colours while far, tinted up close and when the player picks an arrow
--- colour, with no Polestar edge round it. WoW Forever: its quest arrow and
--- the campaign quest's shield. Classic: the world map's arrow (the vanilla
--- silver arrow, at 64 px the client's sharpest) and the minimap's dark
--- disc. Blizzard: Polestar's own dart in the accent, the damage meter's
+-- colour, with no edge round it. The built-in looks use Evertally's needle.
+-- WoW Forever keeps the campaign quest's shield and Classic the minimap's
+-- dark disc for map pins. Blizzard uses the dart in the damage meter's
 -- light grey (the client has no crisp neutral arrow; its navigation arrow
 -- is 22 by 18), edged in the meter's black (dartEdgeTint) in place of
 -- Hearth's brown, and the quest marker. Every dart is square art
@@ -63,10 +62,9 @@ METRICS.classic = setmetatable({ guideTabCloseRest = 1 }, { __index = GAME_METRI
 -- size (a dart's picture is 0.82 of its square tall, a medallion the whole
 -- of it).
 local PARTS = {
-	forever = { dart = "atlas:Minimap-QuestArrow", dartArt = true, dartScale = 1.3,
-		medallion = "atlas:UI-QuestPoiCampaign-QuestNumber", medallionScale = 1.35 },
+	forever = { medallion = "atlas:UI-QuestPoiCampaign-QuestNumber", medallionScale = 1.35 },
 	blizzard = { dart = Theme.Media("dart"), dartEdgeTint = { 0.08, 0.08, 0.08 }, medallion = "atlas:UI-QuestPoi-QuestNumber", medallionScale = 1.55 },
-	classic = { dart = "atlas:UI-WorldMapArrow", dartArt = true, dartScale = 1.1, medallion = "Interface\\Minimap\\UI-Minimap-Background" },
+	classic = { medallion = "Interface\\Minimap\\UI-Minimap-Background" },
 }
 for id, media in pairs(PARTS) do
 	local s = I.SKINS[id]

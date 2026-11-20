@@ -943,7 +943,7 @@ ns.On("RARES_HISTORY", function() if tab == "seen" then repaint() end end)
 
 if UI.RegisterSection then
 	UI.RegisterSection({
-		key = "Rares", label = L["Rares"], icon = "qol-target", order = 50,
+		key = "Rares", label = L["Rares"], icon = "rare", order = 50,
 		build = RV.Build, render = RV.Render,
 		nav = RV.Nav, onNav = RV.SetTab,
 		search = RV.Search, enter = RV.Enter, step = RV.Step,

@@ -9,7 +9,7 @@ local A = _G.Evertally
 local CARD_H, GAP, ROW_H, ROWS_MAX = 132, 12, 46, 16
 local ART_ASPECT = 160 / 418 -- the height to width the banners' crops were made for
 local GOLD = A.Theme and A.Theme.colors.gold or {0.796, 0.651, 0.373}
-local QUEST_ICON, BOSS_ICON = "Interface\\GossipFrame\\AvailableQuestIcon", "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01"
+local QUEST_ICON, BOSS_ICON = A.Theme.ART .. "icon-accept", A.Theme.ART .. "skull"
 
 local text = {
     en = {dungeonsSearch = "Search for dungeons", dungeonsCount = "%d dungeons and raids", dungeonsBosses = "Bosses", dungeonsQuests = "Quests", dungeonsMap = "Map",

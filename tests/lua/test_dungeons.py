@@ -346,7 +346,7 @@ class DungeonTests(unittest.TestCase):
         items = lst(dj["items"])
         self.assertEqual([str(i.badge) for i in items], ["LV 19", "LV 20-21"])
         self.assertEqual(str(dj.rows[1].icon.texture), "portrait:14403", "the game draws the boss's model")
-        self.assertIn("Skull", str(dj.rows[2].icon.texture), "no model known: the skull")
+        self.assertEqual(dj.rows[2].icon.texture, self.a.Theme.ART + "skull", "no model known: Evertally's skull")
         self.assertEqual(str(dj.detail.portrait.icon.texture), "portrait:14403")
 
     def test_a_boss_without_a_level_learns_it_when_the_player_sees_him(self):

@@ -13,9 +13,9 @@ local ACTIVE_ICON = "Interface\\GossipFrame\\ActiveQuestIcon"
 local DONE_ICON = "Interface\\RaidFrame\\ReadyCheck-Ready"
 local WAIT_ICON = "Interface\\RaidFrame\\ReadyCheck-Waiting"
 local NO_ICON = "Interface\\RaidFrame\\ReadyCheck-NotReady"
-local KEY_ICON = "Interface\\Icons\\INV_Misc_Key_03"
-local ROUTE_ICON = "Interface\\Icons\\INV_Misc_Map_01"
-local HANDIN_ICON = "Interface\\Icons\\INV_Letter_15"
+local KEY_ICON = A.Theme.ART .. "key"
+local ROUTE_ICON = A.Theme.ART .. "route"
+local HANDIN_ICON = A.Theme.ART .. "mail"
 local SIDE = {Alliance = "A", Horde = "H"}
 
 local text = {

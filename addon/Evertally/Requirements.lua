@@ -51,19 +51,26 @@ function A.RequirementsStatus()
         if kept and kept>=version(A.BRIDGE_MINIMUM) then bridge=true;v=kept;receipt=db.bridgeVerified end
     end
     local openmap=A.OpenMapInstalled and A.OpenMapInstalled()==true or false
-    return {bridge=bridge==true,openmap=openmap,ready=bridge==true and openmap,bridgeVersion=v and A.Field(receipt,"bridgeVersion") or nil}
+    -- 2026-11-20: neither is required any more (ready is always true); `complete` says whether the online part works
+    return {bridge=bridge==true,openmap=openmap,ready=true,complete=bridge==true and openmap,bridgeVersion=v and A.Field(receipt,"bridgeVersion") or nil}
 end
-function A.RequirementsReady() return A.RequirementsStatus().ready end
+--- The add-on runs without the app and without OpenMap: always true (kept for the callers that asked).
+function A.RequirementsReady() return true end
+--- Whether the app and OpenMap are both there: without them the online part is missing (A.L("installLimited")).
+function A.RequirementsComplete() return A.RequirementsStatus().complete end
+--- What is missing, for the warning: "bridge", "openmap", both or none (a list).
+function A.RequirementsMissing()
+    local s,out=A.RequirementsStatus(),{}
+    if not s.bridge then out[#out+1]="bridge" end
+    if not s.openmap then out[#out+1]="openmap" end
+    return out
+end
 function A.VerifyInstallation()
     lastCheck=A.RequirementsStatus()
     if A.RefreshOnboarding then A.RefreshOnboarding() end
-    return lastCheck.ready,lastCheck
+    return lastCheck.complete,lastCheck
 end
-function A.RequirementsGuard()
-    if A.RequirementsReady() then return true end
-    A.ShowRequirements()
-    return false
-end
+function A.RequirementsGuard() return true end
 function A.ShowRequirements()
     if A.OpenOnboarding then A.OpenOnboarding(A.ONBOARDING_INSTALL_STEP or 2) end
 end
@@ -98,11 +105,15 @@ function A.BuildInstallationControls(parent)
             row.status:SetText(A.L(status[which] and "installPresent" or "installMissing"));row.status:SetTextColor(unpack(status[which] and C.green or C.peach))
         end
         panel.help:SetText(A.L("installHelp"));panel.verify.text:SetText(A.L("installVerify"));panel.reload.text:SetText(A.L("installReload"))
-        panel.result:SetText(lastCheck and A.L(lastCheck.ready and "installSuccess" or "installFailed") or "")
+        -- without the app or OpenMap: what the player goes without, every time (not only after Verify)
+        local text=status.complete and (lastCheck and A.L("installSuccess") or "") or A.L("installLimited")
+        panel.result:SetText(text);panel.result:SetTextColor(unpack(status.complete and C.green or C.peach))
     end
     return panel
 end
 function A.RequirementsMaybe()
+    -- (nothing is required since 2026-11-20: the setup opens by itself as for anyone, OnboardingMaybe)
+    do return end
     if offered or not A.db or A.RequirementsReady() then return end
     if A.Call(InCombatLockdown)==true then return end
     offered=true
@@ -111,18 +122,19 @@ end
 A.On("PLAYER_REGEN_ENABLED",A.RequirementsMaybe)
 local labels={
     installTitle={"Complete your installation","Dokonči instalaci"},
-    installSubtitle={"Evertally requires OpenMap and the Evertally app for Windows. Verify both before continuing.","Evertally vyžaduje OpenMap a aplikaci Evertally pro Windows. Než budeš pokračovat, ověř obě instalace."},
+    installSubtitle={"Evertally works without them, but the Evertally app for Windows and OpenMap give you the whole of it.","Evertally funguje i bez nich, ale celý zážitek dá až aplikace Evertally pro Windows a OpenMap."},
     install_bridge={"1. Evertally app for Windows","1. Aplikace Evertally pro Windows"},install_openmap={"2. OpenMap add-on","2. Addon OpenMap"},
     installBody_bridge={"Install and start the Evertally app for this WoW folder. The next step pairs it with the website.","Nainstaluj a spusť aplikaci Evertally pro tuto složku WoW. V dalším kroku ji spáruješ s webem."},
     installBody_openmap={"Install OpenMap for WoW Forever and enable it in the add-on list.","Nainstaluj OpenMap pro WoW Forever a zapni ho v seznamu addonů."},
-    installHelp={"Use the download buttons above. The app writes an installation receipt; after starting it, reload the interface to load the receipt. Restart WoW fully after adding OpenMap or new add-on files. Pairing follows in the next step.","Použij tlačítka pro stažení nahoře. Aplikace vytvoří potvrzení instalace; po jejím spuštění načti znovu rozhraní. Po přidání OpenMap nebo nových souborů addonu WoW úplně restartuj. Párování následuje v dalším kroku."},
+    installHelp={"Both are optional. Use the download buttons above. The app writes an installation receipt; after starting it, reload the interface to load the receipt. Restart WoW fully after adding OpenMap. Pairing follows in the next step.","Obojí je dobrovolné. Použij tlačítka pro stažení nahoře. Aplikace vytvoří potvrzení instalace; po jejím spuštění načti znovu rozhraní. Po přidání OpenMap WoW úplně restartuj. Párování následuje v dalším kroku."},
     installOpen_bridge={"Download app","Stáhnout aplikaci"},installOpen_openmap={"Get OpenMap","Získat OpenMap"},
     installLinkHelp={"WoW cannot open the browser directly. Press Ctrl+C, paste into your browser and press Enter.","WoW neumí přímo otevřít prohlížeč. Stiskni Ctrl+C, vlož do prohlížeče a potvrď Enterem."},
     installLinkClose={"Done","Hotovo"},
     installPresent={"Verified","Ověřeno"},installMissing={"Not verified","Neověřeno"},
     installVerify={"Verify installation","Ověřit instalaci"},installReload={"Reload interface","Znovu načíst rozhraní"},installContinue={"Continue","Pokračovat"},
-    installSuccess={"Both requirements are verified. You can continue.","Obě požadované instalace jsou ověřené. Můžeš pokračovat."},
-    installFailed={"A requirement is still missing. Install it, reload and verify again.","Některá instalace stále chybí. Nainstaluj ji, načti rozhraní a ověř znovu."},
+    installSuccess={"Both are installed: you have all of Evertally.","Obojí je nainstalované: máš celý Evertally."},
+    installFailed={"Something is still missing. You can continue, but without the online part.","Něco pořád chybí. Můžeš pokračovat, ale bez online části."},
+    installLimited={"Without the Evertally app and OpenMap it is not the full experience: you will not see your party members in the game, you will have no personal chronicle on the website, you will not get onto the leaderboard and nothing else online works (the website, Armory, live position). Everything in the game itself works.","Bez aplikace Evertally a OpenMap to není plnohodnotný zážitek: neuvidíš spoluhráče ve hře, nebudeš mít osobní kroniku na webu, nezapíšeš se do žebříčku a nebude fungovat nic dalšího online (web, Armory, živá poloha). Všechno ve hře samotné funguje."},
     navErr_dependencies_required={"Complete the required installation first.","Nejdřív dokonči požadované instalace."},
 }
 for key,value in pairs(labels) do A.locale.en[key]=value[1];A.locale.cs[key]=value[2] end

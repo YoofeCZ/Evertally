@@ -1,15 +1,10 @@
 Artwork taken from Polestar
 ===========================
 
-The files in Media/Polestar/ are copied unchanged from the Polestar addon for
+The following files in Media/Polestar/ are copied from the Polestar addon for
 World of Warcraft: Forever (version 0.4.0.1, folder Polestar/Media/UI/):
 
-  band.tga, glow.tga, knob-shadow.tga,
-  chevron-up.tga, chevron-down.tga, chevron-left.tga, chevron-right.tga,
-  bolt.tga, bug.tga, check.tga, close.tga, eye.tga, gear.tga, guides.tga,
-  hourglass.tga, house.tga, icon-talk.tga, info.tga, layers.tga, lock.tga,
-  palette.tga, plug.tga, reload.tga, reset.tga, search.tga, sliders.tga,
-  speaker.tga, star.tga, window.tga
+  band.tga, glow.tga, knob-shadow.tga
 
 Copyright (c) 2026 The Polestar authors
 

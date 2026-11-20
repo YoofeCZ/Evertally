@@ -42,17 +42,12 @@ class SetupPagesTests(unittest.TestCase):
         self.assertEqual(afters[-1], "look", "the summary after the guide's own pages, before its finish")
         self.assertEqual(str(self.ui.WelcomeOwner), "Evertally", "Evertally decides when the window opens")
 
-    def test_the_installation_check_and_the_pairing_hold_next_back(self):
+    def test_the_installation_check_and_the_pairing_do_not_hold_next_back(self):
+        # (2026-11-20: the app and OpenMap are optional)
         pages = {str(p.key): p for p in self.hosted()}
-        self.a.RequirementsReady = self.lua.eval("function() return false end")
-        self.assertTrue(pages["et-install"].blocked())
-        self.a.RequirementsReady = self.lua.eval("function() return true end")
-        self.assertFalse(pages["et-install"].blocked())
         self.a.BridgePaired = self.lua.eval("function() return false end")
-        self.assertTrue(pages["et-pair"].blocked())
-        self.a.BridgePaired = self.lua.eval("function() return true end")
-        self.assertFalse(pages["et-pair"].blocked())
-        self.assertIsNone(pages["et-live"].blocked)
+        for key in ("et-install", "et-pair", "et-live"):
+            self.assertIsNone(pages[key].blocked, key)
 
     def test_the_setup_opens_in_the_guides_window_at_the_step_and_finish_applies_the_draft(self):
         self.a.OpenOnboarding(None)

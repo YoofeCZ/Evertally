@@ -110,7 +110,7 @@ pub fn check(dir: &Path, config: &crate::config::Config, force: bool) -> Result<
     let cs = crate::platform::prefers_czech();
     let title = if cs { format!("Stahuji aplikaci Evertally {}", installer.version) } else { format!("Downloading the Evertally app {}", installer.version) };
     let mut note = crate::notify::Progress::start("app", &title, if cs { "Stahuji…" } else { "Downloading…" });
-    let data = crate::addon_update::read_url_progress(&agent, &format!("{origin}/downloads/EvertallySetup.exe"), MAX_INSTALLER, installer.bytes,
+    let data = crate::addon_update::read_url_progress(&crate::addon_update::download_agent(), &format!("{origin}/downloads/EvertallySetup.exe"), MAX_INSTALLER, installer.bytes,
         |done, total| note.set(done, total, if cs { "Stahuji…" } else { "Downloading…" }))?;
     verify(&data, &installer)?;
     note.set(1, 1, if cs { "Instaluji… aplikace se za chvíli spustí znovu." } else { "Installing… the app restarts in a moment." });

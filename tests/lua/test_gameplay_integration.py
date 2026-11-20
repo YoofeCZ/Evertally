@@ -33,16 +33,17 @@ class GameplayIntegrationTests(unittest.TestCase):
             self.assertIsNone(addon.errors.ui_refresh, str(addon.lastUIError))
         self.assertIsNone(addon.lastUIError)
 
-    def test_new_shortcuts_keep_the_installation_gate(self):
+    def test_new_shortcuts_work_without_the_app_and_openmap(self):
+        # (2026-11-20: the app and OpenMap are optional; there is no installation gate any more)
         lua, addon = runtime(enforce_requirements=True)
         lua.execute(MOCK_UI_LUA)
         lua.execute('date=os.date')
         for command in ('gear', 'train', 'guide'):
             lua.globals().SlashCmdList.EVERTALLY(command)
-            self.assertFalse(addon.RequirementsReady())
-            self.assertIsNotNone(addon.onboarding)
-            self.assertTrue(addon.onboarding.window.IsShown(addon.onboarding.window))
-            self.assertIsNone(lua.globals().EvertallyFrame)
+            self.assertTrue(addon.RequirementsReady())
+            self.assertFalse(addon.RequirementsComplete())
+            self.assertFalse(bool(addon.onboarding and addon.onboarding.window and addon.onboarding.window.IsShown(addon.onboarding.window)),
+                             "no installation page instead of the shortcut")
 
 
 if __name__ == '__main__':

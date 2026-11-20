@@ -1595,7 +1595,7 @@ end
 
 if UI.RegisterSection then
 	UI.RegisterSection({
-		key = "Lookup", label = L["Database"], icon = "search", order = 20,
+		key = "Lookup", label = L["Database"], icon = "database", order = 20,
 		build = LK.Build, render = sectionRender,
 		nav = LK.Nav, onNav = LK.SetKind,
 		search = onSearch, enter = onEnter, step = LK.Step,

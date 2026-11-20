@@ -505,9 +505,8 @@ local function updatePlate(unit)
 			end)
 		end
 	end
-	-- Evertally (2026-11-19, as Questie did): a mob a quest item drops from carries a loot bag, a mob only to kill a
-	-- sword: the game's own icon art (Fat Sack of Coins 133639, Worn Shortsword 135274) with no background
-	-- (Media/UI/quest-loot, quest-kill; the user: "at to nemá pozadí"). Any open loot objective makes it the bag.
+	-- A mob with an open loot objective gets the bag. A kill-only objective gets a sword.
+	-- The Evertally glyphs in Media/UI have transparent backgrounds.
 	-- (2 = Tracker.lua's KIND_ITEM)
 	local loot = false
 	local list = Q.ObjectivesForNpc(npc)

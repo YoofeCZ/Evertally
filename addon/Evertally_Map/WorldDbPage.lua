@@ -30,7 +30,7 @@ local function addSpots(out, db, id, kind)
     for _, spot in ipairs(who and Db.Spots(db, who.spawns) or {}) do spot.title = nameOf(db, kind or "npc", id); out.spots[#out.spots + 1] = spot end
 end
 
-local ICON_OF = {quest = "Interface\\GossipFrame\\AvailableQuestIcon", npc = "Interface\\Icons\\INV_Misc_Head_Human_01", object = "Interface\\Icons\\INV_Misc_Bag_08"}
+local ICON_OF = {quest = A.Theme.ART .. "icon-accept", npc = A.Theme.ART .. "person", object = A.Theme.ART .. "bag"}
 
 --- The short line under a name in a row of the detail: a quest's level, an NPC's title and level, an item's level.
 local function subOf(db, kind, id)

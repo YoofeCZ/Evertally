@@ -131,11 +131,11 @@ end
 --- The sections of the Guide tab, for the list on the left.
 function G.Sections(guide)
     return {
-        {key = "overview", title = A.L("dgOverview"), icon = "Interface\\Icons\\INV_Misc_Map_01"},
-        {key = "tank", title = A.L("dgTank"), icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance"},
-        {key = "healer", title = A.L("dgHealer"), icon = "Interface\\Icons\\Spell_Holy_FlashHeal"},
-        {key = "dps", title = A.L("dgDps"), icon = "Interface\\Icons\\Ability_DualWield"},
-        {key = "classes", title = A.L("dgClasses"), icon = "Interface\\Icons\\INV_Misc_Book_07"},
+        {key = "overview", title = A.L("dgOverview"), icon = A.Theme.ART .. "map-fold"},
+        {key = "tank", title = A.L("dgTank"), icon = A.Theme.ART .. "warrior"},
+        {key = "healer", title = A.L("dgHealer"), icon = A.Theme.ART .. "heal"},
+        {key = "dps", title = A.L("dgDps"), icon = A.Theme.ART .. "icon-kill"},
+        {key = "classes", title = A.L("dgClasses"), icon = A.Theme.ART .. "guides"},
     }
 end
 

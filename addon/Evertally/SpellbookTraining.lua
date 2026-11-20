@@ -22,7 +22,7 @@ for lang, entries in pairs(words) do for key, value in pairs(entries) do A.local
 
 local TAB_ART = {"spellbook-Tab-Frame-C60", "spellbook-Tab-Frame-Glow-C60"}
 local PAGES = {left = "spellbook-Page-Left-C60", right = "spellbook-Page-Right-C60"}
-local ICON = "Interface\\Icons\\INV_Misc_Book_09"
+local ICON = A.Theme.ART .. "icon-learn"
 local INK, MUTED, LATE = {0.25, 0.15, 0.07}, {0.42, 0.33, 0.22}, {0.62, 0.16, 0.1}
 local SECTION = {now = {0.36, 0.75, 0.32}, soon = {0.42, 0.72, 0.92}, later = {0.95, 0.55, 0.42}}
 local ROW_H, SOON = 22, 2

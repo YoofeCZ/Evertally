@@ -12,16 +12,38 @@ local ORDER = 1
 -- the live position and the website are one page with three tabs (they were three pages), the interface one page in
 -- three sections.
 local PAGES = {
+    -- 2026-11-20: named sections, so that the settings window shows them as tiles in two columns (keys = the
+    -- controls of the list, by locale key, in that order)
     {key = "evertallysharing", title = "sharingWebSection", icon = "icon-talk",
-        parts = {{tab = "setTabInGame", controls = "sharing"}, {tab = "setTabLive", controls = "live"}, {tab = "setTabWebsite", controls = "web"}}},
+        parts = {{tab = "setTabInGame", section = "setSecShare", controls = "sharing", keys = {"share", "group", "guild"}},
+            {tab = "setTabInGame", section = "setSecPeople", controls = "sharing", keys = {"socialEnabled", "presence"}},
+            {tab = "setTabInGame", section = "setSecAnnounce", controls = "sharing", keys = {"partyAnnounce", "bragPrompt"}},
+            {tab = "setTabLive", section = "setSecLive", controls = "live", keys = {"liveParty", "liveGuild", "liveFriends", "mapPins"}},
+            {tab = "setTabLive", section = "setSecGather", controls = "live",
+                keys = {"setupGather", "setupKind_herb", "setupKind_ore", "setupKind_fishing", "setupKind_container"}},
+            {tab = "setTabWebsite", section = "setSecWeb", controls = "web", keys = {"web", "liveWeb"}},
+            {tab = "setTabWebsite", section = "setSecApp", controls = "web", keys = {"bridgeAutostart", "setPairRow"}}}},
     {key = "evertallyinterface", title = "interfaceSection", icon = "window",
         parts = {{section = "setSecWindows", controls = "look"}, {section = "setSecQuests", controls = "tracker"},
             {section = "setSecTooltips", controls = "tooltips"}, {section = "setSecChat", controls = "chat"}}},
     -- 2026-11-19: what the setup asks about the bags (et-bags) and what the bag window's gear menu holds, in one place
-    {key = "evertallybags", title = "bagsSection", icon = "icon-treasure", parts = {{controls = "bags"}}},
+    {key = "evertallybags", title = "bagsSection", icon = "icon-treasure",
+        parts = {{section = "bwPickTitle", controls = "bags", keys = {"bwPickLabel"}},
+            {section = "setSecLoot", controls = "bags", keys = {"lootWindow"}},
+            {section = "setSecTracked", controls = "bags", keys = {"bwTrackHide"}},
+            {section = "setSecGear", controls = "bags", keys = {"bagHighlight"}},
+            {section = "bwCatsTitle", controls = "bags", keys = {"bwCats"}}}},
+    -- 2026-11-20: the damage meter, the threat meter and the loot sparkles (Meter.lua, ThreatMeter.lua, LootSparkles.lua)
+    {key = "evertallycombat", title = "combatSection", icon = "icon-kill",
+        parts = {{section = "setSecMeter", controls = "combat", keys = {"meterEnabled", "meterLock", "meterShow", "meterResetData"}},
+            {section = "setSecThreat", controls = "combat", keys = {"threatEnabled", "threatGroupOnly", "threatShow"}},
+            {section = "setSecSparkles", controls = "combat", keys = {"lootSparkles"}}}},
     {key = "evertallyplates", title = "nameplatesSection", icon = "layers"},
     {key = "evertallymusic", title = "musicSection", icon = "speaker"},
-    {key = "evertallyactions", title = "actionsSection", icon = "bolt", parts = {{controls = "actions"}}},
+    {key = "evertallyactions", title = "actionsSection", icon = "bolt",
+        parts = {{section = "setSecCheck", controls = "actions", keys = {"installVerify", "setupRun"}},
+            {section = "setSecSend", controls = "actions", keys = {"send", "export", "confirm"}},
+            {section = "setSecTools", controls = "actions", keys = {"drawerEdit"}}}},
     {key = "evertallydiagnostics", title = "diagnostics", icon = "bug"},
 }
 A.SettingsPages = PAGES
@@ -29,11 +51,19 @@ local setText = {
     en = {sharingWebSection = "Sharing & website", setTabInGame = "In game", setTabLive = "Live & map", setTabWebsite = "Website",
         setSecWindows = "Evertally's windows", setSecTooltips = "Tooltips and minimap", setSecChat = "Chat", setSecQuests = "Quests",
         bagsSection = "Bags", bwPickLabel = "Bags to use", uiScaleLabel = "Size of Evertally's window",
-        setPairRow = "Pair the app with the website"},
+        setPairRow = "Pair the app with the website",
+        setSecShare = "Sharing with players", setSecPeople = "People", setSecAnnounce = "Announcements", setSecLive = "Live position",
+        setSecGather = "Gathering on the map", setSecWeb = "Website", setSecApp = "Evertally app", setSecLoot = "Loot",
+        setSecTracked = "Tracked items", setSecGear = "Gear", setSecCheck = "Installation", setSecSend = "Sending and export",
+        setSecTools = "Tools"},
     cs = {sharingWebSection = "Sdílení a web", setTabInGame = "Ve hře", setTabLive = "Živě a mapa", setTabWebsite = "Web",
         setSecWindows = "Okna Evertally", setSecTooltips = "Tooltipy a minimapa", setSecChat = "Chat", setSecQuests = "Questy",
         bagsSection = "Batoh", bwPickLabel = "Který batoh používat", uiScaleLabel = "Velikost okna Evertally",
-        setPairRow = "Spárovat aplikaci s webem"},
+        setPairRow = "Spárovat aplikaci s webem",
+        setSecShare = "Sdílení s hráči", setSecPeople = "Lidé", setSecAnnounce = "Oznámení", setSecLive = "Živá poloha",
+        setSecGather = "Sbírání na mapě", setSecWeb = "Web", setSecApp = "Aplikace Evertally", setSecLoot = "Loot",
+        setSecTracked = "Sledované předměty", setSecGear = "Výbava", setSecCheck = "Instalace", setSecSend = "Odeslání a export",
+        setSecTools = "Nástroje"},
 }
 for lang, entries in pairs(setText) do for k, v in pairs(entries) do A.locale[lang][k] = v end end
 
@@ -290,9 +320,29 @@ local function chatControls()
     }
 end
 
+local function combatControls()
+    local Mt = function() return A.Meter end
+    local Th = function() return A.ThreatMeter end
+    local ms = function() return Mt() and Mt().Settings() or {} end
+    return {
+        toggle("meterEnabled", function() return Mt() and Mt().Enabled() end, function(v) if Mt() then Mt().SetEnabled(v) end end, false,
+            {help = A.L("meterEnabledHelp")}),
+        toggle("meterLock", function() return ms().locked == true end, function(v) if Mt() then Mt().SetLocked(v) end end, false),
+        button("meterShow", function() if Mt() then Mt().SetEnabled(true) end end),
+        button("meterResetData", function() if Mt() then Mt().Reset(); A.Print(A.L("mtResetDone")) end end, {confirm = true}),
+        toggle("threatEnabled", function() return Th() and Th().Enabled() end, function(v) if Th() then Th().SetEnabled(v) end end, false,
+            {help = A.L("threatEnabledHelp")}),
+        toggle("threatGroupOnly", function() return ms().threatGroupOnly == true end, function(v) ms().threatGroupOnly = v; if Th() then Th().Update() end end, false,
+            {child = true, disabled = function() return not (Th() and Th().Enabled()) end}),
+        button("threatShow", function() if Th() then Th().SetEnabled(true) end end),
+        toggle("lootSparkles", function() return A.LootSparkles and A.LootSparkles.Enabled() end,
+            function(v) if A.LootSparkles then A.LootSparkles.SetEnabled(v) end end, true, {help = A.L("lootSparklesHelp")}),
+    }
+end
+
 local function actionControls()
     return {
-        button("installVerify", function() A.VerifyInstallation(); A.ShowRequirements() end),
+        button("installVerify", function() A.VerifyInstallation(); A.ShowRequirements() end, {help = A.L("installLimited")}),
         button("send", function() local ok, err = A.ShareNow(); if not ok then A.Print(err or "sharing_error") end end),
         button("export", function() if A.ShowExportCopy then A.ShowExportCopy() end end),
         button("confirm", function() A.FinishRun("manual", "last_boss") end, {confirm = true}),
@@ -374,7 +424,7 @@ end
 -- ---------- registration ----------
 
 local CONTROLS = {sharing = sharingControls, live = liveControls, web = webControls, look = lookControls,
-    tracker = trackerControls, tooltips = tooltipControls, chat = chatControls, bags = bagControls, actions = actionControls}
+    tracker = trackerControls, tooltips = tooltipControls, chat = chatControls, bags = bagControls, combat = combatControls, actions = actionControls}
 local CUSTOM = {evertallyplates = platesPage, evertallymusic = musicPage, evertallydiagnostics = diagnosticsPage}
 local SUBTITLE = {evertallyactions = "pageActionHint"}
 
@@ -393,7 +443,15 @@ function A.SettingsSpecs()
                 for k, v in pairs(base) do spec[k] = v end
                 spec.tab = part.tab and A.L(part.tab) or nil
                 spec.section = part.section and A.L(part.section) or nil
-                spec.controls = CONTROLS[part.controls]()
+                local list = CONTROLS[part.controls]()
+                if part.keys then
+                    -- the controls named, in that order (each one exactly once on the page: tests check it)
+                    local byKey = {}
+                    for _, c in ipairs(list) do byKey[c.localeKey] = c end
+                    list = {}
+                    for _, key in ipairs(part.keys) do if byKey[key] then list[#list + 1] = byKey[key] end end
+                end
+                spec.controls = list
                 specs[#specs + 1] = spec
             end
         end

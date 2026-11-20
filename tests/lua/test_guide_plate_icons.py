@@ -1,7 +1,5 @@
-"""The guide's quest icon on enemy nameplates (Evertally_Guide/Quests/Tooltips.lua): a mob a quest item drops from
-carries a loot bag (Media/UI/quest-loot: the game's Fat Sack of Coins art with no background), a mob only to kill a
-sword (quest-kill: Worn Shortsword's), a mob with nothing open none. 2026-11-19: the user removed Questie and wants
-its two marks; the guide drew a skull for both."""
+"""The guide's enemy nameplates use Evertally's transparent loot bag for a
+loot objective, a sword for a kill objective, and no glyph for a completed objective."""
 from pathlib import Path
 import sys
 import unittest

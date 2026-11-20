@@ -1257,7 +1257,6 @@ end
 -- A texture under Media/UI by name; a full path (a skin's own glyph, Theme.Icon)
 -- is returned as it is.
 function Theme.Media(name)
-	if name == "icon-skull" then return "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8" end
 	if type(name) == "string" and name:find("[\\/]") then return name end
 	return MEDIA .. "UI\\" .. name
 end

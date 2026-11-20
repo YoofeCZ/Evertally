@@ -196,5 +196,30 @@ class SettingsSetupParityTests(unittest.TestCase):
         self.assertFalse(c.disabled())
 
 
+    def test_every_control_is_on_its_page_once_in_a_named_section(self):
+        seen = {}
+        for spec in self.specs:
+            if spec.custom:
+                continue
+            self.assertTrue(spec.section, (spec.key, spec.tab, "a named section: a tile"))
+            for i in range(1, len(spec.controls) + 1):
+                key = spec.controls[i].localeKey
+                seen[key] = seen.get(key, 0) + 1
+        self.assertEqual([k for k, n in seen.items() if n != 1], [], "a control twice")
+        for key in ("share", "group", "guild", "socialEnabled", "partyAnnounce", "bragPrompt", "presence", "liveParty", "liveGuild",
+                    "liveFriends", "mapPins", "setupGather", "setupKind_herb", "setupKind_ore", "setupKind_fishing",
+                    "setupKind_container", "web", "liveWeb", "bridgeAutostart", "setPairRow", "bwPickLabel", "lootWindow",
+                    "bwTrackHide", "bagHighlight", "bwCats", "installVerify", "send", "export", "confirm", "setupRun", "drawerEdit"):
+            self.assertIn(key, seen, "a control left out of the sections")
+
+    def test_the_settings_window_lays_sections_out_as_tiles_and_the_importer_keeps_it(self):
+        root = Path(__file__).resolve().parents[2]
+        options = (root / "addon" / "Evertally_Guide_Options" / "UI" / "Options.lua").read_text(encoding="latin-1")
+        body = options.split("local function layoutSections(view, groups, y, opts)", 1)[1].split("\nend\n", 1)[0]
+        self.assertIn("local tiles = not opts and tileW >= 330", body, "two columns when a tile is wide enough")
+        self.assertIn("colY[1] <= colY[2]", body, "each tile in the shorter column")
+        imp = (root / "tools" / "import_polestar.py").read_text(encoding="utf-8")
+        self.assertIn("# ---- 2026-11-20: the settings pages' sections as tiles in two columns", imp)
+
 if __name__ == "__main__":
     unittest.main()
