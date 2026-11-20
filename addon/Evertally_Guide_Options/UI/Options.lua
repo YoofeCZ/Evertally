@@ -856,7 +856,7 @@ local function buildAbout(view)
 	local aiNote = W.Text(view, "note", "textDim")
 	aiNote:SetWordWrap(true)
 	aiNote:SetJustifyH("LEFT")
-	aiNote:SetText(L["This translation was made with AI. Help improve it on Discord."])
+	aiNote:SetText(L["This translation was made with AI. Help improve it on the Evertally forum."])
 	local aiLink = W.Link(view, (ns.DiscordURL:gsub("^%a+://", "")), function() UI.ShowDiscord() end)
 	view.AINote, view.AILink = aiNote, aiLink
 	local function block(title, text)

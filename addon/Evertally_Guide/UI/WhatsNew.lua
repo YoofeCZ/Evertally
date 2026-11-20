@@ -159,7 +159,7 @@ WN.LATEST = NOTES[1].version
 
 local DELAY = 3 -- seconds after login: after the welcome's own delay, so a due welcome goes first
 local MAX_H = 440 -- the window's height at most (its size with five notes); more notes scroll
-local SITE = "polestar.guide"
+local SITE = "evertally.afstudio.dev" -- (Evertally)
 
 local F
 local pending -- nil | "login" | "asked": waiting for the moment it may open

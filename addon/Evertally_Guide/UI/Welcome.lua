@@ -2799,7 +2799,7 @@ PAGES[#PAGES + 1] = {
 		p.Beta = noteRow(p, "flag", "warning", L["Our routes are still in beta"])
 		p.Beta.Chip = W.Chip(p)
 		p.Beta.Chip:SetPoint("LEFT", p.Beta.Head, "RIGHT", 8, 0)
-		p.Discord = noteRow(p, "discord", "discord", L["Join us on Discord"])
+		p.Discord = noteRow(p, "icon-talk", "textMuted", L["Evertally forum"]) -- (Evertally: its forum)
 		-- The invite as a link (the scheme left off); a click opens the copy
 		-- window holding it, since the game cannot open links.
 		F.Discord = W.Link(p, (ns.DiscordURL:gsub("^%a+://", "")), function() UI.ShowDiscord() end)

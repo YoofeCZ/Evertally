@@ -1238,13 +1238,9 @@ local function layout()
 		put(F.SettingsNote, TEXT_X, y)
 		y = y + F.SettingsNote:GetStringHeight()
 	end
-	y = y + 16
-	put(F.GitHubRule, PAD, y)
-	y = y + 1 + 12
-	-- One row: the note beside its button, centred on each other.
-	put(F.GitHubNote, PAD, y + floor((row - nh) / 2 + 0.5))
-	put(F.GitHub, WIDTH - PAD - bw, y + floor((row - bh) / 2 + 0.5))
-	y = y + row
+	-- (Evertally: no GitHub row; the reports go to its forum)
+	F.GitHubRule:Hide(); F.GitHubNote:Hide(); F.GitHub:Hide()
+	y = y + 8
 	F:SetHeight(floor(y + PAD + 0.5))
 end
 
@@ -1564,12 +1560,12 @@ local function build()
 	F.DiscordNote:SetWidth(WIDTH - TEXT_X - PAD)
 	F.DiscordNote:SetJustifyH("LEFT")
 	F.DiscordNote:SetWordWrap(true)
-	F.DiscordNote:SetText(L["1. Press Copy report, then Ctrl+C (Cmd+C on a Mac).\n2. In the Evertally Discord, open #bugs and press New Post. Not in it yet? Get the invite.\n3. Paste the report, give it a short title and post it. A bot files it for the developers and tells you in your thread when it's fixed."])
+	F.DiscordNote:SetText(L["1. Press Copy report, then Ctrl+C (Cmd+C on a Mac).\n2. On the Evertally website, open Community and start a new thread. Open the forum gives you its address.\n3. Paste the report, give it a short title and post it."])
 	F.Copy = W.Button(F, L["Copy report"], copyReport, { primary = true })
 	-- The game opens no links, so the invite is one more copy: only for a
 	-- player who has not joined yet, in the copy window, never here beside
 	-- the report.
-	F.Invite = W.Button(F, L["Get the invite"], function() UI.ShowDiscord() end)
+	F.Invite = W.Button(F, L["Open the forum"], function() UI.ShowDiscord() end)
 
 	-- GitHub, for a player who has an account: the same report in a filled-in
 	-- issue (R.IssueURL).
@@ -1634,9 +1630,9 @@ end
 
 -- The Polestar Discord's invite, in the copy window with Discord's mark.
 function UI.ShowDiscord()
-	UI.ShowCopy(L["Evertally on Discord"], ns.DiscordURL, {
-		icon = "discord", iconColor = "discord",
-		hint = L["Report problems, ask for help and hear about new guides first. The invite is selected for you: copy it with Ctrl+C (Cmd+C on a Mac) and open it in your browser."],
+	UI.ShowCopy(L["Evertally forum"], ns.DiscordURL, {
+		icon = "icon-talk", iconColor = "textMuted",
+		hint = L["Report problems and ask for help on the Evertally website. The address is selected for you: copy it with Ctrl+C (Cmd+C on a Mac) and open it in your browser."],
 	})
 end
 
@@ -1644,6 +1640,7 @@ end
 -- options window): Discord's mark in its own colour at the end of the
 -- version line, the invite on a click. Built once per shell.
 function R.SidebarLink(f)
+	do return end -- (Evertally: no Discord mark in the sidebars)
 	if rawget(f, "Discord") or not rawget(f, "Sidebar") then return end
 	local b = W.IconButton(f.Sidebar, "discord", 28, nil, function() UI.ShowDiscord() end, 20)
 	W.Color(b.Icon, "discord")

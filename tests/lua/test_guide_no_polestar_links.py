@@ -28,5 +28,35 @@ class NoPolestarLinksTests(unittest.TestCase):
             self.assertIn(f"_more('{rel}'", block)
 
 
+    def test_forum_instead_of_polestars_discord_github_and_site(self):
+        init = (FORK / "Core" / "Init.lua").read_text(encoding="latin-1")
+        self.assertIn('ns.DiscordURL = "https://evertally.afstudio.dev/#forum"', init)
+        self.assertNotIn("discord.gg", init)
+        update = (FORK / "Core" / "Update.lua").read_text(encoding="latin-1")
+        body = update.split("function U.ReleaseURL(v)", 1)[1].split("\nend", 1)[0]
+        self.assertIn('return "https://evertally.afstudio.dev"', body)
+        self.assertNotIn("fitzforge", body)
+        self.assertIn('local SITE = "evertally.afstudio.dev"', (FORK / "UI" / "WhatsNew.lua").read_text(encoding="latin-1"))
+        report = (FORK / "UI" / "Report.lua").read_text(encoding="latin-1")
+        self.assertIn("F.GitHubRule:Hide(); F.GitHubNote:Hide(); F.GitHub:Hide()", report)
+        self.assertNotIn("put(F.GitHub,", report)
+        self.assertIn('UI.ShowCopy(L["Evertally forum"], ns.DiscordURL', report)
+        sidebar = report.split("function R.SidebarLink(f)", 1)[1]
+        self.assertTrue(sidebar.lstrip().startswith("do return end"), "no Discord mark in the sidebars")
+        welcome = (FORK / "UI" / "Welcome.lua").read_text(encoding="latin-1")
+        self.assertNotIn('L["Join us on Discord"]', welcome)
+        options = (ROOT / "addon" / "Evertally_Guide_Options" / "UI" / "Options.lua").read_text(encoding="latin-1")
+        self.assertNotIn("Help improve it on Discord.", options)
+
+    def test_the_new_texts_are_in_czech_and_the_importer_keeps_them(self):
+        cs = (ROOT / "addon" / "Evertally_Guide_csCZ" / "Interface.lua").read_text(encoding="utf-8")
+        for key in ("Open the forum", "Evertally forum", "This translation was made with AI. Help improve it on the Evertally forum."):
+            self.assertIn(f'L["{key}"] = ', cs)
+        imp = (ROOT / "tools" / "import_polestar.py").read_text(encoding="utf-8")
+        block = imp.split("# ---- 2026-11-20: Evertally's forum instead of Polestar's", 1)[1].split("\ndef ", 1)[0]
+        for rel in ("Core/Init.lua", "Core/Update.lua", "UI/WhatsNew.lua", "UI/Report.lua", "UI/Welcome.lua", "UI/Options.lua"):
+            self.assertIn(f"_more('{rel}'", block)
+        self.assertIn("'Evertally forum':", imp)
+
 if __name__ == "__main__":
     unittest.main()

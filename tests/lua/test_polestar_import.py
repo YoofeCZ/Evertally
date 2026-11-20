@@ -131,7 +131,7 @@ class PolestarImportTests(unittest.TestCase):
         self.assertEqual(importer.string_literal('"Usage: /polestar way <x> <y>"'), '"Usage: /etguide way <x> <y>"')
         self.assertEqual(importer.string_literal('"https://discord.gg/polestar"'), '"https://discord.gg/polestar"')
         init = (ADDONS / "Evertally_Guide" / "Core" / "Init.lua").read_text(encoding="latin-1")
-        self.assertIn('ns.DiscordURL = "https://discord.gg/Mjmj8gmAPT"', init, "the fork links Evertally's Discord")
+        self.assertIn('ns.DiscordURL = "https://evertally.afstudio.dev/#forum"', init, "the fork links Evertally's forum (2026-11-20)")
         dungeons = (ADDONS / "Evertally_Guide" / "UI" / "Dungeons.lua").read_text(encoding="latin-1")
         self.assertIn('if false and UI.RegisterSection then\n\tUI.RegisterSection({\n\t\tkey = "Dungeons"', dungeons, "no Dungeons on the rail")
         self.assertIn("E.OpenGuideDungeon(key)", dungeons, "SHOW_DUNGEON opens Evertally's Dungeon Journal")

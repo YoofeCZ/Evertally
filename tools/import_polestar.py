@@ -487,6 +487,17 @@ EXTRA_CS = {
         "Evertally Guide vychází z Polestaru a je na něm postavený: engine průvodce i návody na levelování jsou práce autorů Polestaru (github.com/fitzforge/polestar, GPL-3.0). Děkujeme.",
     "Leveling guides, the guide engine and its data: Polestar by the Polestar authors (GPL-3.0).":
         "Návody na levelování, engine průvodce a jeho data: Polestar od autorů Polestaru (GPL-3.0).",
+    # 2026-11-20: Evertally's forum instead of Polestar's Discord and GitHub
+    '1. Press Copy report, then Ctrl+C (Cmd+C on a Mac).\n2. On the Evertally website, open Community and start a new thread. Open the forum gives you its address.\n3. Paste the report, give it a short title and post it.':
+        '1. Stiskni Kopírovat hlášení, pak Ctrl+C (na Macu Cmd+C).\n2. Na webu Evertally otevři Komunitu a založ nové vlákno. Adresu dá tlačítko Otevřít fórum.\n3. Vlož hlášení, dej mu krátký název a odešli.',
+    'Open the forum':
+        'Otevřít fórum',
+    'Evertally forum':
+        'Fórum Evertally',
+    'Report problems and ask for help on the Evertally website. The address is selected for you: copy it with Ctrl+C (Cmd+C on a Mac) and open it in your browser.':
+        'Problémy hlas a o pomoc žádej na webu Evertally. Adresa je označená: zkopíruj ji Ctrl+C (na Macu Cmd+C) a otevři v prohlížeči.',
+    'This translation was made with AI. Help improve it on the Evertally forum.':
+        'Tento překlad vznikl s pomocí AI. Pomoz ho vylepšit na fóru Evertally.',
 }
 
 # Slash commands: Polestar's own words would clash with an installed Polestar (the game picks one of the two).
@@ -627,6 +638,34 @@ _more('UI/Import.lua',
 _more('UI/Packs.lua',
       ('\t\t\tdocsLabel:SetText(L["Read more: docs/GUIDE_PACKS.md in Evertally\'s source"])\n',
        '\t\t\tdocsLabel:SetText("") -- (Evertally: no pointer to Polestar\'s docs)\n', 1))
+
+# ---- 2026-11-20: Evertally's forum instead of Polestar's Discord, GitHub and site (report window, welcome, sidebars) ----
+_more('Core/Init.lua',
+      ('ns.DiscordURL = "https://discord.gg/Mjmj8gmAPT"',
+       'ns.DiscordURL = "https://evertally.afstudio.dev/#forum" -- (Evertally: its own forum, not Polestar\'s Discord)', 1))
+_more('Core/Update.lua',
+      ('\tlocal base = "https://github.com/fitzforge/polestar/releases"\n\treturn v and (base .. "/tag/v" .. v) or (base .. "/latest")\n',
+       '\tdo return "https://evertally.afstudio.dev" end -- (Evertally: its website, not Polestar\'s releases)\n', 1))
+_more('UI/WhatsNew.lua',
+      ('local SITE = "polestar.guide"',
+       'local SITE = "evertally.afstudio.dev" -- (Evertally)', 1))
+_more('UI/Report.lua',
+      ('L["1. Press Copy report, then Ctrl+C (Cmd+C on a Mac).\\n2. In the Evertally Discord, open #bugs and press New Post. Not in it yet? Get the invite.\\n3. Paste the report, give it a short title and post it. A bot files it for the developers and tells you in your thread when it\'s fixed."]',
+       'L["1. Press Copy report, then Ctrl+C (Cmd+C on a Mac).\\n2. On the Evertally website, open Community and start a new thread. Open the forum gives you its address.\\n3. Paste the report, give it a short title and post it."]', 1),
+      ('L["Get the invite"]',
+       'L["Open the forum"]', 1),
+      ('\tUI.ShowCopy(L["Evertally on Discord"], ns.DiscordURL, {\n\t\ticon = "discord", iconColor = "discord",\n\t\thint = L["Report problems, ask for help and hear about new guides first. The invite is selected for you: copy it with Ctrl+C (Cmd+C on a Mac) and open it in your browser."],\n',
+       '\tUI.ShowCopy(L["Evertally forum"], ns.DiscordURL, {\n\t\ticon = "icon-talk", iconColor = "textMuted",\n\t\thint = L["Report problems and ask for help on the Evertally website. The address is selected for you: copy it with Ctrl+C (Cmd+C on a Mac) and open it in your browser."],\n', 1),
+      ('\tif rawget(f, "Discord") or not rawget(f, "Sidebar") then return end\n',
+       '\tdo return end -- (Evertally: no Discord mark in the sidebars)\n\tif rawget(f, "Discord") or not rawget(f, "Sidebar") then return end\n', 1),
+      ('\ty = y + 16\n\tput(F.GitHubRule, PAD, y)\n\ty = y + 1 + 12\n\t-- One row: the note beside its button, centred on each other.\n\tput(F.GitHubNote, PAD, y + floor((row - nh) / 2 + 0.5))\n\tput(F.GitHub, WIDTH - PAD - bw, y + floor((row - bh) / 2 + 0.5))\n\ty = y + row\n',
+       '\t-- (Evertally: no GitHub row; the reports go to its forum)\n\tF.GitHubRule:Hide(); F.GitHubNote:Hide(); F.GitHub:Hide()\n\ty = y + 8\n', 1))
+_more('UI/Welcome.lua',
+      ('p.Discord = noteRow(p, "discord", "discord", L["Join us on Discord"])',
+       'p.Discord = noteRow(p, "icon-talk", "textMuted", L["Evertally forum"]) -- (Evertally: its forum)', 1))
+_more('UI/Options.lua',
+      ('L["This translation was made with AI. Help improve it on Discord."]',
+       'L["This translation was made with AI. Help improve it on the Evertally forum."]', 1))
 
 def folder_name(name: str) -> str:
     return "Evertally_Guide" + name[len("Polestar"):]
