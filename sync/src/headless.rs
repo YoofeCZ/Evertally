@@ -52,6 +52,8 @@ fn tray_library_available() -> bool {
 /// # Errors
 /// Fails only when the worker thread cannot be started.
 pub fn run(texts: &'static Texts, paths: Paths, config: Config, origin: String) -> anyhow::Result<()> {
+    // before the worker loads the token: the keyring may not be running in game mode
+    crate::platform::prefer_token_file();
     let status_path = paths.dir.join(crate::bridge::STATUS_FILE);
     // the website the status is written for, and the newest state the worker published
     let shared: Arc<Mutex<(String, Option<UiState>)>> = Arc::new(Mutex::new((origin.clone(), None)));

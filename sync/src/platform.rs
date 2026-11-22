@@ -373,6 +373,18 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
     Ok(())
 }
 
+/// Set by the bridge running without a desktop session (no tray: SteamOS, its game mode, a systemd
+/// service). The keyring there is often locked or not running at all (KWallet lives in the KDE session),
+/// so the token is kept in the private `0600` file, which every mode can read.
+#[cfg(not(windows))]
+static PREFER_TOKEN_FILE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Keep the device token in the private settings file instead of the system keyring (see [`TokenStore`]).
+#[cfg(not(windows))]
+pub fn prefer_token_file() {
+    PREFER_TOKEN_FILE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Device token in the OS credential store (Windows Credential Manager, macOS Keychain, the Secret
 /// Service on Linux), keyed by server. A Linux session without a Secret Service (headless, no keyring
 /// daemon) falls back to a private `0600` file in the settings folder instead of failing to pair.
@@ -417,24 +429,41 @@ impl TokenStore {
         file.write_all(token.as_bytes()).context("store device token")
     }
 
+    #[cfg(not(windows))]
+    fn read_fallback(&self) -> Option<String> {
+        let text = std::fs::read_to_string(self.fallback_file()?).ok()?;
+        let token = text.trim();
+        (!token.is_empty()).then(|| token.to_owned())
+    }
+
     #[must_use]
     pub fn load(&self) -> Option<String> {
+        #[cfg(not(windows))]
+        if PREFER_TOKEN_FILE.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(token) = self.read_fallback() {
+                return Some(token);
+            }
+            // paired earlier in a desktop session: moved into the file once, so game mode finds it too
+            let token = self.entry().ok().and_then(|entry| entry.get_password().ok())?;
+            let _ = self.write_fallback(&token);
+            return Some(token);
+        }
         let stored = self
             .entry()
             .ok()
             .and_then(|entry| entry.get_password().ok());
         #[cfg(not(windows))]
-        let stored = stored.or_else(|| {
-            let text = std::fs::read_to_string(self.fallback_file()?).ok()?;
-            let token = text.trim();
-            (!token.is_empty()).then(|| token.to_owned())
-        });
+        let stored = stored.or_else(|| self.read_fallback());
         stored
     }
 
     /// # Errors
     /// Fails when neither the credential store nor (off Windows) the fallback file accepts the write.
     pub fn save(&self, token: &str) -> Result<()> {
+        #[cfg(not(windows))]
+        if PREFER_TOKEN_FILE.load(std::sync::atomic::Ordering::Relaxed) {
+            return self.write_fallback(token);
+        }
         let stored = self
             .entry()
             .and_then(|entry| entry.set_password(token).context("store device token"));
