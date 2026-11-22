@@ -13,6 +13,8 @@ pub mod config;
 pub mod forum;
 pub mod game;
 pub mod game_requests;
+#[cfg(all(feature = "tray", target_os = "linux"))]
+mod headless;
 pub mod lang;
 pub mod local;
 pub mod music;
@@ -53,8 +55,10 @@ pub fn run() -> anyhow::Result<()> {
     let paths = Paths::new()?;
     // The first run (no prefs.json and no config.json yet): the guide opens beside the tray. Asked before the config
     // below is written, and kept, so that the guide's window finds it too.
+    // A service started at login (maybe in SteamOS game mode) never opens a window by itself.
+    let service = std::env::args().any(|arg| arg == "--headless");
     let prefs = crate::prefs::load(&paths.dir);
-    if !prefs.onboarded {
+    if !prefs.onboarded && !service {
         let _ = crate::prefs::save(&paths.dir, &prefs);
         if let Ok(exe) = std::env::current_exe() {
             let _ = std::process::Command::new(exe).arg("--connection-settings").spawn();
@@ -80,6 +84,11 @@ pub fn run() -> anyhow::Result<()> {
 
     // one notification after the app replaced itself with a newer version
     crate::app_update::announce_if_updated(&paths.dir, env!("CARGO_PKG_VERSION"));
+    // Linux without a usable tray (SteamOS has no AppIndicator, game mode no desktop): same bridge, no icon.
+    #[cfg(target_os = "linux")]
+    if headless::wanted() {
+        return headless::run(texts, paths, config, origin);
+    }
     let (tx, rx) = mpsc::channel();
     #[allow(unused_mut)] // only the macOS branch below mutates it
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();

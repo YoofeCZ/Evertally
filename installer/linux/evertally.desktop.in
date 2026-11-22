@@ -2,7 +2,7 @@
 Type=Application
 Name=Evertally Bridge
 Comment=Connects World of Warcraft Forever with the Evertally website
-Exec="@EXEC@"
+Exec="@EXEC@" --connection-settings
 Icon=evertally
 Terminal=false
 Categories=Utility;Game;

@@ -6,6 +6,13 @@ data="${XDG_DATA_HOME:-$HOME/.local/share}"
 config="${XDG_CONFIG_HOME:-$HOME/.config}"
 prefix="$data/evertally"
 
+units="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+if [ -f "$units/evertally-bridge.service" ]; then
+    systemctl --user disable --now evertally-bridge.service >/dev/null 2>&1 || true
+    rm -f "$units/evertally-bridge.service"
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
+fi
+
 for program in EvertallyBackground Evertally; do
     [ -x "$prefix/$program" ] && "$prefix/$program" --stop >/dev/null 2>&1 || true
 done
