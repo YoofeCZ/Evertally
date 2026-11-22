@@ -1,0 +1,57 @@
+name: Evertally Bridge
+
+# Builds, tests and packages the bridge (sync/ + desktop/native/) on Windows, Linux and macOS.
+on:
+  push:
+    branches: [main]
+    paths: ["sync/**", "desktop/**", "installer/**", "Build-Release.sh", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["sync/**", "desktop/**", "installer/**", "Build-Release.sh", ".github/workflows/desktop.yml"]
+
+jobs:
+  bridge:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Linux system libraries (tray icon, windowing)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-3-dev libayatana-appindicator3-dev libxdo-dev \
+            libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libgl1-mesa-dev libegl1-mesa-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            sync
+            desktop/native
+      - name: sync - tests and clippy
+        working-directory: sync
+        shell: bash
+        run: |
+          rc=0
+          ../.github/ci-run.sh cargo test --lib || rc=1
+          ../.github/ci-run.sh cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
+      - name: desktop - tests and clippy
+        working-directory: desktop/native
+        shell: bash
+        run: |
+          rc=0
+          ../../.github/ci-run.sh cargo test || rc=1
+          ../../.github/ci-run.sh cargo clippy --all-targets -- -D warnings || rc=1
+          exit $rc
+      - name: Package (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: ./Build-Release.sh
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'Windows'
+        with:
+          name: evertally-bridge-${{ runner.os }}
+          path: releases/Evertally-*
