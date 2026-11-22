@@ -500,7 +500,11 @@ impl Worker {
             let tx = self.tx.clone();
             let watcher =
                 notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
-                    if let Ok(event) = result {
+                    // Linux (inotify) also reports reads; the bridge reading the forum outbox would
+                    // otherwise wake itself every few seconds and ask the server again and again.
+                    if let Ok(event) = result
+                        && !event.kind.is_access()
+                    {
                         for path in event
                             .paths
                             .into_iter()
